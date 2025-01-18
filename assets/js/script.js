@@ -9,7 +9,7 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
     const users = [
         { username: 'trombone1727', password: 'hvPNh8qZ' },
         { username: 'Yoshihito', password: 'yoshi1229' },
-        { username: 'Ayakawa', password: 'tXdQb8bfjBa6'}
+        { username: 'Ayakawa', password: 'tXdQb8bfjBa6' },
     ];
 
     // ログイン情報を検証
