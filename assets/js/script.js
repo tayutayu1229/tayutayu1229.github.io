@@ -18,7 +18,7 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
     if (user) {
         // ログイン成功
         alert('ログインに成功しました！');
-        window.location.href = ./'TOKYO-ATAMI.html'; // メインページへ遷移
+        window.location.href = './TOKYO-ATAMI.html'; // メインページへ遷移
     } else {
         // ログイン失敗
         document.getElementById('error-message').style.display = 'block';
