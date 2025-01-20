@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.5">
+    <title>運行情報</title>
+    <script type="text/javascript">
+        // 運行情報を取得して表示するJavaScriptコード
+        function fetchTrainInfo() {
+            const token = "YOUR_ACCESS_TOKEN"; // ここにアクセス・トークンを挿入
+            const url = `https://api-challenge2024.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let output = "";
+                    data.forEach(train_info => {
+                        const text = train_info["odpt:trainInformationText"]?.ja || "情報なし";
+                        const range = train_info["odpt:trainInformationRange"]?.ja || "範囲なし";
+                        const cause = train_info["odpt:trainInformationCause"]?.ja || "原因不明";
+                        const status = train_info["odpt:trainInformationStatus"]?.ja || "状態不明";
+
+                        output += `
+                            <div>
+                                <h3>運行情報</h3>
+                                <p><strong>情報:</strong> ${text}</p>
+                                <p><strong>範囲:</strong> ${range}</p>
+                                <p><strong>原因:</strong> ${cause}</p>
+                                <p><strong>状態:</strong> ${status}</p>
+                                <hr>
+                            </div>
+                        `;
+                    });
+
+                    document.getElementById("train-info").innerHTML = output;
+                })
+                .catch(error => {
+                    console.error("エラー:", error);
+                    document.getElementById("train-info").innerHTML = "<p>データの取得に失敗しました。</p>";
+                });
+        }
+
+        window.onload = fetchTrainInfo;  // ページ読み込み時に運行情報を取得
+    </script>
+</head>
+<body>
+    <main>
+        <h1>運行情報</h1>
+        <div id="train-info">
+            <!-- 運行情報がここに表示されます -->
+        </div>
+    </main>
+    <br>
+    <button onclick="window.history.back()">戻る</button>  <!-- 前のページに戻るボタン -->
+</body>
+</html>
