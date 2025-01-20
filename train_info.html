@@ -33,6 +33,16 @@
             margin: 0 auto;
             max-width: 800px;
         }
+        .filter-container {
+            text-align: center; 
+            margin-bottom: 15px; 
+            background-color: #f9f9f9; 
+            padding: 10px; 
+            border-radius: 5px;
+        }
+        .filter-container label {
+            margin-right: 15px;
+        }
         .train-card {
             background-color: #fff;
             border: 1px solid #ddd;
@@ -49,23 +59,23 @@
             margin: 5px 0;
         }
         .status-normal {
-            background-color: #d4edda; /* 緑系の背景色 */
-            border-left: 5px solid #28a745; /* 緑系のボーダー */
+            background-color: #d4edda;
+            border-left: 5px solid #28a745;
         }
         .status-delay {
-            background-color: #fff3cd; /* 黄色系の背景色 */
-            border-left: 5px solid #ffc107; /* 黄色系のボーダー */
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
         }
         .status-suspend {
-            background-color: #f8d7da; /* 赤系の背景色 */
-            border-left: 5px solid #dc3545; /* 赤系のボーダー */
+            background-color: #f8d7da;
+            border-left: 5px solid #dc3545;
         }
         .status-notice {
-            background-color: #d1ecf1; /* 水色系の背景色 */
-            border-left: 5px solid #17a2b8; /* 水色系のボーダー */
+            background-color: #d1ecf1;
+            border-left: 5px solid #17a2b8;
         }
         button {
-            background-color: #01977a; /* メインカラー */
+            background-color: #01977a;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -74,10 +84,10 @@
             border-radius: 4px;
             transition: background-color 0.3s ease-in-out;
             display: block;
-            margin: 20px auto; /* 中央揃え */
+            margin: 20px auto;
         }
         button:hover {
-            background-color: #017a64; /* ホバー時の少し暗い色 */
+            background-color: #017a64;
         }
         footer {
             text-align: center;
@@ -94,15 +104,65 @@
                 width: calc(100% - 40px);
                 padding: 12px;
                 font-size: 18px;
-                margin-left:auto;margin-right:auto
-			}
-		}
-
+                margin-left:auto;
+                margin-right:auto;
+            }
+        }
     </style>
+</head>
+<body>
+    <header>
+        <h1>運行把握モニタ</h1>
+    </header>
+
+    <button onclick="window.location.href='TOKYO-ATAMI.html'">駅列車在線モニタに戻る</button>
+    <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+
+    <main>
+        <div id="train-info">
+            <!-- 運行情報がここに表示されます -->
+        </div>
+    </main>
+
+    <br>
+
+    <button onclick="window.location.href='TOKYO-ATAMI.html'">駅列車在線モニタに戻る</button>
+    <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+
+    <footer>
+        <p>&copy; 2025 H・N／たゆたゆ運行情報取得システム</p>
+    </footer>
+
     <script>
+        function createFilterCheckboxes() {
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'filter-container';
+            filterDiv.innerHTML = `
+                <label>
+                    <input type="checkbox" id="hide-no-info"> 平常運転の線区を非表示
+                </label>
+            `;
+            document.querySelector('main').insertBefore(filterDiv, document.getElementById('train-info'));
+
+            const checkboxes = filterDiv.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', fetchTrainInfo);
+            });
+        }
+
         function fetchTrainInfo() {
             const token = "4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d";
             const url = `https://api-challenge2024.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`;
+
+            function shouldDisplayTrain(status) {
+                const hideNormalCheckbox = document.getElementById('hide-normal');
+                const hideNoInfoCheckbox = document.getElementById('hide-no-info');
+
+                if (hideNormalCheckbox && hideNormalCheckbox.checked && status === '平常運転') return false;
+                if (hideNoInfoCheckbox && hideNoInfoCheckbox.checked && status === '情報なし') return false;
+
+                return true;
+            }
 
             const railwayMap = {
                 "JR-East.Chuo": "中央線",
@@ -113,23 +173,26 @@
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    // ソート順序を定義
                     const statusPriority = {
                         '運転見合わせ': 1,
                         '遅延': 2,
                         '平常運転': 3,
-                        'お知らせ': 4 // お知らせを追加
+                        'お知らせ': 4
                     };
 
-                    // ソート
                     data.sort((a, b) => {
                         const statusA = statusPriority[a["odpt:trainInformationStatus"]?.ja] || 99;
                         const statusB = statusPriority[b["odpt:trainInformationStatus"]?.ja] || 99;
                         return statusA - statusB;
                     });
 
+                    const filteredData = data.filter(train_info => {
+                        const status = train_info["odpt:trainInformationStatus"]?.ja || "情報なし";
+                        return shouldDisplayTrain(status);
+                    });
+
                     let output = '';
-                    data.forEach(train_info => {
+                    filteredData.forEach(train_info => {
                         const status = train_info["odpt:trainInformationStatus"]?.ja || "情報なし";
                         const cause = train_info["odpt:trainInformationCause"]?.ja || "情報なし";
                         let railway = train_info["odpt:railway"]?.replace("odpt.Railway:", "") || "情報なし";
@@ -144,7 +207,7 @@
                             statusClass = 'status-delay';
                         } else if (status.includes('運転見合わせ')) {
                             statusClass = 'status-suspend';
-                        } else if (status.includes('お知らせ')) { // お知らせの場合
+                        } else if (status.includes('お知らせ')) {
                             statusClass = 'status-notice';
                         }
 
@@ -165,25 +228,10 @@
                 });
         }
 
-        window.onload = fetchTrainInfo;
+        window.onload = function() {
+            createFilterCheckboxes();
+            fetchTrainInfo();
+        };
     </script>
-</head>
-<body>
-    <header>
-        <h1>運行把握モニタ</h1>
-    </header>
-	<button onclick="window.location.href='TOKYO-ATAMI.html'">駅列車在線モニタに戻る</button>
-	<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-    <main>
-        <div id="train-info">
-            <!-- 運行情報がここに表示されます -->
-        </div>
-    </main>
-    <br>
-    <button onclick="window.location.href='TOKYO-ATAMI.html'">駅列車在線モニタに戻る</button>
-	<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-    <footer>
-        <p>&copy; 2025 H・N／たゆたゆ運行情報取得システム</p>
-    </footer>
 </body>
 </html>
