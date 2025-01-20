@@ -37,7 +37,6 @@
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            margin: 5px;
         }
         button:hover {
             background-color: #017a64;
@@ -60,52 +59,47 @@
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* 既存のスタイル */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #01977a;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
         <h1>運転計画モニタ</h1>
-		<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
         <div class="controls">
             <input type="date" id="date-picker">
-            <div>
-                <button onclick="fetchEvents()">予定を取得</button>
-                <button onclick="showAllEvents()">全ての予定を表示</button>
-            </div>
+            <button onclick="fetchEvents()">予定を取得</button>
+            <button onclick="showAllEvents()">全ての予定を表示</button>
         </div>
-        <div id="filtered-events">
-            <h2>選択日の予定</h2>
-            <table id="events-table">
-                <thead>
-                    <tr>
-                        <th>日付</th>
-                        <th>タイトル</th>
-                        <th>説明</th>
-                    </tr>
-                </thead>
-                <tbody id="events-body">
-                </tbody>
-            </table>
-        </div>
-        <div id="all-events" style="display: none;">
-            <h2>全ての予定一覧</h2>
-            <table id="all-events-table">
-                <thead>
-                    <tr>
-                        <th>日付</th>
-                        <th>内容</th>
-                    </tr>
-                </thead>
-                <tbody id="all-events-body">
-                </tbody>
-            </table>
-        </div>
+        <div id="events-container"></div>
+        <div id="error-message" class="error-message"></div>
     </div>
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
         const API_KEY = 'AIzaSyAfJghircP0PcuGyDB3g8RgYm_cx5KhgYI';
         const CLIENT_ID = '178325056160-6mtl7jmh883gp7m75vuhmd49r7q3mt81.apps.googleusercontent.com';
+
         const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"];
         const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
 
@@ -114,31 +108,46 @@
         }
 
         function initClient() {
+            console.log('Initializing client...');
             gapi.client.init({
                 apiKey: API_KEY,
                 clientId: CLIENT_ID,
                 discoveryDocs: DISCOVERY_DOCS,
                 scope: SCOPES
             }).then(function () {
+                console.log('Client initialized');
                 gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
                 updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
             }, function(error) {
-                console.log(JSON.stringify(error, null, 2));
+                console.error('Error initializing client:', error);
+                showError('初期化エラー: ' + error.details);
             });
         }
 
         function updateSigninStatus(isSignedIn) {
+            console.log('Sign-in status:', isSignedIn);
             if (!isSignedIn) {
-                gapi.auth2.getAuthInstance().signIn();
+                gapi.auth2.getAuthInstance().signIn().catch(function(error) {
+                    console.error('Sign-in error:', error);
+                    showError('サインインに失敗しました: ' + error.error);
+                });
             }
         }
 
         function fetchEvents() {
-            const date = document.getElementById('date-picker').value;
-            if (!date) {
-                alert('日付を選択してください');
+            if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+                showError('サインインしていません。再度お試しください。');
                 return;
             }
+
+            const date = document.getElementById('date-picker').value;
+            if (!date) {
+                showError('日付を選択してください');
+                return;
+            }
+
+            showLoader();
+            console.log('Fetching events for date:', date);
 
             const startDate = new Date(date);
             const endDate = new Date(startDate);
@@ -152,61 +161,95 @@
                 'singleEvents': true,
                 'orderBy': 'startTime'
             }).then(function(response) {
+                console.log('Events retrieved:', response.result.items);
+                hideLoader();
                 const events = response.result.items;
-                updateTable(events);
-                document.getElementById('filtered-events').style.display = 'block';
-                document.getElementById('all-events').style.display = 'none';
+                displayEvents(events, '選択日の予定');
+            }, function(error) {
+                console.error('Error fetching events:', error);
+                hideLoader();
+                showError('予定の取得に失敗しました: ' + error.result.error.message);
             });
         }
 
         function showAllEvents() {
+            if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+                showError('サインインしていません。再度お試しください。');
+                return;
+            }
+
+            showLoader();
+            console.log('Fetching all events');
+
             gapi.client.calendar.events.list({
                 'calendarId': 'primary',
                 'timeMin': (new Date()).toISOString(),
                 'showDeleted': false,
                 'singleEvents': true,
-                'maxResults': 100,
+                'maxResults': 250,
                 'orderBy': 'startTime'
             }).then(function(response) {
+                console.log('All events retrieved:', response.result.items);
+                hideLoader();
                 const events = response.result.items;
-                updateAllEventsTable(events);
-                document.getElementById('filtered-events').style.display = 'none';
-                document.getElementById('all-events').style.display = 'block';
+                displayEvents(events, '全ての予定');
+            }, function(error) {
+                console.error('Error fetching all events:', error);
+                hideLoader();
+                showError('予定の取得に失敗しました: ' + error.result.error.message);
             });
         }
+        function displayEvents(events, title) {
+            const container = document.getElementById('events-container');
+            container.innerHTML = '';
+            
+            const h2 = document.createElement('h2');
+            h2.textContent = title;
+            container.appendChild(h2);
 
-        function updateTable(events) {
-            const tableBody = document.getElementById('events-body');
-            tableBody.innerHTML = '';
-            events.forEach(event => {
-                const row = tableBody.insertRow();
-                const dateCell = row.insertCell(0);
-                const titleCell = row.insertCell(1);
-                const descriptionCell = row.insertCell(2);
+            if (events.length === 0) {
+                container.innerHTML += '<p>予定はありません。</p>';
+                return;
+            }
 
-                const startDateTime = new Date(event.start.dateTime || event.start.date);
-                dateCell.textContent = startDateTime.toLocaleString();
-                titleCell.textContent = event.summary;
-                descriptionCell.textContent = event.description || '';
+            const table = document.createElement('table');
+            const headerRow = table.insertRow();
+            ['日付', '時間', '予定'].forEach(text => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                headerRow.appendChild(th);
             });
+
+            events.forEach(event => {
+                const row = table.insertRow();
+                const start = new Date(event.start.dateTime || event.start.date);
+                
+                const dateCell = row.insertCell();
+                dateCell.textContent = start.toLocaleDateString('ja-JP');
+
+                const timeCell = row.insertCell();
+                timeCell.textContent = event.start.dateTime ? start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'}) : '終日';
+
+                const summaryCell = row.insertCell();
+                summaryCell.textContent = event.summary || '(タイトルなし)';
+            });
+
+            container.appendChild(table);
         }
 
-        function updateAllEventsTable(events) {
-            const tableBody = document.getElementById('all-events-body');
-            tableBody.innerHTML = '';
-            events.forEach(event => {
-                const row = tableBody.insertRow();
-                const dateCell = row.insertCell(0);
-                const contentCell = row.insertCell(1);
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+        }
 
-                const startDateTime = new Date(event.start.dateTime || event.start.date);
-                dateCell.textContent = startDateTime.toLocaleDateString();
-                contentCell.textContent = event.summary;
-            });
+        function showLoader() {
+            document.getElementById('loader').style.display = 'block';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
         }
 
         handleClientLoad();
     </script>
 </body>
-
 </html>
