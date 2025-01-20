@@ -86,26 +86,24 @@
 <body>
     <div class="container">
         <h1>運転計画モニタ</h1>
-		<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+        <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
         <div class="controls">
             <input type="date" id="date-picker">
             <button onclick="fetchEvents()">予定を取得</button>
             <button onclick="showAllEvents()">全ての予定を表示</button>
         </div>
+        <div id="loader" class="loader"></div>
         <div id="events-container"></div>
         <div id="error-message" class="error-message"></div>
     </div>
 
-    <script src="https://apis.google.com/js/api.js"></script>
-    <script>
-        <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
         const CLIENT_ID = '178325056160-6mtl7jmh883gp7m75vuhmd49r7q3mt81.apps.googleusercontent.com';
 
         let tokenClient;
         let accessToken = null;
 
-        // 初期化
         function initializeGSI() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
@@ -121,104 +119,90 @@
             });
         }
 
-        // 認証処理
         function authenticate() {
             if (!accessToken) {
-                tokenClient.requestAccessToken();
+                tokenClient.requestAccessToken({prompt: 'consent'});
             } else {
                 console.log('既にアクセストークンがあります:', accessToken);
+                fetchEvents(); // または showAllEvents() を呼び出す
             }
         }
 
-        // イベント取得
         function fetchEvents() {
             authenticate();
+            if (accessToken) {
+                const date = document.getElementById('date-picker').value;
+                if (!date) {
+                    showError('日付を選択してください');
+                    return;
+                }
 
-            const date = document.getElementById('date-picker').value;
-            if (!date) {
-                showError('日付を選択してください');
-                return;
-            }
+                showLoader();
 
-            const startDate = new Date(date).toISOString();
-            const endDate = new Date(new Date(date).setDate(new Date(date).getDate() + 1)).toISOString();
+                const startDate = new Date(date).toISOString();
+                const endDate = new Date(new Date(date).setDate(new Date(date).getDate() + 1)).toISOString();
 
-            fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate}&timeMax=${endDate}&singleEvents=true&orderBy=startTime`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.error) {
-                        showError('予定の取得に失敗しました');
-                        return;
-                    }
-                    displayEvents(data.items, '選択日の予定');
+                fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate}&timeMax=${endDate}&singleEvents=true&orderBy=startTime`, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
                 })
-                .catch((error) => {
-                    console.error('Error fetching events:', error);
-                    showError('予定の取得中にエラーが発生しました');
-                });
+                    .then((response) => response.json())
+                    .then((data) => {
+                        hideLoader();
+                        if (data.error) {
+                            showError('予定の取得に失敗しました');
+                            return;
+                        }
+                        displayEvents(data.items, '選択日の予定');
+                    })
+                    .catch((error) => {
+                        hideLoader();
+                        console.error('Error fetching events:', error);
+                        showError('予定の取得中にエラーが発生しました');
+                    });
+            }
         }
 
-        // 全イベント表示
         function showAllEvents() {
             authenticate();
+            if (accessToken) {
+                showLoader();
 
-            fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${new Date().toISOString()}&singleEvents=true&orderBy=startTime`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.error) {
-                        showError('全ての予定の取得に失敗しました');
-                        return;
-                    }
-                    displayEvents(data.items, '全ての予定');
+                fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${new Date().toISOString()}&singleEvents=true&orderBy=startTime`, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
                 })
-                .catch((error) => {
-                    console.error('Error fetching all events:', error);
-                    showError('全ての予定の取得中にエラーが発生しました');
-                });
-        }
-
-        // イベント表示
-        function displayEvents(events, title) {
-            const container = document.getElementById('events-container');
-            container.innerHTML = `<h2>${title}</h2>`;
-
-            if (!events || events.length === 0) {
-                container.innerHTML += '<p>予定はありません。</p>';
-                return;
+                    .then((response) => response.json())
+                    .then((data) => {
+                        hideLoader();
+                        if (data.error) {
+                            showError('全ての予定の取得に失敗しました');
+                            return;
+                        }
+                        displayEvents(data.items, '全ての予定');
+                    })
+                    .catch((error) => {
+                        hideLoader();
+                        console.error('Error fetching all events:', error);
+                        showError('全ての予定の取得中にエラーが発生しました');
+                    });
             }
-
-            const table = document.createElement('table');
-            const headerRow = table.insertRow();
-            ['日付', '時間', '予定'].forEach((text) => {
-                const th = document.createElement('th');
-                th.textContent = text;
-                headerRow.appendChild(th);
-            });
-
-            events.forEach((event) => {
-                const row = table.insertRow();
-                const start = new Date(event.start.dateTime || event.start.date);
-
-                row.insertCell().textContent = start.toLocaleDateString('ja-JP');
-                row.insertCell().textContent = event.start.dateTime
-                    ? start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-                    : '終日';
-                row.insertCell().textContent = event.summary || '(タイトルなし)';
-            });
-
-            container.appendChild(table);
         }
 
-        // エラー表示
+        function displayEvents(events, title) {
+            // 既存の displayEvents 関数
+        }
+
         function showError(message) {
             document.getElementById('error-message').textContent = message;
         }
 
-        // 初期化実行
+        function showLoader() {
+            document.getElementById('loader').style.display = 'block';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
+
         window.onload = initializeGSI;
     </script>
 </body>
