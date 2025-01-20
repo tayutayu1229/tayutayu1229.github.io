@@ -86,7 +86,7 @@
 <body>
     <div class="container">
         <h1>運転計画モニタ</h1>
-        <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+		<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
         <div class="controls">
             <input type="date" id="date-picker">
             <button onclick="fetchEvents()">予定を取得</button>
@@ -98,48 +98,41 @@
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
-        const API_KEY = 'AIzaSyAfJghircP0PcuGyDB3g8RgYm_cx5KhgYI';
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
         const CLIENT_ID = '178325056160-6mtl7jmh883gp7m75vuhmd49r7q3mt81.apps.googleusercontent.com';
 
-        const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"];
-        const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
+        let tokenClient;
+        let accessToken = null;
 
-        function handleClientLoad() {
-            gapi.load('client:auth2', initClient);
-        }
-
-        function initClient() {
-            console.log('Initializing client...');
-            gapi.client.init({
-                apiKey: API_KEY,
-                clientId: CLIENT_ID,
-                discoveryDocs: DISCOVERY_DOCS,
-                scope: SCOPES
-            }).then(function () {
-                console.log('Client initialized');
-                gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
-                updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-            }, function(error) {
-                console.error('Error initializing client:', error);
-                showError('初期化エラー: ' + error.details);
+        // 初期化
+        function initializeGSI() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/calendar.readonly',
+                callback: (response) => {
+                    if (response.error) {
+                        showError('トークン取得エラー');
+                        return;
+                    }
+                    accessToken = response.access_token;
+                    console.log('Access token acquired:', accessToken);
+                },
             });
         }
 
-        function updateSigninStatus(isSignedIn) {
-            console.log('Sign-in status:', isSignedIn);
-            if (!isSignedIn) {
-                gapi.auth2.getAuthInstance().signIn().catch(function(error) {
-                    console.error('Sign-in error:', error);
-                    showError('サインインに失敗しました: ' + error.error);
-                });
+        // 認証処理
+        function authenticate() {
+            if (!accessToken) {
+                tokenClient.requestAccessToken();
+            } else {
+                console.log('既にアクセストークンがあります:', accessToken);
             }
         }
 
+        // イベント取得
         function fetchEvents() {
-            if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
-                showError('サインインしていません。再度お試しください。');
-                return;
-            }
+            authenticate();
 
             const date = document.getElementById('date-picker').value;
             if (!date) {
@@ -147,110 +140,86 @@
                 return;
             }
 
-            showLoader();
-            console.log('Fetching events for date:', date);
+            const startDate = new Date(date).toISOString();
+            const endDate = new Date(new Date(date).setDate(new Date(date).getDate() + 1)).toISOString();
 
-            const startDate = new Date(date);
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + 1);
-
-            gapi.client.calendar.events.list({
-                'calendarId': 'primary',
-                'timeMin': startDate.toISOString(),
-                'timeMax': endDate.toISOString(),
-                'showDeleted': false,
-                'singleEvents': true,
-                'orderBy': 'startTime'
-            }).then(function(response) {
-                console.log('Events retrieved:', response.result.items);
-                hideLoader();
-                const events = response.result.items;
-                displayEvents(events, '選択日の予定');
-            }, function(error) {
-                console.error('Error fetching events:', error);
-                hideLoader();
-                showError('予定の取得に失敗しました: ' + error.result.error.message);
-            });
+            fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate}&timeMax=${endDate}&singleEvents=true&orderBy=startTime`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.error) {
+                        showError('予定の取得に失敗しました');
+                        return;
+                    }
+                    displayEvents(data.items, '選択日の予定');
+                })
+                .catch((error) => {
+                    console.error('Error fetching events:', error);
+                    showError('予定の取得中にエラーが発生しました');
+                });
         }
 
+        // 全イベント表示
         function showAllEvents() {
-            if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
-                showError('サインインしていません。再度お試しください。');
-                return;
-            }
+            authenticate();
 
-            showLoader();
-            console.log('Fetching all events');
-
-            gapi.client.calendar.events.list({
-                'calendarId': 'primary',
-                'timeMin': (new Date()).toISOString(),
-                'showDeleted': false,
-                'singleEvents': true,
-                'maxResults': 250,
-                'orderBy': 'startTime'
-            }).then(function(response) {
-                console.log('All events retrieved:', response.result.items);
-                hideLoader();
-                const events = response.result.items;
-                displayEvents(events, '全ての予定');
-            }, function(error) {
-                console.error('Error fetching all events:', error);
-                hideLoader();
-                showError('予定の取得に失敗しました: ' + error.result.error.message);
-            });
+            fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${new Date().toISOString()}&singleEvents=true&orderBy=startTime`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.error) {
+                        showError('全ての予定の取得に失敗しました');
+                        return;
+                    }
+                    displayEvents(data.items, '全ての予定');
+                })
+                .catch((error) => {
+                    console.error('Error fetching all events:', error);
+                    showError('全ての予定の取得中にエラーが発生しました');
+                });
         }
+
+        // イベント表示
         function displayEvents(events, title) {
             const container = document.getElementById('events-container');
-            container.innerHTML = '';
-            
-            const h2 = document.createElement('h2');
-            h2.textContent = title;
-            container.appendChild(h2);
+            container.innerHTML = `<h2>${title}</h2>`;
 
-            if (events.length === 0) {
+            if (!events || events.length === 0) {
                 container.innerHTML += '<p>予定はありません。</p>';
                 return;
             }
 
             const table = document.createElement('table');
             const headerRow = table.insertRow();
-            ['日付', '時間', '予定'].forEach(text => {
+            ['日付', '時間', '予定'].forEach((text) => {
                 const th = document.createElement('th');
                 th.textContent = text;
                 headerRow.appendChild(th);
             });
 
-            events.forEach(event => {
+            events.forEach((event) => {
                 const row = table.insertRow();
                 const start = new Date(event.start.dateTime || event.start.date);
-                
-                const dateCell = row.insertCell();
-                dateCell.textContent = start.toLocaleDateString('ja-JP');
 
-                const timeCell = row.insertCell();
-                timeCell.textContent = event.start.dateTime ? start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'}) : '終日';
-
-                const summaryCell = row.insertCell();
-                summaryCell.textContent = event.summary || '(タイトルなし)';
+                row.insertCell().textContent = start.toLocaleDateString('ja-JP');
+                row.insertCell().textContent = event.start.dateTime
+                    ? start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+                    : '終日';
+                row.insertCell().textContent = event.summary || '(タイトルなし)';
             });
 
             container.appendChild(table);
         }
 
+        // エラー表示
         function showError(message) {
             document.getElementById('error-message').textContent = message;
         }
 
-        function showLoader() {
-            document.getElementById('loader').style.display = 'block';
-        }
-
-        function hideLoader() {
-            document.getElementById('loader').style.display = 'none';
-        }
-
-        handleClientLoad();
+        // 初期化実行
+        window.onload = initializeGSI;
     </script>
 </body>
 </html>
