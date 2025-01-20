@@ -1,37 +1,72 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=0.5">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>運行情報一覧</title>
-    <script type="text/javascript">
-        // 運行情報を取得して表示するJavaScriptコード
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+            word-wrap: break-word;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        td:last-child {
+            text-align: left;
+        }
+    </style>
+    <script>
         function fetchTrainInfo() {
-            const token = "4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d"; 
+            const token = "4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d";
             const url = `https://api-challenge2024.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`;
+
+            const railwayMap = {
+                "JR-East.Chuo": "中央線",
+                "JR-East.Senzan": "仙山線",
+                "JR-East.Yonesaka": "米坂線"
+            };
 
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    let output = "";
+                    let output = `
+                        <table>
+                            <tr>
+                                <th style="width: 5%;">状　態</th>
+                                <th style="width: 10%;">原　　因</th>
+                                <th style="width: 10%;">線　　区</th>
+                                <th style="width: 15%;">範　　囲</th>
+                                <th style="width: 60%;">内　　容</th>
+                            </tr>
+                    `;
                     data.forEach(train_info => {
-                        const text = train_info["odpt:trainInformationText"]?.ja || "情報なし";
-                        const range = train_info["odpt:trainInformationRange"]?.ja || "範囲なし";
-                        const cause = train_info["odpt:trainInformationCause"]?.ja || "原因不明";
                         const status = train_info["odpt:trainInformationStatus"]?.ja || "状態不明";
+                        const cause = train_info["odpt:trainInformationCause"]?.ja || "原因不明";
+                        let railway = train_info["odpt:railway"]?.replace("odpt.Railway:", "") || "不明";
+                        railway = railwayMap[railway] || railway;
+                        const range = train_info["odpt:trainInformationRange"]?.ja || "範囲なし";
+                        const text = train_info["odpt:trainInformationText"]?.ja || "情報なし";
 
                         output += `
-                            <div>
-                                <h3>運行情報</h3>
-                                <p><strong>情報:</strong> ${text}</p>
-                                <p><strong>範囲:</strong> ${range}</p>
-                                <p><strong>原因:</strong> ${cause}</p>
-                                <p><strong>状態:</strong> ${status}</p>
-                                <hr>
-                            </div>
+                            <tr>
+                                <td>${status}</td>
+                                <td>${cause}</td>
+                                <td>${railway}</td>
+                                <td>${range}</td>
+                                <td>${text}</td>
+                            </tr>
                         `;
                     });
-
+                    output += "</table>";
                     document.getElementById("train-info").innerHTML = output;
                 })
                 .catch(error => {
@@ -40,17 +75,17 @@
                 });
         }
 
-        window.onload = fetchTrainInfo;  // ページ読み込み時に運行情報を取得
+        window.onload = fetchTrainInfo;
     </script>
 </head>
 <body>
     <main>
-        <h1>運行情報一覧</h1>
+        <h1>運行情報</h1>
         <div id="train-info">
             <!-- 運行情報がここに表示されます -->
         </div>
     </main>
     <br>
-    <button onclick="window.history.back()">駅列車在線モニタに戻る</button>  <!-- 前のページに戻るボタン -->
+    <button onclick="window.history.back()">駅列車在線モニタに戻る</button>
 </body>
 </html>
