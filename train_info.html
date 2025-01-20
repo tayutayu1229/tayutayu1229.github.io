@@ -82,7 +82,6 @@
             font-size: 0.9em;
         }
 
-        /* スマートフォン用のレスポンシブデザイン */
         @media (max-width: 768px) {
             h1 {
                 font-size: 1.5em;
@@ -117,6 +116,20 @@
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
+                    // ソート順序を定義
+                    const statusPriority = {
+                        '運転見合わせ': 1,
+                        '遅延': 2,
+                        '平常運転': 3
+                    };
+
+                    // ソート
+                    data.sort((a, b) => {
+                        const statusA = statusPriority[a["odpt:trainInformationStatus"]?.ja] || 99;
+                        const statusB = statusPriority[b["odpt:trainInformationStatus"]?.ja] || 99;
+                        return statusA - statusB;
+                    });
+
                     let output = '';
                     data.forEach(train_info => {
                         const status = train_info["odpt:trainInformationStatus"]?.ja || "状態不明";
