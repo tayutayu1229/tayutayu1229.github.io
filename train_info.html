@@ -10,7 +10,6 @@
             line-height: 1.6;
             color: #333;
             width: 100%;
-			max-width: 100%;
             margin: 0;
             padding: 0;
             background-color: #f5f5f5;
@@ -24,37 +23,43 @@
         }
         h1 {
             margin: 0;
+            font-size: 1.8em;
         }
         main {
-			width: 100%;
             background-color: white;
-            padding: 0 20px; /* わずかな余白を残す */
+            padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 0 auto;
+            max-width: 800px;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            margin-bottom: 20px;
-        }
-        th, td {
+        .train-card {
+            background-color: #fff;
             border: 1px solid #ddd;
-            padding: 12px;
-            text-align: center;
-            vertical-align: middle;
-            word-wrap: break-word;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
+        .train-card h3 {
+            margin-top: 0;
+            font-size: 1.2em;
         }
-        td:last-child {
-            text-align: left;
+        .train-card p {
+            margin: 5px 0;
         }
-        .status-normal { background-color: #d4edda; }
-        .status-delay { background-color: #fff3cd; }
-        .status-suspend { background-color: #f8d7da; }
+        .status-normal {
+            background-color: #d4edda;
+            border-left: 5px solid #28a745;
+        }
+        .status-delay {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+        }
+        .status-suspend {
+            background-color: #f8d7da;
+            border-left: 5px solid #dc3545;
+        }
         button {
             background-color: #1a73e8;
             color: white;
@@ -64,6 +69,8 @@
             cursor: pointer;
             border-radius: 4px;
             transition: background-color 0.3s;
+            display: block;
+            margin: 0 auto;
         }
         button:hover {
             background-color: #155db1;
@@ -72,14 +79,11 @@
             text-align: center;
             margin-top: 20px;
             color: #666;
+            font-size: 0.9em;
         }
 
         /* スマートフォン用のレスポンシブデザイン */
         @media (max-width: 768px) {
-            /* header とボタンのサイズ調整 */
-            header {
-                padding: 0.8em;
-            }
             h1 {
                 font-size: 1.5em;
             }
@@ -88,26 +92,14 @@
                 padding: 12px;
                 font-size: 18px;
             }
-            
-            /* テーブルのレスポンシブ対応 */
-            table {
-                table-layout: auto;
-            }
-            th, td {
+            .train-card {
                 padding: 10px;
-                text-align: left;
-                font-size: 14px;
             }
-            td {
-                display: block;
-                text-align: left;
-                width: 100%;
+            .train-card h3 {
+                font-size: 1em;
             }
-            td:before {
-                content: attr(data-label);
-                font-weight: bold;
-                display: inline-block;
-                width: 40%;
+            .train-card p {
+                font-size: 0.9em;
             }
         }
     </style>
@@ -125,16 +117,7 @@
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    let output = `
-                        <table>
-                            <tr>
-                                <th style="width: 5%;">状態</th>
-                                <th style="width: 10%;">原因</th>
-                                <th style="width: 10%;">線区</th>
-                                <th style="width: 15%;">範囲</th>
-                                <th style="width: 60%;">内容</th>
-                            </tr>
-                    `;
+                    let output = '';
                     data.forEach(train_info => {
                         const status = train_info["odpt:trainInformationStatus"]?.ja || "状態不明";
                         const cause = train_info["odpt:trainInformationCause"]?.ja || "原因不明";
@@ -153,16 +136,14 @@
                         }
 
                         output += `
-                            <tr class="${statusClass}">
-                                <td data-label="状態">${status}</td>
-                                <td data-label="原因">${cause}</td>
-                                <td data-label="線区">${railway}</td>
-                                <td data-label="範囲">${range}</td>
-                                <td data-label="内容">${text}</td>
-                            </tr>
+                            <div class="train-card ${statusClass}">
+                                <h3>${railway} (${status})</h3>
+                                <p><strong>原因:</strong> ${cause}</p>
+                                <p><strong>範囲:</strong> ${range}</p>
+                                <p><strong>内容:</strong> ${text}</p>
+                            </div>
                         `;
                     });
-                    output += "</table>";
                     document.getElementById("train-info").innerHTML = output;
                 })
                 .catch(error => {
