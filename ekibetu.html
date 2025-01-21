@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        .control-panel {
+            background-color: #01977a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            white-space: nowrap;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+        select, input {
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #cccccc;
+            background-color: #f0f0f0;
+            height: 30px;
+        }
+
+        .display-btn {
+            background-color: white;
+            color: #01977a;
+            border: none;
+            padding: 5px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            height: 30px;
+        }
+
+        .display-btn:hover {
+            background-color: #f0f0f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+			table-layout: fixed; /* 固定レイアウト */
+            margin-top: 20px;
+        }
+		table th, table td {
+        border: 1px solid #ddd;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* 線別カラムを縦長に */
+    .direction-column {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        height: 100px;
+        text-align: center;
+        vertical-align: middle;
+        padding: 5px;
+    }
+
+    /* カラム幅の固定 */
+    .col-direction { width: 50px; }
+    .col-train-number { width: 100px; }
+    .col-time { width: 100px; }
+    .col-destination { width: 150px; }
+
+        th {
+            background-color: #01977a;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <div class="control-item">
+            <label>表示内容選択</label>
+        </div>
+        <div class="control-item">
+            <label>線区：</label>
+            <select id="lineSelect">
+                <option value="">選択してください</option>
+                <option value="ChuoRapid">中央快速線</option>
+                <option value="SobuRapid">総武快速線</option>
+                <option value="Yamanote">山手線</option>
+            </select>
+        </div>
+        <div class="control-item">
+            <label>駅：</label>
+            <select id="stationSelect">
+                <option value="">選択してください</option>
+            </select>
+        </div>
+        <div class="control-item">
+            <label>日付：</label>
+            <input type="date" id="dateSelect">
+        </div>
+        <div class="control-item">
+            <label>時刻：</label>
+            <input type="time" id="timeSelect">
+        </div>
+        <button class="display-btn" id="displayBtn">表示</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>線別</th>
+                <th>列車番号</th>
+                <th>発時刻</th>
+                <th>行先</th>
+            </tr>
+        </thead>
+        <tbody id="trainTable"></tbody>
+    </table>
+
+    <script>
+        // 列車種別マッピング
+        const trainTypeMap = {
+            'odpt.TrainType:JR-East.Local': '普通',
+            'odpt.TrainType:JR-East.Rapid': '快速',
+            'odpt.TrainType:JR-East.LimitedExpress': '特急'
+        };
+
+        // 行先マッピング
+        const destinationMap = {
+            'odpt.Station:JR-East.ChuoRapid.Takao': '高尾',
+            'odpt.Station:JR-East.ChuoRapid.Toyoda': '豊田',
+            'odpt.Station:JR-East.ChuoRapid.Hachioji': '八王子',
+            'odpt.Station:JR-East.ChuoRapid.Tokyo': '東京',
+            'odpt.Station:JR-East.ChuoRapid.Shinjuku': '新宿'
+        };
+
+        // 駅データ
+        const stationsByLine = {
+            ChuoRapid: [
+                { id: 'odpt.Station:JR-East.ChuoRapid.Tokyo', name: '東京' },
+                { id: 'odpt.Station:JR-East.ChuoRapid.Shinjuku', name: '新宿' },
+                { id: 'odpt.Station:JR-East.ChuoRapid.Hino', name: '日野' }
+            ]
+        };
+
+        // 要素取得
+        const lineSelect = document.getElementById('lineSelect');
+        const stationSelect = document.getElementById('stationSelect');
+        const dateSelect = document.getElementById('dateSelect');
+        const timeSelect = document.getElementById('timeSelect');
+        const displayBtn = document.getElementById('displayBtn');
+        const trainTable = document.getElementById('trainTable');
+
+        // 現在時刻設定
+        const now = new Date();
+        dateSelect.value = now.toISOString().split('T')[0];
+        timeSelect.value = now.toTimeString().slice(0,5);
+
+        // 時刻を分に変換
+        function timeToMinutes(time) {
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        // 線区選択時の処理
+        lineSelect.addEventListener('change', (e) => {
+            const line = e.target.value;
+            
+            stationSelect.innerHTML = '<option value="">選択してください</option>';
+            if (line && stationsByLine[line]) {
+                stationsByLine[line].forEach(station => {
+                    const option = document.createElement('option');
+                    option.value = station.id;
+                    option.textContent = station.name;
+                    stationSelect.appendChild(option);
+                });
+            }
+        });
+
+        // APIトークンと基本URL
+        const token = "4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d";
+        const baseUrl = "https://api-challenge2024.odpt.org/api/v4/odpt:StationTimetable";
+
+        // 表示ボタンクリック時の処理
+        displayBtn.addEventListener('click', async () => {
+            if (!lineSelect.value || !stationSelect.value) {
+                alert('線区と駅を選択してください。');
+                return;
+            }
+
+            trainTable.innerHTML = '';
+            const selectedTime = timeToMinutes(timeSelect.value);
+            
+            try {
+                const directions = ['Outbound', 'Inbound'];
+                let allTrains = [];
+
+                for (const direction of directions) {
+                    const url = `${baseUrl}?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationSelect.value}&odpt:railway=odpt.Railway:JR-East.${lineSelect.value}&odpt:railDirection=odpt.RailDirection:${direction}&acl:consumerKey=${token}`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data && data.length > 0 && data[0]['odpt:stationTimetableObject']) {
+                        const trains = data[0]['odpt:stationTimetableObject'].map(train => ({
+                            trainNumber: train['odpt:trainNumber'],
+                            trainType: train['odpt:trainType'],
+                            departureTime: train['odpt:departureTime'],
+                            destinationStation: train['odpt:destinationStation']?.[0],
+                            direction: direction === 'Outbound' ? '下り' : '上り',
+                            timeInMinutes: timeToMinutes(train['odpt:departureTime'])
+                        }));
+                        allTrains = [...allTrains, ...trains];
+                    }
+                }
+
+                // 選択時刻以降の列車をソート
+const filteredTrains = allTrains
+    .filter(train => train.timeInMinutes >= selectedTime)
+    .sort((a, b) => a.timeInMinutes - b.timeInMinutes)
+    .slice(0, 9);
+
+trainTable.innerHTML = ''; // テーブルをクリア
+
+// 下り列車のヘッダー
+const downHeaderRow = document.createElement('tr');
+downHeaderRow.innerHTML = '<th colspan="4" style="background-color: #4CAF50; color: white; text-align: center;">下り</th>';
+trainTable.appendChild(downHeaderRow);
+
+// 下り列車表示
+filteredTrains
+    .filter(train => train.direction === '下り')
+    .forEach(train => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${train.direction}</td>
+            <td>${train.trainNumber}</td>
+            <td>${train.departureTime}</td>
+            <td>${destinationMap[train.destinationStation] || train.destinationStation}</td>
+        `;
+        trainTable.appendChild(row);
+    });
+
+// 上り列車のヘッダー
+const upHeaderRow = document.createElement('tr');
+upHeaderRow.innerHTML = '<th colspan="4" style="background-color: #2196F3; color: white; text-align: center;">上り</th>';
+trainTable.appendChild(upHeaderRow);
+
+// 上り列車表示
+filteredTrains
+    .filter(train => train.direction === '上り')
+    .forEach(train => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${train.direction}</td>
+            <td>${train.trainNumber}</td>
+            <td>${train.departureTime}</td>
+            <td>${destinationMap[train.destinationStation] || train.destinationStation}</td>
+        `;
+        trainTable.appendChild(row);
+    });
+
+
+            } catch (error) {
+                console.error('エラー:', error);
+                alert('データの取得中にエラーが発生しました。');
+            }
+        });
+    </script>
+</body>
+</html>
