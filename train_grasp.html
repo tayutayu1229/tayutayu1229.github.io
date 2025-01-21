@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運行把握モニタ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #01977a;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #01977a;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>運行把握モニタ</h1>
+        <table id="train-table">
+            <thead>
+                <tr>
+                    <th>線区名</th>
+                    <th>最大遅延時分</th>
+                    <th>最大遅延列番</th>
+                    <th>遅延数/総本数</th>
+                    <th>03</th>
+                    <th>10</th>
+                    <th>20</th>
+                </tr>
+            </thead>
+            <tbody id="train-data">
+                <!-- データがここに動的に追加されます -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const TOKEN = '4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d'; // 実際のトークンに置き換えてください
+        const API_URL = `https://api-challenge2024.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${TOKEN}`;
+
+        async function fetchTrainData() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                processTrainData(data);
+                hideErrorMessage();
+            } catch (error) {
+                console.error('データの取得に失敗しました:', error);
+                showErrorMessage('データの取得に失敗しました。しばらくしてから再度お試しください。');
+            }
+        }
+
+        function processTrainData(data) {
+            const lineStats = {};
+
+            data.forEach(train => {
+                const lineName = train['odpt:railway'].replace('odpt.Railway:', '');
+                const delay = train['odpt:delay'] || 0;
+
+                if (!lineStats[lineName]) {
+                    lineStats[lineName] = {
+                        maxDelay: 0,
+                        maxDelayTrain: '',
+                        totalTrains: 0,
+                        delayedTrains: 0,
+                        delay03: 0,
+                        delay10: 0,
+                        delay20: 0
+                    };
+                }
+
+                lineStats[lineName].totalTrains++;
+
+                if (delay > 0) {
+                    lineStats[lineName].delayedTrains++;
+
+                    if (delay > lineStats[lineName].maxDelay) {
+                        lineStats[lineName].maxDelay = delay;
+                        lineStats[lineName].maxDelayTrain = train['odpt:trainNumber'] || '不明';
+                    }
+
+                    if (delay >= 180 && delay < 600) lineStats[lineName].delay03++;
+                    else if (delay >= 600 && delay < 1200) lineStats[lineName].delay10++;
+                    else if (delay >= 1200) lineStats[lineName].delay20++;
+                }
+            });
+
+            updateTable(lineStats);
+        }
+
+        function updateTable(lineStats) {
+            const tableBody = document.getElementById('train-data');
+            tableBody.innerHTML = '';
+
+            for (const [lineName, stats] of Object.entries(lineStats)) {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = lineName;
+                row.insertCell(1).textContent = `${Math.floor(stats.maxDelay / 60)}分`;
+                row.insertCell(2).textContent = stats.maxDelayTrain;
+                row.insertCell(3).textContent = `${stats.delayedTrains}/${stats.totalTrains}`;
+                row.insertCell(4).textContent = stats.delay03;
+                row.insertCell(5).textContent = stats.delay10;
+                row.insertCell(6).textContent = stats.delay20;
+            }
+        }
+
+        function showErrorMessage(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideErrorMessage() {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.style.display = 'none';
+        }
+
+        // ページ読み込み時にデータを取得
+        fetchTrainData();
+
+        // 定期的にデータを更新（例: 1分ごと）
+        setInterval(fetchTrainData, 60000);
+    </script>
+</body>
+</html>
