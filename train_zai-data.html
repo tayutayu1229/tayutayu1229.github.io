@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JR東日本列車在線情報</title>
+    <style>
+        :root {
+            --main-color: #01977a;
+            --secondary-color: #017a62;
+            --background-color: #f0f5f3;
+            --text-color: #333;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: var(--main-color);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        select, #refreshButton, #sortButton, #topButton {
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--main-color);
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+        }
+        #refreshButton, #sortButton, #topButton {
+            background-color: var(--main-color);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #refreshButton:hover, #sortButton:hover, #topButton:hover {
+            background-color: var(--secondary-color);
+        }
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+			line-height: 1.2;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: var(--main-color);
+            color: white;
+        }
+        .delay {
+            background-color: #ff6b6b;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .fixed-buttons {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .fixed-buttons button {
+            margin-top: 10px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+            thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+            tr {
+                margin-bottom: 15px;
+                border: 1px solid #ccc;
+            }
+            td {
+                border: none;
+                position: relative;
+                padding-left: 50%;
+				padding: 6px 6px 6px 50%;
+            }
+            td:before {
+                position: absolute;
+                top: 6px;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                content: attr(data-label);
+                font-weight: bold;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JR東日本列車在線情報</h1>
+        <select id="lineSelector">
+            <option value="all">全路線</option>
+            <option value="JR-East.JobanRapid">常磐線快速</option>
+            <option value="JR-East.Utsunomiya">宇都宮線</option>
+            <option value="JR-East.Chuo">中央線</option>
+            <option value="JR-East.KeihinTohokuNegishi">京浜東北線</option>
+            <option value="JR-East.Keiyo">京葉線</option>
+        </select>
+        <select id="sortSelector">
+            <option value="all">全て表示</option>
+            <option value="inbound_first">上り優先</option>
+            <option value="outbound_first">下り優先</option>
+            <option value="inbound_only">上りのみ</option>
+            <option value="outbound_only">下りのみ</option>
+        </select>
+        <table id="trainTable">
+            <thead>
+                <tr>
+                    <th>列車番号</th>
+                    <th>両数</th>
+                    <th>種別</th>
+                    <th>路線</th>
+                    <th>方向</th>
+                    <th>行先</th>
+                    <th>在線位置</th>
+                    <th>状態</th>
+                </tr>
+            </thead>
+            <tbody id="trainData"></tbody>
+        </table>
+    </div>
+    <div class="fixed-buttons">
+        <button id="refreshButton">更新</button>
+        <button id="topButton" onclick="window.location.href='toppage.html'">トップページ</button>
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})">▲</button>
+    </div>
+
+    <script>
+        const TOKEN = '4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d';
+        const API_URL = `https://api-challenge2024.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${TOKEN}`;
+
+        const railway_mapping = {
+            "JR-East.JobanRapid": "常磐線快速",
+            "JR-East.Utsunomiya": "宇都宮線",
+            "JR-East.Chuo": "中央線",
+            "JR-East.KeihinTohokuNegishi": "京浜東北線",
+            "JR-East.Keiyo": "京葉線"
+        };
+
+        const train_type_mapping = {
+            "odpt.TrainType:JR-East.Local": [1, "普通", ""],
+            "odpt.TrainType:JR-East.LimitedExpress": [2, "特急", "特"],
+            "odpt.TrainType:JR-East.Rapid": [3, "快速", "快"],
+            "odpt.TrainType:JR-East.SpecialRapid": [4, "特別快速", "特快"],
+            "odpt.TrainType:JR-East.ChuoSpecialRapid": [5, "中央特快", "中快"],
+            "odpt.TrainType:JR-East.CommuterRapid": [6, "通勤快速", "通快"],
+            "odpt.TrainType:JR-East.OmeSpecialRapid": [7, "青梅特快", "青快"],
+            "odpt.TrainType:JR-East.CommuterSpecialRapid": [8, "通勤特快", "通特"]
+        };
+
+        const station_mapping = {
+            "HigashiAkiru": "東秋留",
+            "Ueno": "上野",
+            "Matsudo": "松戸",
+            "KitaSenju": "北千住",
+            // 他の駅名のマッピングをここに追加
+        };
+
+        function translateStationName(name) {
+            return station_mapping[name] || name;
+        }
+
+        function getStationName(stationId) {
+            if (!stationId) return "不明な駅";
+            const parts = stationId.split('.');
+            return translateStationName(parts[parts.length - 1]);
+        }
+
+        function getTrainPosition(fromStation, toStation) {
+            const fromStationName = getStationName(fromStation);
+            const toStationName = getStationName(toStation);
+
+            if (toStation) {
+                return `${fromStationName} → ${toStationName}`;
+            } else {
+                return `${fromStationName}駅`;
+            }
+        }
+
+        function formatCarComposition(carComposition) {
+            return carComposition ? `${carComposition}両` : '-';
+        }
+
+        function getDirection(railDirection) {
+            return railDirection === "odpt.RailDirection:Inbound" ? "上り" : "下り";
+        }
+
+        function fetchTrainData() {
+            fetch(API_URL)
+                .then(response => response.json())
+                .then(data => {
+                    const trainData = document.getElementById('trainData');
+                    const lineSelector = document.getElementById('lineSelector');
+                    const sortSelector = document.getElementById('sortSelector');
+                    const selectedLine = lineSelector.value;
+                    const sortOption = sortSelector.value;
+
+                    let filteredData = data.filter(train => selectedLine === 'all' || train['odpt:railway'].split(':').pop() === selectedLine);
+
+                    if (sortOption === 'inbound_first') {
+                        filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Inbound" ? -1 : 1);
+                    } else if (sortOption === 'outbound_first') {
+                        filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Outbound" ? -1 : 1);
+                    } else if (sortOption === 'inbound_only') {
+                        filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Inbound");
+                    } else if (sortOption === 'outbound_only') {
+                        filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Outbound");
+                    }
+
+                    trainData.innerHTML = '';
+
+                    filteredData.forEach(train => {
+                        const trainLine = train['odpt:railway'].split(':').pop();
+                        const row = document.createElement('tr');
+                        const trainType = train_type_mapping[train['odpt:trainType']] || [0, "不明", ""];
+                        const direction = getDirection(train['odpt:railDirection']);
+                        row.innerHTML = `
+                            <td data-label="列車番号">${train['odpt:trainNumber']}</td>
+                            <td data-label="両数">${formatCarComposition(train['odpt:carComposition'])}</td>
+                            <td data-label="種別">${trainType[1]}</td>
+                            <td data-label="路線">${railway_mapping[trainLine] || trainLine}</td>
+                            <td data-label="方向">${direction}</td>
+                            <td data-label="行先">${getStationName(train['odpt:destinationStation'][0])}</td>
+                            <td data-label="在線位置">${getTrainPosition(train['odpt:fromStation'], train['odpt:toStation'])}</td>
+                            <td data-label="状態">${train['odpt:delay'] > 0 ? `<span class="delay">遅れ ${Math.floor(train['odpt:delay'] / 60)}分</span>` : '平常運転'}</td>
+                        `;
+                        trainData.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        document.getElementById('refreshButton').addEventListener('click', fetchTrainData);
+        document.getElementById('lineSelector').addEventListener('change', fetchTrainData);
+        document.getElementById('sortSelector').addEventListener('change', fetchTrainData);
+
+        // 初回データ取得
+        fetchTrainData();
+    </script>
+</body>
+</html>
