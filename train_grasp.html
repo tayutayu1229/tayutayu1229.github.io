@@ -177,42 +177,44 @@
     }
 
     function processTrainData(data) {
-        const lineStats = {};
+    const lineStats = {};
 
-        data.forEach(train => {
-            const originalLineName = train['odpt:railway'].replace('odpt.Railway:', '');
-            const lineName = lineNameMap[originalLineName] || originalLineName;
-            const delay = train['odpt:delay'] || 0;
+    data.forEach(train => {
+        const originalLineName = train['odpt:railway'].replace('odpt.Railway:', '');
+        const lineName = lineNameMap[originalLineName] || originalLineName;
+        const delay = train['odpt:delay'] || 0;
 
-            if (delay > 0) {
-                if (!lineStats[lineName]) {
-                    lineStats[lineName] = {
-                        maxDelay: 0,
-                        maxDelayTrain: '',
-                        totalTrains: 0,
-                        delayedTrains: 0,
-                        delay03: 0,
-                        delay10: 0,
-                        delay20: 0
-                    };
-                }
+        if (!lineStats[lineName]) {
+            lineStats[lineName] = {
+                maxDelay: 0,
+                maxDelayTrain: '',
+                totalTrains: 0,
+                delayedTrains: 0,
+                delay03: 0,
+                delay10: 0,
+                delay20: 0
+            };
+        }
 
-                lineStats[lineName].totalTrains++;
-                lineStats[lineName].delayedTrains++;
+        lineStats[lineName].totalTrains++;
 
-                if (delay > lineStats[lineName].maxDelay) {
-                    lineStats[lineName].maxDelay = delay;
-                    lineStats[lineName].maxDelayTrain = train['odpt:trainNumber'] || '不明';
-                }
+        if (delay > 0) {
+            lineStats[lineName].delayedTrains++;
 
-                if (delay >= 180 && delay < 600) lineStats[lineName].delay03++;
-                else if (delay >= 600 && delay < 1200) lineStats[lineName].delay10++;
-                else if (delay >= 1200) lineStats[lineName].delay20++;
+            if (delay > lineStats[lineName].maxDelay) {
+                lineStats[lineName].maxDelay = delay;
+                lineStats[lineName].maxDelayTrain = train['odpt:trainNumber'] || '不明';
             }
-        });
 
-        updateTable(lineStats);
-    }
+            if (delay >= 180 && delay < 600) lineStats[lineName].delay03++;
+            else if (delay >= 600 && delay < 1200) lineStats[lineName].delay10++;
+            else if (delay >= 1200) lineStats[lineName].delay20++;
+        }
+    });
+
+    updateTable(lineStats);
+}
+
 
     function updateTable(lineStats) {
         const tableBody = document.getElementById('train-data');
