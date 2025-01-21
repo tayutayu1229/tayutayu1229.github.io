@@ -216,56 +216,76 @@
         }
 
         function fetchTrainData() {
-            fetch(API_URL)
-                .then(response => response.json())
-                .then(data => {
-                    const trainData = document.getElementById('trainData');
-                    const lineSelector = document.getElementById('lineSelector');
-                    const sortSelector = document.getElementById('sortSelector');
-                    const selectedLine = lineSelector.value;
-                    const sortOption = sortSelector.value;
+    fetch(API_URL)
+        .then(response => response.json())
+        .then(data => {
+            const trainData = document.getElementById('trainData');
+            const lineSelector = document.getElementById('lineSelector');
+            const sortSelector = document.getElementById('sortSelector');
+            const selectedLine = lineSelector.value;
+            const sortOption = sortSelector.value;
 
-                    let filteredData = data.filter(train => selectedLine === 'all' || train['odpt:railway'].split(':').pop() === selectedLine);
+            let filteredData = data.filter(train => selectedLine === 'all' || train['odpt:railway'].split(':').pop() === selectedLine);
 
-                    if (sortOption === 'inbound_first') {
-                        filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Inbound" ? -1 : 1);
-                    } else if (sortOption === 'outbound_first') {
-                        filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Outbound" ? -1 : 1);
-                    } else if (sortOption === 'inbound_only') {
-                        filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Inbound");
-                    } else if (sortOption === 'outbound_only') {
-                        filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Outbound");
-                    }
+            if (sortOption === 'inbound_first') {
+                filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Inbound" ? -1 : 1);
+            } else if (sortOption === 'outbound_first') {
+                filteredData.sort((a, b) => a['odpt:railDirection'] === b['odpt:railDirection'] ? 0 : a['odpt:railDirection'] === "odpt.RailDirection:Outbound" ? -1 : 1);
+            } else if (sortOption === 'inbound_only') {
+                filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Inbound");
+            } else if (sortOption === 'outbound_only') {
+                filteredData = filteredData.filter(train => train['odpt:railDirection'] === "odpt.RailDirection:Outbound");
+            }
 
-                    trainData.innerHTML = '';
+            // テーブルの内容をクリアする前に現在のスクロール位置を保存
+            const scrollPosition = window.pageYOffset;
 
-                    filteredData.forEach(train => {
-                        const trainLine = train['odpt:railway'].split(':').pop();
-                        const row = document.createElement('tr');
-                        const trainType = train_type_mapping[train['odpt:trainType']] || [0, "不明", ""];
-                        const direction = getDirection(train['odpt:railDirection']);
-                        row.innerHTML = `
-                            <td data-label="列車番号">${train['odpt:trainNumber']}</td>
-                            <td data-label="両数">${formatCarComposition(train['odpt:carComposition'])}</td>
-                            <td data-label="種別">${trainType[1]}</td>
-                            <td data-label="路線">${railway_mapping[trainLine] || trainLine}</td>
-                            <td data-label="方向">${direction}</td>
-                            <td data-label="行先">${getStationName(train['odpt:destinationStation'][0])}</td>
-                            <td data-label="在線位置">${getTrainPosition(train['odpt:fromStation'], train['odpt:toStation'])}</td>
-                            <td data-label="状態">${train['odpt:delay'] > 0 ? `<span class="delay">遅れ ${Math.floor(train['odpt:delay'] / 60)}分</span>` : '平常運転'}</td>
-                        `;
-                        trainData.appendChild(row);
-                    });
-                })
-                .catch(error => console.error('Error:', error));
-        }
+            trainData.innerHTML = '';
 
-        document.getElementById('refreshButton').addEventListener('click', fetchTrainData);
-        document.getElementById('lineSelector').addEventListener('change', fetchTrainData);
-        document.getElementById('sortSelector').addEventListener('change', fetchTrainData);
+            const fragment = document.createDocumentFragment();
 
-        // 初回データ取得
-        fetchTrainData();
+            filteredData.forEach(train => {
+                const trainLine = train['odpt:railway'].split(':').pop();
+                const row = document.createElement('tr');
+                const trainType = train_type_mapping[train['odpt:trainType']] || [0, "不明", ""];
+                const direction = getDirection(train['odpt:railDirection']);
+                row.innerHTML = `
+                    <td data-label="列車番号">${train['odpt:trainNumber']}</td>
+                    <td data-label="両数">${formatCarComposition(train['odpt:carComposition'])}</td>
+                    <td data-label="種別">${trainType[1]}</td>
+                    <td data-label="路線">${railway_mapping[trainLine] || trainLine}</td>
+                    <td data-label="方向">${direction}</td>
+                    <td data-label="行先">${getStationName(train['odpt:destinationStation'][0])}</td>
+                    <td data-label="在線位置">${getTrainPosition(train['odpt:fromStation'], train['odpt:toStation'])}</td>
+                    <td data-label="状態">${train['odpt:delay'] > 0 ? `<span class="delay">遅れ ${Math.floor(train['odpt:delay'] / 60)}分</span>` : '平常運転'}</td>
+                `;
+                fragment.appendChild(row);
+            });
+
+            trainData.appendChild(fragment);
+
+            // スタイルを再適用
+            requestAnimationFrame(() => {
+                const cells = trainData.querySelectorAll('td');
+                cells.forEach(cell => {
+                    cell.style.padding = '8px';
+                    cell.style.lineHeight = '1.2';
+                });
+
+                // スクロール位置を復元
+                window.scrollTo(0, scrollPosition);
+            });
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+document.getElementById('refreshButton').addEventListener('click', fetchTrainData);
+document.getElementById('lineSelector').addEventListener('change', fetchTrainData);
+document.getElementById('sortSelector').addEventListener('change', fetchTrainData);
+
+// 初回データ取得
+fetchTrainData();
+
     </script>
 </body>
 </html>
