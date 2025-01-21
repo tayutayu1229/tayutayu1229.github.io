@@ -1,1 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>鉄道情報取得システム - 業務用プラットフォーム</title>
+    <style>
+        :root {
+            --primary-color: #01977a;
+            --secondary-color: #017a64;
+            --background-color: #f4f7f6;
+            --text-color: #333;
+        }
 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #e0e4e8 0%, var(--background-color) 100%);
+            line-height: 1.6;
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 800px;
+            animation: fadeInUp 0.8s ease forwards;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            text-align: center;
+        }
+
+        .search-bar {
+            display: flex;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-bar input {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(1, 151, 122, 0.2);
+        }
+
+        .external-links ul {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            list-style: none;
+        }
+
+        .external-links li {
+            transition: transform 0.3s ease;
+        }
+
+        .external-links a {
+            display: block;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .external-links a:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-5px);
+        }
+
+        .to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease;
+        }
+
+        .to-top:hover {
+            background-color: var(--secondary-color);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .external-links ul {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>鉄道情報取得システム</h1>
+        </div>
+        
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="登録されているリンクを検索..." class="touch-friendly-input">
+        </div>
+
+        <div class="external-links">
+            <ul id="linkList">
+                <li><a href="https://www.jreast.co.jp/" target="_blank" rel="noopener noreferrer">JR東日本公式サイト</a></li>
+                <li><a href="https://www.jreast.co.jp/train/" target="_blank" rel="noopener noreferrer">JR東日本 列車運行情報</a></li>
+                <li><a href="https://www.mlit.go.jp/tetudo/" target="_blank" rel="noopener noreferrer">国土交通省 鉄道局</a></li>
+                <li><a href="https://www.jreast.co.jp/railway/" target="_blank" rel="noopener noreferrer">JR東日本 路線図</a></li>
+                <li><a href="https://www.jreast.co.jp/e/stations/" target="_blank" rel="noopener noreferrer">JR東日本 駅情報</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <button class="to-top" id="toTopBtn">↑</button>
+
+    <script>
+        function handleResponsiveDesign() {
+            const screenWidth = window.innerWidth;
+            const container = document.querySelector('.container');
+            
+            if (screenWidth < 768) {
+                container.classList.add('mobile-view');
+            } else {
+                container.classList.remove('mobile-view');
+            }
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        const linkList = document.getElementById('linkList');
+        const toTopBtn = document.getElementById('toTopBtn');
+
+        searchInput.addEventListener('input', () => {
+            const filter = searchInput.value.toLowerCase();
+            const links = linkList.querySelectorAll('li');
+            links.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                link.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+
+        window.addEventListener('scroll', () => {
+            toTopBtn.style.display = window.scrollY > 200 ? 'flex' : 'none';
+        });
+
+        toTopBtn.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        window.addEventListener('resize', handleResponsiveDesign);
+        window.addEventListener('load', handleResponsiveDesign);
+    </script>
+</body>
+</html>
