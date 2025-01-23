@@ -50,12 +50,35 @@
             border: 1px solid #01977a;
         }
 
-        th, td {
+        th {
+            background-color: #01977a;
+            color: white;
             padding: 10px;
             text-align: left;
         }
 
-        .back-button {
+        td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        .train-type {
+            width: 10%;
+        }
+		
+		.train-number {
+            width: 20%;
+        }
+		
+        .station-name {
+            width: 20%;
+        }
+
+        .departure-time {
+            width: 60%;
+        }
+
+        .back-button, .display-button {
             margin-top: 20px;
             display: inline-block;
             padding: 10px 20px;
@@ -63,9 +86,11 @@
             color: white;
             text-decoration: none;
             border-radius: 5px;
+            border: none;
+            cursor: pointer;
         }
 
-        .back-button:hover {
+        .back-button:hover, .display-button:hover {
             background-color: #017a63;
         }
 
@@ -96,21 +121,21 @@
 
             <label for="train-number">列車番号:</label>
             <input type="text" id="train-number" placeholder="列車番号を入力">
+            <button class="display-button" id="display-button">表示</button>
         </div>
 
         <div id="train-info">
             <p>■ <span id="line-name"></span> 施行日: <span id="execution-date"></span></p>
-            <p>運転区間: <span id="operation-section"></span> 列車番号: <span id="train-id"></span> 両数: <span id="car-count"></span>両</p>
+            <p>運転区間: <span id="operation-section"></span> 列車番号: <span id="train-id"></span></p>
         </div>
 
         <table>
             <thead>
                 <tr>
-                    <th>列車種別</th>
-                    <th>列車番号</th>
-                    <th>両数</th>
-                    <th>駅名</th>
-                    <th>発車時刻</th>
+                    <th class="train-type">列車種別</th>
+                    <th class="train-number">列車番号</th>
+                    <th class="station-name">駅名</th>
+                    <th class="departure-time">発車時刻</th>
                 </tr>
             </thead>
             <tbody id="timetable">
@@ -136,6 +161,11 @@
             "odpt.Station:JR-East.ChuoRapid.Tachikawa": "立川"
         };
 
+        const trainTypeMapping = {
+            "JR-East.OmeSpecialRapid": "青梅特快",
+            "JR-East.ChuoSpecialRapid": "中央特快"
+        };
+
         function logError(error) {
             const errorLog = document.getElementById("error-log");
             errorLog.textContent = `エラー: ${error.message}`;
@@ -152,7 +182,12 @@
             }
         }
 
-        async function fetchTrainData(trainNumber) {
+        function isWeekend(date) {
+            const day = date.getDay();
+            return day === 0 || day === 6;
+        }
+
+        async function fetchTrainData(trainNumber, selectedDate) {
             try {
                 const response = await fetch(API_URL);
                 if (!response.ok) {
@@ -160,24 +195,28 @@
                 }
 
                 const data = await response.json();
-                const trainData = data.find(train => train["odpt:trainNumber"] === trainNumber);
+                const calendar = isWeekend(new Date("2024-03-16")) ? "odpt.Calendar:SaturdayHoliday" : "odpt.Calendar:Weekday";
+                
+                const trainData = data.find(train => 
+                    train["odpt:trainNumber"] === trainNumber && 
+                    train["odpt:calendar"] === calendar
+                );
 
                 if (!trainData) {
                     throw new Error("該当する列車番号が見つかりません。");
                 }
 
                 const lineName = lineMapping[trainData["odpt:railway"].split(":")[2]] || trainData["odpt:railway"];
-                const executionDate = trainData["dct:issued"].split("T")[0].replace(/-/g, "/");
+                const executionDate = selectedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
                 const originStation = stationMapping[trainData["odpt:originStation"][0]] || trainData["odpt:originStation"][0];
                 const destinationStation = stationMapping[trainData["odpt:destinationStation"][0]] || trainData["odpt:destinationStation"][0];
                 const operationSection = `${originStation}～${destinationStation}`;
-                const carCount = trainData["odpt:carComposition"] || "不明";
+                const trainType = trainTypeMapping[trainData["odpt:trainType"]] || trainData["odpt:trainType"].split(":").pop();
 
                 document.getElementById("line-name").textContent = lineName;
                 document.getElementById("execution-date").textContent = executionDate;
                 document.getElementById("operation-section").textContent = operationSection;
                 document.getElementById("train-id").textContent = trainNumber;
-                document.getElementById("car-count").textContent = carCount;
 
                 const timetableBody = document.getElementById("timetable");
                 timetableBody.innerHTML = "";
@@ -186,23 +225,23 @@
                     const row = document.createElement("tr");
 
                     const trainTypeCell = document.createElement("td");
-                    trainTypeCell.textContent = trainData["odpt:trainType"].split(":").pop();
+                    trainTypeCell.textContent = trainType;
+                    trainTypeCell.className = "train-type";
                     row.appendChild(trainTypeCell);
 
                     const trainNumberCell = document.createElement("td");
                     trainNumberCell.textContent = trainData["odpt:trainNumber"];
+                    trainNumberCell.className = "train-number";
                     row.appendChild(trainNumberCell);
-
-                    const carCountCell = document.createElement("td");
-                    carCountCell.textContent = carCount;
-                    row.appendChild(carCountCell);
 
                     const stationCell = document.createElement("td");
                     stationCell.textContent = stationMapping[entry["odpt:departureStation"]] || entry["odpt:departureStation"];
+                    stationCell.className = "station-name";
                     row.appendChild(stationCell);
 
                     const timeCell = document.createElement("td");
                     timeCell.textContent = entry["odpt:departureTime"] || "";
+                    timeCell.className = "departure-time";
                     row.appendChild(timeCell);
 
                     timetableBody.appendChild(row);
@@ -215,10 +254,15 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             populateLineDropdown();
-            document.getElementById("train-number").addEventListener("change", (event) => {
-                const trainNumber = event.target.value;
-                if (trainNumber) {
-                    fetchTrainData(trainNumber);
+            const today = new Date();
+            document.getElementById("date").valueAsDate = today;
+            document.getElementById("display-button").addEventListener("click", () => {
+                const trainNumber = document.getElementById("train-number").value;
+                const selectedDate = document.getElementById("date").valueAsDate;
+                if (trainNumber && selectedDate) {
+                    fetchTrainData(trainNumber, selectedDate);
+                } else {
+                    logError(new Error("列車番号と日付を入力してください。"));
                 }
             });
         });
