@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車別ダイヤモニタ</title>
+    <style>
+        body {
+            font-family: "MS PGothic", sans-serif;
+            font-weight: bold;
+            background-color: #ffffff;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #01977a;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .container {
+            margin: 20px;
+        }
+
+        .selection {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .selection label {
+            margin-right: 10px;
+        }
+
+        .selection select, .selection input {
+            margin-right: 20px;
+            padding: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #01977a;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        .back-button {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #01977a;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        .back-button:hover {
+            background-color: #017a63;
+        }
+
+        #error-log {
+            background-color: #ffcccc;
+            color: #990000;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #990000;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>列車別ダイヤモニタ</h1>
+    </header>
+    <div class="container">
+        <a href="#" class="back-button">トップメニューに戻る</a>
+        <div id="error-log" style="display: none;"></div>
+        <div class="selection">
+            <label for="line">線区:</label>
+            <select id="line">
+                <option value="">選択してください</option>
+            </select>
+
+            <label for="date">施行日:</label>
+            <input type="date" id="date">
+
+            <label for="train-number">列車番号:</label>
+            <input type="text" id="train-number" placeholder="列車番号を入力">
+        </div>
+
+        <div id="train-info">
+            <p>■ <span id="line-name"></span> 施行日: <span id="execution-date"></span></p>
+            <p>運転区間: <span id="operation-section"></span> 列車番号: <span id="train-id"></span> 両数: <span id="car-count"></span>両</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>列車種別</th>
+                    <th>列車番号</th>
+                    <th>両数</th>
+                    <th>駅名</th>
+                    <th>発車時刻</th>
+                </tr>
+            </thead>
+            <tbody id="timetable">
+                <!-- Timetable rows will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+    <script>
+        const TOKEN = '4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d';
+        const API_URL = `https://api-challenge2024.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${TOKEN}`;
+
+        const lineMapping = {
+            "JR-East.Yamanote": "山手",
+            "JR-East.ChuoRapid": "中央快速"
+        };
+
+        const stationMapping = {
+            "odpt.Station:JR-East.ChuoRapid.Tokyo": "東京",
+            "odpt.Station:JR-East.ChuoRapid.Kanda": "神田",
+            "odpt.Station:JR-East.ChuoRapid.Shinjuku": "新宿",
+            "odpt.Station:JR-East.ChuoRapid.Nakano": "中野",
+            "odpt.Station:JR-East.ChuoRapid.Kokubunji": "国分寺",
+            "odpt.Station:JR-East.ChuoRapid.Tachikawa": "立川"
+        };
+
+        function logError(error) {
+            const errorLog = document.getElementById("error-log");
+            errorLog.textContent = `エラー: ${error.message}`;
+            errorLog.style.display = "block";
+        }
+
+        function populateLineDropdown() {
+            const lineSelect = document.getElementById("line");
+            for (const [key, value] of Object.entries(lineMapping)) {
+                const option = document.createElement("option");
+                option.value = key;
+                option.textContent = value;
+                lineSelect.appendChild(option);
+            }
+        }
+
+        async function fetchTrainData(trainNumber) {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTPエラー: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const trainData = data.find(train => train["odpt:trainNumber"] === trainNumber);
+
+                if (!trainData) {
+                    throw new Error("該当する列車番号が見つかりません。");
+                }
+
+                const lineName = lineMapping[trainData["odpt:railway"].split(":")[2]] || trainData["odpt:railway"];
+                const executionDate = trainData["dct:issued"].split("T")[0].replace(/-/g, "/");
+                const originStation = stationMapping[trainData["odpt:originStation"][0]] || trainData["odpt:originStation"][0];
+                const destinationStation = stationMapping[trainData["odpt:destinationStation"][0]] || trainData["odpt:destinationStation"][0];
+                const operationSection = `${originStation}～${destinationStation}`;
+                const carCount = trainData["odpt:carComposition"] || "不明";
+
+                document.getElementById("line-name").textContent = lineName;
+                document.getElementById("execution-date").textContent = executionDate;
+                document.getElementById("operation-section").textContent = operationSection;
+                document.getElementById("train-id").textContent = trainNumber;
+                document.getElementById("car-count").textContent = carCount;
+
+                const timetableBody = document.getElementById("timetable");
+                timetableBody.innerHTML = "";
+
+                trainData["odpt:trainTimetableObject"].forEach(entry => {
+                    const row = document.createElement("tr");
+
+                    const trainTypeCell = document.createElement("td");
+                    trainTypeCell.textContent = trainData["odpt:trainType"].split(":").pop();
+                    row.appendChild(trainTypeCell);
+
+                    const trainNumberCell = document.createElement("td");
+                    trainNumberCell.textContent = trainData["odpt:trainNumber"];
+                    row.appendChild(trainNumberCell);
+
+                    const carCountCell = document.createElement("td");
+                    carCountCell.textContent = carCount;
+                    row.appendChild(carCountCell);
+
+                    const stationCell = document.createElement("td");
+                    stationCell.textContent = stationMapping[entry["odpt:departureStation"]] || entry["odpt:departureStation"];
+                    row.appendChild(stationCell);
+
+                    const timeCell = document.createElement("td");
+                    timeCell.textContent = entry["odpt:departureTime"] || "";
+                    row.appendChild(timeCell);
+
+                    timetableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Error fetching train data:", error);
+                logError(error);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            populateLineDropdown();
+            document.getElementById("train-number").addEventListener("change", (event) => {
+                const trainNumber = event.target.value;
+                if (trainNumber) {
+                    fetchTrainData(trainNumber);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
