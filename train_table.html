@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車時刻表</title>
+    <title>ダイヤ掲載列車一覧</title>
     <style>
         body {
             font-family: 'MS PGothic', sans-serif;
@@ -76,8 +76,6 @@
 </head>
 <body>
     <h1>列車一覧</h1>
-	時刻表に存在する列車の一覧です
-	<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
     <div class="search-container">
         <input type="text" id="lineSearch" placeholder="路線名で検索">
         <input type="text" id="trainSearch" placeholder="列車番号で検索">
@@ -111,17 +109,17 @@
 
         function toJapanese(text) {
             const dictionary = {
-                'Tokyo': '東京',
-                'Shinjuku': '新宿',
-                'Shibuya': '渋谷',
-                'Ikebukuro': '池袋',
-                'Ueno': '上野',
-                'Akihabara': '秋葉原',
-                'Shinagawa': '品川',
-                'Chuo': '中央',
-                'Yamanote': '山手',
-                'Keihin': '京浜',
-                'Tohoku': '東北',
+                'Tokyo': '',
+                'Shinjuku': '',
+                'Shibuya': '',
+                'Ikebukuro': '',
+                'Ueno': '',
+                'Akihabara': '',
+                'Shinagawa': '',
+                'Chuo': '',
+                'Yamanote': '',
+                'Keihin': '',
+                'Tohoku': '',
                 'Rapid': '快速',
                 'Line': '線',
                 'Station': '駅'
@@ -132,19 +130,30 @@
             ).join('');
         }
 
+        function isWeekend(date) {
+            return date.getDay() === 0 || date.getDay() === 6;
+        }
+
         function displayTrains(trains) {
             const tableBody = document.querySelector('tbody');
             tableBody.innerHTML = '';
 
+            const today = new Date();
+            const isWeekendToday = isWeekend(today);
+
             trains.forEach(train => {
-                const row = document.createElement('tr');
-                const railwayName = train['odpt:railway'].split(':').pop();
-                row.innerHTML = `
-                    <td>${toJapanese(railwayName)}</td>
-                    <td class="train-number" data-train-id="${train['@id']}">${train['odpt:trainNumber']}</td>
-                    <td>${toJapanese(train['odpt:destinationStation'][0].split(':').pop())}</td>
-                `;
-                tableBody.appendChild(row);
+                const calendar = train['odpt:calendar'];
+                if ((isWeekendToday && calendar.includes('SaturdayHoliday')) || 
+                    (!isWeekendToday && calendar.includes('Weekday'))) {
+                    const row = document.createElement('tr');
+                    const railwayName = train['odpt:railway'].split(':').pop();
+                    row.innerHTML = `
+                        <td>${toJapanese(railwayName)}</td>
+                        <td class="train-number" data-train-id="${train['@id']}">${train['odpt:trainNumber']}</td>
+                        <td>${toJapanese(train['odpt:destinationStation'][0].split(':').pop())}</td>
+                    `;
+                    tableBody.appendChild(row);
+                }
             });
 
             addTrainNumberClickListeners();
@@ -162,15 +171,19 @@
         }
 
         function showTimeDetails(train) {
+            console.log('Train data:', train);
             const modal = document.getElementById('timeModal');
             const timeDetails = document.getElementById('timeDetails');
             timeDetails.innerHTML = '';
 
             if (train['odpt:trainTimetableObject']) {
+                console.log('Train timetable object:', train['odpt:trainTimetableObject']);
                 train['odpt:trainTimetableObject'].forEach(stop => {
-                    const stationName = toJapanese(stop['odpt:departureStation'].split(':').pop());
-                    const time = stop['odpt:departureTime'];
-                    timeDetails.innerHTML += `<p>${stationName}: ${time}</p>`;
+                    if (stop['odpt:departureStation']) {
+                        const stationName = toJapanese(stop['odpt:departureStation'].split(':').pop());
+                        const time = stop['odpt:departureTime'] || '時刻不明';
+                        timeDetails.innerHTML += `<p>${stationName}: ${time}</p>`;
+                    }
                 });
             } else {
                 timeDetails.innerHTML = '<p>時刻情報が利用できません。</p>';
