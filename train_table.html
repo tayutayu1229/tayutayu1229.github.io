@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車時刻表</title>
+    <style>
+        body {
+            font-family: 'MS PGothic', sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #01977a;
+        }
+        table {
+            width: 100%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #01977a;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #01977a;
+            color: #ffffff;
+        }
+        .search-container {
+            margin-bottom: 20px;
+        }
+        .search-container input {
+            margin-right: 10px;
+            padding: 5px;
+        }
+        .train-number {
+            cursor: pointer;
+            color: #01977a;
+            text-decoration: underline;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>列車一覧</h1>
+	時刻表に存在する列車の一覧です
+	<button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+    <div class="search-container">
+        <input type="text" id="lineSearch" placeholder="路線名で検索">
+        <input type="text" id="trainSearch" placeholder="列車番号で検索">
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>路線名</th>
+                <th>列車番号</th>
+                <th>行先</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- APIからのデータがここに挿入されます -->
+        </tbody>
+    </table>
+
+    <div id="timeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>時刻詳細</h2>
+            <div id="timeDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        const TOKEN = '4w5vinot98zhhx1n1mjgpk1yshyp7k0pv42uzrvhq57ipr38ln8aodrr9ghzo75d';
+        const API_URL = `https://api-challenge2024.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${TOKEN}`;
+
+        let trainData = [];
+
+        function toJapanese(text) {
+            const dictionary = {
+                'Tokyo': '東京',
+                'Shinjuku': '新宿',
+                'Shibuya': '渋谷',
+                'Ikebukuro': '池袋',
+                'Ueno': '上野',
+                'Akihabara': '秋葉原',
+                'Shinagawa': '品川',
+                'Chuo': '中央',
+                'Yamanote': '山手',
+                'Keihin': '京浜',
+                'Tohoku': '東北',
+                'Rapid': '快速',
+                'Line': '線',
+                'Station': '駅'
+            };
+
+            return text.split('.').map(part => 
+                dictionary[part] || part
+            ).join('');
+        }
+
+        function displayTrains(trains) {
+            const tableBody = document.querySelector('tbody');
+            tableBody.innerHTML = '';
+
+            trains.forEach(train => {
+                const row = document.createElement('tr');
+                const railwayName = train['odpt:railway'].split(':').pop();
+                row.innerHTML = `
+                    <td>${toJapanese(railwayName)}</td>
+                    <td class="train-number" data-train-id="${train['@id']}">${train['odpt:trainNumber']}</td>
+                    <td>${toJapanese(train['odpt:destinationStation'][0].split(':').pop())}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            addTrainNumberClickListeners();
+        }
+
+        function addTrainNumberClickListeners() {
+            const trainNumbers = document.querySelectorAll('.train-number');
+            trainNumbers.forEach(trainNumber => {
+                trainNumber.addEventListener('click', function() {
+                    const trainId = this.getAttribute('data-train-id');
+                    const train = trainData.find(t => t['@id'] === trainId);
+                    showTimeDetails(train);
+                });
+            });
+        }
+
+        function showTimeDetails(train) {
+            const modal = document.getElementById('timeModal');
+            const timeDetails = document.getElementById('timeDetails');
+            timeDetails.innerHTML = '';
+
+            if (train['odpt:trainTimetableObject']) {
+                train['odpt:trainTimetableObject'].forEach(stop => {
+                    const stationName = toJapanese(stop['odpt:departureStation'].split(':').pop());
+                    const time = stop['odpt:departureTime'];
+                    timeDetails.innerHTML += `<p>${stationName}: ${time}</p>`;
+                });
+            } else {
+                timeDetails.innerHTML = '<p>時刻情報が利用できません。</p>';
+            }
+
+            modal.style.display = 'block';
+        }
+
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('timeModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('timeModal')) {
+                document.getElementById('timeModal').style.display = 'none';
+            }
+        }
+
+        function filterTrains() {
+            const lineSearch = document.getElementById('lineSearch').value.toLowerCase();
+            const trainSearch = document.getElementById('trainSearch').value.toLowerCase();
+
+            const filteredTrains = trainData.filter(train => {
+                const railwayName = train['odpt:railway'].split(':').pop().toLowerCase();
+                const trainNumber = train['odpt:trainNumber'].toLowerCase();
+                return railwayName.includes(lineSearch) && trainNumber.includes(trainSearch);
+            });
+
+            displayTrains(filteredTrains);
+        }
+
+        document.getElementById('lineSearch').addEventListener('input', filterTrains);
+        document.getElementById('trainSearch').addEventListener('input', filterTrains);
+
+        fetch(API_URL)
+            .then(response => response.json())
+            .then(data => {
+                trainData = data;
+                displayTrains(trainData);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const tableBody = document.querySelector('tbody');
+                tableBody.innerHTML = '<tr><td colspan="3">データの取得に失敗しました。</td></tr>';
+            });
+    </script>
+</body>
+</html>
