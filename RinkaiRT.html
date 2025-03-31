@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>列車一覧・時刻表(りんかい) - 東京圏輸送情報システム</title>
+    <style>
+        /* 既存のスタイルは変更なし */
+        body {
+            font-family: "MS Pゴシック", sans-serif;
+            margin: 2rem;
+            background-color: #01977a;
+            color: white;
+        }
+
+        .controls {
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        input, button, select {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: none;
+            font-family: inherit;
+        }
+
+        button {
+            background-color: white;
+            color: #01977a;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background-color: #e6f6f3;
+        }
+
+        .train-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .timetable {
+            background: white;
+            color: #01977a;
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #01977a;
+        }
+
+        th {
+            background-color: #01977a;
+            color: white;
+        }
+
+        tr:hover {
+            background-color: rgba(1, 151, 122, 0.1);
+        }
+
+        .no-result {
+            color: #ff6666;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .update-time {
+            margin-top: 1rem;
+            font-size: 0.9em;
+            text-align: right;
+            color: #e6f6f3;
+        }
+    </style>
+</head>
+<body>
+    <h1>りんかい線 列車一覧・時刻表</h1>
+    <div class="controls">
+        <div>
+            <input type="text" id="searchInput" placeholder="列車番号を入力">
+            <button onclick="filterByInput()">検索</button>
+        </div>
+        
+        <div>
+            <label for="calendarType">ダイヤ選択:</label>
+            <select id="calendarType" onchange="filterByCalendar()">
+                <option value="Weekday">平日</option>
+                <option value="SaturdayHoliday">土休日</option>
+                <option value="All">すべて</option>
+            </select>
+        </div>
+
+        <div class="train-buttons" id="trainButtons"></div>
+    </div>
+    
+    <div class="timetable">
+        <div class="update-time" id="updateTime"></div>
+        <table id="trainTable">
+            <thead>
+                <tr>
+                    <th>駅名</th>
+                    <th>出発時刻</th>
+                    <th>ホーム番号</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        const TOKEN = '4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
+        const API_URL = `https://api.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${TOKEN}`;
+        
+        let allTrains = [];
+        let currentFilter = 'All'; // 現在のフィルタ
+        let lastUpdateTime = ''; // 最終更新時刻
+
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                allTrains = await response.json();
+                lastUpdateTime = new Date().toLocaleString();
+                document.getElementById('updateTime').textContent = `最終更新: ${lastUpdateTime}`;
+                filterByCalendar(); // 初期表示
+            } catch (error) {
+                console.error('データの取得に失敗しました:', error);
+            }
+        }
+
+        function createTrainButtons() {
+            const buttonsContainer = document.getElementById('trainButtons');
+            buttonsContainer.innerHTML = '';
+            
+            const filteredNumbers = [...new Set(
+                allTrains
+                    .filter(train => currentFilter === 'All' || 
+                           train['odpt:calendar']?.endsWith(currentFilter))
+                    .map(train => train['odpt:trainNumber'])
+            )];
+
+            filteredNumbers.forEach(number => {
+                const button = document.createElement('button');
+                button.textContent = number;
+                button.onclick = () => filterTrains(number);
+                buttonsContainer.appendChild(button);
+            });
+        }
+
+        function filterByCalendar() {
+            currentFilter = document.getElementById('calendarType').value;
+            const filtered = currentFilter === 'All' 
+                ? allTrains 
+                : allTrains.filter(train => 
+                    train['odpt:calendar']?.endsWith(currentFilter)
+                );
+            
+            createTrainButtons();
+            populateTable(filtered);
+        }
+
+        function filterByInput() {
+            const input = document.getElementById('searchInput').value.trim();
+            filterTrains(input);
+        }
+
+        function filterTrains(trainNumber) {
+            const filtered = allTrains.filter(train => 
+                train['odpt:trainNumber'] === trainNumber &&
+                (currentFilter === 'All' || 
+                 train['odpt:calendar']?.endsWith(currentFilter))
+            );
+            
+            document.getElementById('searchInput').value = trainNumber;
+            populateTable(filtered);
+        }
+
+        function populateTable(trains) {
+            const tbody = document.querySelector('#trainTable tbody');
+            tbody.innerHTML = '';
+
+            if (trains.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="no-result">該当する列車が見つかりません</td></tr>`;
+                return;
+            }
+
+            trains.forEach(train => {
+                train['odpt:trainTimetableObject'].forEach(stop => {
+                    const row = document.createElement('tr');
+                    const departureTime = stop['odpt:departureTime'] || stop['odpt:arrivalTime'] || '';
+                    row.innerHTML = `
+                        <td>${getStationName(stop['odpt:departureStation'] || stop['odpt:arrivalStation'])}</td>
+                        <td>${departureTime}</td>
+                        <td>${stop['odpt:platformNumber'] || '-'}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            });
+        }
+
+        function getStationName(stationId) {
+            const stationMap = {
+                'odpt.Station:TWR.Rinkai.Osaki': '大崎',
+                'odpt.Station:TWR.Rinkai.Oimachi': '大井町',
+                'odpt.Station:TWR.Rinkai.ShinagawaSeaside': '品川シーサイド',
+                'odpt.Station:TWR.Rinkai.TennozuIsle': '天王洲アイル',
+                'odpt.Station:TWR.Rinkai.TokyoTeleport': '東京テレポート',
+                'odpt.Station:TWR.Rinkai.KokusaiTenjijo': '国際展示場',
+                'odpt.Station:TWR.Rinkai.Shinonome': '東雲',
+                'odpt.Station:TWR.Rinkai.ShinKiba': '新木場'
+            };
+            
+            return stationMap[stationId] || stationId;
+        }
+
+        fetchData();
+        // 30秒ごとにデータ更新（APIの推奨更新頻度に準拠）
+        setInterval(fetchData, 30000);
+    </script>
+</body>
+</html>
