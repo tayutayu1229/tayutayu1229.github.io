@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>りんかい線駅時刻表</title>
+    <style>
+        body {
+            font-family: "MS Pゴシック", sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #01977a;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        main {
+            padding: 20px;
+        }
+
+        #station-selector {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .station-button {
+            display: inline-block;
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #01977a;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .station-button:hover {
+            background-color: #017a63;
+        }
+
+        .table-container {
+            overflow-y: auto; /* 縦スクロールを有効化 */
+            max-height: 400px; /* 表の高さを制限 */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed; /* 列幅を固定 */
+        }
+
+        thead {
+            background-color: #01977a;
+            color: white;
+        }
+
+        th, td {
+            border: 1px solid #cccccc;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            position: sticky; /* ヘッダーを固定 */
+            top: 0; /* 固定位置 */
+            background-color: #01977a; /* 背景色を再指定 */
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>りんかい線 駅時刻表</h1>
+    </header>
+	<a href="RinkaiTOP.html" class="back-button">りんかい線メニューに戻る</a>
+    <main>
+        <section id="station-selector">
+            <button class="station-button" onclick="fetchTimetable('TWR.Rinkai.Osaki')">大崎</button>
+            <button class="station-button" onclick="fetchTimetable('TWR.Rinkai.Oimachi')">大井町</button>
+            <button class="station-button" onclick="fetchTimetable('TWR.Rinkai.ShinagawaSeaside')">品川シーサイド</button>
+            <button class="station-button" onclick="fetchTimetable('TWR.Rinkai.TennozuIsle')">天王洲アイル</button>
+			<button class="station-button" onclick="fetchTimetable('TWR.Rinkai.TokyoTeleport')">東京テレポート</button>
+			<button class="station-button" onclick="fetchTimetable('TWR.Rinkai.KokusaiTenjijo')">国際展示場</button>
+			<button class="station-button" onclick="fetchTimetable('TWR.Rinkai.Shinonome')">東雲</button>
+			<button class="station-button" onclick="fetchTimetable('TWR.Rinkai.ShinKiba')">新木場</button>
+        </section>
+        <section id="timetable" class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">列車番号</th>
+                        <th style="width: 20%;">種別</th>
+                        <th style="width: 30%;">出発時刻</th>
+                        <th style="width: 30%;">行き先</th>
+                    </tr>
+                </thead>
+                <tbody id="timetable-body">
+                    <!-- データがここに挿入されます -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        const TOKEN = '4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
+        const API_URL = `https://api.odpt.org/api/v4/odpt:StationTimetable?acl:consumerKey=${TOKEN}`;
+
+        const stationNameMap = {
+            "TWR.Rinkai.Osaki": "大崎",
+            "JR-East.SaikyoKawagoe.MusashiUrawa": "武蔵浦和",
+			"TWR.Rinkai.Oimachi": "大井町",
+			"TWR.Rinkai.ShinagawaSeaside": "品川シーサイド",
+			"TWR.Rinkai.TennozuIsle": "天王洲アイル",
+			"TWR.Rinkai.TokyoTeleport": "東京テレポート",
+			"TWR.Rinkai.KokusaiTenjijo": "国際展示場",
+			"TWR.Rinkai.Shinonome": "東雲",
+			"TWR.Rinkai.ShinKiba": "新木場",
+			"JR-East.SaikyoKawagoe.Omiya": "大宮"
+			// 必要に応じて追加
+        };
+
+        const trainTypeMap = {
+            "TWR.Rapid": "快速",
+            "TWR.Local": "普通"
+        };
+
+        async function fetchTimetable(station) {
+            try {
+                const response = await fetch(`${API_URL}&odpt:station=odpt.Station:${station}`);
+                const data = await response.json();
+                
+                const timetableBody = document.getElementById('timetable-body');
+                timetableBody.innerHTML = ''; // 表をリセット
+
+                if (data.length > 0) {
+                    const stationTimetable = data[0]['odpt:stationTimetableObject'];
+                    stationTimetable.forEach(item => {
+                        const row = document.createElement('tr');
+                        
+                        const trainNumberCell = document.createElement('td');
+                        trainNumberCell.textContent = item['odpt:trainNumber'];
+                        
+                        const trainTypeCell = document.createElement('td');
+                        trainTypeCell.textContent = trainTypeMap[item['odpt:trainType'].split(':')[1]] || item['odpt:trainType'];
+                        
+                        const departureTimeCell = document.createElement('td');
+                        departureTimeCell.textContent = item['odpt:departureTime'];
+                        
+                        const destinationCell = document.createElement('td');
+                        destinationCell.textContent = stationNameMap[item['odpt:destinationStation'][0].split(':')[1]] || item['odpt:destinationStation'][0];
+                        
+                        row.appendChild(trainNumberCell);
+                        row.appendChild(trainTypeCell);
+                        row.appendChild(departureTimeCell);
+                        row.appendChild(destinationCell);
+
+                        timetableBody.appendChild(row);
+                    });
+                } else {
+                    timetableBody.innerHTML = '<tr><td colspan="4">データがありません。</td></tr>';
+                }
+            } catch (error) {
+                console.error('時刻表の取得に失敗しました:', error);
+                alert('時刻表の取得に失敗しました。再試行してください。');
+            }
+        }
+    </script>
+</body>
+</html>
