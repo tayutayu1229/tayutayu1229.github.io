@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>指定路線状況確認</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      margin: 0;
+      background-color: #fff;
+      color: #000;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      background-color: #f2f2f2;
+      border-bottom: 2px solid #ccc;
+    }
+    header .clock {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+    .back-btn {
+      font-size: 1em;
+      background: #0078D4;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    main {
+      padding: 20px;
+      max-width: 1200px;
+      margin: auto;
+    }
+    .status-board {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .line-status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+      padding: 10px 15px;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .line-name {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    .line-message {
+      font-size: 1em;
+      color: #333;
+    }
+    .normal {
+      color: green;
+    }
+    .delay {
+      color: red;
+    }
+    .info {
+      text-align: center;
+      margin-top: 50px;
+      font-size: 1.2em;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="#" class="back-btn">← メインメニューに戻る</a>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+  <main>
+    <div class="status-board" id="statusBoard"></div>
+    <div class="info" id="infoMessage"></div>
+  </main>
+
+  <script>
+    const API_URL = 'https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+
+    const ALWAYS_SHOW = [
+      "JR-East.Takasaki", 
+      "JR-East.Utsunomiya", 
+      "JR-East.KeihinTohokuNegishi"
+    ];
+
+    const CONDITIONALLY_SHOW = [
+      "JR-East.Tokaido", 
+      "JR-East.ShonanShinjuku"
+    ];
+
+    const LINE_NAMES = {
+      "JR-East.Takasaki": "高崎線",
+      "JR-East.Utsunomiya": "宇都宮線",
+      "JR-East.KeihinTohokuNegishi": "京浜東北線",
+      "JR-East.Tokaido": "東海道線",
+      "JR-East.ShonanShinjuku": "湘南新宿ライン"
+    };
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString();
+    }
+
+    async function fetchTrainInfo() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+
+        const board = document.getElementById('statusBoard');
+        const info = document.getElementById('infoMessage');
+        board.innerHTML = '';
+        info.textContent = '';
+
+        const shownLines = new Set();
+
+        data.forEach(item => {
+          const id = item['odpt:railway'];
+          const status = item['odpt:trainInformationStatus']?.ja || '';
+          const message = item['odpt:trainInformationText']?.ja || '';
+          const showAlways = ALWAYS_SHOW.includes(id);
+          const showIfNotNormal = CONDITIONALLY_SHOW.includes(id) && status !== '平常運転';
+
+          if ((showAlways || showIfNotNormal) && !shownLines.has(id)) {
+            const div = document.createElement('div');
+            div.className = 'line-status';
+
+            const name = document.createElement('div');
+            name.className = 'line-name';
+            name.textContent = LINE_NAMES[id] || id;
+
+            const msg = document.createElement('div');
+            msg.className = 'line-message';
+            msg.textContent = message || (status || '情報なし');
+            msg.classList.add(status === '平常運転' ? 'normal' : 'delay');
+
+            div.appendChild(name);
+            div.appendChild(msg);
+            board.appendChild(div);
+            shownLines.add(id);
+          }
+        });
+
+        // 指定路線に何も表示されてないとき
+        if (board.children.length === 0) {
+          info.textContent = '現在、高崎線、宇都宮線、京浜東北線は平常通り運行しています。';
+        }
+
+      } catch (e) {
+        document.getElementById('statusBoard').innerHTML = '';
+        document.getElementById('infoMessage').textContent = '運行情報の取得に失敗しました。';
+      }
+    }
+
+    updateClock();
+    fetchTrainInfo();
+    setInterval(updateClock, 1000);
+    setInterval(fetchTrainInfo, 60000);
+  </script>
+</body>
+</html>
