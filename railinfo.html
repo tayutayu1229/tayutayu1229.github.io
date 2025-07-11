@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JR東日本 運行情報</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #000;
+      font-family: "Yu Gothic", sans-serif;
+    }
+
+    .back-button {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      background-color: #fff;
+      color: #00285c;
+      border: 2px solid #00285c;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 1.5rem;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 2.2rem;
+      font-weight: bold;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid #000;
+      padding-bottom: 0.5rem;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #ccc;
+      padding: 1rem 0;
+      gap: 1rem;
+    }
+
+    .line-name {
+      width: 25%;
+      font-size: 1.4rem;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .status {
+      width: 20%;
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .description {
+      width: 55%;
+      font-size: 1.2rem;
+      line-height: 1.5;
+    }
+
+    .status.delay {
+      color: #d35400;
+    }
+
+    .status.suspend {
+      color: #c0392b;
+    }
+
+    .note {
+      text-align: center;
+      font-size: 1.4rem;
+      color: #555;
+      margin-top: 2rem;
+    }
+
+    .timestamp {
+      text-align: center;
+      font-size: 1rem;
+      color: #999;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">JR東日本 運行情報</div>
+    <button class="back-button" onclick="location.href='index.html'">メインメニューに戻る</button>
+    <div id="info-area">
+      <p class="note">情報を取得中です...</p>
+    </div>
+    <div class="timestamp" id="last-update">--:--</div>
+  </div>
+
+  <script>
+    const API_URL = "https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh";
+
+    const railwayMap = {
+      "JR-East.Chuo": "中央本線", "JR-East.Senzan": "仙山線", "JR-East.Yonesaka": "米坂線",
+      "JR-East.Hanawa": "花輪線", "JR-East.Tsugaru": "津軽線", "JR-East.Ou": "奥羽本線",
+      "JR-East.OuYamagata": "奥羽本線（山形線）", "JR-East.RikuEast": "陸羽東線", "JR-East.Tohoku": "東北本線",
+      "JR-East.Uetsu": "羽越線", "JR-East.RikuWest": "陸羽西線", "JR-East.Iiyama": "飯山線",
+      "JR-East.Yamanote": "山手線", "JR-East.KeihinTohokuNegishi": "京浜東北根岸線", "JR-East.ChuoRapid": "中央急行線",
+      "JR-East.ChuoTatsunoBranch": "中央本線（辰野方面）", "JR-East.ChuoSobuLocal": "中央緩行線", "JR-East.SobuRapid": "総武快速線",
+      "JR-East.Yokosuka": "横須賀線", "JR-East.Tokaido": "東海道線", "JR-East.ShonanShinjuku": "湘南新宿ライン",
+      "JR-East.SotetsuDirect": "相鉄直通線", "JR-East.SaikyoKawagoe": "埼京川越線", "JR-East.Kawagoe": "川越線",
+      "JR-East.Takasaki": "高崎線", "JR-East.Utsunomiya": "宇都宮線", "JR-East.Nikko": "日光線",
+      "JR-East.Karasuyama": "烏山線", "JR-East.JobanRapid": "常磐快速線", "JR-East.Joban": "常磐線",
+      "JR-East.JobanLocal": "常磐緩行線", "JR-East.Musashino": "武蔵野線", "JR-East.Sagami": "相模線",
+      "JR-East.Nambu": "南武線", "JR-East.NambuBranch": "南武支線", "JR-East.Tsurumi": "鶴見線",
+      "JR-East.TsurumiUmiShibauraBranch": "鶴見線（海芝浦方面）", "JR-East.TsurumiOkawaBranch": "鶴見線（大川方面）",
+      "JR-East.Yokohama": "横浜線", "JR-East.Ito": "伊東線", "JR-East.Ome": "青梅線",
+      "JR-East.Itsukaichi": "五日市線", "JR-East.Hachiko": "八高線", "JR-East.Shinetsu": "信越線",
+      "JR-East.Joetsu": "上越線", "JR-East.Agatsuma": "吾妻線", "JR-East.Ryomo": "両毛線",
+      "JR-East.Mito": "水戸線", "JR-East.Suigun": "水郡線", "JR-East.SuigunBranch": "水郡線常陸太田支線",
+      "JR-East.Sobu": "総武本線", "JR-East.Narita": "成田線", "JR-East.NaritaAbikoBranch": "成田線（我孫子支線）",
+      "JR-East.NaritaAirportBranch": "成田線（空港支線）", "JR-East.Kashima": "鹿島線", "JR-East.Keiyo": "京葉線",
+      "JR-East.Uchibo": "内房線", "JR-East.Sotobo": "外房線", "JR-East.Togane": "東金線",
+      "JR-East.Kururi": "久留里線", "JR-East.Koumi": "小海線", "JR-East.TohokuShinkansen": "東北新幹線",
+      "JR-East.JoetsuShinkansen": "上越新幹線", "JR-East.HokurikuShinkansen": "北陸新幹線",
+      "JR-East.YamagataShinkansen": "山形新幹線", "JR-East.AkitaShinkansen": "秋田新幹線",
+      "JR-East.BanetsuEast": "磐越東線", "JR-East.Senseki": "仙石線", "JR-East.Ishinomaki": "石巻線",
+      "JR-East.Aterazawa": "左沢線", "JR-East.Ofunato": "大船渡線", "JR-East.Kesennuma": "気仙沼線",
+      "JR-East.Kitakami": "北上線", "JR-East.Kamaishi": "釜石線", "JR-East.Yamada": "山田線",
+      "JR-East.Hachinohe": "八戸線", "JR-East.Ominato": "大湊線", "JR-East.Tazawako": "田沢湖線",
+      "JR-East.Oga": "男鹿線", "JR-East.Gono": "五能線", "JR-East.Tadami": "只見線",
+      "JR-East.BanetsuWest": "磐越西線", "JR-East.SensekiTohoku": "仙石東北ライン",
+      "JR-East.Echigo": "越後線", "JR-East.Hakushin": "白新線", "JR-East.Yahiko": "弥彦線",
+      "JR-East.Shinonoi": "篠ノ井線", "JR-East.Oito": "大糸線"
+    };
+
+    function getStatusClass(status) {
+      if (!status) return "";
+      if (status.includes("運転見合わせ")) return "suspend";
+      if (status.includes("遅延") || status.includes("混雑")) return "delay";
+      return "";
+    }
+
+    async function fetchTrainInfo() {
+      const container = document.getElementById("info-area");
+      const timestamp = document.getElementById("last-update");
+      container.innerHTML = '<p class="note">情報を取得中です...</p>';
+
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+
+        // before:
+        //const activeData = data.filter(d =>
+        //  d["odpt:trainInformationStatus"]?.ja !== "平常運転"
+        //);
+
+        // after:
+        const activeData = data.filter(d =>
+          !d["odpt:trainInformationText"]?.ja?.includes("平常運転")
+        );
+
+
+        container.innerHTML = "";
+
+        if (activeData.length === 0) {
+          container.innerHTML = '<p class="note">現在、運行情報の提供はありません。</p>';
+        } else {
+          activeData.forEach(info => {
+            const id = info["odpt:railway"];
+            const lineCode = id?.split(":")[1] || "";
+            const line = railwayMap[lineCode] || lineCode;
+            const status = info["odpt:trainInformationStatus"]?.ja || "";
+            const text = info["odpt:trainInformationText"]?.ja || "";
+            const statusClass = getStatusClass(status);
+
+            const row = document.createElement("div");
+            row.className = "info-row";
+            row.innerHTML = `
+              <div class="line-name">${line}</div>
+              <div class="status ${statusClass}">${status}</div>
+              <div class="description">${text}</div>
+            `;
+            container.appendChild(row);
+          });
+        }
+
+        
+
+        const now = new Date();
+        timestamp.textContent = `最終更新: ${now.toLocaleTimeString("ja-JP")}`;
+      } catch (e) {
+        container.innerHTML = '<p class="note">運行情報の取得に失敗しました。</p>';
+        timestamp.textContent = "--:--";
+        console.error("データ取得エラー:", e);
+      }
+    }
+
+    fetchTrainInfo();
+    setInterval(fetchTrainInfo, 60000);
+  </script>
+</body>
+</html>
