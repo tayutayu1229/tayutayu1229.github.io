@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ANA リアルタイム出発便情報</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f0f8;
+      padding: 20px;
+    }
+    h1 {
+      color: #b30000;
+    }
+    .filters {
+      margin-bottom: 10px;
+    }
+    select {
+      margin-right: 10px;
+      padding: 5px;
+    }
+    #currentTime {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background: #eee;
+    }
+  </style>
+</head>
+<body>
+  <h1>ANA リアルタイム出発便情報</h1>
+
+  <div id="currentTime"></div>
+
+  <div class="filters">
+    出発空港:
+    <select id="departureFilter">
+      <option value="">すべて</option>
+    </select>
+
+    到着空港:
+    <select id="destinationFilter">
+      <option value="">すべて</option>
+    </select>
+  </div>
+
+  <table id="flightTable">
+    <thead>
+      <tr>
+        <th>便名</th>
+        <th>出発時刻</th>
+        <th>出発空港</th>
+        <th>到着空港</th>
+        <th>ゲート</th>
+        <th>機材</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="6">読み込み中...</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    const API_URL = "https://api.odpt.org/api/v4/odpt:FlightInformationDeparture?odpt:operator=odpt.Operator:JAL&acl:consumerKey=4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+
+    const airportMap = {
+      "ITM": "大阪（伊丹）", 
+      "HND": "東京（羽田）", 
+      "NRT": "東京（成田）",
+      "CTS": "札幌（新千歳）", 
+      "OKA": "那覇", 
+      "KIX": "関西国際", 
+      "NGO": "中部(セントレア)", 
+      "AKJ": "旭川",
+      "HKD": "函館",
+      "KUH": "釧路",
+      "MMB": "女満別",
+      "OBO": "帯広",
+      "OIR": "奥尻",
+      "OKD": "丘珠",
+      "AOJ": "青森",
+      "AXT": "秋田",
+      "FKS": "福島",
+      "GAJ": "山形",
+      "HNA": "花巻",
+      "MSJ": "三沢",
+      "SDJ": "仙台",
+      "KIJ": "新潟",
+      "MMJ": "松本",
+      "TOY": "富山",
+      "KMQ": "小松金沢",
+      "SHM": "南紀白浜",
+      "TJH": "但馬",
+      "FSZ": "静岡",
+      "UKB": "神戸",
+      "OKJ": "岡山",
+      "HIJ": "広島",
+      "IZO": "出雲",
+      "OKI": "隠岐",
+      "UBJ": "山口宇部",
+      "YGJ": "米子",
+      "TAK": "高松",
+      "KCZ": "高知",
+      "MYJ": "松山",
+      "TKS": "徳島",
+      "NGS": "長崎",
+      "FUK": "福岡",
+      "KKJ": "北九州",
+      "OIT": "大分",
+      "KMJ": "熊本",
+      "KMI": "宮崎",
+      "KOJ": "鹿児島",
+      "ASJ": "奄美大島",
+      "KKX": "喜界島",
+      "KUM": "屋久島",
+      "OKE": "沖永良部",
+      "RNJ": "与論",
+      "TKN": "徳之島",
+      "TNE": "種子島",
+      "AGJ": "粟国",
+      "HTR": "波照間",
+      "ISG": "石垣",
+      "KTD": "北大東",
+      "MMD": "南大東",
+      "MMY": "宮古",
+      "OGN": "与那国",
+      "OKA": "沖縄",
+      "TRA": "多良間",
+      "UEO": "久米島",
+      "AXJ": "天草",
+      "FUJ": "五島福江空港",
+      "IKI": "壱岐空港",
+      "NKM": "県営名古屋空港",
+      "TSJ": "対馬やまねこ空港",
+      "SIN": "シンガポール・チャンギ"
+    };
+
+    const aircraftMap = {
+      E70: "エンブラエル170",
+      E90: "エンブラエル190",
+      738: "ボーイング737-800",
+      772: "ボーイング777-200",
+      773: "ボーイング777-300",
+      789: "ボーイング787-9",
+      767: "ボーイング767",
+      EMJ: "エンブラエル機材",
+      ATR: "ATR機材",
+      AT7: "ATR 72",
+      AT4: "ATR 42",
+      359: "エアバスA350-900",
+      788: "ボーイング787-8",
+      DH4: "ボンバルディアDHC-8 Q400",
+      "788/767": "ボーイング787-8 または 767",
+      "undefined": "機材不明"
+    };
+
+    let allFlights = [];
+
+    async function fetchFlightInfo() {
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+        allFlights = data;
+        updateFilters();
+        renderTable();
+      } catch (e) {
+        document.querySelector("#flightTable tbody").innerHTML = "<tr><td colspan='6'>データの取得に失敗しました。</td></tr>";
+      }
+    }
+
+    function updateFilters() {
+      const depSet = new Set();
+      const destSet = new Set();
+
+      allFlights.forEach(f => {
+        depSet.add(f["odpt:departureAirport"]?.split(":")[1]);
+        destSet.add(f["odpt:destinationAirport"]?.split(":")[1]);
+      });
+
+      const depSelect = document.getElementById("departureFilter");
+      const destSelect = document.getElementById("destinationFilter");
+
+      depSelect.innerHTML = `<option value="">すべて</option>` + 
+        [...depSet].sort().map(code => `<option value="${code}">${airportMap[code] || code}</option>`).join("");
+
+      destSelect.innerHTML = `<option value="">すべて</option>` + 
+        [...destSet].sort().map(code => `<option value="${code}">${airportMap[code] || code}</option>`).join("");
+    }
+
+    function renderTable() {
+      const depFilter = document.getElementById("departureFilter").value;
+      const destFilter = document.getElementById("destinationFilter").value;
+
+      let filtered = allFlights.filter(f => {
+        const dep = f["odpt:departureAirport"]?.split(":")[1];
+        const dest = f["odpt:destinationAirport"]?.split(":")[1];
+        return (!depFilter || dep === depFilter) && (!destFilter || dest === destFilter);
+      });
+
+      filtered.sort((a, b) => {
+        const timeA = a["odpt:scheduledDepartureTime"] || "";
+        const timeB = b["odpt:scheduledDepartureTime"] || "";
+        return timeA.localeCompare(timeB);
+      });
+
+      const tbody = document.querySelector("#flightTable tbody");
+      tbody.innerHTML = "";
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='6'>該当する便はありません。</td></tr>";
+        return;
+      }
+
+      filtered.forEach(flight => {
+        const flightNumber = flight["odpt:flightNumber"]?.[0] || "";
+        const time = flight["odpt:scheduledDepartureTime"] || "";
+        const depCode = flight["odpt:departureAirport"]?.split(":")[1] || "";
+        const destCode = flight["odpt:destinationAirport"]?.split(":")[1] || "";
+        const gate = flight["odpt:departureGate"] || "-";
+        const aircraft = aircraftMap[flight["odpt:aircraftType"]] || flight["odpt:aircraftType"] || "-";
+
+        const row = `
+          <tr>
+            <td>${flightNumber}</td>
+            <td>${time}</td>
+            <td>${airportMap[depCode] || depCode}</td>
+            <td>${airportMap[destCode] || destCode}</td>
+            <td>${gate}</td>
+            <td>${aircraft}</td>
+          </tr>
+        `;
+        tbody.insertAdjacentHTML("beforeend", row);
+      });
+    }
+
+    function updateCurrentTime() {
+      const now = new Date();
+      const str = now.toLocaleString("ja-JP", { hour12: false });
+      document.getElementById("currentTime").textContent = `出力時刻: ${str}`;
+    }
+
+    document.getElementById("departureFilter").addEventListener("change", renderTable);
+    document.getElementById("destinationFilter").addEventListener("change", renderTable);
+
+    // 初回表示
+    fetchFlightInfo();
+    updateCurrentTime();
+
+    // 自動更新（1分ごと）
+    setInterval(fetchFlightInfo, 60000);
+    setInterval(updateCurrentTime, 1000 * 60);
+  </script>
+</body>
+</html>
