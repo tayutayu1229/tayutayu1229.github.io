@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>ANA フライトスケジュール</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 30px;
+      background-color: #fff;
+      color: #333;
+    }
+    h1 {
+      color: #1e6bb2;
+      margin-bottom: 20px;
+    }
+    select, input {
+      padding: 6px;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button {
+      padding: 6px 12px;
+      background-color: #1e6bb2;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      table-layout: fixed;
+    }
+    th, td {
+  border: 1px solid gray; /* 赤色の細い線 */
+  padding: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+th {
+  background-color: #1e6bb2; /* ヘッダー行を真っ赤に */
+  color: white;              /* 文字色を白にして読みやすく */
+}
+
+    
+    tr:hover {
+      background-color: #ffe6e6;
+    }
+    .section-underline {
+        height: 1px;
+        background-color: #1e6bb2;
+        margin: 0 10px 20px 10px; /* 左右余白10px、下マージン20px */
+    }
+
+  </style>
+</head>
+<body>
+  <h1>ANA フライトスケジュール</h1>
+  <div class="section-underline"></div>
+  <label>出発空港:
+    <select id="originSelect"><option value="">すべて</option></select>
+  </label>
+  <label>到着空港:
+    <select id="destinationSelect"><option value="">すべて</option></select>
+  </label>
+  <label>便名検索:
+    <input type="text" id="flightSearch" placeholder="例: NH255">
+  </label>
+  <button id="exportBtn">CSVエクスポート</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>出発空港</th>
+        <th>到着空港</th>
+        <th>出発時刻</th>
+        <th>到着時刻</th>
+        <th>便名</th>
+        <th>機材</th>
+        <th>曜日</th>
+      </tr>
+    </thead>
+    <tbody id="flightTableBody"></tbody>
+  </table>
+
+  <script>
+    const token = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+    const apiUrl = "https://api.odpt.org/api/v4/odpt:FlightSchedule?odpt:operator=odpt.Operator:ANA&acl:consumerKey=" + token;
+
+    const airportNames = {
+      "ITM": "大阪（伊丹）", 
+      "HND": "東京（羽田）", 
+      "NRT": "東京（成田）",
+      "CTS": "札幌（新千歳）", 
+      "OKA": "那覇", 
+      "KIX": "関西国際", 
+      "NGO": "中部(セントレア)", 
+      "AKJ": "旭川",
+      "HKD": "函館",
+      "KUH": "釧路",
+      "MMB": "女満別",
+      "OBO": "帯広",
+      "OIR": "奥尻",
+      "OKD": "丘珠",
+      "AOJ": "青森",
+      "AXT": "秋田",
+      "FKS": "福島",
+      "GAJ": "山形",
+      "HNA": "花巻",
+      "MSJ": "三沢",
+      "SDJ": "仙台",
+      "KIJ": "新潟",
+      "MMJ": "松本",
+      "TOY": "富山",
+      "KMQ": "小松金沢",
+      "SHM": "南紀白浜",
+      "TJH": "但馬",
+      "FSZ": "静岡",
+      "UKB": "神戸",
+      "OKJ": "岡山",
+      "HIJ": "広島",
+      "IZO": "出雲",
+      "OKI": "隠岐",
+      "UBJ": "山口宇部",
+      "YGJ": "米子",
+      "TAK": "高松",
+      "KCZ": "高知",
+      "MYJ": "松山",
+      "TKS": "徳島",
+      "NGS": "長崎",
+      "FUK": "福岡",
+      "KKJ": "北九州",
+      "OIT": "大分",
+      "KMJ": "熊本",
+      "KMI": "宮崎",
+      "KOJ": "鹿児島",
+      "ASJ": "奄美大島",
+      "KKX": "喜界島",
+      "KUM": "屋久島",
+      "OKE": "沖永良部",
+      "RNJ": "与論",
+      "TKN": "徳之島",
+      "TNE": "種子島",
+      "AGJ": "粟国",
+      "HTR": "波照間",
+      "ISG": "石垣",
+      "KTD": "北大東",
+      "MMD": "南大東",
+      "MMY": "宮古",
+      "OGN": "与那国",
+      "OKA": "沖縄",
+      "TRA": "多良間",
+      "UEO": "久米島",
+      "AXJ": "天草",
+      "FUJ": "五島福江空港",
+      "IKI": "壱岐空港",
+      "NKM": "県営名古屋空港",
+      "TSJ": "対馬やまねこ空港",
+    };
+
+    const aircraftTypes = {
+      789: "ボーイング787-9",
+      788: "ボーイング787-8",
+      "788/767": "ボーイング787-8 または 767",
+      "undefined": "機材不明"
+    };
+
+    const weekdaysJa = {
+      Sunday: "日曜日",
+      Monday: "月曜日",
+      Tuesday: "火曜日",
+      Wednesday: "水曜日",
+      Thursday: "木曜日",
+      Friday: "金曜日",
+      Saturday: "土曜日"
+    };
+
+    const todayWeekday = new Date().toLocaleDateString("en-US", { weekday: "long" });
+
+    const originSelect = document.getElementById("originSelect");
+    const destinationSelect = document.getElementById("destinationSelect");
+    const flightSearch = document.getElementById("flightSearch");
+    const flightTableBody = document.getElementById("flightTableBody");
+    let allFlights = [];
+
+    async function fetchData() {
+      try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        allFlights = [];
+
+        const seenOrigins = new Set();
+        const seenDests = new Set();
+
+        json.forEach(item => {
+          const originCode = item["odpt:originAirport"]?.split(":")[1];
+          const destCode = item["odpt:destinationAirport"]?.split(":")[1];
+          const day = item["odpt:calendar"]?.split(":")[1];
+
+          if (day !== todayWeekday) return;
+
+          item["odpt:flightScheduleObject"]?.forEach(flight => {
+            const flightNumber = flight["odpt:flightNumber"]?.[0] || "";
+            const originTime = flight["odpt:originTime"];
+            const destinationTime = flight["odpt:destinationTime"];
+            const aircraftRaw = flight["odpt:aircraftType"];
+            const aircraft = aircraftTypes[aircraftRaw] || aircraftRaw;
+            const validFrom = flight["odpt:isValidFrom"];
+            const validTo = flight["odpt:isValidTo"];
+
+            allFlights.push({
+              originCode,
+              destCode,
+              origin: airportNames[originCode] || originCode,
+              destination: airportNames[destCode] || destCode,
+              originTime,
+              destinationTime,
+              flightNumber,
+              aircraft,
+              aircraftRaw,
+              validFrom,
+              validTo,
+              day: weekdaysJa[day] || day
+            });
+
+            if (!seenOrigins.has(originCode)) {
+              const opt = document.createElement("option");
+              opt.value = originCode;
+              opt.textContent = airportNames[originCode] || originCode;
+              originSelect.appendChild(opt);
+              seenOrigins.add(originCode);
+            }
+
+            if (!seenDests.has(destCode)) {
+              const opt = document.createElement("option");
+              opt.value = destCode;
+              opt.textContent = airportNames[destCode] || destCode;
+              destinationSelect.appendChild(opt);
+              seenDests.add(destCode);
+            }
+          });
+        });
+
+        renderTable();
+      } catch (err) {
+        alert("APIの取得に失敗しました:\n" + err);
+      }
+    }
+
+    function renderTable() {
+      flightTableBody.innerHTML = "";
+      const filtered = allFlights.filter(f => {
+        return (!originSelect.value || f.originCode === originSelect.value) &&
+               (!destinationSelect.value || f.destCode === destinationSelect.value) &&
+               (!flightSearch.value || f.flightNumber.includes(flightSearch.value.trim().toUpperCase()));
+      });
+
+      filtered.forEach(f => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${f.origin}</td>
+          <td>${f.destination}</td>
+          <td>${f.originTime}</td>
+          <td>${f.destinationTime}</td>
+          <td>${f.flightNumber}</td>
+          <td>${f.aircraft}</td>
+          <td>${f.day}</td>
+        `;
+        tr.addEventListener("click", () => {
+          alert(
+            `便名: ${f.flightNumber}\n` +
+            `出発: ${f.origin} ${f.originTime}\n` +
+            `到着: ${f.destination} ${f.destinationTime}\n` +
+            `機材: ${f.aircraft}（${f.aircraftRaw}）\n` +
+            `運航期間: ${f.validFrom} ～ ${f.validTo}`
+          );
+        });
+        flightTableBody.appendChild(tr);
+      });
+    }
+
+    [originSelect, destinationSelect, flightSearch].forEach(el =>
+      el.addEventListener("input", renderTable)
+    );
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const rows = [["出発空港", "到着空港", "出発時刻", "到着時刻", "便名", "機材", "曜日"]];
+      allFlights.filter(f => (
+        (!originSelect.value || f.originCode === originSelect.value) &&
+        (!destinationSelect.value || f.destCode === destinationSelect.value) &&
+        (!flightSearch.value || f.flightNumber.includes(flightSearch.value.trim().toUpperCase()))
+      )).forEach(f => {
+        rows.push([f.origin, f.destination, f.originTime, f.destinationTime, f.flightNumber, f.aircraft, f.day]);
+      });
+
+      const csv = rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "jal_flight_schedule.csv";
+      link.click();
+    });
+
+    fetchData();
+  </script>
+</body>
+</html>
