@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>東京メトロ 運行情報</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f7f7f7;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #222;
+      font-size: 1.8em;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .card {
+      background: #fff;
+      border-left: 8px solid #4CAF50;
+      border-radius: 10px;
+      padding: 15px 20px;
+      width: 300px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .card.alert {
+      border-left-color: #f44336;
+    }
+    .line-name {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 10px;
+    }
+    .info {
+      font-size: 0.95em;
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #777;
+      margin-top: 10px;
+    }
+    .back-button {
+      display: block;
+      margin: 0 auto 20px;
+      text-align: center;
+    }
+    .back-button button {
+      padding: 10px 20px;
+      font-size: 1em;
+      border: none;
+      border-radius: 8px;
+      background-color: #2196F3;
+      color: white;
+      cursor: pointer;
+    }
+    .back-button button:hover {
+      background-color: #1976D2;
+    }
+
+    @media screen and (max-width: 600px) {
+      .card {
+        width: 90%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>東京メトロ 運行情報</h1>
+  <div class="back-button">
+    <button onclick="window.location.href='other-railways.html'">他会社線運行情報一覧に戻る</button>
+  </div>
+  <div class="container" id="trainInfoContainer">読み込み中...</div>
+
+  <script>
+    const API_URL = 'https://api.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TokyoMetro&acl:consumerKey=4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
+
+    const railwayMap = {
+      "TokyoMetro.Ginza": "銀座線",
+      "TokyoMetro.Marunouchi": "丸ノ内線",
+      "TokyoMetro.MarunouchiBranch": "丸ノ内線（分岐線）",
+      "TokyoMetro.Hibiya": "日比谷線",
+      "TokyoMetro.Tozai": "東西線",
+      "TokyoMetro.Chiyoda": "千代田線",
+      "TokyoMetro.Yurakucho": "有楽町線",
+      "TokyoMetro.Hanzomon": "半蔵門線",
+      "TokyoMetro.Namboku": "南北線",
+      "TokyoMetro.Fukutoshin": "副都心線"
+    };
+
+    function fetchAndRender() {
+      fetch(API_URL)
+        .then(response => response.json())
+        .then(data => {
+          const container = document.getElementById('trainInfoContainer');
+          container.innerHTML = ''; // リセット
+
+          data.forEach(info => {
+            const lineKey = info['odpt:railway'].split(':').pop();
+            const lineName = railwayMap[lineKey] || lineKey;
+            const text = info['odpt:trainInformationText']?.ja || '情報なし';
+            const status = info['odpt:trainInformationStatus']?.ja || '';
+            const timestamp = new Date(info['dc:date']).toLocaleString('ja-JP');
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            if (status && status !== "平常") card.classList.add('alert');
+
+            card.innerHTML = `
+              <div class="line-name">${lineName}</div>
+              <div class="info">${text}</div>
+              <div class="timestamp">更新: ${timestamp}</div>
+            `;
+            container.appendChild(card);
+          });
+        })
+        .catch(error => {
+          document.getElementById('trainInfoContainer').innerHTML = 'データ取得に失敗しました。';
+          console.error('API取得エラー:', error);
+        });
+    }
+
+    // 初回実行
+    fetchAndRender();
+
+    // 1分ごとに更新
+    setInterval(fetchAndRender, 60000);
+  </script>
+</body>
+</html>
