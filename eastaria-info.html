@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>運行情報モニター</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background-color: #f8f9fa;
+      color: #212529;
+      line-height: 1.5;
+    }
+
+    .header {
+      background: #ffffff;
+      border-bottom: 1px solid #e9ecef;
+      padding: 1rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #495057;
+    }
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+
+    .controls {
+      background: #ffffff;
+      border-bottom: 1px solid #e9ecef;
+      padding: 1rem 0;
+    }
+
+    .controls-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .control-btn {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      color: #495057;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .control-btn:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+    }
+
+    .search-input {
+      padding: 0.5rem 1rem;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      width: 300px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+    }
+
+    .main-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    .companies-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .company-card {
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+
+    .company-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .company-header {
+      padding: 1rem 1.5rem;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      font-weight: 600;
+      color: #495057;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .company-content {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .loading {
+      padding: 2rem;
+      text-align: center;
+      color: #6c757d;
+    }
+
+    .error {
+      padding: 1rem 1.5rem;
+      background: #f8d7da;
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+      margin: 1rem;
+    }
+
+    .line-section {
+      border-bottom: 1px solid #f1f3f4;
+    }
+
+    .line-section:last-child {
+      border-bottom: none;
+    }
+
+    .line-header {
+      padding: 0.75rem 1.5rem;
+      background: #f8f9fa;
+      font-weight: 500;
+      color: #495057;
+      border-bottom: 1px solid #e9ecef;
+      font-size: 0.9rem;
+    }
+
+    .info-item {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #f1f3f4;
+      font-size: 0.95rem;
+    }
+
+    .info-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-normal {
+      color: #198754;
+    }
+
+    .status-delay {
+      color: #fd7e14;
+    }
+
+    .status-suspend {
+      color: #dc3545;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+
+    .status-indicator.normal {
+      background: #198754;
+    }
+
+    .status-indicator.delay {
+      background: #fd7e14;
+    }
+
+    .status-indicator.suspend {
+      background: #dc3545;
+    }
+
+    .status-indicator.unknown {
+      background: #6c757d;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .controls-content {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-input {
+        width: 100%;
+      }
+
+      .companies-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <div class="header-title">運行情報モニター</div>
+      <div class="header-info">
+        <span id="lastUpdate">最終更新: 読み込み中...</span>
+        <!--<span>自動更新: 60秒</span>-->
+        <a href="topmenu.html" > 前のページに戻る</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-content">
+      <button class="control-btn" onclick="scrollToSection('tobu')">東武鉄道</button>
+      <button class="control-btn" onclick="scrollToSection('tokyu')">東急電鉄</button>
+      <button class="control-btn" onclick="scrollToSection('keikyu')">京急電鉄</button>
+      <button class="control-btn" onclick="scrollToSection('seibu')">西武鉄道</button>
+      <button class="control-btn" onclick="scrollToSection('twr')">東京臨海高速鉄道</button>
+      <!--<button class="control-btn" onclick="scrollToSection('metro')">東京メトロ</button>-->
+      <button class="control-btn" onclick="scrollToSection('toei')">東京都交通局</button>
+      <button class="control-btn" onclick="scrollToSection('yokohama')">横浜市交通局</button>
+      <button class="control-btn" onclick="scrollToSection('tsukuba')">つくばエクスプレス</button>
+      <button class="control-btn" onclick="scrollToSection('tama')">多摩都市モノレール</button>
+      <!--<input type="text" class="search-input" id="filterInput" oninput="filterInfo()" placeholder="検索（路線名、運行状況など）">-->
+      <button class="control-btn" onclick="refreshAll()">更新</button>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="companies-grid">
+      <div class="company-card" id="tobu">
+        <div class="company-header">
+          <span>東武鉄道</span>
+        </div>
+        <div class="company-content" id="tobuContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="tokyu">
+        <div class="company-header">
+          <span>東急電鉄</span>
+        </div>
+        <div class="company-content" id="tokyuContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="keikyu">
+        <div class="company-header">
+          <span>京急電鉄</span>
+        </div>
+        <div class="company-content" id="keikyuContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="seibu">
+        <div class="company-header">
+          <span>西武鉄道</span>
+        </div>
+        <div class="company-content" id="seibuContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="twr">
+        <div class="company-header">
+          <span>東京臨海高速鉄道</span>
+        </div>
+        <div class="company-content" id="twrContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <!--
+      <div class="company-card" id="metro">
+        <div class="company-header">
+          <span>東京メトロ</span>
+        </div>
+        <div class="company-content" id="metroContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+    -->
+
+      <div class="company-card" id="toei">
+        <div class="company-header">
+          <span>東京都交通局</span>
+        </div>
+        <div class="company-content" id="toeiContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="yokohama">
+        <div class="company-header">
+          <span>横浜市交通局</span>
+        </div>
+        <div class="company-content" id="yokohamaContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="tsukuba">
+        <div class="company-header">
+          <span>つくばエクスプレス</span>
+        </div>
+        <div class="company-content" id="tsukubaContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="company-card" id="tama">
+        <div class="company-header">
+          <span>多摩都市モノレール</span>
+        </div>
+        <div class="company-content" id="tamaContent">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+    const TOKEN_B = '4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
+
+    const railwayMaps = {
+      tobu: {
+        "odpt.Railway:Tobu.TobuUrbanPark": "アーバンパークライン",
+        "odpt.Railway:Tobu.Isesaki": "伊勢崎線",
+        "odpt.Railway:Tobu.Nikko": "日光線",
+        "odpt.Railway:Tobu.Tojo": "東上線",
+        "odpt.Railway:Tobu.Kameido": "亀戸線",
+        "odpt.Railway:Tobu.Daishi": "大師線",
+        "odpt.Railway:Tobu.TobuSkytree": "スカイツリーライン",
+        "odpt.Railway:Tobu.TobuSkytreeBranch": "スカイツリーライン支線",
+        "odpt.Railway:Tobu.Kiryu": "桐生線",
+        "odpt.Railway:Tobu.Utsunomiya": "宇都宮線",
+        "odpt.Railway:Tobu.Ogose": "越生線",
+        "odpt.Railway:Tobu.Kinugawa": "鬼怒川線",
+        "odpt.Railway:Tobu.Sano": "佐野線",
+        "odpt.Railway:Tobu.Koizumi": "小泉線",
+        "odpt.Railway:Tobu.KoizumiBranch": "小泉支線",
+      },
+      toei: {
+        "odpt.Railway:Toei.Asakusa": "都営浅草線",
+        "odpt.Railway:Toei.Mita": "都営三田線",
+        "odpt.Railway:Toei.Shinjuku": "都営新宿線",
+        "odpt.Railway:Toei.Oedo": "都営大江戸線",
+        "odpt.Railway:Toei.Arakawa": "都電荒川線",
+        "odpt.Railway:Toei.NipporiToneri": "日暮里・舎人ライナー"
+      },
+      yokohama: {
+        "odpt.Railway:YokohamaMunicipal.Blue": "ブルーライン",
+        "odpt.Railway:YokohamaMunicipal.Green": "グリーンライン"
+      }
+    };
+
+    const operators = [
+      { id: 'tobu', name: '東武鉄道', code: 'odpt.Operator:Tobu', token: TOKEN, useTokenB: false },
+      { id: 'tokyu', name: '東急電鉄', code: 'odpt.Operator:Tokyu', token: TOKEN, useTokenB: false },
+      { id: 'keikyu', name: '京急電鉄', code: 'odpt.Operator:Keikyu', token: TOKEN, useTokenB: false },
+      { id: 'seibu', name: '西武鉄道', code: 'odpt.Operator:Seibu', token: TOKEN, useTokenB: false },
+      { id: 'twr', name: '東京臨海高速鉄道', code: 'odpt.Operator:TWR', token: TOKEN_B, useTokenB: true },
+      { id: 'toei', name: '東京都交通局', code: 'odpt.Operator:Toei', token: TOKEN_B, useTokenB: true },
+      { id: 'yokohama', name: '横浜市交通局', code: 'odpt.Operator:YokohamaMunicipal', token: TOKEN_B, useTokenB: true },
+      { id: 'tsukuba', name: 'つくばエクスプレス', code: 'odpt.Operator:MIR', token: TOKEN_B, useTokenB: true },
+      { id: 'tama', name: '多摩都市モノレール', code: 'odpt.Operator:TamaMonorail', token: TOKEN_B, useTokenB: true },
+      { id: 'metro', name: '東京メトロ', code: 'odpt.Operator:TokyoMetro', token: TOKEN_B, useTokenB: true },
+    ];
+
+    function scrollToSection(id) {
+      const element = document.getElementById(id);
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function getStatusInfo(text) {
+      if (text.includes('平常通り') || text.includes('正常') || text.includes('遅延はありません')) {
+        return { class: 'status-normal', indicator: 'normal' };
+      }
+      if (text.includes('遅延') || text.includes('運転見合わせ')) {
+        return { class: 'status-delay', indicator: 'delay' };
+      }
+      if (text.includes('運転停止') || text.includes('運休')) {
+        return { class: 'status-suspend', indicator: 'suspend' };
+      }
+      return { class: '', indicator: 'unknown' };
+    }
+
+    async function fetchTrainInfo() {
+      const updateTime = new Date().toLocaleString('ja-JP');
+      document.getElementById('lastUpdate').textContent = `最終更新: ${updateTime}`;
+
+      for (const op of operators) {
+        try {
+          let url;
+          if (op.useTokenB) {
+            url = `https://api.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=${op.code}&acl:consumerKey=${op.token}`;
+          } else {
+            url = `https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=${op.code}&acl:consumerKey=${op.token}`;
+          }
+          
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          
+          const data = await res.json();
+          renderInfo(op.id, data);
+        } catch (e) {
+          console.error(`${op.name} エラー:`, e);
+          renderError(op.id, `${op.name}の情報を取得できませんでした`);
+        }
+      }
+    }
+
+    function renderInfo(id, data) {
+      const container = document.getElementById(id + 'Content');
+      container.innerHTML = '';
+
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div class="info-item">運行情報がありません</div>';
+        return;
+      }
+
+      const railwayMap = railwayMaps[id];
+      
+      if (railwayMap) {
+        // 路線別表示（東武鉄道、東京都交通局、横浜市交通局）
+        const grouped = {};
+        data.forEach(item => {
+          const railway = item['odpt:railway'];
+          const lineName = railwayMap[railway] || railway.split(':').pop();
+          if (!grouped[lineName]) grouped[lineName] = [];
+          grouped[lineName].push(item['odpt:trainInformationText']?.ja || '情報なし');
+        });
+
+        for (const line in grouped) {
+          const lineSection = document.createElement('div');
+          lineSection.className = 'line-section';
+          
+          const lineHeader = document.createElement('div');
+          lineHeader.className = 'line-header';
+          lineHeader.textContent = line;
+          lineSection.appendChild(lineHeader);
+
+          grouped[line].forEach(text => {
+            const statusInfo = getStatusInfo(text);
+            const infoItem = document.createElement('div');
+            infoItem.className = `info-item ${statusInfo.class}`;
+            infoItem.innerHTML = `<span class="status-indicator ${statusInfo.indicator}"></span>${text}`;
+            lineSection.appendChild(infoItem);
+          });
+
+          container.appendChild(lineSection);
+        }
+      } else {
+        // 通常表示（その他の会社）
+        data.forEach(item => {
+          const text = item['odpt:trainInformationText']?.ja || '情報なし';
+          const statusInfo = getStatusInfo(text);
+          const infoItem = document.createElement('div');
+          infoItem.className = `info-item ${statusInfo.class}`;
+          infoItem.innerHTML = `<span class="status-indicator ${statusInfo.indicator}"></span>${text}`;
+          container.appendChild(infoItem);
+        });
+      }
+    }
+
+    function renderError(id, message) {
+      const container = document.getElementById(id + 'Content');
+      container.innerHTML = `<div class="error">${message}</div>`;
+    }
+
+    function filterInfo() {
+      const keyword = document.getElementById('filterInput').value.toLowerCase();
+      const items = document.querySelectorAll('.info-item, .line-header');
+      
+      items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const shouldShow = text.includes(keyword);
+        item.classList.toggle('hidden', !shouldShow);
+        
+        // 路線ヘッダーの場合、関連する情報アイテムも確認
+        if (item.classList.contains('line-header')) {
+          const lineSection = item.parentElement;
+          const lineItems = lineSection.querySelectorAll('.info-item');
+          const hasVisibleItems = Array.from(lineItems).some(lineItem => !lineItem.classList.contains('hidden'));
+          lineSection.classList.toggle('hidden', !hasVisibleItems && !shouldShow);
+        }
+      });
+    }
+
+    function refreshAll() {
+      operators.forEach(op => {
+        const container = document.getElementById(op.id + 'Content');
+        container.innerHTML = '<div class="loading">更新中...</div>';
+      });
+      
+      fetchTrainInfo();
+    }
+
+    // 初期化
+    fetchTrainInfo();
+    
+    // 自動更新（60秒間隔）
+    setInterval(fetchTrainInfo, 60000);
+  </script>
+</body>
+</html>
