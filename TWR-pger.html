@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>りんかい線 利用者数グラフ</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6fa;
+      padding: 2em;
+      color: #333;
+    }
+    h1 {
+      color: #222D65;
+    }
+    label {
+      font-weight: bold;
+    }
+    select {
+      padding: 0.3em;
+      margin-left: 0.5em;
+    }
+    .back-button {
+      display: inline-block;
+      margin-bottom: 1em;
+      padding: 0.5em 1em;
+      background: #222D65;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+    canvas {
+      background: white;
+      padding: 1em;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <a class="back-button" href="TWR-top.html">← TWRトップページに戻る</a>
+  <h1>りんかい線 駅別利用者数グラフ</h1>
+  <label for="yearSelect">年度を選択：</label>
+  <select id="yearSelect"></select>
+
+  <canvas id="passengerChart" width="800" height="400"></canvas>
+
+  <script>
+    const API_KEY = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+
+    let passengerData = {}; // { stationName: {year: num, ...} }
+    let availableYears = new Set();
+
+    fetch(`https://api.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`)
+      .then(res => res.json())
+      .then(data => {
+        data.forEach(entry => {
+          const name = entry["odpt:station"][0].replace("odpt.Station:TWR.Rinkai.", "");
+          if (!passengerData[name]) passengerData[name] = {};
+          entry["odpt:passengerSurveyObject"].forEach(obj => {
+            const year = obj["odpt:surveyYear"];
+            const count = obj["odpt:passengerJourneys"];
+            passengerData[name][year] = count;
+            availableYears.add(year);
+          });
+        });
+
+        const yearSelect = document.getElementById("yearSelect");
+        [...availableYears].sort().forEach(y => {
+          yearSelect.add(new Option(`${y}年`, y));
+        });
+
+        yearSelect.addEventListener("change", () => renderChart(yearSelect.value));
+
+        if (yearSelect.options.length > 0) {
+          yearSelect.value = yearSelect.options[yearSelect.options.length - 1].value;
+          renderChart(yearSelect.value);
+        }
+      });
+
+    let chart;
+    function renderChart(year) {
+      const labels = [];
+      const values = [];
+
+      for (const station in passengerData) {
+        if (passengerData[station][year]) {
+          labels.push(station);
+          values.push(passengerData[station][year]);
+        }
+      }
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById("passengerChart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: `${year}年の1日平均利用者数`,
+            data: values,
+            backgroundColor: "rgba(54, 162, 235, 0.6)",
+            borderColor: "rgba(54, 162, 235, 1)",
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

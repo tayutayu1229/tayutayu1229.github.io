@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>りんかい線 路線概要</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      color: #222D65;
+    }
+    label, select {
+      font-size: 1rem;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 1em;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      text-align: left;
+    }
+    .back-button {
+      display: inline-block;
+      margin-bottom: 1em;
+      padding: 0.5em 1em;
+      background: #222D65;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-button" href="TWR-top.html">← TWRトップページに戻る</a>
+  <h1>りんかい線 路線概要</h1>
+  <label for="yearSelect">年度を選択：</label>
+  <select id="yearSelect"></select>
+
+  <table id="stationTable">
+    <thead>
+      <tr>
+        <th>駅名</th>
+        <th>緯度・経度</th>
+        <th>利用者数（人/日）</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API_KEY = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+
+    let stationOrder = [];
+    let stationMeta = {};
+    let passengerSurvey = {}; // {stationId: {2021: num, 2022: num...}}
+    let availableYears = new Set();
+
+    // ステップ1：路線の駅順を取得
+    fetch(`https://api.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`)
+      .then(res => res.json())
+      .then(data => {
+        const railway = data.find(r => r["odpt:stationOrder"]);
+        stationOrder = railway["odpt:stationOrder"].map(s => s["odpt:station"]);
+        return Promise.all([
+          fetch(`https://api.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`).then(r => r.json()),
+          fetch(`https://api.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`).then(r => r.json())
+        ]);
+      })
+      .then(([stations, surveys]) => {
+        // 駅情報保存
+        stations.forEach(st => stationMeta[st["owl:sameAs"]] = st);
+
+        // 利用者数を年度別に保存
+        surveys.forEach(entry => {
+          const stationId = entry["odpt:station"][0];
+          if (!passengerSurvey[stationId]) passengerSurvey[stationId] = {};
+          entry["odpt:passengerSurveyObject"].forEach(obj => {
+            const year = obj["odpt:surveyYear"];
+            availableYears.add(year);
+            passengerSurvey[stationId][year] = obj["odpt:passengerJourneys"];
+          });
+        });
+
+        // 年度セレクター設定
+        const yearSelect = document.getElementById("yearSelect");
+        [...availableYears].sort().forEach(y => {
+          const opt = new Option(`${y}年`, y);
+          yearSelect.add(opt);
+        });
+        yearSelect.addEventListener("change", () => renderTable(yearSelect.value));
+
+        // 初期表示
+        if (yearSelect.options.length > 0) {
+          yearSelect.value = yearSelect.options[yearSelect.options.length - 1].value;
+          renderTable(yearSelect.value);
+        }
+      });
+
+    function renderTable(year) {
+      const tbody = document.querySelector("#stationTable tbody");
+      tbody.innerHTML = "";
+      stationOrder.forEach(stationId => {
+        const meta = stationMeta[stationId];
+        const name = meta?.["dc:title"] || stationId;
+        const lat = meta?.["geo:lat"]?.toFixed(5);
+        const lon = meta?.["geo:long"]?.toFixed(5);
+        const usage = passengerSurvey[stationId]?.[year] ? passengerSurvey[stationId][year].toLocaleString() : "―";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${name}</td><td>${lat}, ${lon}</td><td>${usage}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>

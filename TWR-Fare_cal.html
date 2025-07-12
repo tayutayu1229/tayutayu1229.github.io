@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>りんかい線 運賃計算</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6fa;
+      padding: 2em;
+      color: #333;
+    }
+    h1 {
+      color: #222D65;
+    }
+    label, select {
+      font-size: 1rem;
+    }
+    select {
+      padding: 0.3em;
+      margin: 0.5em;
+    }
+    .back-button {
+      display: inline-block;
+      margin-bottom: 1em;
+      padding: 0.5em 1em;
+      background: #222D65;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+    .route-display {
+      font-size: 1.2em;
+      margin-top: 1em;
+    }
+    .result {
+      margin-top: 0.5em;
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-button" href="TWR-top.html">← TWRトップページに戻る</a>
+  <h1>りんかい線 運賃計算ページ</h1>
+
+  <label for="fromStation">出発駅：</label>
+  <select id="fromStation"></select>
+
+  <label for="toStation">到着駅：</label>
+  <select id="toStation"></select>
+
+  <div class="route-display" id="routeDisplay"></div>
+  <div class="result" id="fareResult">運賃：-</div>
+
+  <script>
+    const API_KEY = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+    let fareMap = {};
+    let stationNames = {}; // ID → 日本語名
+    let stationList = [];
+
+    Promise.all([
+      fetch(`https://api.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`).then(r => r.json()),
+      fetch(`https://api.odpt.org/api/v4/odpt:RailwayFare?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`).then(r => r.json())
+    ]).then(([stations, fares]) => {
+      stations.forEach(s => {
+        const id = s["owl:sameAs"].replace("odpt.Station:TWR.Rinkai.", "");
+        const name = s["odpt:stationTitle"]?.ja || s["dc:title"];
+        stationNames[id] = name;
+        stationList.push(id);
+      });
+
+      fares.forEach(f => {
+        const from = f["odpt:fromStation"].replace("odpt.Station:TWR.Rinkai.", "");
+        const to = f["odpt:toStation"].replace("odpt.Station:TWR.Rinkai.", "");
+
+        if (!fareMap[from]) fareMap[from] = {};
+        fareMap[from][to] = {
+          ic: f["odpt:icCardFare"],
+          ticket: f["odpt:ticketFare"]
+        };
+      });
+
+      const fromSel = document.getElementById("fromStation");
+      const toSel = document.getElementById("toStation");
+
+      stationList.sort((a, b) => stationNames[a].localeCompare(stationNames[b]));
+
+      stationList.forEach(id => {
+        const opt1 = new Option(stationNames[id], id);
+        const opt2 = new Option(stationNames[id], id);
+        fromSel.add(opt1);
+        toSel.add(opt2);
+      });
+
+      fromSel.addEventListener("change", showFare);
+      toSel.addEventListener("change", showFare);
+    });
+
+    function showFare() {
+      const from = document.getElementById("fromStation").value;
+      const to = document.getElementById("toStation").value;
+      const routeDisplay = document.getElementById("routeDisplay");
+      const result = document.getElementById("fareResult");
+
+      const fromName = stationNames[from];
+      const toName = stationNames[to];
+      routeDisplay.textContent = `${fromName} → ${toName}`;
+
+      if (fareMap[from] && fareMap[from][to]) {
+        const fare = fareMap[from][to];
+        result.textContent = `IC運賃: ￥${fare.ic} ／ 切符運賃: ￥${fare.ticket}`;
+      } else if (fareMap[to] && fareMap[to][from]) {
+        const fare = fareMap[to][from];
+        result.textContent = `IC運賃: ￥${fare.ic} ／ 切符運賃: ￥${fare.ticket}`;
+      } else {
+        result.textContent = "運賃情報が見つかりません。";
+      }
+    }
+  </script>
+</body>
+</html>

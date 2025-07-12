@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>りんかい線 列車検索</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6fa;
+      padding: 2em;
+      color: #333;
+    }
+    h1 {
+      color: #222D65;
+    }
+    input[type="text"], select {
+      padding: 0.5em;
+      width: 200px;
+      font-size: 1rem;
+      margin-right: 0.5em;
+    }
+    button {
+      padding: 0.5em 1em;
+      font-size: 1rem;
+      background-color: #222D65;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .back-button {
+      display: inline-block;
+      margin-bottom: 1em;
+      padding: 0.5em 1em;
+      background: #222D65;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+    .result {
+      margin-top: 2em;
+      background: white;
+      padding: 1em;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .result table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .result th, .result td {
+      border: 1px solid #ccc;
+      padding: 0.5em;
+    }
+    .result th {
+      background: #e4e8f5;
+    }
+    .summary {
+      margin-top: 1em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-button" href="TWR-top.html">← トップページに戻る</a>
+  <h1>りんかい線 列車検索</h1>
+  <p>列車番号を入力してください（例: 1000F）</p>
+  <input type="text" id="trainNumberInput" placeholder="列車番号">
+  <select id="calendarSelect">
+    <option value="odpt.Calendar:Weekday">平日</option>
+    <option value="odpt.Calendar:SaturdayHoliday">土休日</option>
+  </select>
+  <button onclick="searchTrain()">検索</button>
+
+  <div class="result" id="resultBox" style="display: none;">
+    <h2>検索結果</h2>
+    <div class="summary" id="summary"></div>
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>駅名</th>
+          <th>発車時刻</th>
+          <th>到着時刻</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const API_KEY = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v";
+    const stationNames = {};
+    let stationOrder = [];
+
+    Promise.all([
+      fetch(`https://api.odpt.org/api/v4/odpt:Station?acl:consumerKey=${API_KEY}`).then(res => res.json()),
+      fetch(`https://api.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${API_KEY}`).then(res => res.json())
+    ]).then(([stations, railways]) => {
+      stations.forEach(st => {
+        const id = st["owl:sameAs"];
+        const name = st["odpt:stationTitle"]?.ja || st["dc:title"];
+        stationNames[id] = name;
+      });
+      const rinkai = railways.find(r => r["odpt:stationOrder"]);
+      stationOrder = rinkai["odpt:stationOrder"].map(s => s["odpt:station"]);
+    });
+
+    function searchTrain() {
+      const trainNumber = document.getElementById("trainNumberInput").value.trim();
+      const calendar = document.getElementById("calendarSelect").value;
+      if (!trainNumber || !calendar) return;
+
+      fetch(`https://api.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:TWR&odpt:calendar=${calendar}&acl:consumerKey=${API_KEY}`)
+        .then(res => res.json())
+        .then(data => {
+          const timetable = data.find(t => t["odpt:trainNumber"] === trainNumber);
+          const resultBox = document.getElementById("resultBox");
+          const tbody = document.querySelector("#resultTable tbody");
+          const summaryBox = document.getElementById("summary");
+          tbody.innerHTML = "";
+          summaryBox.innerHTML = "";
+          resultBox.style.display = "block";
+
+          if (!timetable) {
+            tbody.innerHTML = '<tr><td colspan="3">該当する列車が見つかりませんでした。</td></tr>';
+            return;
+          }
+
+          const stopMap = {};
+          timetable["odpt:trainTimetableObject"].forEach(obj => {
+            const stationId = obj["odpt:departureStation"] || obj["odpt:arrivalStation"];
+            if (!stopMap[stationId]) stopMap[stationId] = {};
+            if (obj["odpt:departureTime"]) stopMap[stationId].departure = obj["odpt:departureTime"];
+            if (obj["odpt:arrivalTime"]) stopMap[stationId].arrival = obj["odpt:arrivalTime"];
+          });
+
+          const direction = timetable["odpt:railDirection"];
+          const sortedOrder = direction === "odpt:RailDirection:Inbound" ? [...stationOrder] : [...stationOrder].reverse();
+          const filteredStations = sortedOrder.filter(id => stopMap[id]);
+
+          const rows = filteredStations.map(id => {
+            const name = stationNames[id] || id;
+            const dep = stopMap[id].departure || "-";
+            const arr = stopMap[id].arrival || "-";
+            return `<tr><td>${name}</td><td>${dep}</td><td>${arr}</td></tr>`;
+          });
+
+          tbody.innerHTML = rows.join("");
+
+          // 出発・到着駅の日本語名を取得
+          const originId = timetable["odpt:originStation"]?.[0];
+          const destId = timetable["odpt:destinationStation"]?.[0];
+          const originName = stationNames[originId] || originId || "-";
+          const destName = stationNames[destId] || destId || "-";
+          summaryBox.innerText = `■列車番号：${trainNumber}　${originName}〜${destName}`;
+        });
+    }
+  </script>
+</body>
+</html>
