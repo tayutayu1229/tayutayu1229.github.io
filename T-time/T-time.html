@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>列車検索</title>
+  <title>列車別ダイヤモニタ</title>
   <style>
     body {
       font-family: "MS PGothic", sans-serif;
@@ -94,7 +94,7 @@
 </head>
 <body>
   <header>
-    <h1>列車検索</h1>
+    <h1>列車別ダイヤモニタ</h1>
   </header>
   <div class="container">
     <a href="../toppage.html" class="back-button">トップメニューに戻る</a>
@@ -125,9 +125,9 @@
       <p>運転区間: <span id="operation-section"></span>　列車番号：<span id="train-id"></p>
 
       <table>
-        <tr><td>列車種別</td><td id="info-type"></td></tr>
+        <!--<tr><td>列車種別</td><td id="info-type"></td></tr> -->
         <tr><td>平日/土休日</td><td id="info-daytype"></td></tr>
-        <!-- <tr><td>始発駅〜終着駅</td><td id="info-startend"></td></tr> -->
+        <tr><td>始発駅〜終着駅</td><td id="info-startend"></td></tr>
         <tr><td>速度種別</td><td id="info-speed"></td></tr>
         <tr><td>列車名</td><td id="info-name"></td></tr>
       </table>
@@ -136,6 +136,7 @@
     <table>
       <thead>
         <tr>
+          <th>列車種別</th>
           <th>駅名</th>
           <th>着時刻</th>
           <th>発時刻</th>
@@ -184,16 +185,18 @@
 
       const tbody = document.getElementById("timetable");
       tbody.innerHTML = "";
-      match.stops.forEach(stop => {
+      match.stops.forEach((stop, index) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
+          <td>${index === 0 ? match.type : ""}</td>
           <td>${stop.station}</td>
           <td>${stop.arrival || "-"}</td>
           <td>${stop.departure || "-"}</td>
-          <td>${stop.trackN || "-"}</td>
+         <td>${stop.trackN || "-"}</td>
         `;
         tbody.appendChild(tr);
       });
+
 
     } catch (err) {
       errorLog.textContent = "データの読み込みに失敗しました: " + err.message;
@@ -211,28 +214,6 @@
       searchTrain();
     }
   });
-  // トークン検証
-    const token = localStorage.getItem('authToken');
-    const tokenExpiry = localStorage.getItem('tokenExpiry');
-
-    if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-        // 無効な場合はログインページへ
-        alert('セッションが切れました');
-        window.location.href = 'login.html';
-    }
-
-    // ログアウト関数
-    function logout() {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('tokenExpiry');
-        window.location.href = 'index.html';
-    }
-
-    // ログアウトボタンにイベント追加
-    const logoutButton = document.querySelector('.logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', logout);
-    }
 </script>
 </body>
 </html>
