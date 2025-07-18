@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>列車別ダイヤモニタ</title>
+  <style>
+    body {
+      font-family: "MS PGothic", sans-serif;
+      font-weight: bold;
+      background-color: #ffffff;
+      color: #000000;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #01977a;
+      color: white;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .container {
+      margin: 20px;
+    }
+
+    .selection {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .selection label {
+      margin-right: 10px;
+    }
+
+    .selection select,
+    .selection input {
+      margin-right: 20px;
+      padding: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    table,
+    th,
+    td {
+      border: 1px solid #01977a;
+    }
+
+    th {
+      background-color: #01977a;
+      color: white;
+      padding: 10px;
+    }
+
+    td {
+      padding: 10px;
+      background-color: #f0f0f0;
+    }
+
+    .back-button,
+    .display-button {
+      margin-top: 20px;
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #01977a;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .back-button:hover,
+    .display-button:hover {
+      background-color: #017a63;
+    }
+
+    #error-log {
+      background-color: #ffcccc;
+      color: #990000;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #990000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>列車別ダイヤモニタ</h1>
+  </header>
+  <div class="container">
+    <a href="toppage.html" class="back-button">トップメニューに戻る</a>
+
+    <div id="error-log"></div>
+
+    <div class="selection">
+      <label for="line">線区:</label>
+      <select id="line">
+        <option value="">すべて</option>
+        <option value="中央本線">中央本線</option>
+        <option value="東海道本線">東海道本線</option>
+        <!-- 必要に応じて追加 -->
+      </select>
+
+      <label for="train-number">列車番号:</label>
+      <input type="text" id="train-number" placeholder="例: 123M">
+      <button class="display-button" id="display-button">表示</button>
+    </div>
+
+    <div id="train-info" style="margin-top: 10px;">
+      <p>■<span id="train-id"></span>　施行日: <span id="execution-date"></span></p>
+      <p>運転区間: <span id="operation-section"></span></p>
+
+      <table>
+        <tr><td>線区</td><td id="info-line"></td></tr>
+        <tr><td>列車種別</td><td id="info-type"></td></tr>
+        <tr><td>平日/土休日</td><td id="info-daytype"></td></tr>
+        <tr><td>始発駅〜終着駅</td><td id="info-startend"></td></tr>
+        <tr><td>速度種別</td><td id="info-speed"></td></tr>
+        <tr><td>列車名</td><td id="info-name"></td></tr>
+      </table>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>駅名</th>
+          <th>着時刻</th>
+          <th>発時刻</th>
+        </tr>
+      </thead>
+      <tbody id="timetable">
+        <!-- データがここに追加されます -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    document.getElementById("display-button").addEventListener("click", async () => {
+      const trainNumber = document.getElementById("train-number").value.trim().toUpperCase();
+      const selectedLine = document.getElementById("line").value;
+      const errorLog = document.getElementById("error-log");
+      errorLog.style.display = "none";
+
+      try {
+        const res = await fetch("timetables.json");
+        const data = await res.json();
+
+        const match = data.find(d =>
+          d.trainNumber === trainNumber &&
+          (selectedLine === "" || d.line === selectedLine)
+        );
+
+        if (!match) {
+          errorLog.textContent = "列車が見つかりませんでした。";
+          errorLog.style.display = "block";
+          return;
+        }
+
+        document.getElementById("train-id").textContent = match.trainNumber;
+        document.getElementById("execution-date").textContent = match.startDate || "不明";
+        document.getElementById("operation-section").textContent = match.origin + "〜" + match.destination;
+
+        document.getElementById("info-line").textContent = match.line;
+        document.getElementById("info-type").textContent = match.type;
+        document.getElementById("info-daytype").textContent = match.dayType;
+        document.getElementById("info-startend").textContent = match.origin + "〜" + match.destination;
+        document.getElementById("info-speed").textContent = match.speed;
+        document.getElementById("info-name").textContent = match.name;
+
+        const tbody = document.getElementById("timetable");
+        tbody.innerHTML = "";
+        match.stops.forEach(stop => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${stop.station}</td>
+            <td>${stop.arrival || "-"}</td>
+            <td>${stop.departure || "-"}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        errorLog.textContent = "データの読み込みに失敗しました: " + err.message;
+        errorLog.style.display = "block";
+      }
+    });
+  </script>
+</body>
+</html>
