@@ -147,56 +147,68 @@
   </div>
 
   <script>
-    document.getElementById("display-button").addEventListener("click", async () => {
-      const trainNumber = document.getElementById("train-number").value.trim().toUpperCase();
-      const selectedLine = document.getElementById("line").value;
-      const errorLog = document.getElementById("error-log");
-      errorLog.style.display = "none";
+  // 検索処理を共通関数として定義
+  async function searchTrain() {
+    const trainNumber = document.getElementById("train-number").value.trim().toUpperCase();
+    const selectedLine = document.getElementById("line").value;
+    const errorLog = document.getElementById("error-log");
+    errorLog.style.display = "none";
 
-      try {
-        const res = await fetch("timetables.json");
-        const data = await res.json();
+    try {
+      const res = await fetch("timetables.json");
+      const data = await res.json();
 
-        const match = data.find(d =>
-          d.trainNumber === trainNumber &&
-          (selectedLine === "" || d.line === selectedLine)
-        );
+      const match = data.find(d =>
+        d.trainNumber === trainNumber &&
+        (selectedLine === "" || d.line === selectedLine)
+      );
 
-        if (!match) {
-          errorLog.textContent = "列車が見つかりませんでした。";
-          errorLog.style.display = "block";
-          return;
-        }
-
-        document.getElementById("train-id").textContent = match.trainNumber;
-        document.getElementById("execution-date").textContent = match.startDate || "不明";
-        document.getElementById("operation-section").textContent = match.origin + "〜" + match.destination;
-
-        document.getElementById("info-line").textContent = match.line;
-        document.getElementById("info-type").textContent = match.type;
-        document.getElementById("info-daytype").textContent = match.dayType;
-        document.getElementById("info-startend").textContent = match.origin + "〜" + match.destination;
-        document.getElementById("info-speed").textContent = match.speed;
-        document.getElementById("info-name").textContent = match.name;
-
-        const tbody = document.getElementById("timetable");
-        tbody.innerHTML = "";
-        match.stops.forEach(stop => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${stop.station}</td>
-            <td>${stop.arrival || "-"}</td>
-            <td>${stop.departure || "-"}</td>
-            <td>${(stop.trackN !== undefined && stop.trackN !== "" && stop.trackN !== null) ? stop.trackN : ""}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-      } catch (err) {
-        errorLog.textContent = "データの読み込みに失敗しました: " + err.message;
+      if (!match) {
+        errorLog.textContent = "列車が見つかりませんでした。";
         errorLog.style.display = "block";
+        return;
       }
-    });
-  </script>
+
+      document.getElementById("train-id").textContent = match.trainNumber;
+      document.getElementById("execution-date").textContent = match.startDate || "不明";
+      document.getElementById("operation-section").textContent = match.origin + "〜" + match.destination;
+
+      document.getElementById("info-line").textContent = match.line;
+      document.getElementById("info-type").textContent = match.type;
+      document.getElementById("info-daytype").textContent = match.dayType;
+      document.getElementById("info-startend").textContent = match.origin + "〜" + match.destination;
+      document.getElementById("info-speed").textContent = match.speed;
+      document.getElementById("info-name").textContent = match.name;
+
+      const tbody = document.getElementById("timetable");
+      tbody.innerHTML = "";
+      match.stops.forEach(stop => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${stop.station}</td>
+          <td>${stop.arrival || "-"}</td>
+          <td>${stop.departure || "-"}</td>
+          <td>${stop.trackN || "-"}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } catch (err) {
+      errorLog.textContent = "データの読み込みに失敗しました: " + err.message;
+      errorLog.style.display = "block";
+    }
+  }
+
+  // ボタンによる検索
+  document.getElementById("display-button").addEventListener("click", searchTrain);
+
+  // Enterキーによる検索
+  document.getElementById("train-number").addEventListener("keypress", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchTrain();
+    }
+  });
+</script>
 </body>
 </html>
