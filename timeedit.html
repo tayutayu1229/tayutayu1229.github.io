@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>時刻表データ作成ツール</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    table, th, td { border: 1px solid #999; border-collapse: collapse; padding: 5px; }
+    textarea { width: 100%; height: 200px; }
+    input, select, button { margin: 5px; padding: 5px; }
+    label { display: inline-block; margin: 5px 0; }
+  </style>
+</head>
+<body>
+    ○時刻表データ作成ツール
+<h2>列車基本情報</h2>
+<label>列車番号: <input id="trainNumber" type="text"></label>
+<label>種別: <input id="type" type="text"></label>
+<label>平日/土休日: 
+  <select id="dayType">
+    <option value="平日">平日</option>
+    <option value="土休日">土休日</option>
+  </select>
+</label>
+<label>始発駅発日: <input id="startDate" type="date"></label><br>
+<label>始発駅: <input id="origin" type="text"></label>
+<label>終着駅: <input id="destination" type="text"></label>
+<label>路線名: <input id="line" type="text"></label>
+<label>速度種別: <input id="speed" type="text"></label>
+<label>列車名: <input id="name" type="text"></label>
+
+<h2>停車駅の追加</h2>
+<table>
+  <thead>
+    <tr><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr>
+  </thead>
+  <tbody id="stopsTable"></tbody>
+</table>
+
+<label>駅名: <input id="station" type="text"></label>
+<label>着: <input id="arrival" type="text" placeholder="hh:mm:ss"></label>
+<label>発(通): <input id="departure" type="text" placeholder="hh:mm:ss"></label>
+<label>番線: <input id="trackN" type="text"></label>
+<button onclick="addStop()">追加</button>
+
+<h2>出力JSON</h2>
+<textarea id="jsonOutput" readonly></textarea>
+<button onclick="copyJson()">📋 コピー</button>
+
+<br><br>
+<label>【書き方】</label><br>
+<label>・駅名が２文字の場合は"大　宮"のように全角スペース１つを開けて入力すること</label><br>
+<label>・駅名は４文字まで。</label><br>
+<label>・着発番線では、数字は全角で入力。10番線の場合は"１０番"のように入力すること</label><br>
+<label>・モバイルATOSに準ずる</label>
+
+<script>
+  const stops = [];
+
+  function addStop() {
+    const station = document.getElementById("station");
+    const arrival = document.getElementById("arrival");
+    const departure = document.getElementById("departure");
+    const trackN = document.getElementById("trackN");
+
+    if (!station.value) return;
+
+    stops.push({
+      station: station.value,
+      arrival: arrival.value,
+      departure: departure.value,
+      trackN: trackN.value
+    });
+
+    station.value = "";
+    arrival.value = "";
+    departure.value = "";
+    trackN.value = "";
+
+    updateTable();
+    updateJSON();
+    station.focus();
+  }
+
+  function updateTable() {
+    const tbody = document.getElementById("stopsTable");
+    tbody.innerHTML = "";
+    stops.forEach((stop, i) => {
+      const row = `<tr>
+        <td>${stop.station}</td>
+        <td>${stop.arrival}</td>
+        <td>${stop.departure}</td>
+        <td>${stop.trackN}</td>
+        <td><button onclick="removeStop(${i})">削除</button></td>
+      </tr>`;
+      tbody.insertAdjacentHTML("beforeend", row);
+    });
+  }
+
+  function removeStop(index) {
+    stops.splice(index, 1);
+    updateTable();
+    updateJSON();
+  }
+
+  function updateJSON() {
+    const output = {
+      trainNumber: document.getElementById("trainNumber").value,
+      type: document.getElementById("type").value,
+      dayType: document.getElementById("dayType").value,
+      startDate: document.getElementById("startDate").value,
+      origin: document.getElementById("origin").value,
+      destination: document.getElementById("destination").value,
+      speed: document.getElementById("speed").value,
+      name: document.getElementById("name").value,
+      line: document.getElementById("line").value,
+      stops
+    };
+    document.getElementById("jsonOutput").value = JSON.stringify(output, null, 2);
+  }
+
+  function copyJson() {
+    navigator.clipboard.writeText(document.getElementById("jsonOutput").value);
+    alert("コピーしました！");
+  }
+</script>
+</body>
+</html>
