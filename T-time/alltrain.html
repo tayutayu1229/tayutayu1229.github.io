@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>登録列車一覧</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #999; padding: 8px; text-align: left; }
+    th { background-color: #01977a; color: white; }
+    .back-button {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background-color: #01977a;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+    .back-button:hover {
+      background-color: #017a63;
+    }
+  </style>
+</head>
+<body>
+<h2>登録列車一覧</h2>
+<a href="a.html" class="back-button">← 前のページに戻る</a>
+<table>
+  <thead>
+    <tr>
+      <th>線区</th>
+      <th>列車番号</th>
+      <th>種別</th>
+      <th>日付</th>
+      <th>平日/土休日</th>
+      <th>始発駅〜終着駅</th>
+      <th>列車名</th>
+    </tr>
+  </thead>
+  <tbody id="trainTable"></tbody>
+</table>
+
+<script>
+  fetch("timetables.json")
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById("trainTable");
+      data.forEach(d => {
+        const row = `<tr>
+          <td>${d.line}</td>
+          <td>${d.trainNumber}</td>
+          <td>${d.type}</td>
+          <td>${d.startDate}</td>
+          <td>${d.dayType}</td>
+          <td>${d.origin}〜${d.destination}</td>
+          <td>${d.name}</td>
+        </tr>`;
+        tbody.insertAdjacentHTML("beforeend", row);
+      });
+    })
+    .catch(err => {
+      const tbody = document.getElementById("trainTable");
+      tbody.innerHTML = `<tr><td colspan="7">データの読み込みに失敗しました: ${err.message}</td></tr>`;
+    });
+</script>
+</body>
+</html>
