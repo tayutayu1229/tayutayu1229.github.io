@@ -24,21 +24,38 @@
       margin: 20px;
     }
 
+    .selection-header {
+      background-color: #01977a;
+      color: white;
+      padding: 8px 12px;
+      display: inline-block;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+
     .selection {
       display: flex;
       align-items: center;
-      margin-bottom: 20px;
       flex-wrap: wrap;
+      background-color: #eeeeee;
+      padding: 10px;
+      border-radius: 5px;
     }
 
     .selection label {
-      margin-right: 10px;
+      margin-right: 8px;
     }
 
     .selection select,
     .selection input {
       margin-right: 20px;
       padding: 5px;
+    }
+
+    .selection-group {
+      display: flex;
+      align-items: center;
+      margin-right: 20px;
     }
 
     table {
@@ -104,31 +121,26 @@
 
     <div id="error-log"></div>
 
+    <div class="selection-header">表示内容選択</div>
     <div class="selection">
-      <label for="line">線区:</label>
-      <select id="line">
-        <option value="">すべて</option>
-        <option value="中央">中央</option>
-        <option value="東海道">東海道</option>
-        <option value="高崎">高崎</option>
-        <option value="東北">東北</option>
-        <option value="武蔵野">武蔵野</option>
-        <option value="京葉">京葉</option>
-        <option value="境線">境線</option>
-        <!-- 必要に応じて追加 -->
-      </select>
-
-      <label for="train-number">列車番号:</label>
-      <input type="text" id="train-number" placeholder="例: 123M">
+      <div class="selection-group">
+        <label for="line">線区:</label>
+        <select id="line"></select>
+      </div>
+      <div class="selection-group">
+        <label for="start-date">施行日:</label>
+        <select id="start-date"></select>
+      </div>
+      <div class="selection-group">
+        <label for="train-number">列車番号:</label>
+        <input type="text" id="train-number" placeholder="例: 123M">
+      </div>
       <button class="display-button" id="display-button">表示</button>
     </div>
 
     <div id="train-info" style="margin-top: 10px; display: none;">
-      <p>■<span id="info-line"></span>　施行日: 
-        <select id="date-select" style="font-weight: bold;"></select>
-      </p>
+      <p>■<span id="info-line"></span>　施行日: <span id="info-date"></span></p>
       <p>運転区間: <span id="operation-section"></span>　列車番号：<span id="train-id"></span></p>
-
       <table style="max-width: 500px;">
         <tbody>
           <tr><td>平日/土休日</td><td id="info-daytype"></td></tr>
@@ -155,53 +167,35 @@
   </div>
 
   <script>
-    let matchedTrains = [];
+    let timetableData = [];
 
-    async function searchTrain() {
-      const trainNumber = document.getElementById("train-number").value.trim().toUpperCase();
-      const selectedLine = document.getElementById("line").value;
-      const errorLog = document.getElementById("error-log");
-      const infoSection = document.getElementById("train-info");
-      const dateSelect = document.getElementById("date-select");
-      errorLog.style.display = "none";
-      infoSection.style.display = "none";
-
+    async function loadTimetableData() {
       try {
         const res = await fetch("timetables.json");
-        const data = await res.json();
+        timetableData = await res.json();
 
-        matchedTrains = data.filter(d =>
-          d.trainNumber === trainNumber &&
-          (selectedLine === "" || d.line === selectedLine)
-        );
+        const lines = [...new Set(timetableData.map(t => t.line))];
+        const dates = [...new Set(timetableData.map(t => t.startDate))];
 
-        // 日付でグループ化（重複除去）
-        const uniqueDates = [...new Set(matchedTrains.map(t => t.startDate))];
+        const lineSelect = document.getElementById("line");
+        const dateSelect = document.getElementById("start-date");
 
-        if (matchedTrains.length === 0) {
-          errorLog.textContent = "列車が見つかりませんでした。";
-          errorLog.style.display = "block";
-          return;
-        }
+        lineSelect.innerHTML = '<option value="">すべて</option>' +
+          lines.map(l => `<option value="${l}">${l}</option>`).join("");
 
-        // 日付選択セレクトに反映
-        dateSelect.innerHTML = uniqueDates.map(date => `<option value="${date}">${date}</option>`).join("");
-        dateSelect.onchange = () => displaySelectedTrain(dateSelect.value);
-        displaySelectedTrain(uniqueDates[0]);
-        infoSection.style.display = "block";
-
-      } catch (err) {
-        errorLog.textContent = "データの読み込みに失敗しました: " + err.message;
-        errorLog.style.display = "block";
+        dateSelect.innerHTML = '<option value="">すべて</option>' +
+          dates.map(d => `<option value="${d}">${d}</option>`).join("");
+      } catch (e) {
+        document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。";
+        document.getElementById("error-log").style.display = "block";
       }
     }
 
-    function displaySelectedTrain(date) {
-      const train = matchedTrains.find(t => t.startDate === date);
-      if (!train) return;
-
-      document.getElementById("train-id").textContent = train.trainNumber;
+    function displayTrain(train) {
+      document.getElementById("train-info").style.display = "block";
       document.getElementById("info-line").textContent = train.line;
+      document.getElementById("info-date").textContent = train.startDate;
+      document.getElementById("train-id").textContent = train.trainNumber;
       document.getElementById("operation-section").textContent = train.origin + "〜" + train.destination;
       document.getElementById("info-daytype").textContent = train.dayType;
       document.getElementById("info-speed").textContent = train.speed;
@@ -222,32 +216,52 @@
       });
     }
 
-    // ボタンで検索
-    document.getElementById("display-button").addEventListener("click", searchTrain);
-    // Enterで検索
-    document.getElementById("train-number").addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        searchTrain();
+    document.getElementById("display-button").addEventListener("click", () => {
+      const number = document.getElementById("train-number").value.trim();
+      const line = document.getElementById("line").value;
+      const date = document.getElementById("start-date").value;
+
+      const match = timetableData.find(t =>
+        t.trainNumber === number &&
+        (line === "" || t.line === line) &&
+        (date === "" || t.startDate === date)
+      );
+
+      if (!match) {
+        document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        return;
       }
+
+      document.getElementById("error-log").style.display = "none";
+      displayTrain(match);
     });
 
-    // 認証チェック（任意機能）
+    loadTimetableData();
+
+    // トークン検証
     const token = localStorage.getItem('authToken');
     const tokenExpiry = localStorage.getItem('tokenExpiry');
+
     if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-      alert('セッションが切れました');
-      window.location.href = '../index.html';
+        // 無効な場合はログインページへ
+        alert('セッションが切れました');
+        window.location.href = ‘index.html';
     }
 
+    // ログアウト関数
     function logout() {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('tokenExpiry');
-      window.location.href = '../index.html';
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('tokenExpiry');
+        window.location.href = 'index.html';
     }
+
+    // ログアウトボタンにイベント追加
     const logoutButton = document.querySelector('.logout-button');
     if (logoutButton) {
-      logoutButton.addEventListener('click', logout);
+        logoutButton.addEventListener('click', logout);
     }
   </script>
 </body>
