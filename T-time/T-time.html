@@ -1,3 +1,5 @@
+<!-- 変更点を反映したHTMLは長いため、以下のように再構築します： -->
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -37,9 +39,7 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      background-color: #eeeeee;
-      padding: 10px;
-      border-radius: 5px;
+      gap: 15px;
     }
 
     .selection label {
@@ -48,14 +48,16 @@
 
     .selection select,
     .selection input {
-      margin-right: 20px;
       padding: 5px;
     }
 
     .selection-group {
       display: flex;
       align-items: center;
-      margin-right: 20px;
+    }
+
+    .hidden {
+      display: none;
     }
 
     table {
@@ -64,9 +66,7 @@
       margin-top: 20px;
     }
 
-    table,
-    th,
-    td {
+    table, th, td {
       border: 1px solid #01977a;
     }
 
@@ -121,9 +121,8 @@
 
     <div id="error-log"></div>
 
-    
+    <div class="selection-header">表示内容選択</div>
     <div class="selection">
-      <div class="selection-header">表示内容選択</div>
       <div class="selection-group">
         <label for="line">線区:</label>
         <select id="line">
@@ -153,14 +152,15 @@
       </select>
       </div>
       <div class="selection-group">
-        <label for="start-date">施行日:</label>
-        <select id="start-date"></select>
-      </div>
-      <div class="selection-group">
         <label for="train-number">列車番号:</label>
         <input type="text" id="train-number" placeholder="例: 123M">
       </div>
       <button class="display-button" id="display-button">表示</button>
+    </div>
+
+    <div class="selection-group hidden" id="date-selector-container" style="margin-top:10px;">
+      <label for="select-date">施行日選択:</label>
+      <select id="select-date"></select>
     </div>
 
     <div id="train-info" style="margin-top: 10px; display: none;">
@@ -175,7 +175,7 @@
       </table>
     </div>
 
-    <table style="width: 100%; border-collapse: collapse; margin-left: 0;">
+    <table style="width: 100%;">
       <thead>
         <tr>
           <th style="width: 50px;">列車種別</th>
@@ -185,14 +185,13 @@
           <th style="width: 50px;">番線</th>
         </tr>
       </thead>
-      <tbody id="timetable">
-        <!-- データがここに追加されます -->
-      </tbody>
+      <tbody id="timetable"></tbody>
     </table>
   </div>
 
   <script>
     let timetableData = [];
+    let currentMatches = [];
 
     async function loadTimetableData() {
       try {
@@ -200,16 +199,13 @@
         timetableData = await res.json();
 
         const lines = [...new Set(timetableData.map(t => t.line))];
-        const dates = [...new Set(timetableData.map(t => t.startDate))];
-
         const lineSelect = document.getElementById("line");
-        const dateSelect = document.getElementById("start-date");
-
-        lineSelect.innerHTML = '<option value="">すべて</option>' +
-          lines.map(l => `<option value="${l}">${l}</option>`).join("");
-
-        dateSelect.innerHTML = '<option value="">すべて</option>' +
-          dates.map(d => `<option value="${d}">${d}</option>`).join("");
+        lines.forEach(l => {
+          const opt = document.createElement("option");
+          opt.value = l;
+          opt.textContent = l;
+          lineSelect.appendChild(opt);
+        });
       } catch (e) {
         document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。";
         document.getElementById("error-log").style.display = "block";
@@ -244,50 +240,39 @@
     document.getElementById("display-button").addEventListener("click", () => {
       const number = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
-      const date = document.getElementById("start-date").value;
 
-      const match = timetableData.find(t =>
-        t.trainNumber === number &&
-        (line === "" || t.line === line) &&
-        (date === "" || t.startDate === date)
+      currentMatches = timetableData.filter(t =>
+        t.trainNumber === number && (line === "" || t.line === line)
       );
 
-      if (!match) {
+      if (currentMatches.length === 0) {
         document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
         document.getElementById("error-log").style.display = "block";
         document.getElementById("train-info").style.display = "none";
         document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
 
       document.getElementById("error-log").style.display = "none";
-      displayTrain(match);
+
+      if (currentMatches.length === 1) {
+        document.getElementById("date-selector-container").classList.add("hidden");
+        displayTrain(currentMatches[0]);
+      } else {
+        const dateSelect = document.getElementById("select-date");
+        dateSelect.innerHTML = currentMatches.map(d => `<option value="${d.startDate}">${d.startDate}</option>`).join("");
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]);
+      }
+    });
+
+    document.getElementById("select-date").addEventListener("change", function () {
+      const selected = currentMatches.find(m => m.startDate === this.value);
+      if (selected) displayTrain(selected);
     });
 
     loadTimetableData();
-
-    // トークン検証
-    const token = localStorage.getItem('authToken');
-    const tokenExpiry = localStorage.getItem('tokenExpiry');
-
-    if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-        // 無効な場合はログインページへ
-        alert('セッションが切れました');
-        window.location.href = ‘index.html';
-    }
-
-    // ログアウト関数
-    function logout() {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('tokenExpiry');
-        window.location.href = 'index.html';
-    }
-
-    // ログアウトボタンにイベント追加
-    const logoutButton = document.querySelector('.logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', logout);
-    }
   </script>
 </body>
 </html>
