@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>列車モニター</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    .line-selector {
+      margin-bottom: 20px;
+    }
+    #monitor {
+      position: relative;
+      user-select: none;
+    }
+    .station-line {
+      position: relative;
+      margin-bottom: 20px;
+      height: auto;
+      min-height: 140px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 20px;
+    }
+    .track-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #666;
+      transform: translateY(-50%);
+      z-index: 0;
+      border-radius: 2px;
+    }
+    .station {
+      position: absolute;
+      width: 60px;
+      height: 30px;
+      background: #fff;
+      border: 1px solid #000;
+      text-align: center;
+      line-height: 30px;
+      font-size: 12px;
+      transform: translate(-50%, -50%);
+      top: 50%;
+      z-index: 10;
+      border-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      user-select: none;
+    }
+    .train {
+      position: absolute;
+      width: 120px; /* より横長に */
+      height: 40px; /* 高さを固定 */
+      padding: 4px 8px;
+      font-size: 11px;
+      text-align: center;
+      border: 2px solid;
+      background: white;
+      cursor: pointer;
+      user-select: none;
+      box-sizing: border-box;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      white-space: nowrap;
+      font-weight: 600;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transform: translateX(-50%); /* 中央揃え */
+    }
+    /* 下り（Outbound）右向き切り欠き - より横長対応 */
+    .train.down {
+      clip-path: polygon(
+        0 0, 100px 0, 
+        108px 12px, 120px 25px, 108px 38px, 100px 50px,
+        0 50px
+      );
+    }
+    /* 上り（Inbound）左向き切り欠き - より横長対応 */
+    .train.up {
+      clip-path: polygon(
+        20px 0, 120px 0, 120px 50px, 20px 50px,
+        12px 38px, 0 25px, 12px 12px
+      );
+    }
+    .train-number {
+      white-space: nowrap;
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .delay {
+      color: red;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    .train-info {
+      margin-top: 1px;
+      font-size: 9px;
+      color: #333;
+      line-height: 1.1;
+      user-select: none;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    /* 詳細情報パネル */
+    .details {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      max-width: 280px;
+      background: #fff;
+      border: 1px solid #aaa;
+      padding: 12px 16px;
+      font-size: 14px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      border-radius: 8px;
+      display: none;
+      z-index: 9999;
+      user-select: text;
+    }
+    .details strong {
+      display: inline-block;
+      width: 70px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      color: #666;
+      user-select: none;
+    }
+    .close-btn:hover {
+      color: #000;
+    }
+    /* 更新ボタン */
+    .update-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 9999;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+    .update-btn:hover {
+      background: #0056b3;
+    }
+    .update-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="line-selector">
+    <label for="lineSelect">路線選択:</label>
+    <select id="lineSelect" onchange="render()"></select>
+  </div>
+  <div id="monitor"></div>
+
+  <div id="details" class="details">
+    <div class="close-btn" onclick="hideDetails()">×</div>
+    <div id="details-content"></div>
+  </div>
+
+  <!-- 更新ボタン -->
+  <button id="updateBtn" class="update-btn" onclick="manualUpdate()">
+    🔄 データ更新
+  </button>
+
+<script>
+  const token = "wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh"; // ← ここにご自身のTOKENを入れてください
+
+  // 路線ごとの色（必要に応じて追加可能）
+  const lineColors = {
+    "odpt.Railway:JR-East.KeihinTohokuNegishi": "#0078BD",
+    "odpt.Railway:JR-East.ChuoSobuLocal": "#FFE500",
+  };
+
+  // 駅名短縮マップ
+  const stationNameMap = {
+    "高輪ゲートウェイ": "高輪ゲト",
+    "千葉みなと": "千葉港",
+    "さいたま新都心": "さ新都心",
+    "Maebashi": "前橋"
+  };
+
+  let trainData = [];
+  let railwayData = [];
+  let stationTitles = {};
+  let detailsTimer = null; // 詳細パネル自動非表示用タイマー
+
+  // 種別名変換マップ
+  const trainTypeMap = {
+    "odpt.TrainType:JR-East.Local": [1, "普通", ""],
+    "odpt.TrainType:JR-East.LimitedExpress": [2, "特急", "特"],
+    "odpt.TrainType:JR-East.Rapid": [3, "快速", "快"],
+    "odpt.TrainType:JR-East.SpecialRapid": [4, "特別快速", "特快"],
+    "odpt.TrainType:JR-East.ChuoSpecialRapid": [5, "中央特快", "中快"],
+    "odpt.TrainType:JR-East.CommuterRapid": [6, "通勤快速", "通快"],
+    "odpt.TrainType:JR-East.OmeSpecialRapid": [7, "青梅特快", "青快"],
+    "odpt.TrainType:JR-East.CommuterSpecialRapid": [8, "通勤特快", "通特"]
+  };
+
+  // 駅名を4文字以内にカット＆短縮マップ適用
+  function shortenStationName(name) {
+    if (stationNameMap[name]) return stationNameMap[name];
+    if (name.length > 4) return name.slice(0, 4);
+    return name;
+  }
+
+  // 駅ID→日本語駅名短縮
+  function getStationTitle(stationId) {
+    if (!stationId) return "不明";
+    if (stationTitles[stationId]) return stationTitles[stationId];
+    const parts = stationId.split(".");
+    const last = parts[parts.length - 1];
+    return shortenStationName(last);
+  }
+
+  // 路線ID→路線名（日本語）
+  function getLineTitle(lineId) {
+    const line = railwayData.find(r => r["owl:sameAs"] === lineId);
+    return line?.["odpt:railwayTitle"]?.ja || lineId;
+  }
+
+  // 種別名を取得
+  function getTrainTypeName(trainType) {
+    if (!trainType) return "不明";
+    const typeInfo = trainTypeMap[trainType];
+    return typeInfo ? typeInfo[1] : trainType.split(":").pop();
+  }
+
+  // 駅名マップを作成
+  function buildStationTitleMap() {
+    stationTitles = {};
+    railwayData.forEach(line => {
+      (line["odpt:stationOrder"] || []).forEach(st => {
+        const id = st["odpt:station"];
+        const ja = st["odpt:stationTitle"]?.ja || id.split(".").pop();
+        stationTitles[id] = shortenStationName(ja);
+      });
+    });
+  }
+
+  // セレクトに路線を入れる
+  function populateLineSelect() {
+    const select = document.getElementById("lineSelect");
+    select.innerHTML = "";
+    const uniqueLines = [...new Set(trainData.map(t => t["odpt:railway"]))];
+    uniqueLines.forEach(lineId => {
+      const option = document.createElement("option");
+      option.value = lineId;
+      option.textContent = getLineTitle(lineId);
+      select.appendChild(option);
+    });
+  }
+
+  // 詳細パネルを隠す
+  function hideDetails() {
+    document.getElementById("details").style.display = "none";
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+      detailsTimer = null;
+    }
+  }
+
+  // 詳細パネルを表示（5秒後に自動非表示）
+  function showDetails(train) {
+    const d = document.getElementById("details");
+    const content = document.getElementById("details-content");
+    const delayMin = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
+
+    // 走行区間（from〜to）を取得
+    const fromStation = getStationTitle(train["odpt:fromStation"]) || "不明";
+    const toStation = train["odpt:toStation"] ? getStationTitle(train["odpt:toStation"]) : null;
+    
+    let sectionInfo;
+    if (toStation) {
+      sectionInfo = `${fromStation}〜${toStation}（駅間走行中）`;
+    } else {
+      sectionInfo = `${fromStation}（駅停車中）`;
+    }
+
+    // 終点駅
+    const destStations = train["odpt:destinationStation"] || [];
+    const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
+
+    content.innerHTML =
+      `<strong>列車番号:</strong> ${train["odpt:trainNumber"] || '不明'}<br>` +
+      `<strong>方向:</strong> ${train["odpt:railDirection"] === "odpt.RailDirection:Outbound" ? "下り" : "上り"}<br>` +
+      `<strong>遅延:</strong> ${delayMin > 0 ? delayMin + "分" : "なし"}<br>` +
+      `<strong>走行区間:</strong> ${sectionInfo}<br>` +
+      `<strong>終点駅:</strong> ${destination}<br>` +
+      `<strong>種別:</strong> ${getTrainTypeName(train["odpt:trainType"])}<br>` +
+      `<strong>編成両数:</strong> ${train["odpt:carComposition"] || '不明'}両`;
+    
+    d.style.display = "block";
+    
+    // 既存のタイマーをクリア
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+    }
+    
+    // 5秒後に自動で非表示
+    detailsTimer = setTimeout(() => {
+      hideDetails();
+    }, 5000);
+  }
+
+  // メイン描画関数
+  function render() {
+    const selectedLine = document.getElementById("lineSelect").value;
+    const color = lineColors[selectedLine] || "#666";
+    const monitor = document.getElementById("monitor");
+    monitor.innerHTML = "";
+
+    const lineData = railwayData.find(l => l["owl:sameAs"] === selectedLine);
+    if (!lineData) return;
+
+    // 駅を順序通り取得
+    const stations = (lineData["odpt:stationOrder"] || [])
+      .sort((a, b) => a["odpt:index"] - b["odpt:index"])
+      .map(s => s["odpt:station"]);
+
+    // 4駅ずつ区切って描画
+    for (let i = 0; i < stations.length; i += 4) {
+      const group = stations.slice(i, i + 4);
+      const lineDiv = document.createElement("div");
+      lineDiv.className = "station-line";
+
+      const track = document.createElement("div");
+      track.className = "track-line";
+      track.style.background = color;
+      lineDiv.appendChild(track);
+
+      // 駅表示（線の中央上）
+      group.forEach((stationId, idx) => {
+        const s = document.createElement("div");
+        s.className = "station";
+        s.textContent = getStationTitle(stationId);
+        // 横位置は均等割り（1～lengthの間で）
+        s.style.left = `${(idx + 1) * (100 / (group.length + 1))}%`;
+        lineDiv.appendChild(s);
+      });
+
+      // 同一区間の列車位置調整用配列
+      const positionOffsets = {};
+      let maxUpTrains = 0;    // 上り列車の最大重複数
+      let maxDownTrains = 0;  // 下り列車の最大重複数
+
+      // まず全ての列車を収集して重複数を計算
+      const trainsToRender = [];
+      trainData.forEach(train => {
+        if (train["odpt:railway"] !== selectedLine) return;
+
+        const from = train["odpt:fromStation"];
+        const to = train["odpt:toStation"];
+        const direction = train["odpt:railDirection"];
+
+        // fromStationがグループに含まれているかチェック
+        const idxFrom = group.indexOf(from);
+        if (idxFrom === -1) return;
+
+        let trainPosition;
+        let positionKey;
+
+        if (to === null || to === undefined) {
+          // 駅に停車中：fromStation位置に表示
+          trainPosition = (idxFrom + 1) * (100 / (group.length + 1));
+          positionKey = `station-${idxFrom}-${direction}`;
+        } else {
+          // 駅間走行中：fromとtoの中間に表示
+          const idxTo = group.indexOf(to);
+          if (idxTo === -1) return; // toStationがグループにない場合はスキップ
+          
+          const fromPos = (idxFrom + 1) * (100 / (group.length + 1));
+          const toPos = (idxTo + 1) * (100 / (group.length + 1));
+          trainPosition = (fromPos + toPos) / 2;
+          positionKey = `between-${Math.min(idxFrom, idxTo)}-${Math.max(idxFrom, idxTo)}-${direction}`;
+        }
+
+        const offsetCount = positionOffsets[positionKey] || 0;
+        positionOffsets[positionKey] = offsetCount + 1;
+
+        // 最大重複数を更新
+        if (direction === "odpt.RailDirection:Inbound") {
+          maxUpTrains = Math.max(maxUpTrains, offsetCount + 1);
+        } else {
+          maxDownTrains = Math.max(maxDownTrains, offsetCount + 1);
+        }
+
+        trainsToRender.push({
+          train,
+          trainPosition,
+          direction,
+          offsetCount,
+          isAtStation: (to === null || to === undefined)
+        });
+      });
+
+      // 駅区間の高さを動的に調整
+      const trainHeight = 60; // 列車1つ分の高さ（余白含む）
+      const minHeight = 140;
+      const requiredHeight = minHeight + (maxUpTrains + maxDownTrains) * trainHeight;
+      lineDiv.style.height = `${requiredHeight}px`;
+
+      // 列車描画
+      trainsToRender.forEach(({ train, trainPosition, direction, offsetCount, isAtStation }) => {
+        const delay = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
+        const number = train["odpt:trainNumber"] || "不明";
+        const carCount = train["odpt:carComposition"] || "";
+        const destStations = train["odpt:destinationStation"] || [];
+        const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
+
+        const div = document.createElement("div");
+        div.className = "train " + (direction === "odpt.RailDirection:Outbound" ? "down" : "up");
+        div.style.borderColor = color;
+
+        // 駅停車中は少し異なる表示スタイル
+        //if (isAtStation) {
+        //  div.style.backgroundColor = "#f0f8ff"; // 薄い青で停車中を表現
+        //  div.style.borderStyle = "dashed"; // 点線で停車中を表現
+        //}
+
+        // 列車の横位置
+        div.style.left = `${trainPosition}%`;
+
+        // 上り（左向き）列車は画面下部に配置
+        if (direction === "odpt.RailDirection:Inbound") {
+          div.style.bottom = `${20 + offsetCount * trainHeight}px`;
+        } else {
+          // 下り（右向き）列車は画面上部に配置
+          div.style.top = `${20 + offsetCount * trainHeight}px`;
+        }
+
+        // 内部構造（番号＋遅延＋両数＋行先）
+        const statusText = isAtStation ? "停車中" : "";
+        div.innerHTML =
+          `<div class="train-number">${number}${delay > 0 ? `<span class="delay">+${delay}</span>` : ""}</div>` +
+          `<div class="train-info">${statusText ? statusText + " " : ""}${carCount ? carCount + "両" : ""} ${destination}</div>`;
+
+        // 詳細表示イベント
+        div.onclick = () => showDetails(train);
+
+        lineDiv.appendChild(div);
+      });
+
+      monitor.appendChild(lineDiv);
+    }
+  }
+
+  // 手動更新
+  function manualUpdate() {
+    const btn = document.getElementById("updateBtn");
+    btn.disabled = true;
+    btn.textContent = "🔄 更新中...";
+    
+    fetchData().then(() => {
+      btn.disabled = false;
+      btn.textContent = "🔄 データ更新";
+    }).catch(() => {
+      btn.disabled = false;
+      btn.textContent = "🔄 データ更新";
+    });
+  }
+
+  // APIからデータ取得＆初期描画
+  async function fetchData() {
+  try {
+    // 🔸 現在選ばれている路線を保持
+    const select = document.getElementById("lineSelect");
+    const previousSelectedLine = select.value;
+
+    const [trainRes, railRes] = await Promise.all([
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`)
+    ]);
+
+    if (!trainRes.ok || !railRes.ok) throw new Error("API取得エラー");
+
+    trainData = await trainRes.json();
+    railwayData = await railRes.json();
+
+    buildStationTitleMap();
+    populateLineSelect();
+
+    // 🔸 前回選んでいた路線があれば復元
+    if ([...select.options].some(opt => opt.value === previousSelectedLine)) {
+      select.value = previousSelectedLine;
+    }
+
+    render();
+  } catch (e) {
+    alert("データの取得に失敗しました: " + e.message);
+  }
+}
+
+
+  // 30秒ごとに自動リフレッシュ
+  setInterval(fetchData, 30000);
+
+  fetchData();
+</script>
+</body>
+</html>
