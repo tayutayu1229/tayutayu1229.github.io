@@ -94,8 +94,9 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.2);
       user-select: none;
       transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s;
+      cursor: pointer;
     }
-
+    
     .train {
       position: absolute;
       width: 120px;
@@ -289,6 +290,7 @@
     }
     .timetable-table {
         width: 100%;
+        max-width: 400px; /* 横幅を固定 */
         border-collapse: collapse;
         margin-top: 10px;
     }
@@ -299,6 +301,15 @@
     }
     .timetable-table th {
         background-color: #f2f2f2;
+    }
+    .timetable-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .timetable-header h3 {
+      margin: 0;
     }
 
     /* ダークモードのスタイル */
@@ -403,12 +414,24 @@
       🌙 ダークモード
     </button>
   </div>
-
-  <div id="timetableModal" class="modal">
+  
+  <div id="trainTimetableModal" class="modal">
     <div class="modal-content">
-      <span class="modal-close-btn" onclick="hideTimetableModal()">&times;</span>
-      <h3 id="timetableTitle"></h3>
-      <div id="timetableContent"></div>
+      <div class="timetable-header">
+        <h3 id="trainTimetableTitle"></h3>
+        <span class="modal-close-btn" onclick="hideTrainTimetableModal()">&times;</span>
+      </div>
+      <div id="trainTimetableContent"></div>
+    </div>
+  </div>
+
+  <div id="stationTimetableModal" class="modal">
+    <div class="modal-content">
+      <div class="timetable-header">
+        <h3 id="stationTimetableTitle"></h3>
+        <span class="modal-close-btn" onclick="hideStationTimetableModal()">&times;</span>
+      </div>
+      <div id="stationTimetableContent"></div>
     </div>
   </div>
 
@@ -462,13 +485,48 @@
     "odpt.Railway:JR-East.Utsunomiya": ["odpt.Railway:JR-East.Takasaki"]
   };
 
+  //方向修正用
+
   const railwayDirectionMap = {
+
+    //SS
+
     "odpt.Railway:JR-East.ShonanShinjuku": {
+
       "odpt.RailDirection:Northbound": "down",
+
       "odpt.RailDirection:Southbound": "up",
+
       "odpt.RailDirection:Inbound": "up",
+
       "odpt.RailDirection:Outbound": "down"
+
     },
+
+    //総武緩行
+
+    "odpt.Railway:JR-East.ChuoSobuLocal": {
+
+      "odpt.RailDirection:Eastbound": "up",
+
+      "odpt.RailDirection:Westbound": "down",
+
+    },
+
+    //埼京川越
+
+    "odpt.Railway:JR-East.SaikyoKawagoe": {
+
+      "odpt.RailDirection:Northbound": "down",
+
+      "odpt.RailDirection:Southbound": "up",
+
+      "odpt.RailDirection:Inbound": "up",
+
+      "odpt.RailDirection:Outbound": "down"
+
+    },
+
   };
 
   function getTrainDirection(railDirection, railwayId) {
@@ -530,8 +588,10 @@
   let stationTitles = {};
   let detailsTimer = null; 
   let trainInformationData = []; 
-  let timetableData = [];
+  let trainTimetableData = [];
   let autoUpdateInterval = null;
+
+  let cachedStationTimetables = {};
 
   const trainTypeMap = {
     "odpt.TrainType:JR-East.Local": [1, "普通", ""],
@@ -543,7 +603,7 @@
     "odpt.TrainType:JR-East.OmeSpecialRapid": [7, "青梅特快", "青快"],
     "odpt.TrainType:JR-East.CommuterSpecialRapid": [8, "通勤特快", "通特"]
   };
-
+  
   function shortenStationName(name) {
     if (stationNameMap[name]) return stationNameMap[name];
     if (name.length > 4) return name.slice(0, 4);
@@ -711,8 +771,8 @@
       `<strong>種別:</strong> ${getTrainTypeName(train["odpt:trainType"])}<br>` +
       `<strong>編成両数:</strong> ${train["odpt:carComposition"] || '不明'}両`;
 
-    // 時刻表ボタンの追加
-    const trainTimetable = timetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
+    // 列車時刻表ボタンの追加
+    const trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
     if (trainTimetable) {
         const timetableButton = document.createElement("button");
         timetableButton.textContent = "時刻表を見る";
@@ -723,7 +783,7 @@
         timetableButton.style.padding = "8px 12px";
         timetableButton.style.borderRadius = "4px";
         timetableButton.style.cursor = "pointer";
-        timetableButton.onclick = () => showTimetableModal(trainTimetable);
+        timetableButton.onclick = () => showTrainTimetableModal(trainTimetable);
         content.appendChild(timetableButton);
     }
     
@@ -738,10 +798,10 @@
     }, 5000);
   }
 
-  function showTimetableModal(timetable) {
-    const modal = document.getElementById("timetableModal");
-    const title = document.getElementById("timetableTitle");
-    const content = document.getElementById("timetableContent");
+  function showTrainTimetableModal(timetable) {
+    const modal = document.getElementById("trainTimetableModal");
+    const title = document.getElementById("trainTimetableTitle");
+    const content = document.getElementById("trainTimetableContent");
 
     title.textContent = `列車番号: ${timetable["odpt:trainNumber"]} の時刻表`;
     
@@ -760,14 +820,137 @@
     modal.style.display = "block";
   }
 
-  function hideTimetableModal() {
-      document.getElementById("timetableModal").style.display = "none";
+  function hideTrainTimetableModal() {
+      document.getElementById("trainTimetableModal").style.display = "none";
+  }
+
+  async function showStationTimetableModal(stationId, lineId) {
+    const modal = document.getElementById("stationTimetableModal");
+    const title = document.getElementById("stationTimetableTitle");
+    const content = document.getElementById("stationTimetableContent");
+    
+    title.textContent = `${getStationTitle(stationId)}駅の時刻表`;
+    content.innerHTML = "時刻表を読み込み中...";
+    modal.style.display = "block";
+    
+    try {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+        const holidays = await holidayResponse.json();
+        const todayString = today.toISOString().slice(0, 10);
+        const isHoliday = holidays.hasOwnProperty(todayString);
+        let calendar = (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) ? "SaturdayHoliday" : "Weekday";
+        
+        const cacheKey = `${stationId}-${lineId}-${calendar}`;
+        if (!cachedStationTimetables[cacheKey]) {
+            const res = await fetch(`https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationId}&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`);
+            if (!res.ok) throw new Error("時刻表データの取得に失敗しました");
+            cachedStationTimetables[cacheKey] = await res.json();
+        }
+
+        modal.dataset.stationId = stationId;
+        modal.dataset.lineId = lineId;
+        modal.dataset.cacheKey = cacheKey;
+
+        updateStationTimetableDisplay();
+
+    } catch (e) {
+        console.error(e);
+        content.innerHTML = `<p style="color:red;">時刻表の取得に失敗しました。</p>`;
+    }
+  }
+  
+  function hideStationTimetableModal() {
+    document.getElementById("stationTimetableModal").style.display = "none";
+  }
+  
+  function updateStationTimetableDisplay() {
+    const modal = document.getElementById("stationTimetableModal");
+    const lineId = modal.dataset.lineId;
+    const cacheKey = modal.dataset.cacheKey;
+    const content = document.getElementById("stationTimetableContent");
+    
+    const allTimetables = cachedStationTimetables[cacheKey] || [];
+
+    function sortTimetableObjects(timetableObjects) {
+      return timetableObjects.sort((a, b) => {
+        const timeA = a["odpt:departureTime"];
+        const timeB = b["odpt:departureTime"];
+        if (!timeA || !timeB) return 0;
+        return timeA.localeCompare(timeB);
+      });
+    }
+
+    const sortedAllTimetables = allTimetables.map(tt => ({
+        ...tt,
+        "odpt:stationTimetableObject": sortTimetableObjects(tt["odpt:stationTimetableObject"])
+    }));
+
+    const now = new Date();
+    const nowHours = now.getHours();
+    const nowMinutes = now.getMinutes();
+
+    let timetablesToDisplay = sortedAllTimetables.map(tt => {
+        const filteredObjects = tt["odpt:stationTimetableObject"].filter(obj => {
+            const departureTime = obj["odpt:departureTime"];
+            if (!departureTime) return false;
+            
+            const [hour, minute] = departureTime.split(":").map(Number);
+            if (hour > nowHours || (hour === nowHours && minute >= nowMinutes)) {
+                return true;
+            }
+            return false;
+        });
+        return { ...tt, "odpt:stationTimetableObject": filteredObjects };
+    }).filter(tt => tt["odpt:stationTimetableObject"].length > 0);
+    
+    const timetablesByDirection = timetablesToDisplay.reduce((acc, tt) => {
+      const direction = tt["odpt:railDirection"];
+      if (!acc[direction]) {
+        acc[direction] = [];
+      }
+      acc[direction].push(tt);
+      return acc;
+    }, {});
+    
+    let html = "";
+    if (Object.keys(timetablesByDirection).length === 0) {
+      html = `<p>時刻表データがありません。</p>`;
+    } else {
+      for (const [direction, timetables] of Object.entries(timetablesByDirection)) {
+        html += `<h4>${getDirectionText(direction, lineId)}</h4>`;
+        html += `<table class="timetable-table"><thead><tr><th>時刻</th><th>種別</th><th>行先</th></tr></thead><tbody>`;
+
+        let count = 0;
+        for (const tt of timetables) {
+            if (count >= 5) break;
+            for (const timetableObject of tt["odpt:stationTimetableObject"]) {
+                if (count >= 5) break;
+                const departureTime = timetableObject["odpt:departureTime"] || "";
+                const trainType = getTrainTypeName(timetableObject["odpt:trainType"]);
+                const destination = timetableObject["odpt:destinationStation"] && timetableObject["odpt:destinationStation"].length > 0
+                    ? getStationTitle(timetableObject["odpt:destinationStation"][0])
+                    : "不明";
+                html += `<tr><td>${departureTime}</td><td>${trainType}</td><td>${destination}</td></tr>`;
+                count++;
+            }
+        }
+        html += `</tbody></table>`;
+      }
+    }
+    
+    content.innerHTML = html;
   }
 
   window.onclick = function(event) {
-      const modal = document.getElementById('timetableModal');
-      if (event.target == modal) {
-          modal.style.display = "none";
+      const modal1 = document.getElementById('trainTimetableModal');
+      const modal2 = document.getElementById('stationTimetableModal');
+      if (event.target == modal1) {
+          modal1.style.display = "none";
+      }
+      if (event.target == modal2) {
+          modal2.style.display = "none";
       }
   }
 
@@ -826,6 +1009,7 @@
         s.className = "station";
         s.textContent = getStationTitle(stationId);
         s.style.left = `${(idx + 1) * (100 / (group.length + 1))}%`;
+        s.onclick = () => showStationTimetableModal(stationId, primaryLineId);
         lineDiv.appendChild(s);
       });
 
@@ -965,7 +1149,7 @@
         calendar = "SaturdayHoliday";
       }
       
-      const [trainRes, railRes, infoRes, timetableRes] = await Promise.all([
+      const [trainRes, railRes, infoRes, trainTimetableRes] = await Promise.all([
         fetch(`https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
         fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
         fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`),
@@ -984,12 +1168,12 @@
       }
       
       try {
-        if (timetableRes.ok) {
-          timetableData = await timetableRes.json();
+        if (trainTimetableRes.ok) {
+          trainTimetableData = await trainTimetableRes.json();
         }
       } catch (e) {
         console.warn("列車時刻表の取得に失敗しました:", e);
-        timetableData = [];
+        trainTimetableData = [];
       }
 
       trainData = await trainRes.json();
