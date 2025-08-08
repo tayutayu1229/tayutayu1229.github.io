@@ -6,10 +6,26 @@
   <style>
     body {
       font-family: sans-serif;
-      padding: 20px;
+      padding: 100px 20px 20px 20px; /* ヘッダーとティッカーのスペースを確保 */
       background: #f9f9f9;
       color: #333;
       transition: background-color 0.3s, color 0.3s;
+      margin: 0;
+    }
+    /* ヘッダーのスタイル */
+    .page-header {
+      position: fixed; /* ページ上部に固定 */
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: #2b8e7b;
+      color: white;
+      padding: 10px 20px;
+      font-size: 1.5em;
+      font-weight: bold;
+      text-align: center;
+      z-index: 1001; /* スクロールティッカーより手前に表示 */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
     .line-selector {
       margin-bottom: 20px;
@@ -18,7 +34,7 @@
     /* 運行情報スクロール */
     .train-info-ticker {
       position: fixed;
-      top: 0;
+      top: 60px; /* ヘッダーのすぐ下に配置 */
       left: 0;
       right: 0;
       background: #333;
@@ -32,9 +48,10 @@
     }
     .train-info-content {
       white-space: nowrap;
-      animation: scroll-left 30s linear infinite;
+      animation: scroll-left var(--scroll-duration) linear infinite;
       font-size: 14px;
       font-weight: 500;
+      /* padding-right: 100%; */
     }
     @keyframes scroll-left {
       0% {
@@ -44,12 +61,7 @@
         transform: translateX(-100%);
       }
     }
-    body {
-      font-family: sans-serif;
-      padding: 60px 20px 20px 20px; /* 上部にティッカー分のスペース */
-      background: #f9f9f9;
-      margin: 0;
-    }
+
     #monitor {
       position: relative;
       user-select: none;
@@ -386,14 +398,15 @@
   </style>
 </head>
 <body>
-  <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-  <br>
-  <br>
+  <div class="page-header">ATOS在線モニタ</div>
   <div class="train-info-ticker">
     <div class="train-info-content" id="trainInfoTicker">
       運行情報を取得中...
     </div>
   </div>
+  <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+  <br>
+  <br>
 
   <div class="line-selector">
     <label for="lineSelect">路線選択:</label>
@@ -686,12 +699,29 @@
     render();
   }
 
+  function setTickerSpeed() {
+    const tickerContent = document.getElementById("trainInfoTicker");
+    const contentWidth = tickerContent.scrollWidth;
+    const tickerWidth = tickerContent.offsetWidth;
+
+    if (contentWidth > tickerWidth) {
+      const scrollSpeed = 50; // ピクセル/秒
+      const duration = (contentWidth / scrollSpeed) + 5; // +5sで少し間を取る
+      tickerContent.style.setProperty('--scroll-duration', `${duration}s`);
+    } else {
+      tickerContent.style.setProperty('--scroll-duration', `0s`);
+      tickerContent.style.transform = `translateX(0)`;
+      tickerContent.style.animation = 'none';
+    }
+  }
+
   function updateTrainInfoTicker() {
     const selectedLine = document.getElementById("lineSelect").value;
     const ticker = document.getElementById("trainInfoTicker");
     
     if (!selectedLine) {
       ticker.textContent = "路線を選択してください";
+      setTickerSpeed();
       return;
     }
     
@@ -726,6 +756,8 @@
     } else {
       ticker.textContent = `${getLineTitle(selectedLine)}: 運行情報なし`;
     }
+
+    setTickerSpeed();
 
     document.getElementById("details").style.display = "none";
     if (detailsTimer) {
