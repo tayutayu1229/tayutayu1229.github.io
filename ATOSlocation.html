@@ -245,10 +245,9 @@
   <div id="monitor"></div>
 
   <div id="details" class="details">
-    <button class="close-btn" onclick="hideDetails()"></button>
+    <button class="close-btn" onclick="hideDetails()">×</button>
     <div id="details-content"></div>
   </div>
-
 
   <button id="updateBtn" class="update-btn" onclick="manualUpdate()">
     🔄 データ更新
@@ -279,8 +278,87 @@
     "odpt.Railway:JR-East.SobuRapid": "#0033cc",
     "odpt.Railway:JR-East.JobanLocal": "#2F9A9A",
     "odpt.Railway:JR-East.Joban": "#006881",
-  
   };
+
+  // 同一線区を統合するマッピング
+  const lineGroups = {
+    "湘南新宿ライン": [
+      "odpt.Railway:JR-East.ShonanShinjuku"
+    ],
+    "埼京・川越線": [
+      "odpt.Railway:JR-East.SaikyoKawagoe"
+    ],
+    "京浜東北・根岸線": [
+      "odpt.Railway:JR-East.KeihinTohokuNegishi"
+    ],
+    "中央・総武各駅停車": [
+      "odpt.Railway:JR-East.ChuoSobuLocal"
+    ],
+    "山手線": [
+      "odpt.Railway:JR-East.Yamanote"
+    ]
+  };
+
+  // 高崎線・宇都宮線の共通区間定義（東京〜大宮）
+  const sharedSections = {
+    "odpt.Railway:JR-East.Takasaki": ["odpt.Railway:JR-East.Utsunomiya"],
+    "odpt.Railway:JR-East.Utsunomiya": ["odpt.Railway:JR-East.Takasaki"]
+  };
+
+  // 方向判定の改善
+  function getTrainDirection(railDirection) {
+    switch (railDirection) {
+      // 従来の上り/下り
+      case "odpt.RailDirection:Inbound":
+        return "up";
+      case "odpt.RailDirection:Outbound":
+        return "down";
+      
+      // 北行/南行 (湘南新宿ライン、埼京川越線、京浜東北線等)
+      case "odpt.RailDirection:Northbound":
+        return "up";
+      case "odpt.RailDirection:Southbound":
+        return "down";
+      
+      // 東行/西行 (中央総武各駅停車)
+      case "odpt.RailDirection:Eastbound":
+        return "down";
+      case "odpt.RailDirection:Westbound":
+        return "up";
+      
+      // 内回り/外回り (山手線)
+      case "odpt.RailDirection:InnerLoop":
+        return "up";
+      case "odpt.RailDirection:OuterLoop":
+        return "down";
+      
+      default:
+        return "down"; // デフォルトは下り扱い
+    }
+  }
+
+  function getDirectionText(railDirection) {
+    switch (railDirection) {
+      case "odpt.RailDirection:Inbound":
+        return "上り";
+      case "odpt.RailDirection:Outbound":
+        return "下り";
+      case "odpt.RailDirection:Northbound":
+        return "北行";
+      case "odpt.RailDirection:Southbound":
+        return "南行";
+      case "odpt.RailDirection:Eastbound":
+        return "東行";
+      case "odpt.RailDirection:Westbound":
+        return "西行";
+      case "odpt.RailDirection:InnerLoop":
+        return "内回り";
+      case "odpt.RailDirection:OuterLoop":
+        return "外回り";
+      default:
+        return "不明";
+    }
+  }
 
   const stationNameMap = {
     "高輪ゲートウェイ": "高輪ゲト",
@@ -321,6 +399,14 @@
   }
 
   function getLineTitle(lineId) {
+    // グループ名で検索
+    for (const [groupName, lines] of Object.entries(lineGroups)) {
+      if (lines.includes(lineId)) {
+        return groupName;
+      }
+    }
+    
+    // 個別路線名
     const line = railwayData.find(r => r["owl:sameAs"] === lineId);
     return line?.["odpt:railwayTitle"]?.ja || lineId;
   }
@@ -345,15 +431,40 @@
   function populateLineSelect() {
     const select = document.getElementById("lineSelect");
     select.innerHTML = "";
+    
+    // グループ化された路線選択肢を作成
+    const addedGroups = new Set();
     const uniqueLines = [...new Set(trainData.map(t => t["odpt:railway"]))];
+    
     uniqueLines.forEach(lineId => {
-      const option = document.createElement("option");
-      option.value = lineId;
-      option.textContent = getLineTitle(lineId);
-      select.appendChild(option);
+      let groupName = null;
+      let isGrouped = false;
+      
+      // グループに属するかチェック
+      for (const [gName, lines] of Object.entries(lineGroups)) {
+        if (lines.includes(lineId)) {
+          groupName = gName;
+          isGrouped = true;
+          break;
+        }
+      }
+      
+      if (isGrouped && !addedGroups.has(groupName)) {
+        // グループとして追加
+        const option = document.createElement("option");
+        option.value = groupName;
+        option.textContent = groupName;
+        select.appendChild(option);
+        addedGroups.add(groupName);
+      } else if (!isGrouped) {
+        // 個別路線として追加
+        const option = document.createElement("option");
+        option.value = lineId;
+        option.textContent = getLineTitle(lineId);
+        select.appendChild(option);
+      }
     });
     
-    // 運行情報も更新
     updateTrainInfoTicker();
   }
 
@@ -366,27 +477,47 @@
       return;
     }
     
-    // 選択された路線の運行情報を探す
-    const lineInfo = trainInformationData.find(info => info["odpt:railway"] === selectedLine);
+    // 選択された路線（またはグループ）の運行情報を取得
+    let targetLines = [];
+    if (lineGroups[selectedLine]) {
+      targetLines = lineGroups[selectedLine];
+    } else {
+      targetLines = [selectedLine];
+    }
     
-    if (lineInfo) {
-      const infoText = lineInfo["odpt:trainInformationText"]?.ja || "運行情報なし";
-      const status = lineInfo["odpt:trainInformationStatus"]?.ja || "";
-      const cause = lineInfo["odpt:trainInformationCause"]?.ja || "";
-      const range = lineInfo["odpt:trainInformationRange"]?.ja || "";
-      
-      let displayText = infoText;
-      if (status && status !== "平常運転") {
-        displayText = `【${status}】${infoText}`;
-        if (cause) displayText += ` (原因: ${cause})`;
-        if (range) displayText += ` [区間: ${range}]`;
+    let displayTexts = [];
+    targetLines.forEach(lineId => {
+      const lineInfo = trainInformationData.find(info => info["odpt:railway"] === lineId);
+      if (lineInfo) {
+        const infoText = lineInfo["odpt:trainInformationText"]?.ja || "運行情報なし";
+        const status = lineInfo["odpt:trainInformationStatus"]?.ja || "";
+        const cause = lineInfo["odpt:trainInformationCause"]?.ja || "";
+        const range = lineInfo["odpt:trainInformationRange"]?.ja || "";
+        
+        let text = infoText;
+        if (status && status !== "平常運転") {
+          text = `【${status}】${infoText}`;
+          if (cause) text += ` (原因: ${cause})`;
+          if (range) text += ` [区間: ${range}]`;
+        }
+        displayTexts.push(text);
       }
-      
-      ticker.textContent = displayText;
+    });
+    
+    if (displayTexts.length > 0) {
+      ticker.textContent = displayTexts.join(" | ");
     } else {
       ticker.textContent = `${getLineTitle(selectedLine)}: 運行情報なし`;
     }
 
+    document.getElementById("details").style.display = "none";
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+      detailsTimer = null;
+    }
+  }
+
+  function hideDetails() {
     document.getElementById("details").style.display = "none";
     if (detailsTimer) {
       clearTimeout(detailsTimer);
@@ -414,7 +545,7 @@
 
     content.innerHTML =
       `<strong>列車番号:</strong> ${train["odpt:trainNumber"] || '不明'}<br>` +
-      `<strong>方向:</strong> ${train["odpt:railDirection"] === "odpt.RailDirection:Outbound" ? "下り" : "上り"}<br>` +
+      `<strong>方向:</strong> ${getDirectionText(train["odpt:railDirection"])}<br>` +
       `<strong>遅延:</strong> ${delayMin > 0 ? delayMin + "分" : "なし"}<br>` +
       `<strong>走行区間:</strong> ${sectionInfo}<br>` +
       `<strong>終点駅:</strong> ${destination}<br>` +
@@ -434,14 +565,28 @@
 
   function render() {
     const selectedLine = document.getElementById("lineSelect").value;
-    const color = lineColors[selectedLine] || "#666";
     const monitor = document.getElementById("monitor");
     monitor.innerHTML = "";
 
-    // 運行情報も更新
     updateTrainInfoTicker();
 
-    const lineData = railwayData.find(l => l["owl:sameAs"] === selectedLine);
+    // 選択された路線（またはグループ）に含まれる実際の路線IDを取得
+    let targetLines = [];
+    let primaryLineId = selectedLine;
+    
+    if (lineGroups[selectedLine]) {
+      targetLines = lineGroups[selectedLine];
+      primaryLineId = targetLines[0]; // 代表路線を使用してstationOrderを取得
+    } else {
+      targetLines = [selectedLine];
+      // 高崎線・宇都宮線の場合は共通区間も含める
+      if (sharedSections[selectedLine]) {
+        targetLines = targetLines.concat(sharedSections[selectedLine]);
+      }
+    }
+
+    const color = lineColors[primaryLineId] || "#666";
+    const lineData = railwayData.find(l => l["owl:sameAs"] === primaryLineId);
     if (!lineData) return;
 
     // 全駅リストを作成（インデックス付き）
@@ -450,22 +595,40 @@
     
     const stationIds = allStations.map(s => s["odpt:station"]);
 
+    // 環状線かどうかを判定（山手線など）
+    const isCircularLine = selectedLine === "山手線" || primaryLineId === "odpt.Railway:JR-East.Yamanote";
+
+    // 表示済み駅のセットを管理（環状線以外）
+    const displayedStations = new Set();
+
     // オーバーラップしながら4駅ずつ区切って描画
-    // 1列目: 1,2,3,4  2列目: 4,5,6,7  3列目: 7,8,9,10 ...
     let groupIndex = 0;
     for (let i = 0; i < stationIds.length; ) {
       let group;
       if (groupIndex === 0) {
-        // 最初のグループは1,2,3,4
         group = stationIds.slice(i, i + 4);
-        i += 3; // 次は4番目の駅から開始
+        i += 3;
       } else {
-        // 2番目以降は前のグループの最後の駅を含める
         group = stationIds.slice(i, i + 4);
-        i += 3; // 次は現在の最後の駅から開始
+        i += 3;
       }
       
       if (group.length === 0) break;
+      
+      // 環状線以外では重複駅をフィルタリング
+      if (!isCircularLine) {
+        const originalGroup = [...group];
+        group = group.filter(stationId => !displayedStations.has(stationId));
+        
+        // フィルタ後に駅が少なすぎる場合はスキップ
+        if (group.length < 2 && groupIndex > 0) break;
+        
+        // 表示する駅を記録
+        group.forEach(stationId => displayedStations.add(stationId));
+      }
+      
+      // 1駅だけのグループは作らない
+      if (group.length < 2 && groupIndex > 0) break;
       
       const lineDiv = document.createElement("div");
       lineDiv.className = "station-line";
@@ -474,7 +637,6 @@
       track.className = "track-line";
       track.style.background = color;
       lineDiv.appendChild(track);
-
 
       // 駅表示
       group.forEach((stationId, idx) => {
@@ -492,15 +654,14 @@
 
       const trainsToRender = [];
       
-      // 現在のグループ内での列車をチェック
+      // 対象路線グループの列車をチェック
       trainData.forEach(train => {
-        if (train["odpt:railway"] !== selectedLine) return;
+        if (!targetLines.includes(train["odpt:railway"])) return;
 
         const from = train["odpt:fromStation"];
         const to = train["odpt:toStation"];
         const direction = train["odpt:railDirection"];
 
-        // 全駅リストでのインデックスを取得
         const globalFromIdx = stationIds.indexOf(from);
         const globalToIdx = to ? stationIds.indexOf(to) : -1;
 
@@ -509,21 +670,16 @@
         let shouldRender = false;
         let trainPosition;
         let positionKey;
-        let isCrossGroup = false;
 
-        // 現在のグループ内にfromStationがある場合
         const localFromIdx = group.indexOf(from);
         if (localFromIdx !== -1) {
           if (to === null || to === undefined) {
-            // 駅停車中
             trainPosition = (localFromIdx + 1) * (100 / (group.length + 1));
             positionKey = `station-${localFromIdx}-${direction}`;
             shouldRender = true;
           } else {
-            // 駅間走行中
             const localToIdx = group.indexOf(to);
             if (localToIdx !== -1) {
-              // 同一グループ内の駅間
               const fromPos = (localFromIdx + 1) * (100 / (group.length + 1));
               const toPos = (localToIdx + 1) * (100 / (group.length + 1));
               trainPosition = (fromPos + toPos) / 2;
@@ -537,8 +693,8 @@
           const offsetCount = positionOffsets[positionKey] || 0;
           positionOffsets[positionKey] = offsetCount + 1;
 
-          // 列車配置は線路から離れる方向に
-          if (direction === "odpt.RailDirection:Inbound") {
+          const trainDir = getTrainDirection(direction);
+          if (trainDir === "up") {
             maxUpTrains = Math.max(maxUpTrains, offsetCount + 1);
           } else {
             maxDownTrains = Math.max(maxDownTrains, offsetCount + 1);
@@ -548,9 +704,9 @@
             train,
             trainPosition,
             direction,
+            trainDir,
             offsetCount,
-            isAtStation: (to === null || to === undefined),
-            isCrossGroup: false
+            isAtStation: (to === null || to === undefined)
           });
         }
       });
@@ -562,7 +718,7 @@
       lineDiv.style.height = `${requiredHeight}px`;
 
       // 列車描画
-      trainsToRender.forEach(({ train, trainPosition, direction, offsetCount, isAtStation, isCrossGroup }) => {
+      trainsToRender.forEach(({ train, trainPosition, direction, trainDir, offsetCount, isAtStation }) => {
         const delay = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
         const number = train["odpt:trainNumber"] || "不明";
         const carCount = train["odpt:carComposition"] || "";
@@ -570,18 +726,11 @@
         const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
 
         const div = document.createElement("div");
-        div.className = "train " + (direction === "odpt.RailDirection:Outbound" ? "down" : "up");
+        div.className = "train " + trainDir;
         div.style.borderColor = color;
+        div.style.left = `${trainPosition}%`;
 
-        if (isCrossGroup) {
-          div.classList.add("cross-group");
-        } else {
-          div.style.left = `${trainPosition}%`;
-        }
-
-        // 上り列車（線路下部）は線路から下方向に離れる、下り列車（線路上部）は線路から上方向に離れる
-        // offsetCountが0の列車が線路に最も近く、1,2,3...と外方に配置
-        if (direction === "odpt.RailDirection:Inbound") {
+        if (trainDir === "up") {
           div.style.top = `calc(50% + 25px + ${offsetCount * trainHeight}px)`;
         } else {
           div.style.bottom = `calc(50% + 25px + ${offsetCount * trainHeight}px)`;
@@ -598,6 +747,7 @@
       });
 
       monitor.appendChild(lineDiv);
+      groupIndex++;
     }
   }
 
