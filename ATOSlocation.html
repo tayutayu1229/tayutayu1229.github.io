@@ -305,8 +305,25 @@
     "odpt.Railway:JR-East.Utsunomiya": ["odpt.Railway:JR-East.Takasaki"]
   };
 
+  // 方向判定の改善 - 路線ごとの方向マッピング
+  const railwayDirectionMap = {
+    // 湘南新宿ライン
+    "odpt.Railway:JR-East.ShonanShinjuku": {
+      "odpt.RailDirection:Northbound": "down",
+      "odpt.RailDirection:Southbound": "up",
+      "odpt.RailDirection:Inbound": "up",
+      "odpt.RailDirection:Outbound": "down"
+    },
+  };
+
   // 方向判定の改善
-  function getTrainDirection(railDirection) {
+  function getTrainDirection(railDirection, railwayId) {
+    // 路線固有のマッピングがある場合はそれを使用
+    if (railwayDirectionMap[railwayId] && railwayDirectionMap[railwayId][railDirection]) {
+      return railwayDirectionMap[railwayId][railDirection];
+    }
+    
+    // デフォルトの方向判定
     switch (railDirection) {
       // 従来の上り/下り
       case "odpt.RailDirection:Inbound":
@@ -314,19 +331,19 @@
       case "odpt.RailDirection:Outbound":
         return "down";
       
-      // 北行/南行 (湘南新宿ライン、埼京川越線、京浜東北線等)
+      // 北行/南行
       case "odpt.RailDirection:Northbound":
         return "up";
       case "odpt.RailDirection:Southbound":
         return "down";
       
-      // 東行/西行 (中央総武各駅停車)
+      // 東行/西行
       case "odpt.RailDirection:Eastbound":
         return "down";
       case "odpt.RailDirection:Westbound":
         return "up";
       
-      // 内回り/外回り (山手線)
+      // 内回り/外回り
       case "odpt.RailDirection:InnerLoop":
         return "up";
       case "odpt.RailDirection:OuterLoop":
@@ -337,7 +354,24 @@
     }
   }
 
-  function getDirectionText(railDirection) {
+  function getDirectionText(railDirection, railwayId) {
+    // 路線固有の表示名がある場合の判定
+    const lineSpecificText = {
+      "odpt.Railway:JR-East.Yamanote": {
+        "odpt.RailDirection:InnerLoop": "内回り",
+        "odpt.RailDirection:OuterLoop": "外回り"
+      },
+      "odpt.Railway:JR-East.ChuoSobuLocal": {
+        "odpt.RailDirection:Eastbound": "東行",
+        "odpt.RailDirection:Westbound": "西行"
+      }
+    };
+    
+    if (lineSpecificText[railwayId] && lineSpecificText[railwayId][railDirection]) {
+      return lineSpecificText[railwayId][railDirection];
+    }
+    
+    // デフォルトの方向表示
     switch (railDirection) {
       case "odpt.RailDirection:Inbound":
         return "上り";
@@ -545,7 +579,7 @@
 
     content.innerHTML =
       `<strong>列車番号:</strong> ${train["odpt:trainNumber"] || '不明'}<br>` +
-      `<strong>方向:</strong> ${getDirectionText(train["odpt:railDirection"])}<br>` +
+      `<strong>方向:</strong> ${getDirectionText(train["odpt:railDirection"], train["odpt:railway"])}<br>` +
       `<strong>遅延:</strong> ${delayMin > 0 ? delayMin + "分" : "なし"}<br>` +
       `<strong>走行区間:</strong> ${sectionInfo}<br>` +
       `<strong>終点駅:</strong> ${destination}<br>` +
@@ -598,37 +632,12 @@
     // 環状線かどうかを判定（山手線など）
     const isCircularLine = selectedLine === "山手線" || primaryLineId === "odpt.Railway:JR-East.Yamanote";
 
-    // 表示済み駅のセットを管理（環状線以外）
-    const displayedStations = new Set();
-
-    // オーバーラップしながら4駅ずつ区切って描画
+    // 4駅ずつのグループに分割して描画
     let groupIndex = 0;
-    for (let i = 0; i < stationIds.length; ) {
-      let group;
-      if (groupIndex === 0) {
-        group = stationIds.slice(i, i + 4);
-        i += 3;
-      } else {
-        group = stationIds.slice(i, i + 4);
-        i += 3;
-      }
+    for (let i = 0; i < stationIds.length; i += 4) {
+      const group = stationIds.slice(i, i + 4);
       
       if (group.length === 0) break;
-      
-      // 環状線以外では重複駅をフィルタリング
-      if (!isCircularLine) {
-        const originalGroup = [...group];
-        group = group.filter(stationId => !displayedStations.has(stationId));
-        
-        // フィルタ後に駅が少なすぎる場合はスキップ
-        if (group.length < 2 && groupIndex > 0) break;
-        
-        // 表示する駅を記録
-        group.forEach(stationId => displayedStations.add(stationId));
-      }
-      
-      // 1駅だけのグループは作らない
-      if (group.length < 2 && groupIndex > 0) break;
       
       const lineDiv = document.createElement("div");
       lineDiv.className = "station-line";
@@ -693,7 +702,7 @@
           const offsetCount = positionOffsets[positionKey] || 0;
           positionOffsets[positionKey] = offsetCount + 1;
 
-          const trainDir = getTrainDirection(direction);
+          const trainDir = getTrainDirection(direction, train["odpt:railway"]);
           if (trainDir === "up") {
             maxUpTrains = Math.max(maxUpTrains, offsetCount + 1);
           } else {
