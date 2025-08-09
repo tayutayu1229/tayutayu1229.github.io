@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!--JRchr.html-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
@@ -16,6 +15,17 @@
   .filter-input { background: #fff; border: 1px solid #d1fae5; }
   .filter-input:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.1); }
   .timeline-header { background: linear-gradient(90deg,#064e3b 0%,#065f46 100%); }
+
+  /* アコーディオンのスタイル */
+  .accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+  }
+  .accordion-item.active .accordion-content {
+    max-height: 1000px; /* 十分大きな値に設定 */
+    transition: max-height 0.5s ease-in;
+  }
 </style>
 </head>
 <body class="text-gray-800 p-6">
@@ -37,16 +47,12 @@
     </div>
   </div>
 </header>
-<!-- ...ヘッダーの下 -->
 <div class="mb-6">
   <button onclick="location.href='JRcht-top.html'" class="bg-green-100 hover:bg-green-200 border border-green-300 text-green-900 px-4 py-2 rounded flex items-center gap-1">
     <span class="material-icons-outlined text-base">home</span>
     メインページに戻る
   </button>
 </div>
-<!-- ...（従来のフィルタ・データ表示エリアに続く） -->
-
-<!-- フィルタ -->
 <div class="system-card rounded-lg p-5 mb-6">
   <div class="flex items-center gap-2 mb-4">
     <span class="material-icons-outlined text-green-600">tune</span>
@@ -80,24 +86,46 @@ function renderList(data) {
   }
   data.forEach(incident => {
     const div = document.createElement('div');
-    div.className = 'system-card rounded-lg p-6';
-    div.innerHTML = `
-      <div class="flex justify-between pb-4 border-b mb-4">
-        <div>
-          <h2 class="text-xl font-bold mb-1">${incident.title}</h2>
-          <div class="text-sm text-gray-600">
-            <span class="mr-4"><strong>発生日:</strong> ${incident.datetime}</span>
-            <span><strong>場所:</strong> ${incident.location}</span>
-          </div>
+    div.className = 'system-card rounded-lg overflow-hidden accordion-item';
+    
+    // アコーディオンのヘッダー部分
+    const header = document.createElement('div');
+    header.className = 'flex justify-between items-center p-6 cursor-pointer hover:bg-green-50 transition-colors duration-200';
+    header.innerHTML = `
+      <div>
+        <h2 class="text-xl font-bold mb-1">${incident.title}</h2>
+        <div class="text-sm text-gray-600">
+          <span class="mr-4"><strong>発生日:</strong> ${incident.datetime}</span>
+          <span><strong>場所:</strong> ${incident.location}</span>
         </div>
+      </div>
+      <div class="flex items-center gap-2">
         <div class="bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
           <span class="material-icons-outlined text-sm mr-1">report</span>障害
         </div>
+        <span class="material-icons-outlined text-gray-500 transition-transform duration-300 transform">expand_more</span>
       </div>
-      <p class="mb-2">${incident.description}</p>
-      ${incident.notes?.length ? `<ul class="mb-4 list-disc list-inside text-sm text-gray-700">
-        ${incident.notes.map(n => `<li>${n}</li>`).join('')}
-      </ul>` : ''}
+    `;
+    
+    header.onclick = function() {
+      const parent = this.parentElement;
+      parent.classList.toggle('active');
+      const icon = this.querySelector('.material-icons-outlined.transform');
+      icon.classList.toggle('rotate-180');
+    };
+
+    // アコーディオンで隠されるコンテンツ部分
+    const content = document.createElement('div');
+    content.className = 'accordion-content p-6 pt-0 border-t border-green-100';
+    content.innerHTML = `
+      <div class="pb-4">
+        <p class="text-sm text-gray-600 mb-2"><strong>列車番号:</strong> ${incident.trainNo}</p>
+        <p class="text-sm text-gray-600 mb-2"><strong>概況:</strong></p>
+        <p class="mb-4">${incident.description}</p>
+        ${incident.notes?.length ? `<ul class="mb-4 list-disc list-inside text-sm text-gray-700">
+          ${incident.notes.map(n => `<li>${n}</li>`).join('')}
+        </ul>` : ''}
+      </div>
       <div class="border rounded overflow-hidden">
         <div class="timeline-header text-white px-4 py-2 font-semibold flex items-center gap-2">
           <span class="material-icons-outlined">timeline</span>ホワイトボード
@@ -112,6 +140,9 @@ function renderList(data) {
         </table>
       </div>
     `;
+    
+    div.appendChild(header);
+    div.appendChild(content);
     container.appendChild(div);
   });
 }
@@ -125,7 +156,7 @@ function applyFilters() {
       incident.location.toLowerCase().includes(keyword) ||
       incident.trainNo.toLowerCase().includes(keyword) ||
       incident.description.toLowerCase().includes(keyword) ||
-      incident.notes.join(' ').toLowerCase().includes(keyword);
+      (incident.notes && incident.notes.join(' ').toLowerCase().includes(keyword));
     const dateOnly = incident.datetime.split(' ')[0];
     const matchDate = occurDate ? dateOnly === occurDate : true;
     return matchKeyword && matchDate;
