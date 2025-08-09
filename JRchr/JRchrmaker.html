@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>輸送障害JSON作成ツール</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+</style>
+</head>
+<body class="bg-white p-6">
+
+<h1 class="text-2xl font-bold mb-4 flex items-center gap-2">
+  <span class="material-icons-outlined">add_circle_outline</span>
+  輸送障害JSON作成ツール
+</h1>
+
+<div class="space-y-3">
+  <input id="title" placeholder="表題" class="border rounded px-3 py-1 w-full">
+  <input id="datetime" placeholder="日時 (YYYY-MM-DD hh:mm:ss)" class="border rounded px-3 py-1 w-full">
+  <input id="location" placeholder="場所" class="border rounded px-3 py-1 w-full">
+  <input id="trainNo" placeholder="列番" class="border rounded px-3 py-1 w-full">
+  <textarea id="description" placeholder="概況" class="border rounded px-3 py-1 w-full h-20"></textarea>
+  <textarea id="notes" placeholder="追記（1行ごと）" class="border rounded px-3 py-1 w-full h-16"></textarea>
+</div>
+
+<h2 class="text-xl font-semibold mt-6 mb-2">時系列</h2>
+<table id="timelineTable" class="border-collapse w-full text-sm mb-2">
+  <tr class="bg-gray-100">
+    <th class="border px-2 py-1 w-24">時刻</th>
+    <th class="border px-2 py-1">内容</th>
+    <th class="border px-2 py-1 w-16"></th>
+  </tr>
+</table>
+<button type="button" onclick="addTimelineRow()" class="bg-blue-500 text-white rounded px-3 py-1 mb-4">＋行追加</button>
+
+<div>
+  <button onclick="generateJSON()" class="bg-green-500 text-white rounded px-4 py-2">JSON生成</button>
+</div>
+
+<h2 class="text-xl font-semibold mt-6">生成結果</h2>
+<pre class="border rounded p-3 bg-gray-50 mt-2 whitespace-pre-wrap text-sm" id="output"></pre>
+
+<script>
+function addTimelineRow(){
+  const table = document.getElementById('timelineTable');
+  const row = table.insertRow();
+  row.innerHTML = `
+    <td class="border px-2 py-1"><input class="w-full"></td>
+    <td class="border px-2 py-1"><input class="w-full"></td>
+    <td class="border px-2 py-1 text-center"><button onclick="removeRow(this)" class="text-red-500">削除</button></td>
+  `;
+}
+function removeRow(btn){
+  btn.parentElement.parentElement.remove();
+}
+function generateJSON(){
+  const obj = {
+    title: document.getElementById('title').value,
+    datetime: document.getElementById('datetime').value,
+    location: document.getElementById('location').value,
+    trainNo: document.getElementById('trainNo').value,
+    description: document.getElementById('description').value,
+    notes: document.getElementById('notes').value.split('\n').filter(n => n.trim() !== ''),
+    timeline: []
+  };
+  const rows = document.querySelectorAll('#timelineTable tr');
+  rows.forEach((tr, idx) => {
+    if(idx === 0) return;
+    const t = tr.cells[0].querySelector('input').value;
+    const txt = tr.cells[1].querySelector('input').value;
+    if(t.trim() && txt.trim()){
+      obj.timeline.push({ time: t, text: txt });
+    }
+  });
+  document.getElementById('output').textContent = JSON.stringify(obj, null, 2);
+}
+addTimelineRow();
+</script>
+</body>
+</html>

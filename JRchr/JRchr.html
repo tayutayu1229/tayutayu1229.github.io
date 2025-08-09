@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>輸送障害クロノロジー</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+  </style>
+</head>
+<body class="bg-white text-gray-800 p-6">
+
+  <header class="mb-6">
+    <h1 class="text-2xl font-bold border-b pb-2 flex items-center gap-2">
+      <span class="material-icons-outlined">event_note</span>
+      輸送障害クロノロジー
+    </h1>
+  </header>
+
+  <!-- フィルタUI -->
+  <div class="mb-4 flex flex-wrap items-center gap-3">
+    <div class="flex items-center border rounded">
+      <span class="material-icons-outlined text-gray-500 ml-2">search</span>
+      <input id="filterInput" type="text" placeholder="キーワード検索..." class="px-3 py-1 outline-none w-64 rounded">
+    </div>
+    <div>
+      <label class="text-sm text-gray-700">開始日: 
+        <input type="date" id="startDate" class="border rounded px-2 py-1">
+      </label>
+    </div>
+    <div>
+      <label class="text-sm text-gray-700">終了日: 
+        <input type="date" id="endDate" class="border rounded px-2 py-1">
+      </label>
+    </div>
+  </div>
+
+  <div id="container" class="space-y-6"></div>
+
+  <script>
+    let allData = [];
+
+    function renderList(data) {
+      const container = document.getElementById('container');
+      container.innerHTML = '';
+      if (data.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">該当する輸送障害はありません。</p>';
+        return;
+      }
+      data.forEach(incident => {
+        const div = document.createElement('div');
+        div.className = 'border border-gray-200 rounded p-4 shadow-sm';
+        div.innerHTML = `
+          <h2 class="text-xl font-semibold mb-1">${incident.title}</h2>
+          <div class="text-sm text-gray-600 mb-2">
+            <span class="mr-4"><strong>日時:</strong> ${incident.datetime}</span>
+            <span class="mr-4"><strong>場所:</strong> ${incident.location}</span>
+            <span><strong>列番:</strong> ${incident.trainNo || '-'}</span>
+          </div>
+          <p class="mb-2">${incident.description}</p>
+          ${incident.notes?.length ?
+            `<div class="bg-gray-50 p-2 rounded mb-2">
+               <strong>追記:</strong>
+               <ul class="list-disc list-inside text-sm">
+                 ${incident.notes.map(n => `<li>${n}</li>`).join('')}
+               </ul>
+             </div>` : ''
+          }
+          <table class="border-collapse w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100">
+                <th class="border px-2 py-1 w-24">時刻</th>
+                <th class="border px-2 py-1">内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${incident.timeline.map(t => `
+                <tr>
+                  <td class="border px-2 py-1">${t.time}</td>
+                  <td class="border px-2 py-1">${t.text}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function applyFilters() {
+      const keyword = document.getElementById('filterInput').value.toLowerCase();
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      const filtered = allData.filter(incident => {
+        // キーワードフィルタ
+        const matchKeyword =
+          incident.title.toLowerCase().includes(keyword) ||
+          incident.location.toLowerCase().includes(keyword) ||
+          incident.trainNo.toLowerCase().includes(keyword) ||
+          incident.description.toLowerCase().includes(keyword) ||
+          incident.notes.join(' ').toLowerCase().includes(keyword);
+
+        // 日付フィルタ
+        const incidentDate = incident.datetime.split(' ')[0]; // YYYY-MM-DD
+        const afterStart = startDate ? incidentDate >= startDate : true;
+        const beforeEnd = endDate ? incidentDate <= endDate : true;
+
+        return matchKeyword && afterStart && beforeEnd;
+      });
+
+      renderList(filtered);
+    }
+
+    fetch('incidents.json')
+      .then(res => res.json())
+      .then(data => {
+        allData = data;
+        renderList(allData);
+      });
+
+    document.getElementById('filterInput').addEventListener('input', applyFilters);
+    document.getElementById('startDate').addEventListener('change', applyFilters);
+    document.getElementById('endDate').addEventListener('change', applyFilters);
+  </script>
+</body>
+</html>
