@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 import os
 import json
 import base64
+import re #正規表現ライブラリを追加
 
 # --- 設定項目 ---
 USER_NAME = "tayutayu1229"
@@ -12,33 +13,42 @@ TARGET_FILE = "JRFtest/jr_freight_status.html"
 BRANCH_NAME = "main"
 # ----------------
 
+def highlight_keywords(line):
+    """
+    行の中に含まれるキーワードをハイライトするためのHTMLタグで置換する
+    """
+    # キーワードと、それに対応するCSSクラスのマッピング
+    highlights = {
+        "停車中": "status-stopped",
+        "遅れ": "status-delay",
+        "運休": "status-cancelled",
+        "見合わせ": "status-suspended",
+    }
+    for keyword, css_class in highlights.items():
+        # 正規表現で行全体ではなく、単語としてキーワードを置換する
+        line = re.sub(rf'\b{keyword}\b', f'<span class="status-badge {css_class}">{keyword}</span>', line)
+    return line
+
 def fetch_and_parse_data():
     """
     JR貨物の新しいウェブサイト構造からデータを取得し、解析します。
     """
     url = "https://www.jrfreight.co.jp/i_daiya"
-    print("デバッグ: データ取得を開始します...")
     try:
         response = requests.get(url)
-        # JR貨物サイトは現在UTF-8になりました
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # サイトの更新時刻を取得
         update_time_elem = soup.find('div', id='pbBlock91534')
         update_time = update_time_elem.text.strip() if update_time_elem else "不明"
         
-        # 標題を取得
         title_elem = soup.find('div', id='pbBlock91536')
         title = title_elem.text.strip() if title_elem else "（標題なし）"
 
-        # 輸送状況の詳細を取得
         content_elem = soup.find('div', class_='base_daiya-content')
         if not content_elem:
-            print("デバッグ: 'base_daiya-content' の要素が見つかりませんでした。")
             return None
 
-        # 概要と線区情報を取得
         h2_tags = content_elem.find_all('h2')
         p_tags = content_elem.find_all('p')
         
@@ -46,40 +56,60 @@ def fetch_and_parse_data():
         overview_text = p_tags[0].get_text('\n', strip=True) if len(p_tags) > 0 else "情報なし"
         
         status_title = h2_tags[1].text.strip() if len(h2_tags) > 1 else "線区情報"
-        # <br>タグを改行に変換してテキストを取得
-        for br in p_tags[1].find_all("br"):
-            br.replace_with("\n")
-        status_text = p_tags[1].text.strip() if len(p_tags) > 1 else "情報なし"
-        
-        print("デバッグ: データの取得に成功しました。")
-        return {
-            "update_time": update_time,
-            "title": title,
-            "overview_title": overview_title,
-            "overview_text": overview_text,
-            "status_title": status_title,
-            "status_text": status_text,
-        }
 
-    except requests.exceptions.RequestException as e:
-        print(f"データ取得エラー: {e}")
-        return None
+        status_text = ""
+        if len(p_tags) > 1:
+            for br in p_tags[1].find_all("br"):
+                br.replace_with("\n")
+            status_text = p_tags[1].text.strip()
+        
+        return {
+            "update_time": update_time, "title": title, "overview_title": overview_title,
+            "overview_text": overview_text, "status_title": status_title, "status_text": status_text,
+        }
     except Exception as e:
         print(f"解析中に予期せぬエラーが発生しました: {e}")
         return None
 
 def create_html(data):
     """
-    新しいデータ構造からHTMLコンテンツを生成します。
+    新しいデザインのHTMLコンテンツを生成します。
     """
-    if not data:
-        print("デバッグ: create_htmlにデータが渡されませんでした。")
-        return ""
+    if not data: return ""
 
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    # <pre>タグはテキストの改行やスペースをそのまま表示するのに便利です
+    # 運行情報をセクションごとに分割する
+    sections = re.split(r'(<.+?>)', data["status_text"])
+    accordion_html = ""
+    # 最初の要素は空なのでスライスで除外
+    for i in range(1, len(sections), 2):
+        header = sections[i].strip()
+        # 各行をハイライト処理
+        content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
+        content = '<br>'.join(content_lines)
+        
+        # ユニークなIDを生成
+        collapse_id = "collapse" + str(i)
+        
+        accordion_html += f"""
+        <div class="card bg-dark text-white">
+            <div class="card-header" id="heading{i}">
+                <h2 class="mb-0">
+                    <button class="btn btn-link btn-block text-left text-white" type="button" data-toggle="collapse" data-target="#{collapse_id}" aria-expanded="false" aria-controls="{collapse_id}">
+                        {header}
+                    </button>
+                </h2>
+            </div>
+            <div id="{collapse_id}" class="collapse" aria-labelledby="heading{i}">
+                <div class="card-body">
+                    {content}
+                </div>
+            </div>
+        </div>
+        """
+
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -89,50 +119,65 @@ def create_html(data):
         <title>JR貨物 輸送状況</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
         <style>
-            body {{ padding: 2em; }}
-            .footer {{ margin-top: 2em; font-size: 0.9em; color: #6c757d; }}
-            .content-box {{
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: .25rem;
-                padding: 1.25rem;
-                white-space: pre-wrap; /* 改行を有効にする */
-                word-wrap: break-word;
+            body {{ background-color: #212529; color: #f8f9fa; }}
+            .container {{ padding-top: 2rem; padding-bottom: 2rem; }}
+            .card {{ border: 1px solid #495057; margin-bottom: 1rem; }}
+            .card-header {{ background-color: #343a40; }}
+            .card-body {{ background-color: #2c3034; font-family: 'monospace'; font-size: 0.9rem; }}
+            .footer {{ margin-top: 2rem; color: #6c757d; text-align: center; }}
+            .status-badge {{
+                padding: 0.2em 0.6em;
+                border-radius: 0.25rem;
+                font-weight: 700;
+                color: #fff;
             }}
-            h2 {{
-                border-bottom: 2px solid #007bff;
-                padding-bottom: .5rem;
-                margin-top: 1.5rem;
-            }}
+            .status-stopped {{ background-color: #dc3545; }} /* 赤 */
+            .status-delay {{ background-color: #fd7e14; }}   /* オレンジ */
+            .status-cancelled {{ background-color: #6c757d; }} /* グレー */
+            .status-suspended {{ background-color: #ffc107; color: #212529; }} /* 黄 */
         </style>
     </head>
     <body>
         <div class="container">
-            <h1 class="my-4">JR貨物 輸送状況</h1>
-            <p><strong>サイト更新日時:</strong> {data["update_time"]}</p>
+            <div class="text-center mb-4">
+                <h1 class="display-4">JR貨物 輸送状況</h1>
+                <p class="lead">サイト更新: {data["update_time"]}</p>
+            </div>
 
-            <h2>{data["title"]}</h2>
-            
-            <h2 class="mt-4">{data["overview_title"]}</h2>
-            <div class="content-box">
-                <p>{data["overview_text"]}</p>
+            <div class="card bg-secondary text-white shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">標題</h5>
+                    <p class="card-text">{data["title"]}</p>
+                </div>
+            </div>
+
+            <div class="card bg-secondary text-white shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{data["overview_title"]}</h5>
+                    <p class="card-text">{data["overview_text"].replace('<br>', '\\n')}</p>
+                </div>
             </div>
             
-            <h2 class="mt-4">{data["status_title"]}</h2>
-            <pre class="content-box">{data["status_text"]}</pre>
-            
-            <p class="footer">このページは <a href="https://github.com/{USER_NAME}/{REPO_NAME}" target="_blank" rel="noopener">GitHub Actions</a> により自動生成されています。<br>
-            最終取得時刻 (JST): {current_time_str}</p>
+            <h3 class="text-center mb-3">{data["status_title"]}</h3>
+            <div class="accordion" id="statusAccordion">
+                {accordion_html}
+            </div>
+
+            <p class="footer">
+                このページはGitHub Actionsにより自動生成されています。<br>
+                最終取得時刻 (JST): {current_time_str}
+            </p>
         </div>
+        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     </body>
     </html>
     """
     return html_template
 
+# 以下の部分は前回から変更ありません
 def update_github_file(content):
-    """
-    GitHub APIを使ってファイルを更新します。
-    """
     token = os.getenv('GITHUB_TOKEN')
     if not token:
         print("デバッグ: GITHUB_TOKENが設定されていません。")
