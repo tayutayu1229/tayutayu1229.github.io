@@ -19,7 +19,9 @@ def highlight_keywords(line):
         "運休": "status-cancelled", "見合わせ": "status-suspended",
     }
     for keyword, css_class in highlights.items():
-        line = re.sub(rf'\b{keyword}\b', f'<span class="status-badge {css_class}">{keyword}</span>', line)
+        # 正規表現による置換後もキーワードをハイライトできるように調整
+        # 例: "...| 停車中" のような形式に対応
+        line = re.sub(rf'([|\s]{{2,}}|^)({keyword})\b', rf'\1<span class="status-badge {css_class}">{keyword}</span>', line)
     return line
 
 def fetch_and_parse_data():
@@ -73,9 +75,12 @@ def create_html(data):
     if len(sections) > 1:
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
-            # ★★★★★ ここが修正点 ★★★★★
-            # 各行の先頭にある空白文字を line.strip() で除去してから処理する
-            content_lines = [highlight_keywords(line.strip()) for line in sections[i+1].strip().split('\n') if line.strip()]
+            
+            # ★★★★★ ここが最終修正点 ★★★★★
+            # 1. 各行の先頭・末尾の空白を除去 (line.strip())
+            # 2. 2つ以上連続する空白(全角半角問わず)を区切り文字に置換 (re.sub)
+            lines = [line.strip() for line in sections[i+1].strip().split('\n') if line.strip()]
+            content_lines = [highlight_keywords(re.sub(r'[\s　]{2,}', ' | ', line)) for line in lines]
             content = '<br>'.join(content_lines)
             
             status_html += f"""
@@ -174,7 +179,7 @@ def create_html(data):
                 font-family: 'monospace';
                 font-size: 0.9rem;
                 line-height: 1.6;
-                white-space: pre-wrap;
+                white-space: pre-wrap; /* pre-wrapでも内部の連続空白はre.subで除去済み */
             }}
             .footer {{
                 margin-top: 3rem;
