@@ -672,4 +672,61 @@
                 <p><strong>場所:</strong> ${incident.location}</p>
                 <p><strong>原因:</strong> ${incident.cause}</p>
             `;
-            incidentContainer.
+            incidentContainer.appendChild(incidentItem);
+        });
+
+        // Affected Trains
+        const trainContainer = document.getElementById('affected-trains');
+        trainContainer.innerHTML = ''; // Clear existing content
+        data.affected_trains.forEach(line => {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'train-line active'; // <- ここを修正して、初期状態でリストを開くようにしました
+            lineDiv.innerHTML = `<h3>${line.line}</h3>`;
+            
+            const trainList = document.createElement('div');
+            trainList.className = 'train-list';
+            line.trains.forEach(train => {
+                const trainItem = document.createElement('div');
+                trainItem.className = 'train-item';
+                let statusBadgeClass = '';
+                if (train.status.includes('停車中')) {
+                    statusBadgeClass = '停車中';
+                } else if (train.status.includes('予定') || train.status.includes('分')) {
+                    statusBadgeClass = '着予定';
+                }
+                
+                trainItem.innerHTML = `
+                    <p><strong>列車番号:</strong> ${train.train_number}</p>
+                    <p><strong>区間:</strong> ${train.route}</p>
+                    <p><strong>現在地:</strong> ${train.current_location}</p>
+                    <p><strong>状況:</strong> <span class="status-badge ${statusBadgeClass}">${train.status}</span></p>
+                `;
+                trainList.appendChild(trainItem);
+            });
+            lineDiv.appendChild(trainList);
+            trainContainer.appendChild(lineDiv);
+        });
+
+        // Files
+        const filesContainer = document.getElementById('related-files');
+        filesContainer.innerHTML = '';
+        data.files.forEach(file => {
+            const fileItem = document.createElement('p');
+            fileItem.innerHTML = `<a href="${file.url}">${file.file_name}</a>`;
+            filesContainer.appendChild(fileItem);
+        });
+
+        // Add toggle functionality for train lines
+        document.querySelectorAll('.train-line h3').forEach(header => {
+            header.addEventListener('click', () => {
+                const parent = header.parentElement;
+                parent.classList.toggle('active');
+            });
+        });
+    }
+
+    window.onload = renderPage;
+
+</script>
+</body>
+</html>
