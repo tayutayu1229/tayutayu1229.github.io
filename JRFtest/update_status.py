@@ -66,18 +66,16 @@ def create_html(data):
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    # ★★★★★ ここから修正点 ★★★★★
-    
-    # 1. 先頭の不要な空白(改行)を除去
     overview_text_formatted = data["overview_text"].replace('<br>', '\n').lstrip('\n')
 
-    # 2. 情報を表示するHTMLのデザインを変更
     sections = re.split(r'(<.+?>)', data["status_text"])
     status_html = ""
     if len(sections) > 1:
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
-            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n') if line.strip()]
+            # ★★★★★ ここが修正点 ★★★★★
+            # 各行の先頭にある空白文字を line.strip() で除去してから処理する
+            content_lines = [highlight_keywords(line.strip()) for line in sections[i+1].strip().split('\n') if line.strip()]
             content = '<br>'.join(content_lines)
             
             status_html += f"""
@@ -89,7 +87,6 @@ def create_html(data):
             </div>
             """
 
-    # 3. HTML全体のデザインを刷新
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -233,11 +230,8 @@ def create_html(data):
     </body>
     </html>
     """
-    # ★★★★★ 修正ここまで ★★★★★
     return html_template
 
-
-# (以下、update_github_file と if __name__ == "__main__": の部分は変更ありません)
 def update_github_file(content):
     token = os.getenv('GITHUB_TOKEN')
     if not token:
