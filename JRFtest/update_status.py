@@ -66,37 +66,28 @@ def create_html(data):
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    # Accordion HTML generation logic (no changes needed here)
+    # ★★★★★ ここから修正点 ★★★★★
+    # アコーディオンを廃止し、直接表示するHTMLを生成
     sections = re.split(r'(<.+?>)', data["status_text"])
-    accordion_html = ""
+    status_html = ""
     if len(sections) > 1:
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
             content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
             content = '<br>'.join(content_lines)
-            collapse_id = "collapse" + str(i)
-            # Bootstrap accordion structure
-            accordion_html += f"""
-            <div class="card">
-                <div class="card-header" id="heading{i}">
-                    <h2 class="mb-0">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#{collapse_id}" aria-expanded="false" aria-controls="{collapse_id}">
-                            {header}
-                        </button>
-                    </h2>
-                </div>
-                <div id="{collapse_id}" class="collapse" aria-labelledby="heading{i}">
-                    <div class="card-body detail-info">
-                        {content}
-                    </div>
+            
+            status_html += f"""
+            <div class="status-section">
+                <h5 class="status-header">{header}</h5>
+                <div class="status-body">
+                    {content}
                 </div>
             </div>
             """
-    
-    # This logic remains the same to prevent errors.
+
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
-    # ★★★★★ ここからHTMLとCSSのデザインを白ベースに変更 ★★★★★
+    # HTMLとCSSを、よりシンプルでコンパクトなデザインに変更
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -107,103 +98,97 @@ def create_html(data):
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
         <style>
             body {{
-                background-color: #f4f7fa; /* Slightly off-white for a softer look */
-                color: #333;
-                font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif';
+                background-color: #f8f9fa;
+                font-size: 14px; /* 全体のフォントサイズを少し小さく */
             }}
             .container {{
-                max-width: 960px;
+                max-width: 900px;
+                padding-top: 1rem;
+                padding-bottom: 1rem;
             }}
             .page-header {{
-                background-color: #ffffff;
-                border-radius: 0.25rem;
-                padding: 2rem;
-                margin-bottom: 2rem;
+                padding: 1rem 1.5rem;
+                margin-bottom: 1rem;
+                background-color: #fff;
                 border: 1px solid #dee2e6;
+                border-radius: 0.25rem;
             }}
             .page-header h1 {{
-                font-weight: 300;
-                color: #0056b3; /* A professional blue */
+                font-size: 1.75rem; /* 見出しを少し小さく */
+                font-weight: 600;
+                margin-bottom: 0.25rem;
             }}
-            .card {{
-                margin-bottom: 1.25rem;
+            .info-card {{
+                padding: 1rem 1.5rem;
+                margin-bottom: 1rem;
+                background-color: #fff;
                 border: 1px solid #dee2e6;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                border-radius: 0.25rem;
+                white-space: pre-wrap;
+                line-height: 1.5;
             }}
-            .card-header {{
+            .info-card-title {{
+                font-weight: bold;
+                margin-bottom: 0.5rem;
+                font-size: 1.1rem;
+                color: #343a40;
+            }}
+            .status-section {{
+                margin-bottom: 0.75rem; /* 各セクションの間隔を詰める */
+                border: 1px solid #dee2e6;
+                border-radius: 0.25rem;
+                background-color: #fff;
+            }}
+            .status-header {{
                 background-color: #e9ecef;
-                font-weight: bold;
-                color: #495057;
-            }}
-            .info-card .card-body {{
-                white-space: pre-wrap;
+                padding: 0.4rem 1rem; /* ヘッダーの余白を詰める */
                 font-size: 1rem;
-                line-height: 1.6;
-            }}
-            #statusAccordion .card-header {{
-                 background-color: #fff;
-            }}
-            #statusAccordion .btn-link {{
                 font-weight: bold;
-                color: #0056b3;
-                text-decoration: none;
+                margin: 0;
             }}
-            #statusAccordion .btn-link:hover {{
-                color: #003d82;
-            }}
-            .detail-info {{
+            .status-body {{
+                padding: 0.5rem 1rem; /* 本文の余白を詰める */
                 font-family: 'monospace';
-                font-size: 0.9rem;
                 white-space: pre-wrap;
-                background-color: #fdfdfd;
-                border-top: 1px solid #eee;
+                line-height: 1.4; /* 行間を詰める */
+                font-size: 0.85rem;
             }}
             .footer {{
-                margin-top: 3rem;
-                padding-top: 1.5rem;
+                margin-top: 2rem;
+                padding-top: 1rem;
                 border-top: 1px solid #dee2e6;
                 color: #6c757d;
                 text-align: center;
-                font-size: 0.875rem;
+                font-size: 0.8rem;
             }}
-            /* Status badge styles remain the same but work well on a light background */
             .status-badge {{
-                display: inline-block;
-                padding: 0.25em 0.6em;
+                padding: 0.2em 0.5em;
                 font-size: 85%;
                 font-weight: 700;
-                line-height: 1;
-                text-align: center;
-                white-space: nowrap;
-                vertical-align: baseline;
-                border-radius: 0.25rem;
+                border-radius: 0.2rem;
                 color: #fff;
             }}
-            .status-stopped {{ background-color: #dc3545; }} /* Red */
-            .status-delay {{ background-color: #fd7e14; }} /* Orange */
-            .status-cancelled {{ background-color: #6c757d; }} /* Gray */
-            .status-suspended {{ background-color: #ffc107; color: #212529; }} /* Yellow */
+            .status-stopped {{ background-color: #dc3545; }}
+            .status-delay {{ background-color: #fd7e14; }}
+            .status-cancelled {{ background-color: #6c757d; }}
+            .status-suspended {{ background-color: #ffc107; color: #212529; }}
         </style>
     </head>
     <body>
-        <div class="container py-4">
-
+        <div class="container">
             <div class="page-header text-center">
                 <h1>JR貨物 輸送状況</h1>
-                <p class="lead text-muted">サイト更新: {data["update_time"]}</p>
+                <p class="text-muted mb-0">サイト更新: {data["update_time"]}</p>
             </div>
 
-            <div class="card info-card">
-                <div class="card-header">{data["title"]}</div>
-                <div class="card-body">
-                    <p class="card-text">{overview_text_formatted}</p>
-                </div>
+            <div class="info-card">
+                <p class="info-card-title">{data["title"]}</p>
+                <p class="card-text mb-0">{overview_text_formatted}</p>
             </div>
             
-            <h3 class="mt-5 mb-3">{data["status_title"]}</h3>
-            <div class="accordion" id="statusAccordion">
-                {accordion_html}
-            </div>
+            <h4 class="mt-4 mb-2">{data["status_title"]}</h4>
+            
+            {status_html}
 
             <footer class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
