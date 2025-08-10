@@ -1,100 +1,53 @@
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timezone, timedelta
-import os
-import json
-import base64
-import re
-
-# --- 設定項目 ---
-USER_NAME = "tayutayu1229"
-REPO_NAME = "tayutayu1229.github.io"
-TARGET_FILE = "JRFtest/jr_freight_status.html"
-BRANCH_NAME = "main"
-# ----------------
-
-def highlight_keywords(line):
-    highlights = {
-        "停車中": "status-stopped", "遅れ": "status-delay",
-        "運休": "status-cancelled", "見合わせ": "status-suspended",
-    }
-    for keyword, css_class in highlights.items():
-        line = re.sub(rf'\b{keyword}\b', f'<span class="status-badge {css_class}">{keyword}</span>', line)
-    return line
-
-def fetch_and_parse_data():
-    url = "https://www.jrfreight.co.jp/i_daiya"
-    try:
-        response = requests.get(url)
-        response.encoding = 'utf-8'
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        update_time_elem = soup.find('div', id='pbBlock91534')
-        update_time = update_time_elem.text.strip() if update_time_elem else "不明"
-        
-        title_elem = soup.find('div', id='pbBlock91536')
-        title = title_elem.text.strip() if title_elem else "（標題なし）"
-
-        content_elem = soup.find('div', class_='base_daiya-content')
-        if not content_elem: return None
-
-        h2_tags = content_elem.find_all('h2')
-        p_tags = content_elem.find_all('p')
-        
-        overview_title = h2_tags[0].text.strip() if len(h2_tags) > 0 else "概要"
-        overview_text = p_tags[0].get_text('<br>', strip=True) if len(p_tags) > 0 else "情報なし"
-        
-        status_title = h2_tags[1].text.strip() if len(h2_tags) > 1 else "線区情報"
-
-        status_text = ""
-        if len(p_tags) > 1:
-            for br in p_tags[1].find_all("br"):
-                br.replace_with("\n")
-            status_text = p_tags[1].text.strip()
-        
-        return {
-            "update_time": update_time, "title": title, "overview_title": overview_title,
-            "overview_text": overview_text, "status_title": status_title, "status_text": status_text,
-        }
-    except Exception as e:
-        print(f"解析中に予期せぬエラーが発生しました: {e}")
-        return None
-
 def create_html(data):
     if not data: return ""
 
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    sections = re.split(r'(<.+?>)', data["status_text"])
+    # The original script splits by '<...>', which can be fragile.
+    # A more robust way is to find all h2 and p tags within the content.
+    # However, to stick to the original logic and avoid breaking changes,
+    # we will process the status_text as requested.
+    # Splitting by a known pattern like '<' followed by a line name '>'
+    # is safer if the format is consistent.
+    
+    # We will assume the format is `<LINE NAME>...\n<LINE NAME>...`
+    # The original regex `r'(<.+?>)'` works for this.
+    raw_sections = re.split(r'(<.+?>)', data["status_text"])
+    
     section_html = ""
-    if len(sections) > 1:
-        for i in range(1, len(sections), 2):
-            header = sections[i].strip()
-            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n') if line.strip()]
-            
-            # 列車情報を整理して表示
-            formatted_content = []
-            for line in content_lines:
-                if line.strip():
+    # The split results in ['', '<LINE 1>', 'details1', '<LINE 2>', 'details2', ...]. We iterate starting from index 1.
+    if len(raw_sections) > 1:
+        for i in range(1, len(raw_sections), 2):
+            if i + 1 < len(raw_sections):
+                header = raw_sections[i].strip()
+                content_text = raw_sections[i+1].strip()
+                
+                content_lines = [highlight_keywords(line) for line in content_text.split('\n') if line.strip()]
+                
+                formatted_content = []
+                for line in content_lines:
+                    # Each train info line gets its own div for tight spacing
                     formatted_content.append(f'<div class="train-line">{line}</div>')
-            
-            content = ''.join(formatted_content)
-            
-            section_html += f"""
-            <div class="status-section section-divider" data-search-content="{header} {sections[i+1].strip()}">
-                <div class="status-header">
-                    <span class="section-title">{header}</span>
+                
+                content = ''.join(formatted_content)
+                
+                # The data-search-content attribute contains all text for filtering
+                search_content = f"{header} {content_text}"
+                
+                section_html += f"""
+                <div class="status-section" data-search-content="{search_content}">
+                    <div class="card-header status-header">{header}</div>
+                    <div class="card-body status-details">
+                        {content if content else '<p class="no-info">詳細情報はありません。</p>'}
+                    </div>
                 </div>
-                <div class="status-content">
-                    <div class="status-details">{content}</div>
-                </div>
-            </div>
-            """
+                """
 
-    # エラーを回避するため、文字列の置換をf-stringの外で行う
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
+    # --- HTML & CSS TEMPLATE ---
+    # The design is updated here.
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -103,6 +56,18 @@ def create_html(data):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況</title>
         <style>
+            :root {{
+                --jrf-blue: #0054A5; /* JR貨物のコーポレートカラー */
+                --light-blue: #e7f0f7;
+                --text-dark: #212529;
+                --text-light: #6c757d;
+                --bg-white: #ffffff;
+                --bg-light: #f8f9fa;
+                --border-color: #dee2e6;
+                --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+                --font-family-monospace: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+            }}
+            
             * {{
                 margin: 0;
                 padding: 0;
@@ -110,383 +75,216 @@ def create_html(data):
             }}
             
             body {{
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                background-color: #ffffff;
-                color: #333333;
-                line-height: 1.7;
-                font-size: 14px;
+                font-family: var(--font-family-sans-serif);
+                background-color: var(--bg-light);
+                color: var(--text-dark);
+                line-height: 1.6;
+                font-size: 16px;
             }}
             
             .container {{
-                max-width: 1000px;
+                max-width: 960px;
                 margin: 0 auto;
-                padding: 40px 20px;
+                padding: 30px 15px;
             }}
             
-            .header {{
-                background-color: #ffffff;
-                color: #333333;
-                padding: 40px 0 30px 0;
+            .page-header {{
                 text-align: center;
-                border-bottom: 2px solid #f0f0f0;
-                margin-bottom: 40px;
-            }}
-            
-            .header h1 {{
-                font-size: 32px;
-                font-weight: 600;
-                margin-bottom: 12px;
-                letter-spacing: 1px;
-                color: #2c3e50;
-            }}
-            
-            .header .update-time {{
-                font-size: 16px;
-                color: #666666;
-                font-weight: 400;
-            }}
-            
-            .search-container {{
-                background: #fafafa;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                padding: 20px;
                 margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 1px solid var(--border-color);
+            }}
+
+            .page-header h1 {{
+                font-size: 28px;
+                font-weight: 700;
+                color: var(--jrf-blue);
+                margin-bottom: 8px;
             }}
             
-            .search-box {{
-                position: relative;
-                max-width: 400px;
-                margin: 0 auto;
+            .page-header .update-time {{
+                font-size: 14px;
+                color: var(--text-light);
             }}
-            
+
+            .card {{
+                background-color: var(--bg-white);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                margin-bottom: 25px;
+                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            }}
+
+            .card-header {{
+                padding: 12px 20px;
+                background-color: var(--bg-light);
+                border-bottom: 1px solid var(--border-color);
+                font-weight: 600;
+                border-radius: 8px 8px 0 0;
+            }}
+
+            .card-body {{
+                padding: 20px;
+                white-space: pre-line;
+                line-height: 1.8;
+                color: #343a40;
+            }}
+
+            .search-card .card-body {{
+                padding: 20px;
+            }}
+
             .search-input {{
                 width: 100%;
                 padding: 12px 16px;
-                border: 2px solid #e0e0e0;
+                border: 1px solid var(--border-color);
                 border-radius: 6px;
                 font-size: 16px;
-                background-color: #ffffff;
-                transition: border-color 0.2s ease;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
             }}
-            
+
             .search-input:focus {{
                 outline: none;
-                border-color: #4a90e2;
+                border-color: var(--jrf-blue);
+                box-shadow: 0 0 0 3px var(--light-blue);
             }}
-            
-            .search-label {{
-                display: block;
-                margin-bottom: 8px;
-                font-weight: 500;
-                color: #555555;
+
+            .section-title-header {{
                 text-align: center;
-            }}
-            
-            .info-card {{
-                background: #ffffff;
-                border: 1px solid #e8e8e8;
-                border-radius: 8px;
-                margin-bottom: 30px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            }}
-            
-            .info-card-header {{
-                background: #f8f9fa;
-                padding: 20px 24px;
-                border-bottom: 1px solid #e8e8e8;
+                font-size: 22px;
                 font-weight: 600;
-                color: #333333;
-                font-size: 16px;
+                margin: 40px 0 20px 0;
+                color: var(--text-dark);
             }}
-            
-            .info-card-body {{
-                padding: 24px;
-                white-space: pre-line;
-                line-height: 1.8;
-                color: #555555;
-            }}
-            
+
             .status-section {{
-                background: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                margin-bottom: 20px;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-                transition: opacity 0.3s ease;
+                background: var(--bg-white);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                margin-bottom: 15px;
+                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+                overflow: hidden; /* Ensures child border-radius works */
             }}
-            
-            .status-section.hidden {{
-                display: none;
-            }}
-            
+
             .status-header {{
-                background: #f8f9fa;
-                padding: 16px 24px;
-                border-bottom: 1px solid #e8e8e8;
-                border-radius: 6px 6px 0 0;
-            }}
-            
-            .section-title {{
+                background-color: var(--jrf-blue);
+                color: white;
                 font-weight: 600;
-                color: #2c3e50;
                 font-size: 16px;
-                display: block;
             }}
-            
-            .status-content {{
-                display: block;
-                border-radius: 0 0 6px 6px;
-            }}
-            
+
             .status-details {{
-                padding: 16px 20px;
-                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
-                font-size: 13px;
-                line-height: 1.3;
-                color: #555555;
-                white-space: pre-line;
-                background: #fafafa;
-                border-radius: 0 0 6px 6px;
+                padding: 12px 16px;
+                font-family: var(--font-family-monospace);
+                font-size: 13px; /* Smaller font for dense info */
+                line-height: 1.4; /* Tighter line height */
+                color: #343a40;
+                background: #fff;
+                white-space: pre-wrap; /* Allows wrapping but respects newlines */
                 word-break: break-all;
+                border-radius: 0;
             }}
-            
+
             .train-line {{
-                margin: 2px 0;
-                padding: 1px 0;
+                padding: 1px 0; /* Minimal vertical padding */
+                margin: 0;
             }}
             
-            .section-divider {{
-                border-bottom: 2px solid #e0e0e0;
-                margin: 30px 0;
-                padding-bottom: 10px;
+            .no-info {{
+                color: var(--text-light);
+                font-style: italic;
             }}
-            
-            .section-divider:last-child {{
-                border-bottom: none;
-                margin-bottom: 0;
-            }}
-            
+
             .status-badge {{
                 display: inline-block;
                 padding: 3px 8px;
                 border-radius: 4px;
                 font-weight: 500;
                 font-size: 12px;
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                font-family: var(--font-family-sans-serif);
+                border: 1px solid transparent;
             }}
             
-            .status-stopped {{
-                background-color: #fee2e2;
-                color: #991b1b;
-                border: 1px solid #fca5a5;
-            }}
-            
-            .status-delay {{
-                background-color: #fef3c7;
-                color: #92400e;
-                border: 1px solid #fcd34d;
-            }}
-            
-            .status-cancelled {{
-                background-color: #f3f4f6;
-                color: #374151;
-                border: 1px solid #d1d5db;
-            }}
-            
-            .status-suspended {{
-                background-color: #dbeafe;
-                color: #1e40af;
-                border: 1px solid #93c5fd;
-            }}
-            
-            .section-header {{
-                text-align: center;
-                margin: 50px 0 30px 0;
-                font-size: 24px;
-                font-weight: 600;
-                color: #2c3e50;
-                position: relative;
-            }}
-            
-            .section-header::after {{
-                content: '';
-                position: absolute;
-                bottom: -12px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 40px;
-                height: 2px;
-                background: #4a90e2;
-                border-radius: 1px;
-            }}
-            
+            .status-stopped {{ background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }}
+            .status-delay {{ background-color: #fff3cd; color: #856404; border-color: #ffeeba; }}
+            .status-cancelled {{ background-color: #e2e3e5; color: #383d41; border-color: #d6d8db; }}
+            .status-suspended {{ background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }}
+
             .no-results {{
                 text-align: center;
-                padding: 40px;
-                color: #888888;
+                padding: 40px 20px;
+                color: var(--text-light);
                 font-style: italic;
-                display: none;
+                display: none; /* Hidden by default */
+                background-color: var(--bg-white);
+                border-radius: 8px;
             }}
             
-            .footer {{
-                margin-top: 60px;
-                padding-top: 30px;
-                border-top: 1px solid #f0f0f0;
-                color: #888888;
+            .page-footer {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid var(--border-color);
+                color: var(--text-light);
                 text-align: center;
                 font-size: 13px;
                 line-height: 1.6;
             }}
-            
+
             @media (max-width: 768px) {{
-                .container {{
-                    padding: 20px 15px;
-                }}
-                
-                .header {{
-                    padding: 30px 0 20px 0;
-                    margin-bottom: 30px;
-                }}
-                
-                .header h1 {{
-                    font-size: 26px;
-                }}
-                
-                .search-container {{
-                    padding: 15px;
-                }}
-                
-                .search-box {{
-                    max-width: 100%;
-                }}
-                
-                .search-input {{
-                    font-size: 16px;
-                    padding: 12px 14px;
-                }}
-                
-                .info-card-header {{
-                    padding: 16px 18px;
-                    font-size: 15px;
-                }}
-                
-                .info-card-body {{
-                    padding: 18px;
-                }}
-                
-                .status-header {{
-                    padding: 12px 18px;
-                }}
-                
-                .section-title {{
-                    font-size: 15px;
-                }}
-                
-                .status-details {{
-                    padding: 12px 16px;
-                    font-size: 12px;
-                    line-height: 1.2;
-                }}
-                
-                .train-line {{
-                    margin: 1px 0;
-                }}
-                
-                .section-header {{
-                    font-size: 20px;
-                    margin: 40px 0 25px 0;
-                }}
-            }}
-            
-            @media (max-width: 480px) {{
-                .container {{
-                    padding: 15px 10px;
-                }}
-                
-                .header h1 {{
-                    font-size: 22px;
-                }}
-                
-                .status-badge {{
-                    font-size: 11px;
-                    padding: 2px 6px;
-                }}
-                
-                .status-details {{
-                    font-size: 11px;
-                    line-height: 1.1;
-                    padding: 10px 14px;
-                }}
-                
-                .train-line {{
-                    margin: 0.5px 0;
-                }}
+                body {{ font-size: 14px; }}
+                .container {{ padding: 20px 15px; }}
+                .page-header h1 {{ font-size: 24px; }}
+                .section-title-header {{ font-size: 20px; }}
             }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header">
+            <header class="page-header">
                 <h1>JR貨物 輸送状況</h1>
                 <div class="update-time">サイト更新: {data["update_time"]}</div>
-            </div>
+            </header>
             
-            <div class="search-container">
-                <label class="search-label">線区名・状況でフィルタ検索</label>
-                <div class="search-box">
-                    <input type="text" class="search-input" id="searchInput" placeholder="例: 東海道、遅れ、運休" />
+            <div class="card search-card">
+                <div class="card-header">フィルタ検索</div>
+                <div class="card-body">
+                    <input type="text" class="search-input" id="searchInput" placeholder="例: 東海道、遅れ、運休、列車番号など">
                 </div>
             </div>
             
-            <div class="info-card">
-                <div class="info-card-header">標題</div>
-                <div class="info-card-body">{data["title"]}</div>
+            <div class="card">
+                <div class="card-header">標題</div>
+                <div class="card-body">{data["title"]}</div>
             </div>
             
-            <div class="info-card">
-                <div class="info-card-header">{data["overview_title"]}</div>
-                <div class="info-card-body">{overview_text_formatted}</div>
+            <div class="card">
+                <div class="card-header">{data["overview_title"]}</div>
+                <div class="card-body">{overview_text_formatted}</div>
             </div>
             
-            <h2 class="section-header">{data["status_title"]}</h2>
+            <h2 class="section-title-header">{data["status_title"]}</h2>
             
-            <div class="status-accordion">
+            <div class="status-list">
                 {section_html}
             </div>
             
             <div class="no-results" id="noResults">
-                検索条件に一致する線区情報が見つかりませんでした。
+                検索条件に一致する情報が見つかりませんでした。
             </div>
             
-            <div class="footer">
+            <footer class="page-footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
                 最終取得時刻 (JST): {current_time_str}
-            </div>
+            </footer>
         </div>
         
         <script>
-            function toggleSection(sectionId) {{
-                const content = document.getElementById(sectionId);
-                const icon = document.getElementById('icon-' + sectionId);
-                
-                if (content.classList.contains('collapsed')) {{
-                    content.classList.remove('collapsed');
-                    content.classList.add('expanded');
-                    icon.textContent = '−';
-                }} else {{
-                    content.classList.remove('expanded');
-                    content.classList.add('collapsed');
-                    icon.textContent = '+';
-                }}
-            }}
-            
-            // 検索フィルター機能
+            // The search filter script remains compatible with the new structure.
             document.addEventListener('DOMContentLoaded', function() {{
                 const searchInput = document.getElementById('searchInput');
                 if (searchInput) {{
                     searchInput.addEventListener('input', function(e) {{
-                        const searchTerm = e.target.value.toLowerCase();
+                        const searchTerm = e.target.value.toLowerCase().trim();
                         const sections = document.querySelectorAll('.status-section');
                         const noResults = document.getElementById('noResults');
                         let visibleCount = 0;
@@ -496,11 +294,9 @@ def create_html(data):
                             
                             if (searchContent.includes(searchTerm)) {{
                                 section.style.display = 'block';
-                                section.classList.remove('hidden');
                                 visibleCount++;
                             }} else {{
                                 section.style.display = 'none';
-                                section.classList.add('hidden');
                             }}
                         }});
                         
@@ -512,61 +308,8 @@ def create_html(data):
                     }});
                 }}
             }});
-        }}
+        </script>
     </body>
     </html>
     """
     return html_template
-
-def update_github_file(content):
-    token = os.getenv('GITHUB_TOKEN')
-    if not token:
-        print("デバッグ: GITHUB_TOKENが設定されていません。")
-        return
-
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-    url = f"https://api.github.com/repos/{USER_NAME}/{REPO_NAME}/contents/{TARGET_FILE}"
-    
-    sha = None
-    try:
-        r = requests.get(url, headers=headers)
-        r.raise_for_status()
-        sha = r.json().get('sha')
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code != 404:
-            raise
-
-    encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-    
-    data = {
-        "message": f"Update JR Freight status ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})",
-        "content": encoded_content,
-        "branch": BRANCH_NAME
-    }
-    if sha:
-        data["sha"] = sha
-
-    r = requests.put(url, headers=headers, data=json.dumps(data))
-    
-    if r.status_code not in [200, 201]:
-        print(f"エラー: ファイルの更新に失敗しました。Status Code: {r.status_code}")
-        print(f"レスポンス: {r.text}")
-        raise Exception("ファイルの更新/作成に失敗しました。")
-    
-    print("ファイルが正常に更新/作成されました。")
-
-if __name__ == "__main__":
-    print("処理を開始します。")
-    scraped_data = fetch_and_parse_data()
-    if scraped_data:
-        html_content = create_html(scraped_data)
-        if html_content:
-            update_github_file(html_content)
-            print("処理が正常に完了しました。")
-        else:
-            print("HTMLコンテンツの生成に失敗しました。")
-    else:
-        print("データのスクレイピングに失敗しました。処理を終了します。")
