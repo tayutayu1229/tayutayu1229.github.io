@@ -4,19 +4,9 @@ def create_html(data):
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    # The original script splits by '<...>', which can be fragile.
-    # A more robust way is to find all h2 and p tags within the content.
-    # However, to stick to the original logic and avoid breaking changes,
-    # we will process the status_text as requested.
-    # Splitting by a known pattern like '<' followed by a line name '>'
-    # is safer if the format is consistent.
-    
-    # We will assume the format is `<LINE NAME>...\n<LINE NAME>...`
-    # The original regex `r'(<.+?>)'` works for this.
     raw_sections = re.split(r'(<.+?>)', data["status_text"])
     
     section_html = ""
-    # The split results in ['', '<LINE 1>', 'details1', '<LINE 2>', 'details2', ...]. We iterate starting from index 1.
     if len(raw_sections) > 1:
         for i in range(1, len(raw_sections), 2):
             if i + 1 < len(raw_sections):
@@ -25,246 +15,220 @@ def create_html(data):
                 
                 content_lines = [highlight_keywords(line) for line in content_text.split('\n') if line.strip()]
                 
-                formatted_content = []
-                for line in content_lines:
-                    # Each train info line gets its own div for tight spacing
-                    formatted_content.append(f'<div class="train-line">{line}</div>')
+                # 列車情報を格納する部分
+                content = ''.join([f'<div class="train-line">{line}</div>' for line in content_lines])
                 
-                content = ''.join(formatted_content)
-                
-                # The data-search-content attribute contains all text for filtering
+                # 検索対象のテキスト（路線名 + 詳細情報）
                 search_content = f"{header} {content_text}"
                 
                 section_html += f"""
                 <div class="status-section" data-search-content="{search_content}">
-                    <div class="card-header status-header">{header}</div>
-                    <div class="card-body status-details">
-                        {content if content else '<p class="no-info">詳細情報はありません。</p>'}
+                    <div class="status-header">{header}</div>
+                    <div class="status-details">
+                        {content if content else '<p class="no-info-in-section">詳細情報はありません。</p>'}
                     </div>
                 </div>
                 """
 
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
-    # --- HTML & CSS TEMPLATE ---
-    # The design is updated here.
+    # --- HTML & CSS TEMPLATE (Redesigned) ---
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>JR貨物 輸送状況</title>
+        <title>JR貨物 輸送状況ダッシュボード</title>
         <style>
             :root {{
-                --jrf-blue: #0054A5; /* JR貨物のコーポレートカラー */
-                --light-blue: #e7f0f7;
-                --text-dark: #212529;
-                --text-light: #6c757d;
-                --bg-white: #ffffff;
-                --bg-light: #f8f9fa;
-                --border-color: #dee2e6;
-                --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-                --font-family-monospace: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
-            }}
-            
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
+                --jrf-blue: #0054A5;
+                --dark-header: #2c3e50;
+                --body-bg: #f4f7f9;
+                --card-bg: #ffffff;
+                --text-primary: #343a40;
+                --text-secondary: #6c757d;
+                --border-color: #e1e5e8;
+                --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                --font-mono: "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             }}
             
             body {{
-                font-family: var(--font-family-sans-serif);
-                background-color: var(--bg-light);
-                color: var(--text-dark);
-                line-height: 1.6;
-                font-size: 16px;
-            }}
-            
-            .container {{
-                max-width: 960px;
-                margin: 0 auto;
-                padding: 30px 15px;
-            }}
-            
-            .page-header {{
-                text-align: center;
-                margin-bottom: 30px;
-                padding-bottom: 20px;
-                border-bottom: 1px solid var(--border-color);
-            }}
-
-            .page-header h1 {{
-                font-size: 28px;
-                font-weight: 700;
-                color: var(--jrf-blue);
-                margin-bottom: 8px;
-            }}
-            
-            .page-header .update-time {{
-                font-size: 14px;
-                color: var(--text-light);
-            }}
-
-            .card {{
-                background-color: var(--bg-white);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                margin-bottom: 25px;
-                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-            }}
-
-            .card-header {{
-                padding: 12px 20px;
-                background-color: var(--bg-light);
-                border-bottom: 1px solid var(--border-color);
-                font-weight: 600;
-                border-radius: 8px 8px 0 0;
-            }}
-
-            .card-body {{
-                padding: 20px;
-                white-space: pre-line;
-                line-height: 1.8;
-                color: #343a40;
-            }}
-
-            .search-card .card-body {{
-                padding: 20px;
-            }}
-
-            .search-input {{
-                width: 100%;
-                padding: 12px 16px;
-                border: 1px solid var(--border-color);
-                border-radius: 6px;
-                font-size: 16px;
-                transition: border-color 0.2s ease, box-shadow 0.2s ease;
-            }}
-
-            .search-input:focus {{
-                outline: none;
-                border-color: var(--jrf-blue);
-                box-shadow: 0 0 0 3px var(--light-blue);
-            }}
-
-            .section-title-header {{
-                text-align: center;
-                font-size: 22px;
-                font-weight: 600;
-                margin: 40px 0 20px 0;
-                color: var(--text-dark);
-            }}
-
-            .status-section {{
-                background: var(--bg-white);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                margin-bottom: 15px;
-                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-                overflow: hidden; /* Ensures child border-radius works */
-            }}
-
-            .status-header {{
-                background-color: var(--jrf-blue);
-                color: white;
-                font-weight: 600;
-                font-size: 16px;
-            }}
-
-            .status-details {{
-                padding: 12px 16px;
-                font-family: var(--font-family-monospace);
-                font-size: 13px; /* Smaller font for dense info */
-                line-height: 1.4; /* Tighter line height */
-                color: #343a40;
-                background: #fff;
-                white-space: pre-wrap; /* Allows wrapping but respects newlines */
-                word-break: break-all;
-                border-radius: 0;
-            }}
-
-            .train-line {{
-                padding: 1px 0; /* Minimal vertical padding */
+                font-family: var(--font-sans);
+                background-color: var(--body-bg);
+                color: var(--text-primary);
                 margin: 0;
             }}
             
-            .no-info {{
-                color: var(--text-light);
-                font-style: italic;
+            .page-header {{
+                background-color: var(--dark-header);
+                color: white;
+                padding: 20px;
+                text-align: center;
+            }}
+            .page-header h1 {{
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+            }}
+            .page-header .update-time {{
+                opacity: 0.8;
+                font-size: 14px;
+                margin-top: 4px;
+            }}
+
+            .container {{
+                max-width: 1000px;
+                margin: 0 auto;
+                padding: 24px;
+            }}
+            
+            .search-wrapper {{
+                position: relative;
+                margin-bottom: 24px;
+            }}
+            .search-icon {{
+                position: absolute;
+                top: 50%;
+                left: 16px;
+                transform: translateY(-50%);
+                width: 20px;
+                height: 20px;
+                fill: #999;
+            }}
+            .search-input {{
+                width: 100%;
+                padding: 14px 14px 14px 48px;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                font-size: 16px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                transition: border-color .2s, box-shadow .2s;
+            }}
+            .search-input:focus {{
+                outline: none;
+                border-color: var(--jrf-blue);
+                box-shadow: 0 0 0 3px rgba(0, 84, 165, 0.2);
+            }}
+
+            .info-card {{
+                background-color: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                margin-bottom: 24px;
+                border-top: 4px solid var(--jrf-blue);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }}
+            .card-header {{
+                padding: 12px 16px;
+                font-weight: 600;
+                font-size: 16px;
+                border-bottom: 1px solid var(--border-color);
+            }}
+            .card-body {{
+                padding: 16px;
+                white-space: pre-line;
+                line-height: 1.7;
+            }}
+
+            .section-title-header {{
+                font-size: 20px;
+                font-weight: 600;
+                text-align: center;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+                border-bottom: 2px solid var(--jrf-blue);
+            }}
+
+            .status-section {{
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                margin-bottom: 16px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                overflow: hidden;
+            }}
+            .status-header {{
+                background-color: var(--jrf-blue);
+                color: white;
+                padding: 10px 16px;
+                font-weight: 600;
+            }}
+            .status-details {{
+                padding: 12px 16px;
+                font-family: var(--font-mono);
+                font-size: 13px;
+                line-height: 1.5; /* Tight but readable */
+                background: #fdfdfd;
+                white-space: pre-wrap;
+                word-break: break-all;
+            }}
+            .train-line {{
+                padding: 1.5px 0;
+            }}
+            .no-info-in-section {{
+                font-family: var(--font-sans);
+                color: var(--text-secondary);
             }}
 
             .status-badge {{
                 display: inline-block;
-                padding: 3px 8px;
+                padding: 2px 7px;
                 border-radius: 4px;
-                font-weight: 500;
-                font-size: 12px;
-                font-family: var(--font-family-sans-serif);
-                border: 1px solid transparent;
+                font-weight: 600;
+                font-size: 11px;
+                font-family: var(--font-sans);
             }}
-            
-            .status-stopped {{ background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }}
-            .status-delay {{ background-color: #fff3cd; color: #856404; border-color: #ffeeba; }}
-            .status-cancelled {{ background-color: #e2e3e5; color: #383d41; border-color: #d6d8db; }}
-            .status-suspended {{ background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }}
+            .status-stopped {{ background-color: #fee2e2; color: #991b1b; }}
+            .status-delay {{ background-color: #fef3c7; color: #92400e; }}
+            .status-cancelled {{ background-color: #f3f4f6; color: #374151; }}
+            .status-suspended {{ background-color: #dbeafe; color: #1e40af; }}
 
             .no-results {{
+                display: none;
                 text-align: center;
-                padding: 40px 20px;
-                color: var(--text-light);
-                font-style: italic;
-                display: none; /* Hidden by default */
-                background-color: var(--bg-white);
+                padding: 40px;
+                background-color: var(--card-bg);
                 border-radius: 8px;
+                color: var(--text-secondary);
+                font-style: italic;
             }}
             
-            .page-footer {{
-                margin-top: 40px;
-                padding-top: 20px;
+            .footer {{
+                margin-top: 32px;
+                padding-top: 24px;
                 border-top: 1px solid var(--border-color);
-                color: var(--text-light);
+                color: var(--text-secondary);
                 text-align: center;
                 font-size: 13px;
-                line-height: 1.6;
-            }}
-
-            @media (max-width: 768px) {{
-                body {{ font-size: 14px; }}
-                .container {{ padding: 20px 15px; }}
-                .page-header h1 {{ font-size: 24px; }}
-                .section-title-header {{ font-size: 20px; }}
             }}
         </style>
     </head>
     <body>
+        <header class="page-header">
+            <h1>JR貨物 輸送状況ダッシュボード</h1>
+            <div class="update-time">サイト更新: {data["update_time"]}</div>
+        </header>
+
         <div class="container">
-            <header class="page-header">
-                <h1>JR貨物 輸送状況</h1>
-                <div class="update-time">サイト更新: {data["update_time"]}</div>
-            </header>
-            
-            <div class="card search-card">
-                <div class="card-header">フィルタ検索</div>
-                <div class="card-body">
-                    <input type="text" class="search-input" id="searchInput" placeholder="例: 東海道、遅れ、運休、列車番号など">
-                </div>
+            <div class="search-wrapper">
+                <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
+                <input type="text" class="search-input" id="searchInput" placeholder="路線名、列車番号、状況 (遅れ、運休など) で検索">
             </div>
-            
-            <div class="card">
-                <div class="card-header">標題</div>
+
+            <div class="info-card">
+                <div class="card-header">輸送状況の標題</div>
                 <div class="card-body">{data["title"]}</div>
             </div>
             
-            <div class="card">
+            <div class="info-card">
                 <div class="card-header">{data["overview_title"]}</div>
                 <div class="card-body">{overview_text_formatted}</div>
             </div>
             
             <h2 class="section-title-header">{data["status_title"]}</h2>
             
-            <div class="status-list">
+            <div id="status-list-container">
                 {section_html}
             </div>
             
@@ -272,24 +236,26 @@ def create_html(data):
                 検索条件に一致する情報が見つかりませんでした。
             </div>
             
-            <footer class="page-footer">
+            <footer class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
                 最終取得時刻 (JST): {current_time_str}
             </footer>
         </div>
         
         <script>
-            // The search filter script remains compatible with the new structure.
+            // === 検索機能 (修正済み) ===
             document.addEventListener('DOMContentLoaded', function() {{
                 const searchInput = document.getElementById('searchInput');
+                const statusContainer = document.getElementById('status-list-container');
+                const allSections = statusContainer.querySelectorAll('.status-section');
+                const noResults = document.getElementById('noResults');
+
                 if (searchInput) {{
-                    searchInput.addEventListener('input', function(e) {{
-                        const searchTerm = e.target.value.toLowerCase().trim();
-                        const sections = document.querySelectorAll('.status-section');
-                        const noResults = document.getElementById('noResults');
+                    searchInput.addEventListener('input', function() {{
+                        const searchTerm = searchInput.value.toLowerCase().trim();
                         let visibleCount = 0;
                         
-                        sections.forEach(function(section) {{
+                        allSections.forEach(function(section) {{
                             const searchContent = section.getAttribute('data-search-content').toLowerCase();
                             
                             if (searchContent.includes(searchTerm)) {{
@@ -300,7 +266,7 @@ def create_html(data):
                             }}
                         }});
                         
-                        if (visibleCount === 0 && searchTerm.length > 0) {{
+                        if (visibleCount === 0 && searchTerm) {{
                             noResults.style.display = 'block';
                         }} else {{
                             noResults.style.display = 'none';
