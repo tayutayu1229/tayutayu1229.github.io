@@ -1,46 +1,39 @@
-name: Update JR Freight Data
+name: Update JR Freight Status
 
 on:
   schedule:
-    # 毎時15分に自動実行
-    - cron: '15 * * * *'
-  workflow_dispatch:
+    - cron: '0 10 * * *'  # 毎日午前10時(JST)に実行（UTC=1時）
+  workflow_dispatch:  # 手動実行も可能
 
 jobs:
-  update-data:
+  update-status:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write   # pushするために必要
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install beautifulsoup4 requests
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4
 
-      - name: Fetch and parse data
-        id: run-script
-        run: python fetch_jr_freight_data.py
+    - name: Run scraping script
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        python scrape.py
 
-      - name: Check for changes
-        id: git-status
-        run: |
-          git diff --quiet "JR Frieght Railway.json" || echo "changes=true" >> $GITHUB_OUTPUT
-
-      - name: Commit and push changes
-        if: steps.git-status.outputs.changes == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update JR Freight transportation data"
-          file_pattern: "JR Frieght Railway.json"
-          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
-          token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Commit and push changes
+      uses: EndBug/add-and-commit@v9
+      with:
+        author_name: github-actions
+        author_email: github-actions@github.com
+        message: "Update JR Freight status [skip ci]"
+        add: 'JRFtest/jr_freight_status.html JR Frieght Railway.json'
+        push: true
