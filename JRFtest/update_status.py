@@ -73,14 +73,12 @@ def create_html(data):
             header = sections[i].strip()
             content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
             content = '<br>'.join(content_lines)
-            collapse_id = "collapse" + str(i)
             accordion_html += f"""
             <div class="status-section" data-search-content="{header} {sections[i+1].strip()}">
-                <div class="status-header" onclick="toggleSection('{collapse_id}')">
+                <div class="status-header">
                     <span class="section-title">{header}</span>
-                    <span class="toggle-icon" id="icon-{collapse_id}">+</span>
                 </div>
-                <div id="{collapse_id}" class="status-content collapsed">
+                <div class="status-content">
                     <div class="status-details">{content}</div>
                 </div>
             </div>
@@ -205,7 +203,7 @@ def create_html(data):
                 background: #ffffff;
                 border: 1px solid #e0e0e0;
                 border-radius: 6px;
-                margin-bottom: 12px;
+                margin-bottom: 20px;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.03);
                 transition: opacity 0.3s ease;
             }}
@@ -215,58 +213,53 @@ def create_html(data):
             }}
             
             .status-header {{
-                background: #fafafa;
-                padding: 20px 24px;
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 1px solid #f0f0f0;
-                transition: background-color 0.2s ease;
-            }}
-            
-            .status-header:hover {{
-                background: #f0f0f0;
+                background: #f8f9fa;
+                padding: 16px 24px;
+                border-bottom: 1px solid #e8e8e8;
+                border-radius: 6px 6px 0 0;
             }}
             
             .section-title {{
-                font-weight: 500;
-                color: #333333;
-                font-size: 15px;
-            }}
-            
-            .toggle-icon {{
-                font-size: 18px;
-                color: #666666;
                 font-weight: 600;
-                transition: transform 0.2s ease;
-                width: 20px;
-                text-align: center;
+                color: #2c3e50;
+                font-size: 16px;
+                display: block;
             }}
             
             .status-content {{
-                overflow: hidden;
-                transition: max-height 0.3s ease;
-                max-height: 0;
-            }}
-            
-            .status-content.expanded {{
-                max-height: 2000px;
-                border-top: 1px solid #f0f0f0;
-            }}
-            
-            .status-content.collapsed {{
-                max-height: 0;
+                display: block;
+                border-radius: 0 0 6px 6px;
             }}
             
             .status-details {{
-                padding: 24px;
+                padding: 20px 24px;
                 font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
                 font-size: 13px;
-                line-height: 1.8;
+                line-height: 1.6;
                 color: #555555;
                 white-space: pre-line;
                 background: #fafafa;
+                max-height: 600px;
+                overflow-y: auto;
+                border-radius: 0 0 6px 6px;
+            }}
+            
+            .status-details::-webkit-scrollbar {{
+                width: 8px;
+            }}
+            
+            .status-details::-webkit-scrollbar-track {{
+                background: #f0f0f0;
+                border-radius: 4px;
+            }}
+            
+            .status-details::-webkit-scrollbar-thumb {{
+                background: #c0c0c0;
+                border-radius: 4px;
+            }}
+            
+            .status-details::-webkit-scrollbar-thumb:hover {{
+                background: #a0a0a0;
             }}
             
             .status-badge {{
@@ -378,16 +371,17 @@ def create_html(data):
                 }}
                 
                 .status-header {{
-                    padding: 16px 18px;
+                    padding: 12px 18px;
                 }}
                 
                 .section-title {{
-                    font-size: 14px;
+                    font-size: 15px;
                 }}
                 
                 .status-details {{
-                    padding: 18px;
+                    padding: 16px 18px;
                     font-size: 12px;
+                    max-height: 400px;
                 }}
                 
                 .section-header {{
@@ -408,6 +402,11 @@ def create_html(data):
                 .status-badge {{
                     font-size: 11px;
                     padding: 2px 6px;
+                }}
+                
+                .status-details {{
+                    max-height: 300px;
+                    font-size: 11px;
                 }}
             }}
         </style>
