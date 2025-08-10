@@ -3,13 +3,13 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta
 import os
 import json
+import base64 # ★★★ 1. この行を追加 ★★★
 
 # --- 設定項目 ---
-# あなたのGitHub情報に書き換えてください。前回お聞きした内容で設定済みです。
 USER_NAME = "tayutayu1229"
 REPO_NAME = "tayutayu1229.github.io"
-TARGET_FILE = "JRFtest/jr_freight_status.html" # 生成するHTMLファイルの場所
-BRANCH_NAME = "main" # GitHub Pagesで使っているブランチ名 (通常は "main" or "master")
+TARGET_FILE = "JRFtest/jr_freight_status.html"
+BRANCH_NAME = "main"
 # ----------------
 
 def fetch_and_parse_data():
@@ -106,11 +106,11 @@ def create_html(data):
 
 def update_github_file(content):
     """
-    GitHub APIを使ってファイルを更新します。デバッグ情報を多く出力します。
+    GitHub APIを使ってファイルを更新します。
     """
     token = os.getenv('GITHUB_TOKEN')
     if not token:
-        print("デバッグ: GITHUB_TOKENが設定されていません。処理を中断します。")
+        print("デバッグ: GITHUB_TOKENが設定されていません。")
         return
 
     headers = {
@@ -119,40 +119,31 @@ def update_github_file(content):
     }
     url = f"https://api.github.com/repos/{USER_NAME}/{REPO_NAME}/contents/{TARGET_FILE}"
     
-    print(f"デバッグ: GitHub API URL: {url}")
-
-    # ファイルの現在のSHAを取得
     sha = None
     try:
-        print("デバッグ: 既存ファイルのSHAを取得します...")
         r = requests.get(url, headers=headers)
         r.raise_for_status()
         sha = r.json().get('sha')
-        print(f"デバッグ: 既存ファイルを発見しました。SHA: {sha}")
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            print("デバッグ: ファイルはまだ存在しません。新規作成します。")
-            sha = None
-        else:
-            print(f"デバッグ: SHA取得中にHTTPエラーが発生しました: {e}")
+        if e.response.status_code != 404:
             raise
 
-    # ファイルを更新または作成
+    # ★★★ 2. この部分を修正 ★★★
+    encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    
     data = {
         "message": f"Update JR Freight status ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})",
-        "content": content.encode('utf-8').hex(),
+        "content": encoded_content,
         "branch": BRANCH_NAME
     }
     if sha:
         data["sha"] = sha
 
-    print(f"デバッグ: ファイルを {BRANCH_NAME} ブランチに書き込みます...")
     r = requests.put(url, headers=headers, data=json.dumps(data))
     
-    print(f"デバッグ: GitHub APIからのレスポンスコード: {r.status_code}")
-    print(f"デバッグ: レスポンス内容: {r.text}")
-
     if r.status_code not in [200, 201]:
+        print(f"エラー: ファイルの更新に失敗しました。Status Code: {r.status_code}")
+        print(f"レスポンス: {r.text}")
         raise Exception("ファイルの更新/作成に失敗しました。")
     
     print("ファイルが正常に更新/作成されました。")
