@@ -1,39 +1,38 @@
-name: Update JR Freight Follow
+name: Update JR Freight Status
 
+# このワークフローが実行されるタイミングを指定
 on:
+  workflow_dispatch: # 手動実行を許可
   schedule:
-    - cron: '0 10 * * *'  # 毎日午前10時(JST)に実行（UTC=1時）
-  workflow_dispatch:  # 手動実行も可能
+    # 1時間に1回実行 (cron形式)
+    # 毎時0分に実行されます
+    - cron: '*/15 * * * *'
 
 jobs:
-  update-status:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # リポジトリへの書き込み権限を許可
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      # 1. リポジトリのコードをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      # 2. Python環境のセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests beautifulsoup4
+      # 3. 必要なPythonライブラリをインストール
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
 
-    - name: Run scraping script
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        python scrape.py
-
-    - name: Commit and push changes
-      uses: EndBug/add-and-commit@v9
-      with:
-        author_name: github-actions
-        author_email: github-actions@github.com
-        message: "Update JR Freight status [skip ci]"
-        add: 'jr_freight_status.html JR Frieght Railway.json'
-        push: true
+      # 4. 輸送状況を更新するスクリプトを実行
+      - name: Run update script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自動的に提供されるトークン
+        run: python JRFtest/update.py
