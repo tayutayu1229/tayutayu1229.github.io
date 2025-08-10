@@ -9,7 +9,7 @@ import json
 # 例: "https://github.com/TaroYamada/my-website" の場合
 USER_NAME = "tayutayu1229"  # あなたのGitHubユーザー名
 REPO_NAME = "tayutayu1229.github.io"  # あなたのGitHubリポジトリ名
-TARGET_FILE = "jr_freight_status.html" # 生成するHTMLファイル名
+TARGET_FILE = "JRFtest/jr_freight_status.html" # 生成するHTMLファイル名
 # ----------------
 
 def fetch_and_parse_data():
