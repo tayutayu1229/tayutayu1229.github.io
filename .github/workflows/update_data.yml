@@ -1,0 +1,44 @@
+name: Update JR Freight Data
+
+on:
+  schedule:
+    # 毎日午前0時と午前8時に実行
+    - cron: '0 0,8 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # リポジトリへの書き込み権限を有効にする
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install beautifulsoup4 requests
+
+      - name: Fetch and parse data
+        id: run-script
+        run: python fetch_jr_freight_data.py
+
+      - name: Check for changes
+        id: git-status
+        run: |
+          git diff --quiet data.json || echo "changes=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.git-status.outputs.changes == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update JR Freight transportation data"
+          file_pattern: data.json
+          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
