@@ -41,7 +41,7 @@ def create_html(data):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況ダッシュボード</title>
         <style>
-            :root {{
+            :root {
                 --jrf-blue: #0054A5;
                 --dark-header: #2c3e50;
                 --body-bg: #f4f7f9;
@@ -51,43 +51,43 @@ def create_html(data):
                 --border-color: #e1e5e8;
                 --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 --font-mono: "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            }}
+            }
             
-            body {{
+            body {
                 font-family: var(--font-sans);
                 background-color: var(--body-bg);
                 color: var(--text-primary);
                 margin: 0;
-            }}
+            }
             
-            .page-header {{
+            .page-header {
                 background-color: var(--dark-header);
                 color: white;
                 padding: 20px;
                 text-align: center;
-            }}
-            .page-header h1 {{
+            }
+            .page-header h1 {
                 margin: 0;
                 font-size: 24px;
                 font-weight: 600;
-            }}
-            .page-header .update-time {{
+            }
+            .page-header .update-time {
                 opacity: 0.8;
                 font-size: 14px;
                 margin-top: 4px;
-            }}
+            }
 
-            .container {{
+            .container {
                 max-width: 1000px;
                 margin: 0 auto;
                 padding: 24px;
-            }}
+            }
             
-            .search-wrapper {{
+            .search-wrapper {
                 position: relative;
                 margin-bottom: 24px;
-            }}
-            .search-icon {{
+            }
+            .search-icon {
                 position: absolute;
                 top: 50%;
                 left: 16px;
@@ -95,8 +95,8 @@ def create_html(data):
                 width: 20px;
                 height: 20px;
                 fill: #999;
-            }}
-            .search-input {{
+            }
+            .search-input {
                 width: 100%;
                 padding: 14px 14px 14px 48px;
                 border: 1px solid var(--border-color);
@@ -104,57 +104,57 @@ def create_html(data):
                 font-size: 16px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                 transition: border-color .2s, box-shadow .2s;
-            }}
-            .search-input:focus {{
+            }
+            .search-input:focus {
                 outline: none;
                 border-color: var(--jrf-blue);
                 box-shadow: 0 0 0 3px rgba(0, 84, 165, 0.2);
-            }}
+            }
 
-            .info-card {{
+            .info-card {
                 background-color: var(--card-bg);
                 border: 1px solid var(--border-color);
                 border-radius: 8px;
                 margin-bottom: 24px;
                 border-top: 4px solid var(--jrf-blue);
                 box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            }}
-            .card-header {{
+            }
+            .card-header {
                 padding: 12px 16px;
                 font-weight: 600;
                 font-size: 16px;
                 border-bottom: 1px solid var(--border-color);
-            }}
-            .card-body {{
+            }
+            .card-body {
                 padding: 16px;
                 white-space: pre-line;
                 line-height: 1.7;
-            }}
+            }
 
-            .section-title-header {{
+            .section-title-header {
                 font-size: 20px;
                 font-weight: 600;
                 text-align: center;
                 margin-bottom: 20px;
                 padding-bottom: 10px;
                 border-bottom: 2px solid var(--jrf-blue);
-            }}
+            }
 
-            .status-section {{
+            .status-section {
                 background: var(--card-bg);
                 border: 1px solid var(--border-color);
                 border-radius: 8px;
                 margin-bottom: 16px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.05);
                 overflow: hidden;
-            }}
-            .status-header {{
+            }
+            .status-header {
                 background-color: var(--jrf-blue);
                 color: white;
                 padding: 10px 16px;
                 font-weight: 600;
-            }}
-            .status-details {{
+            }
+            .status-details {
                 padding: 12px 16px;
                 font-family: var(--font-mono);
                 font-size: 13px;
@@ -162,29 +162,29 @@ def create_html(data):
                 background: #fdfdfd;
                 white-space: pre-wrap;
                 word-break: break-all;
-            }}
-            .train-line {{
+            }
+            .train-line {
                 padding: 1.5px 0;
-            }}
-            .no-info-in-section {{
+            }
+            .no-info-in-section {
                 font-family: var(--font-sans);
                 color: var(--text-secondary);
-            }}
+            }
 
-            .status-badge {{
+            .status-badge {
                 display: inline-block;
                 padding: 2px 7px;
                 border-radius: 4px;
                 font-weight: 600;
                 font-size: 11px;
                 font-family: var(--font-sans);
-            }}
-            .status-stopped {{ background-color: #fee2e2; color: #991b1b; }}
-            .status-delay {{ background-color: #fef3c7; color: #92400e; }}
-            .status-cancelled {{ background-color: #f3f4f6; color: #374151; }}
-            .status-suspended {{ background-color: #dbeafe; color: #1e40af; }}
+            }
+            .status-stopped { background-color: #fee2e2; color: #991b1b; }
+            .status-delay { background-color: #fef3c7; color: #92400e; }
+            .status-cancelled { background-color: #f3f4f6; color: #374151; }
+            .status-suspended { background-color: #dbeafe; color: #1e40af; }
 
-            .no-results {{
+            .no-results {
                 display: none;
                 text-align: center;
                 padding: 40px;
@@ -192,16 +192,16 @@ def create_html(data):
                 border-radius: 8px;
                 color: var(--text-secondary);
                 font-style: italic;
-            }}
+            }
             
-            .footer {{
+            .footer {
                 margin-top: 32px;
                 padding-top: 24px;
                 border-top: 1px solid var(--border-color);
                 color: var(--text-secondary);
                 text-align: center;
                 font-size: 13px;
-            }}
+            }
         </style>
     </head>
     <body>
