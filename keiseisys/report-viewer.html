@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>京成鉄道本部報システム</title>
+    <style>
+        body { font-family: 'MS Mincho', 'Hiragino Mincho ProN', serif; line-height: 1.8; width: 80%; max-width: 800px; margin: 20px auto; border: 1px solid #ccc; padding: 20px; background-color: #fdfdfd; }
+        h1 { text-align: center; font-size: 24px; letter-spacing: 2px; border-bottom: 2px double #333; padding-bottom: 10px; }
+        h2 { font-size: 20px; text-align: center; }
+        .content { margin-top: 20px; }
+        .memo-title { text-align: center; font-size: 18px; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #999; padding: 12px; text-align: left; vertical-align: top; }
+        th { background-color: #f2f2f2; width: 150px; }
+        .right-align { text-align: right; margin-top: 30px; }
+        ol, ul { list-style-type: none; padding-left: 0; }
+        li { padding-left: 1.5em; text-indent: -1.5em; }
+    </style>
+</head>
+<body>
+
+    <h1 id="report-title"></h1>
+    <div class="content">
+        <h2 id="main-title"></h2>
+        <p id="description"></p>
+        <div class="memo-title">記</div>
+        <table>
+            <tr><th>期日</th><td id="date"></td></tr>
+            <tr><th>運行番号</th><td id="run-number"></td></tr>
+            <tr><th>及び編成</th><td id="formation"></td></tr>
+            <tr><th>責任者</th><td id="supervisor"></td></tr>
+            <tr><th>行程</th><td id="itinerary"></td></tr>
+            <tr><th>その他</th><td id="notes"></td></tr>
+        </table>
+        <div class="right-align">以上</div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ★ 1. URLからどのレポートを表示するかIDを取得
+            const urlParams = new URLSearchParams(window.location.search);
+            const reportId = urlParams.get('report'); 
+
+            if (!reportId) {
+                document.body.innerHTML = '<h1>エラー</h1><p>表示する本部報が指定されていません。</p>';
+                return;
+            }
+
+            // ★ 2. 取得したIDを元に、読み込むJSONファイルのパスを組み立てる
+            const jsonPath = `reports/${reportId}-report.json`;
+
+            // 3. JSONファイルを読み込んでページに反映
+            fetch(jsonPath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`ファイルが見つかりません: ${jsonPath}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // HTMLの各要素にデータをセット
+                    document.title = data.reportTitle; // ブラウザのタブのタイトルも変更
+                    document.getElementById('report-title').textContent = data.reportTitle;
+                    document.getElementById('main-title').textContent = data.mainTitle;
+                    document.getElementById('description').textContent = data.description;
+                    
+                    const details = data.details;
+                    document.getElementById('date').textContent = details.date;
+                    document.getElementById('run-number').textContent = details.runNumber;
+                    
+                    const formationText = `${details.formation.length} (${details.formation.cars.join('・')})`;
+                    document.getElementById('formation').textContent = formationText;
+                    
+                    document.getElementById('supervisor').textContent = details.supervisor;
+
+                    const itineraryList = document.createElement('ul');
+                    details.itinerary.forEach(item => {
+                        const li = document.createElement('li');
+                        let stationInfo = item.station;
+                        if (item.track) stationInfo += ` (${item.track})`;
+                        li.textContent = `${stationInfo}: ${item.time}`;
+                        itineraryList.appendChild(li);
+                    });
+                    document.getElementById('itinerary').appendChild(itineraryList);
+
+                    const notesList = document.createElement('ol');
+                    details.notes.forEach((note, index) => {
+                        const li = document.createElement('li');
+                        li.textContent = `(${index + 1}) ${note}`;
+                        notesList.appendChild(li);
+                    });
+                    document.getElementById('notes').appendChild(notesList);
+                })
+                .catch(error => {
+                    console.error('JSONファイルの読み込みに失敗しました:', error);
+                    document.body.innerHTML = `<h1>エラー</h1><p>データの読み込みに失敗しました。ファイルが存在するか、ファイル名が正しいか確認してください。</p><p>(${error.message})</p>`;
+                });
+        });
+    </script>
+
+</body>
+</html>
