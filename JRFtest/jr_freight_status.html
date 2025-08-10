@@ -6,205 +6,85 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況</title>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
             body {
-                font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-                background-color: #f8f9fa;
+                font-family: Arial, sans-serif;
+                background-color: #fff;
                 color: #333;
                 line-height: 1.6;
+                margin: 0;
+                padding: 0;
             }
-            
             .container {
-                max-width: 1200px;
-                margin: 0 auto;
+                max-width: 1000px;
+                margin: auto;
                 padding: 20px;
             }
-            
             .header {
-                background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-                color: white;
-                padding: 30px 0;
-                margin: -20px -20px 30px -20px;
                 text-align: center;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            
-            .header h1 {
-                font-size: 2.5rem;
-                font-weight: 300;
-                margin-bottom: 10px;
-                letter-spacing: 2px;
-            }
-            
-            .header .update-time {
-                font-size: 1.1rem;
-                opacity: 0.9;
-                font-weight: 300;
-            }
-            
-            .info-card {
-                background: white;
-                border: 1px solid #e9ecef;
-                border-radius: 8px;
                 margin-bottom: 20px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                overflow: hidden;
             }
-            
-            .info-card-header {
-                background: #f8f9fa;
-                padding: 15px 20px;
-                border-bottom: 1px solid #e9ecef;
-                font-weight: 600;
-                color: #495057;
-                font-size: 1.1rem;
+            .header h1 {
+                font-size: 2rem;
+                font-weight: bold;
             }
-            
-            .info-card-body {
-                padding: 20px;
-                white-space: pre-line;
-                line-height: 1.8;
+            .update-time {
+                font-size: 0.9rem;
+                color: #666;
             }
-            
+            .search-box {
+                margin-bottom: 20px;
+                text-align: center;
+            }
+            .search-box input {
+                padding: 8px;
+                width: 80%;
+                max-width: 400px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+            .info-card {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-bottom: 15px;
+                padding: 15px;
+                background: #fafafa;
+            }
             .status-section {
-                background: white;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
                 margin-bottom: 10px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             }
-            
             .status-header {
-                background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
-                padding: 15px 20px;
+                background: #f5f5f5;
+                padding: 10px;
                 cursor: pointer;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                border-bottom: 1px solid #dee2e6;
-                transition: background-color 0.2s ease;
             }
-            
-            .status-header:hover {
-                background: linear-gradient(90deg, #e9ecef 0%, #dee2e6 100%);
-            }
-            
-            .section-title {
-                font-weight: 600;
-                color: #495057;
-                font-size: 1.05rem;
-            }
-            
-            .toggle-icon {
-                font-size: 0.9rem;
-                color: #6c757d;
-                transition: transform 0.3s ease;
-            }
-            
             .status-content {
-                overflow: hidden;
-                transition: max-height 0.3s ease, padding 0.3s ease;
-            }
-            
-            .status-content.collapsed {
                 max-height: 0;
-                padding: 0 20px;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                padding: 0 10px;
             }
-            
             .status-content.expanded {
-                max-height: 1000px;
-                padding: 20px;
+                max-height: 500px;
+                padding: 10px;
             }
-            
-            .status-details {
-                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
-                font-size: 0.9rem;
-                line-height: 1.7;
-                color: #495057;
-                white-space: pre-line;
-            }
-            
             .status-badge {
-                display: inline-block;
-                padding: 4px 8px;
+                padding: 2px 6px;
                 border-radius: 4px;
-                font-weight: 600;
                 font-size: 0.8rem;
-                text-align: center;
-                min-width: 60px;
+                margin-left: 4px;
             }
-            
-            .status-stopped {
-                background-color: #dc3545;
-                color: white;
-            }
-            
-            .status-delay {
-                background-color: #fd7e14;
-                color: white;
-            }
-            
-            .status-cancelled {
-                background-color: #6c757d;
-                color: white;
-            }
-            
-            .status-suspended {
-                background-color: #ffc107;
-                color: #212529;
-            }
-            
-            .section-header {
-                text-align: center;
-                margin: 40px 0 20px 0;
-                font-size: 1.8rem;
-                font-weight: 300;
-                color: #2c3e50;
-                position: relative;
-            }
-            
-            .section-header::after {
-                content: '';
-                position: absolute;
-                bottom: -10px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 60px;
-                height: 3px;
-                background: linear-gradient(90deg, #3498db, #2c3e50);
-                border-radius: 2px;
-            }
-            
-            .footer {
-                margin-top: 50px;
-                padding-top: 30px;
-                border-top: 1px solid #e9ecef;
-                color: #6c757d;
-                text-align: center;
-                font-size: 0.9rem;
-                line-height: 1.8;
-            }
-            
-            @media (max-width: 768px) {
-                .container {
-                    padding: 10px;
-                }
-                
-                .header h1 {
-                    font-size: 2rem;
-                }
-                
-                .status-header {
-                    padding: 12px 15px;
-                }
-                
-                .status-details {
-                    font-size: 0.85rem;
+            .status-stopped { background-color: #e74c3c; color: white; }
+            .status-delay { background-color: #e67e22; color: white; }
+            .status-cancelled { background-color: #7f8c8d; color: white; }
+            .status-suspended { background-color: #f1c40f; color: black; }
+            @media (max-width: 600px) {
+                .search-box input {
+                    width: 100%;
                 }
             }
         </style>
@@ -213,74 +93,234 @@
         <div class="container">
             <div class="header">
                 <h1>JR貨物 輸送状況</h1>
-                <div class="update-time">サイト更新: 17時現在</div>
+                <div class="update-time">サイト更新: 17時現在 | 最終取得: 2025-08-10 17:54:13</div>
             </div>
-            
-            <div class="info-card">
-                <div class="info-card-header">標題</div>
-                <div class="info-card-body">中部、九州、東北、中国地区における輸送障害に伴う列車遅延及び運休について</div>
+
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="線区やキーワードで検索...">
             </div>
-            
+
             <div class="info-card">
-                <div class="info-card-header">発生時刻・概要</div>
-                <div class="info-card-body">(1)2025年8月7日(木)2時18分～8日(金)13時23分
+                <strong>標題:</strong><br>中部、九州、東北、中国地区における輸送障害に伴う列車遅延及び運休について
+            </div>
+            <div class="info-card">
+                <strong>発生時刻・概要</strong><br>(1)2025年8月7日(木)2時18分～8日(金)13時23分
 IRいしかわ鉄道線　能美根上(石川県)～あいの風とやま鉄道線　福岡(富山県)駅間　大雨(運休・遅れ)
 (2)2025年8月7日(木)6時50分～10日(日)12時00分
 鹿児島線　北九州貨物ターミナル駅構内(福岡県)　輸送障害(運休・遅れ)
 (3)2025年8月8日(金)10時20分～9日(土)15時47分
 羽越線　女鹿(山形県)～下浜(秋田県)駅間　大雨(運休・遅れ)
 (4)2025年8月9日(土)21時28分～10日(日)6時05分
-山陽線　新山口駅構内(山口県)　輸送障害(遅れ)</div>
+山陽線　新山口駅構内(山口県)　輸送障害(遅れ)
             </div>
-            
-            <h2 class="section-header">線　　区</h2>
-            
+
+            <h2>線　　区</h2>
             <div class="status-accordion">
                 
-            <div class="status-section">
+            <div class="status-section" data-keywords="<東海道・山陽線　下り>
+
+6日発98～3098～2071列車(札幌タ→福岡タ) 　　　　　　　上　郡　　　　　　停車中
+
+6日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　広島タ　　　　　　停車中
+
+6日発69列車(新座タ→福岡タ) 　　　　　　　　　　　　　新南陽　　　　　　停車中
+
+6日発1053列車(越谷タ→福岡タ) 　　　　　　　　　　　　新南陽　　　　　　停車中
+
+8日発4066～1067列車(宇都宮タ→広島タ) 　　　　　　　　終　着　　　　　　+1日8時間37分予定
+
+8日発5073列車(東京タ→福岡タ) 　　　　　　　　　　　　備後赤坂　　　　　停車中
+
+8日発2081列車(大阪タ→福岡タ) 　　　　　　　　　　　　幡生操　　　　　　停車中
+
+8日発8057列車(名古屋タ→熊本) 　　　　　　　　　　　　西　条　　　　　　停車中
+
+8日発61列車(大阪タ→鳥栖タ) 　　　　　　　　　　　　　岡山タ　　　　　　停車中
+
+8日発3051列車(大阪タ→福岡タ) 　　　　　　　　　　　　岡山タ　　　　　　停車中
+
+8日発1087列車(百済タ→福岡タ) 　　　　　　　　　　　　里　庄　　　　　　停車中
+
+8日発1065列車(名古屋タ→福岡タ) 　　　　　　　　　　　神戸タ　　　　　　停車中
+
+8日発5075列車(新座タ→福岡タ) 　　　　　　　　　　　　姫路貨物　　　　　停車中
+
+8日発5053列車(東京タ→福岡タ) 　　　　　　　　　　　　膳　所　　　　　　停車中
+
+8日発5051列車(名古屋タ→福岡タ) 　　　　　　　　　　　浜小倉　　　　　　停車中
+
+8日発63列車(東京タ→福岡タ) 　　　　　　　　　　　　　吹田タ　　　　　　+1日10時間53分着予定
+
+8日発1091列車(沼津→福岡タ) 　　　　　　　　　　　　　新倉敷　　　　　　停車中
+
+8日発69列車(新座タ→福岡タ) 　　　　　　　　　　　　　米原操　　　　　　停車中
+
+8日発1053列車(越谷タ→福岡タ) 　　　　　　　　　　　　吹田タ　　　　　　停車中
+
+8日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　米原操　　　　　　停車中
+
+8日発4068～1059列車(宇都宮タ→福岡タ) 　　　　　　　　東福山　　　　　　停車中
+
+9日発1071～71列車(東京タ→鹿児島タ) 　　　　　　　　　米原操　　　　　　停車中
+
+9日発1055列車(東京タ→福岡タ) 　　　　　　　　　　　　神戸タ　　　　　　停車中
+
+9日発5075列車(新座タ→福岡タ) 　　　　　　　　　　　　西明石　　　　　　停車中
+
+9日発1051列車(東京タ→福岡タ) 　　　　　　　　　　　　稲　沢　　　　　　停車中
+
+9日発63列車(東京タ→福岡タ) 　　　　　　　　　　　　　稲　沢　　　　　　停車中
+
+9日発4066～1067列車(宇都宮タ→広島タ) 　　　　　　　　姫路貨物　　　　　+10時間44分着予定
+
+9日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　西浜松　　　　　　停車中
+
+
+
+">
                 <div class="status-header" onclick="toggleSection('collapse1')">
                     <span class="section-title"><東海道・山陽線　下り></span>
-                    <span class="toggle-icon" id="icon-collapse1">▼</span>
+                    <span class="toggle-icon" id="icon-collapse1">＋</span>
                 </div>
                 <div id="collapse1" class="status-content collapsed">
                     <div class="status-details">6日発98～3098～2071列車(札幌タ→福岡タ) 　　　　　　　上　郡　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>6日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　広島タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>6日発69列車(新座タ→福岡タ) 　　　　　　　　　　　　　新南陽　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>6日発1053列車(越谷タ→福岡タ) 　　　　　　　　　　　　新南陽　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発4066～1067列車(宇都宮タ→広島タ) 　　　　　　　　終　着　　　　　　+1日8時間37分予定<br><br>8日発5073列車(東京タ→福岡タ) 　　　　　　　　　　　　備後赤坂　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発2081列車(大阪タ→福岡タ) 　　　　　　　　　　　　幡生操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発8057列車(名古屋タ→熊本) 　　　　　　　　　　　　西　条　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発61列車(大阪タ→鳥栖タ) 　　　　　　　　　　　　　岡山タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発3051列車(大阪タ→福岡タ) 　　　　　　　　　　　　岡山タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1087列車(百済タ→福岡タ) 　　　　　　　　　　　　里　庄　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1065列車(名古屋タ→福岡タ) 　　　　　　　　　　　神戸タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発5075列車(新座タ→福岡タ) 　　　　　　　　　　　　姫路貨物　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発5053列車(東京タ→福岡タ) 　　　　　　　　　　　　膳　所　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発5051列車(名古屋タ→福岡タ) 　　　　　　　　　　　浜小倉　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発63列車(東京タ→福岡タ) 　　　　　　　　　　　　　吹田タ　　　　　　+1日10時間53分着予定<br><br>8日発1091列車(沼津→福岡タ) 　　　　　　　　　　　　　新倉敷　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発69列車(新座タ→福岡タ) 　　　　　　　　　　　　　米原操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1053列車(越谷タ→福岡タ) 　　　　　　　　　　　　吹田タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　米原操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発4068～1059列車(宇都宮タ→福岡タ) 　　　　　　　　東福山　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1071～71列車(東京タ→鹿児島タ) 　　　　　　　　　米原操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1055列車(東京タ→福岡タ) 　　　　　　　　　　　　神戸タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発5075列車(新座タ→福岡タ) 　　　　　　　　　　　　西明石　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1051列車(東京タ→福岡タ) 　　　　　　　　　　　　稲　沢　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発63列車(東京タ→福岡タ) 　　　　　　　　　　　　　稲　沢　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発4066～1067列車(宇都宮タ→広島タ) 　　　　　　　　姫路貨物　　　　　+10時間44分着予定<br><br>9日発4070～1073列車(仙台タ→福岡タ) 　　　　　　　　　西浜松　　　　　　<span class="status-badge status-stopped">停車中</span></div>
                 </div>
             </div>
             
-            <div class="status-section">
+            <div class="status-section" data-keywords="<東海道・山陽線　上り>
+
+8日発1062列車(鹿児島タ→名古屋タ) 　　　　　　　　　　北九州タ　　　　　停車中
+
+8日発2054～5054列車(福岡タ→東京タ) 　　　　　　　　　終　着　　　　　　+1日12時間34分予定
+
+8日発1074列車(福岡タ→岡山タ) 　　　　　　　　　　　　幡生操　　　　　　停車中
+
+8日発2066～1066～4067列車(福岡タ→宇都宮タ) 　　　　　北九州タ　　　　　停車中
+
+8日発1058列車(福岡タ→新座タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+8日発1064列車(福岡タ→名古屋タ) 　　　　　　　　　　　福岡タ　　　　　　停車中
+
+8日発5052列車(福岡タ→東京タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+8日発60列車(鳥栖タ→大阪タ) 　　　　　　　　　　　　　幡生操　　　　　　停車中
+
+8日発3050列車(福岡タ→大阪タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+8日発8056列車(熊本→名古屋タ) 　　　　　　　　　　　　北九州タ　　　　　停車中
+
+8日発68～4069列車(福岡タ→宇都宮タ) 　　　　　　　　　福岡タ　　　　　　停車中
+
+8日発70～1070列車(熊本→東京タ) 　　　　　　　　　　　北九州タ　　　　　停車中
+
+8日発1086列車(鍋島→百済タ) 　　　　　　　　　　　　　鳥栖タ　　　　　　停車中
+
+9日発1062列車(鹿児島タ→名古屋タ) 　　　　　　　　　　川　内　　　　　　停車中
+
+8日発1054列車(鍋島→東京タ) 　　　　　　　　　　　　　鳥栖タ　　　　　　停車中
+
+9日発5070～4071列車(福岡タ→仙台タ) 　　　　　　　　　福岡タ　　　　　　停車中
+
+9日発1050列車(福岡タ→東京タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+9日発5074列車(北九州タ→東京タ) 　　　　　　　　　　　北九州タ　　　　　停車中
+
+9日発1052列車(福岡タ→越谷タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+9日発2070～3099～99列車(福岡タ→秋田貨物) 　　　　　　福岡タ　　　　　　停車中
+
+8日発2080列車(鹿児島タ→大阪タ) 　　　　　　　　　　　北九州タ　　　　　停車中
+
+9日発2054～5054列車(福岡タ→新南陽) 　　　　　　　　　福岡タ　　　　　　停車中
+
+9日発1056列車(福岡タ→神戸タ) 　　　　　　　　　　　　北九州タ　　　　　停車中
+
+9日発2066～1066～4067列車(福岡タ→宇都宮タ) 　　　　　北九州タ　　　　　停車中
+
+9日発1074列車(福岡タ→岡山タ) 　　　　　　　　　　　　福岡タ　　　　　　停車中
+
+9日発72～2072～3093列車(福岡タ→新潟タ) 　　　　　　　幡生操　　　　　　停車中
+
+9日発2080列車(鹿児島タ→大阪タ) 　　　　　　　　　　　熊　本　　　　　　停車中
+
+9日発1056～4057列車(福岡タ→倉賀野) 　　　　　　　　　北九州タ　　　　　停車中
+
+
+
+">
                 <div class="status-header" onclick="toggleSection('collapse3')">
                     <span class="section-title"><東海道・山陽線　上り></span>
-                    <span class="toggle-icon" id="icon-collapse3">▼</span>
+                    <span class="toggle-icon" id="icon-collapse3">＋</span>
                 </div>
                 <div id="collapse3" class="status-content collapsed">
                     <div class="status-details">8日発1062列車(鹿児島タ→名古屋タ) 　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発2054～5054列車(福岡タ→東京タ) 　　　　　　　　　終　着　　　　　　+1日12時間34分予定<br><br>8日発1074列車(福岡タ→岡山タ) 　　　　　　　　　　　　幡生操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発2066～1066～4067列車(福岡タ→宇都宮タ) 　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1058列車(福岡タ→新座タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1064列車(福岡タ→名古屋タ) 　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発5052列車(福岡タ→東京タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発60列車(鳥栖タ→大阪タ) 　　　　　　　　　　　　　幡生操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発3050列車(福岡タ→大阪タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発8056列車(熊本→名古屋タ) 　　　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発68～4069列車(福岡タ→宇都宮タ) 　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発70～1070列車(熊本→東京タ) 　　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1086列車(鍋島→百済タ) 　　　　　　　　　　　　　鳥栖タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1062列車(鹿児島タ→名古屋タ) 　　　　　　　　　　川　内　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発1054列車(鍋島→東京タ) 　　　　　　　　　　　　　鳥栖タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発5070～4071列車(福岡タ→仙台タ) 　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1050列車(福岡タ→東京タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発5074列車(北九州タ→東京タ) 　　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1052列車(福岡タ→越谷タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発2070～3099～99列車(福岡タ→秋田貨物) 　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発2080列車(鹿児島タ→大阪タ) 　　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発2054～5054列車(福岡タ→新南陽) 　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1056列車(福岡タ→神戸タ) 　　　　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発2066～1066～4067列車(福岡タ→宇都宮タ) 　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1074列車(福岡タ→岡山タ) 　　　　　　　　　　　　福岡タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発72～2072～3093列車(福岡タ→新潟タ) 　　　　　　　幡生操　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発2080列車(鹿児島タ→大阪タ) 　　　　　　　　　　　熊　本　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発1056～4057列車(福岡タ→倉賀野) 　　　　　　　　　北九州タ　　　　　<span class="status-badge status-stopped">停車中</span></div>
                 </div>
             </div>
             
-            <div class="status-section">
+            <div class="status-section" data-keywords="<日本海縦貫線　下り>
+
+8日発88～4081～81列車(大阪タ→富山貨物) 　　　　　　　終　着　　　　　　+1日4時間41分予定
+
+8日発4061列車(大阪タ→札幌タ) 　　　　　　　　　　　　終　着　　　　　　+15時間8分
+
+8日発72～2072～3093列車(福岡タ→新潟タ) 　　　　　　　金沢タ　　　　　　+1日8時間56分予定
+
+8日発4097～3097列車(新潟タ→札幌タ) 　　　　　　　　　終　着　　　　　　+1日3時間55分予定
+
+9日発4091～3091列車(吹田タ→札幌タ) 　　　　　　　　　青森信　　　　　　+20時間33分予定
+
+9日発4071列車(百済タ→新潟タ) 　　　　　　　　　　　　終　着　　　　　　+1日予定
+
+9日発4075列車(百済タ→東青森) 　　　　　　　　　　　　米原操　　　　　　停車中
+
+
+
+">
                 <div class="status-header" onclick="toggleSection('collapse5')">
                     <span class="section-title"><日本海縦貫線　下り></span>
-                    <span class="toggle-icon" id="icon-collapse5">▼</span>
+                    <span class="toggle-icon" id="icon-collapse5">＋</span>
                 </div>
                 <div id="collapse5" class="status-content collapsed">
                     <div class="status-details">8日発88～4081～81列車(大阪タ→富山貨物) 　　　　　　　終　着　　　　　　+1日4時間41分予定<br><br>8日発4061列車(大阪タ→札幌タ) 　　　　　　　　　　　　終　着　　　　　　+15時間8分<br><br>8日発72～2072～3093列車(福岡タ→新潟タ) 　　　　　　　金沢タ　　　　　　+1日8時間56分予定<br><br>8日発4097～3097列車(新潟タ→札幌タ) 　　　　　　　　　終　着　　　　　　+1日3時間55分予定<br><br>9日発4091～3091列車(吹田タ→札幌タ) 　　　　　　　　　青森信　　　　　　+20時間33分予定<br><br>9日発4071列車(百済タ→新潟タ) 　　　　　　　　　　　　終　着　　　　　　+1日予定<br><br>9日発4075列車(百済タ→東青森) 　　　　　　　　　　　　米原操　　　　　　<span class="status-badge status-stopped">停車中</span></div>
                 </div>
             </div>
             
-            <div class="status-section">
+            <div class="status-section" data-keywords="<日本海縦貫線　上り>
+
+7日発3092～2073～73列車(新潟タ→福岡タ) 　　　　　　　南福井　　　　　　停車中
+
+8日発98～3098～2071列車(札幌タ→福岡タ) 　　　　　　　富山貨物　　　　　停車中
+
+8日発3090～4090列車(帯広貨物→吹田タ) 　　　　　　　　終　着　　　　　　+20時間6分予定
+
+8日発3094～4094～4084列車(札幌タ→名古屋タ) 　　　　　直江津　　　　　　+22時間45分着予定
+
+8日発90～3090～2075列車(富山貨物→福岡タ) 　　　　　　吹田タ　　　　　　停車中
+
+9日発3092～2073～73列車(新潟タ→福岡タ) 　　　　　　　金沢タ　　　　　　停車中
+
+9日発4077～4076列車(八戸貨物→百済タ) 　　　　　　　　終　着　　　　　　+3時間33分予定
+
+9日発4070列車(新潟タ→百済タ) 　　　　　　　　　　　　終　着　　　　　　+16時間56分予定
+
+
+
+">
                 <div class="status-header" onclick="toggleSection('collapse7')">
                     <span class="section-title"><日本海縦貫線　上り></span>
-                    <span class="toggle-icon" id="icon-collapse7">▼</span>
+                    <span class="toggle-icon" id="icon-collapse7">＋</span>
                 </div>
                 <div id="collapse7" class="status-content collapsed">
                     <div class="status-details">7日発3092～2073～73列車(新潟タ→福岡タ) 　　　　　　　南福井　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発98～3098～2071列車(札幌タ→福岡タ) 　　　　　　　富山貨物　　　　　<span class="status-badge status-stopped">停車中</span><br><br>8日発3090～4090列車(帯広貨物→吹田タ) 　　　　　　　　終　着　　　　　　+20時間6分予定<br><br>8日発3094～4094～4084列車(札幌タ→名古屋タ) 　　　　　直江津　　　　　　+22時間45分着予定<br><br>8日発90～3090～2075列車(富山貨物→福岡タ) 　　　　　　吹田タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発3092～2073～73列車(新潟タ→福岡タ) 　　　　　　　金沢タ　　　　　　<span class="status-badge status-stopped">停車中</span><br><br>9日発4077～4076列車(八戸貨物→百済タ) 　　　　　　　　終　着　　　　　　+3時間33分予定<br><br>9日発4070列車(新潟タ→百済タ) 　　　　　　　　　　　　終　着　　　　　　+16時間56分予定</div>
                 </div>
             </div>
             
-            <div class="status-section">
+            <div class="status-section" data-keywords="<高崎・上越線　下り>
+
+8日発1056～4057列車(北九州タ→倉賀野) 　　　　　　　　終　着　　　　　　+1日4時間56分">
                 <div class="status-header" onclick="toggleSection('collapse9')">
                     <span class="section-title"><高崎・上越線　下り></span>
-                    <span class="toggle-icon" id="icon-collapse9">▼</span>
+                    <span class="toggle-icon" id="icon-collapse9">＋</span>
                 </div>
                 <div id="collapse9" class="status-content collapsed">
                     <div class="status-details">8日発1056～4057列車(北九州タ→倉賀野) 　　　　　　　　終　着　　　　　　+1日4時間56分</div>
@@ -288,30 +328,28 @@ IRいしかわ鉄道線　能美根上(石川県)～あいの風とやま鉄道�
             </div>
             
             </div>
-            
-            <div class="footer">
-                このページはGitHub Actionsにより自動生成されています。<br>
-                最終取得時刻 (JST): 2025-08-10 17:45:19
-            </div>
         </div>
-        
+
         <script>
             function toggleSection(sectionId) {
                 const content = document.getElementById(sectionId);
                 const icon = document.getElementById('icon-' + sectionId);
-                
-                if (content.classList.contains('collapsed')) {
-                    content.classList.remove('collapsed');
-                    content.classList.add('expanded');
-                    icon.textContent = '▲';
-                    icon.style.transform = 'rotate(180deg)';
-                } else {
+                if (content.classList.contains('expanded')) {
                     content.classList.remove('expanded');
-                    content.classList.add('collapsed');
-                    icon.textContent = '▼';
-                    icon.style.transform = 'rotate(0deg)';
+                    icon.textContent = '＋';
+                } else {
+                    content.classList.add('expanded');
+                    icon.textContent = '−';
                 }
             }
+
+            document.getElementById('searchInput').addEventListener('input', function() {
+                const keyword = this.value.toLowerCase();
+                document.querySelectorAll('.status-section').forEach(section => {
+                    const text = section.getAttribute('data-keywords').toLowerCase();
+                    section.style.display = text.includes(keyword) ? '' : 'none';
+                });
+            });
         </script>
     </body>
     </html>
