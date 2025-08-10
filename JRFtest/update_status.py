@@ -67,27 +67,29 @@ def create_html(data):
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
     # ★★★★★ ここから修正点 ★★★★★
-    # アコーディオンを廃止し、直接表示するHTMLを生成
+    
+    # 1. 先頭の不要な空白(改行)を除去
+    overview_text_formatted = data["overview_text"].replace('<br>', '\n').lstrip('\n')
+
+    # 2. 情報を表示するHTMLのデザインを変更
     sections = re.split(r'(<.+?>)', data["status_text"])
     status_html = ""
     if len(sections) > 1:
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
-            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
+            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n') if line.strip()]
             content = '<br>'.join(content_lines)
             
             status_html += f"""
-            <div class="status-section">
-                <h5 class="status-header">{header}</h5>
+            <div class="status-card">
+                <h5>{header}</h5>
                 <div class="status-body">
                     {content}
                 </div>
             </div>
             """
 
-    overview_text_formatted = data["overview_text"].replace('<br>', '\n')
-
-    # HTMLとCSSを、よりシンプルでコンパクトなデザインに変更
+    # 3. HTML全体のデザインを刷新
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -96,99 +98,131 @@ def create_html(data):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
         <style>
+            :root {{
+                --primary-color: #005ab3;
+                --light-gray: #f8f9fa;
+                --medium-gray: #e9ecef;
+                --dark-gray: #495057;
+                --text-color: #343a40;
+                --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            }}
             body {{
-                background-color: #f8f9fa;
-                font-size: 14px; /* 全体のフォントサイズを少し小さく */
+                font-family: 'Noto Sans JP', sans-serif;
+                background-color: var(--light-gray);
+                color: var(--text-color);
             }}
             .container {{
                 max-width: 900px;
-                padding-top: 1rem;
-                padding-bottom: 1rem;
             }}
-            .page-header {{
-                padding: 1rem 1.5rem;
-                margin-bottom: 1rem;
-                background-color: #fff;
-                border: 1px solid #dee2e6;
-                border-radius: 0.25rem;
+            .header-bar {{
+                background-color: var(--primary-color);
+                color: white;
+                padding: 1.5rem;
+                margin-bottom: 2rem;
+                border-radius: 0.5rem;
             }}
-            .page-header h1 {{
-                font-size: 1.75rem; /* 見出しを少し小さく */
-                font-weight: 600;
-                margin-bottom: 0.25rem;
+            .header-bar h1 {{
+                font-weight: 700;
+                font-size: 2rem;
+                margin: 0;
             }}
-            .info-card {{
-                padding: 1rem 1.5rem;
-                margin-bottom: 1rem;
-                background-color: #fff;
-                border: 1px solid #dee2e6;
-                border-radius: 0.25rem;
+            .header-bar p {{
+                margin: 0;
+                opacity: 0.9;
+            }}
+            .summary-card {{
+                background: #ffffff;
+                padding: 1.5rem 2rem;
+                border-radius: 0.5rem;
+                box-shadow: var(--card-shadow);
+                margin-bottom: 2rem;
+            }}
+            .summary-card .title {{
+                font-weight: 500;
+                font-size: 1.2rem;
+                color: var(--primary-color);
+                margin-bottom: 0.75rem;
+            }}
+            .summary-card .content {{
                 white-space: pre-wrap;
-                line-height: 1.5;
+                line-height: 1.7;
             }}
-            .info-card-title {{
-                font-weight: bold;
-                margin-bottom: 0.5rem;
-                font-size: 1.1rem;
-                color: #343a40;
+            .section-title {{
+                font-weight: 700;
+                color: var(--dark-gray);
+                padding-bottom: 0.5rem;
+                border-bottom: 2px solid var(--medium-gray);
+                margin-bottom: 1.5rem;
             }}
-            .status-section {{
-                margin-bottom: 0.75rem; /* 各セクションの間隔を詰める */
-                border: 1px solid #dee2e6;
-                border-radius: 0.25rem;
-                background-color: #fff;
+            .status-card {{
+                background: #ffffff;
+                border-left: 5px solid var(--primary-color);
+                margin-bottom: 1rem;
+                box-shadow: var(--card-shadow);
+                border-radius: 0 0.5rem 0.5rem 0;
             }}
-            .status-header {{
-                background-color: #e9ecef;
-                padding: 0.4rem 1rem; /* ヘッダーの余白を詰める */
-                font-size: 1rem;
-                font-weight: bold;
+            .status-card h5 {{
+                font-weight: 500;
+                padding: 0.8rem 1.2rem;
+                background-color: #fdfdff;
+                border-bottom: 1px solid var(--medium-gray);
                 margin: 0;
             }}
             .status-body {{
-                padding: 0.5rem 1rem; /* 本文の余白を詰める */
+                padding: 1rem 1.2rem;
                 font-family: 'monospace';
+                font-size: 0.9rem;
+                line-height: 1.6;
                 white-space: pre-wrap;
-                line-height: 1.4; /* 行間を詰める */
-                font-size: 0.85rem;
             }}
             .footer {{
-                margin-top: 2rem;
-                padding-top: 1rem;
-                border-top: 1px solid #dee2e6;
+                margin-top: 3rem;
+                padding-top: 1.5rem;
+                border-top: 1px solid var(--medium-gray);
                 color: #6c757d;
                 text-align: center;
-                font-size: 0.8rem;
+                font-size: 0.85rem;
             }}
             .status-badge {{
-                padding: 0.2em 0.5em;
+                display: inline-block;
+                padding: 0.25em 0.6em;
                 font-size: 85%;
                 font-weight: 700;
-                border-radius: 0.2rem;
+                line-height: 1;
+                text-align: center;
+                white-space: nowrap;
+                vertical-align: baseline;
+                border-radius: 0.25rem;
                 color: #fff;
             }}
-            .status-stopped {{ background-color: #dc3545; }}
-            .status-delay {{ background-color: #fd7e14; }}
-            .status-cancelled {{ background-color: #6c757d; }}
-            .status-suspended {{ background-color: #ffc107; color: #212529; }}
+            .status-stopped {{ background-color: #d9534f; }}
+            .status-delay {{ background-color: #f0ad4e; }}
+            .status-cancelled {{ background-color: #777; }}
+            .status-suspended {{ background-color: #5bc0de; color: #fff; }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="page-header text-center">
-                <h1>JR貨物 輸送状況</h1>
-                <p class="text-muted mb-0">サイト更新: {data["update_time"]}</p>
-            </div>
+        <div class="container py-4">
 
-            <div class="info-card">
-                <p class="info-card-title">{data["title"]}</p>
-                <p class="card-text mb-0">{overview_text_formatted}</p>
-            </div>
+            <header class="header-bar text-center">
+                <h1>JR貨物 輸送状況</h1>
+                <p>サイト更新: {data["update_time"]}</p>
+            </header>
+
+            <section class="summary-card">
+                <h4 class="title">{data["title"]}</h4>
+                <p class="content">{overview_text_formatted}</p>
+            </section>
             
-            <h4 class="mt-4 mb-2">{data["status_title"]}</h4>
+            <h2 class="section-title">{data["status_title"]}</h2>
             
-            {status_html}
+            <section>
+                {status_html}
+            </section>
 
             <footer class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
@@ -196,14 +230,12 @@ def create_html(data):
             </footer>
 
         </div>
-        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     </body>
     </html>
     """
     # ★★★★★ 修正ここまで ★★★★★
     return html_template
+
 
 # (以下、update_github_file と if __name__ == "__main__": の部分は変更ありません)
 def update_github_file(content):
