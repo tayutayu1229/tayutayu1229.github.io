@@ -8,14 +8,14 @@ URL = "https://www.jrfreight.co.jp/jrfreight/i_daiya.html"
 
 def fetch_and_parse_data():
     try:
-        response = requests.get(URL)
+        response = requests.get(URL, timeout=10)
         response.raise_for_status()  # HTTPエラーがあれば例外を発生させる
         soup = BeautifulSoup(response.content, 'html.parser')
 
         # データの初期化
         data = {
             "date": datetime.datetime.now().strftime("%Y年%m月%d日"),
-            "time": datetime.datetime.now().strftime("%H時現在"),
+            "time": datetime.datetime.now().strftime("%H時%M分現在"),
             "company": "日本貨物鉄道株式会社",
             "status_title": "",
             "incidents": [],
@@ -23,64 +23,63 @@ def fetch_and_parse_data():
             "related_files": []
         }
 
-        # 輸送障害情報
-        status_title_element = soup.find('p', style=re.compile("color:#d81223;"))
+        # 更新日時とステータスタイトルの取得
+        updated_info_element = soup.select_one('div.mainContentsInner p.font_size_s')
+        if updated_info_element:
+            text = updated_info_element.get_text(strip=True)
+            match = re.search(r'（(?P<date>\d{4}年\d{2}月\d{2}日) (?P<time>\d{2}時\d{2}分)現在）', text)
+            if match:
+                data['date'] = match.group('date')
+                data['time'] = match.group('time') + '現在'
+
+        status_title_element = soup.select_one('div.mainContentsInner p.font_size_m_bold.color_red')
         if status_title_element:
             data['status_title'] = status_title_element.get_text(strip=True)
 
-        incident_elements = soup.find_all('p', class_='info_detail')
-        for incident in incident_elements:
-            time_period = incident.find_previous_sibling('h3').get_text(strip=True)
-            details = [p.get_text(strip=True) for p in incident.find_all('p')]
-            
-            # 詳細情報から場所、原因、影響を抽出
-            location = ""
-            cause = ""
-            impact = ""
-            for detail in details:
-                if '場所：' in detail:
-                    location = detail.replace('場所：', '').strip()
-                elif '原因：' in detail:
-                    cause = detail.replace('原因：', '').strip()
-                elif '影響：' in detail:
-                    impact = detail.replace('影響：', '').strip()
-            
-            data['incidents'].append({
-                "time_period": time_period,
-                "location": location,
-                "cause": cause,
-                "impact": impact
-            })
-            
-        # 影響のある貨物列車
-        train_lines = soup.find_all('h3', class_='train_line')
-        for line in train_lines:
-            line_name = line.get_text(strip=True)
-            train_list_elements = line.find_next_sibling('ul', class_='train_list').find_all('li')
-            trains = []
-            for train_element in train_list_elements:
-                parts = train_element.get_text(separator='|', strip=True).split('|')
-                if len(parts) >= 4:
-                    train_number = parts[0].replace('列車番号：', '').strip()
-                    route = parts[1].replace('区間：', '').strip()
-                    current_location = parts[2].replace('現在地：', '').strip()
-                    status = parts[3].replace('状況：', '').strip()
-                    trains.append({
-                        "train_number": train_number,
-                        "route": route,
-                        "current_location": current_location,
-                        "status": status
-                    })
-            data['affected_trains'].append({
-                "line": line_name,
-                "trains": trains
-            })
+        # 輸送障害情報の取得
+        incident_list_container = soup.select_one('.info_detailList')
+        if incident_list_container:
+            for incident_item in incident_list_container.select('.info_detailList__item'):
+                impact = incident_item.select_one('.info_detailList__title').get_text(strip=True)
+                time_period = incident_item.select_one('.info_detailList__term').get_text(strip=True).replace('期間：', '')
+                location = incident_item.select_one('.info_detailList__place').get_text(strip=True).replace('場所：', '')
+                cause = incident_item.select_one('.info_detailList__cause').get_text(strip=True).replace('原因：', '')
 
-        # 関連ファイル
-        file_list_elements = soup.find('div', class_='file_list')
-        if file_list_elements:
-            file_links = file_list_elements.find_all('a')
-            for link in file_links:
+                data['incidents'].append({
+                    "time_period": time_period,
+                    "location": location,
+                    "cause": cause,
+                    "impact": impact
+                })
+        
+        # 影響のある貨物列車の取得
+        affected_trains_container = soup.select_one('.trainDelayInfo')
+        if affected_trains_container:
+            for line_section in affected_trains_container.select('.trainDelayInfo__line'):
+                line_name = line_section.select_one('.trainDelayInfo__title').get_text(strip=True)
+                trains = []
+                for train_item in line_section.select('li'):
+                    train_details = [p.get_text(strip=True) for p in train_item.select('p')]
+                    if len(train_details) >= 4:
+                        train_number = train_details[0].replace('列車番号：', '')
+                        route = train_details[1].replace('区間：', '')
+                        current_location = train_details[2].replace('現在地：', '')
+                        status = train_details[3].replace('状況：', '')
+                        trains.append({
+                            "train_number": train_number,
+                            "route": route,
+                            "current_location": current_location,
+                            "status": status
+                        })
+                data['affected_trains'].append({
+                    "line": line_name,
+                    "trains": trains
+                })
+
+        # 関連ファイルの取得
+        related_files_container = soup.select_one('.file_list')
+        if related_files_container:
+            for link in related_files_container.select('a'):
                 data['related_files'].append({
                     "title": link.get_text(strip=True),
                     "url": link.get('href')
