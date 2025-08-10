@@ -52,13 +52,34 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             margin-bottom: 15px;
-            padding: 15px;
+            overflow: hidden;
         }
         .train-line h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-            color: #1a73e8;
+            background-color: #e2e8f0;
+            margin: 0;
+            padding: 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .train-line h3::after {
+            content: '+';
+            font-size: 1.5em;
+            transition: transform 0.3s ease;
+        }
+        .train-line.active h3::after {
+            content: '-';
+        }
+        .train-list {
+            padding: 0 15px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+        }
+        .train-line.active .train-list {
+            max-height: 500px; /* Adjust as needed */
+            padding: 15px;
         }
         .train-item {
             border-bottom: 1px solid #eee;
@@ -651,50 +672,4 @@
                 <p><strong>場所:</strong> ${incident.location}</p>
                 <p><strong>原因:</strong> ${incident.cause}</p>
             `;
-            incidentContainer.appendChild(incidentItem);
-        });
-
-        // Affected Trains
-        const trainContainer = document.getElementById('affected-trains');
-        trainContainer.innerHTML = ''; // Clear existing content
-        data.affected_trains.forEach(line => {
-            const lineDiv = document.createElement('div');
-            lineDiv.className = 'train-line';
-            lineDiv.innerHTML = `<h3>${line.line}</h3>`;
-            
-            line.trains.forEach(train => {
-                const trainItem = document.createElement('div');
-                trainItem.className = 'train-item';
-                let statusBadgeClass = '';
-                if (train.status.includes('停車中')) {
-                    statusBadgeClass = '停車中';
-                } else if (train.status.includes('予定') || train.status.includes('分')) {
-                    statusBadgeClass = '着予定';
-                }
-                
-                trainItem.innerHTML = `
-                    <p><strong>列車番号:</strong> ${train.train_number}</p>
-                    <p><strong>区間:</strong> ${train.route}</p>
-                    <p><strong>現在地:</strong> ${train.current_location}</p>
-                    <p><strong>状況:</strong> <span class="status-badge ${statusBadgeClass}">${train.status}</span></p>
-                `;
-                lineDiv.appendChild(trainItem);
-            });
-            trainContainer.appendChild(lineDiv);
-        });
-
-        // Files
-        const filesContainer = document.getElementById('related-files');
-        filesContainer.innerHTML = '';
-        data.files.forEach(file => {
-            const fileItem = document.createElement('p');
-            fileItem.innerHTML = `<a href="${file.url}">${file.file_name}</a>`;
-            filesContainer.appendChild(fileItem);
-        });
-    }
-
-    window.onload = renderPage;
-
-</script>
-</body>
-</html>
+            incidentContainer.
