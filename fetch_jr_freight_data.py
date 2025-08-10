@@ -97,8 +97,8 @@ def fetch_and_parse_data():
 if __name__ == "__main__":
     jr_freight_data = fetch_and_parse_data()
     if jr_freight_data:
-        with open('data.json', 'w', encoding='utf-8') as f:
+        with open('JR Frieght Railway.json', 'w', encoding='utf-8') as f:
             json.dump(jr_freight_data, f, ensure_ascii=False, indent=2)
-        print("data.json updated successfully.")
+        print("JR Frieght Railway.json updated successfully.")
     else:
-        print("Failed to update data.json.")
+        print("Failed to update jsonfile.")
