@@ -142,12 +142,14 @@
     async function fetchAndUpdateData() {
         try {
             const response = await fetch('data.json');
+            if (!response.ok) {
+                throw new Error('Network response was not ok ' + response.statusText);
+            }
             const data = await response.json();
             renderPage(data);
         } catch (error) {
             console.error('Failed to fetch data.json:', error);
-            // エラー時でも静的な表示を維持したい場合は、ここに以前のデータ表示ロジックを記述
-            document.querySelector('.container').innerHTML = '<p>データの取得に失敗しました。時間をおいて再度お試しください。</p>';
+            document.querySelector('.container').innerHTML = '<p>データの取得に失敗しました。時間をおいて再度お試しください。最新の情報は<a href="https://www.jrfreight.co.jp/jrfreight/i_daiya.html">JR貨物公式サイト</a>でご確認ください。</p>';
         }
     }
 
@@ -160,71 +162,83 @@
         if (updatedTimeEl) updatedTimeEl.textContent = `最終更新: ${data.date} ${data.time}`;
         
         const statusTitleEl = document.getElementById('status-title');
-        if (statusTitleEl) statusTitleEl.innerHTML = `<h2>${data.status_title}</h2>`;
+        if (statusTitleEl) statusTitleEl.innerHTML = data.status_title ? `<h2>${data.status_title}</h2>` : '';
 
         // Incidents
         const incidentContainer = document.getElementById('incidents');
         if (incidentContainer) {
             incidentContainer.innerHTML = '';
-            data.incidents.forEach(incident => {
-                const incidentItem = document.createElement('div');
-                incidentItem.className = 'incident-item';
-                incidentItem.innerHTML = `
-                    <h3>${incident.impact}</h3>
-                    <p><strong>期間:</strong> ${incident.time_period}</p>
-                    <p><strong>場所:</strong> ${incident.location}</p>
-                    <p><strong>原因:</strong> ${incident.cause}</p>
-                `;
-                incidentContainer.appendChild(incidentItem);
-            });
+            if (data.incidents && data.incidents.length > 0) {
+                data.incidents.forEach(incident => {
+                    const incidentItem = document.createElement('div');
+                    incidentItem.className = 'incident-item';
+                    incidentItem.innerHTML = `
+                        <h3>${incident.impact}</h3>
+                        <p><strong>期間:</strong> ${incident.time_period}</p>
+                        <p><strong>場所:</strong> ${incident.location}</p>
+                        <p><strong>原因:</strong> ${incident.cause}</p>
+                    `;
+                    incidentContainer.appendChild(incidentItem);
+                });
+            } else {
+                 incidentContainer.innerHTML = '<p>現在、輸送障害情報はございません。</p>';
+            }
         }
 
         // Affected Trains
         const trainContainer = document.getElementById('affected-trains');
         if (trainContainer) {
             trainContainer.innerHTML = '<h2>影響のある貨物列車</h2>';
-            data.affected_trains.forEach(line => {
-                const lineDiv = document.createElement('div');
-                lineDiv.className = 'train-line';
-                
-                const header = document.createElement('h3');
-                header.textContent = line.line;
-                lineDiv.appendChild(header);
-
-                const trainList = document.createElement('div');
-                trainList.className = 'train-list';
-                line.trains.forEach(train => {
-                    const trainItem = document.createElement('div');
-                    trainItem.className = 'train-item';
-                    let statusBadgeClass = '';
-                    if (train.status.includes('停車中')) {
-                        statusBadgeClass = '停車中';
-                    } else if (train.status.includes('予定') || train.status.includes('分')) {
-                        statusBadgeClass = '着予定';
-                    }
+            if (data.affected_trains && data.affected_trains.length > 0) {
+                data.affected_trains.forEach(line => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'train-line';
                     
-                    trainItem.innerHTML = `
-                        <p><strong>列車番号:</strong> ${train.train_number}</p>
-                        <p><strong>区間:</strong> ${train.route}</p>
-                        <p><strong>現在地:</strong> ${train.current_location}</p>
-                        <p><strong>状況:</strong> <span class="status-badge ${statusBadgeClass}">${train.status}</span></p>
-                    `;
-                    trainList.appendChild(trainItem);
-                });
-                lineDiv.appendChild(trainList);
-                trainContainer.appendChild(lineDiv);
-            });
-        }
+                    const header = document.createElement('h3');
+                    header.textContent = line.line;
+                    lineDiv.appendChild(header);
 
+                    const trainList = document.createElement('div');
+                    trainList.className = 'train-list';
+                    line.trains.forEach(train => {
+                        const trainItem = document.createElement('div');
+                        trainItem.className = 'train-item';
+                        let statusBadgeClass = '';
+                        if (train.status.includes('停車中')) {
+                            statusBadgeClass = '停車中';
+                        } else if (train.status.includes('予定') || train.status.includes('分')) {
+                            statusBadgeClass = '着予定';
+                        }
+                        
+                        trainItem.innerHTML = `
+                            <p><strong>列車番号:</strong> ${train.train_number}</p>
+                            <p><strong>区間:</strong> ${train.route}</p>
+                            <p><strong>現在地:</strong> ${train.current_location}</p>
+                            <p><strong>状況:</strong> <span class="status-badge ${statusBadgeClass}">${train.status}</span></p>
+                        `;
+                        trainList.appendChild(trainItem);
+                    });
+                    lineDiv.appendChild(trainList);
+                    trainContainer.appendChild(lineDiv);
+                });
+            } else {
+                 trainContainer.innerHTML = '<h2>影響のある貨物列車</h2><p>現在、影響のある貨物列車はございません。</p>';
+            }
+        }
+        
         // Related Files
         const filesContainer = document.getElementById('related-files');
         if (filesContainer) {
             filesContainer.innerHTML = '<h2>関連情報</h2>';
-            data.related_files.forEach(file => {
-                const fileItem = document.createElement('p');
-                fileItem.innerHTML = `<a href="${file.url}">${file.title}</a>`;
-                filesContainer.appendChild(fileItem);
-            });
+            if (data.related_files && data.related_files.length > 0) {
+                 data.related_files.forEach(file => {
+                    const fileItem = document.createElement('p');
+                    fileItem.innerHTML = `<a href="${file.url}">${file.title}</a>`;
+                    filesContainer.appendChild(fileItem);
+                });
+            } else {
+                filesContainer.innerHTML = '<h2>関連情報</h2><p>現在、関連情報ファイルはございません。</p>';
+            }
         }
 
         document.querySelectorAll('.train-line h3').forEach(header => {
@@ -235,20 +249,28 @@
         });
     }
 
-    // ページロード時にデータを取得して表示
     window.onload = fetchAndUpdateData;
 
-    // 1時間ごとにページ全体を再読み込み
+    // 毎時15分にページ全体を再読み込み
     function scheduleRefresh() {
       const now = new Date();
-      let delay = (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+      let delay;
+      if (now.getMinutes() < 15) {
+        delay = (15 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+      } else {
+        const nextHour = new Date(now.getTime());
+        nextHour.setHours(now.getHours() + 1);
+        nextHour.setMinutes(15);
+        nextHour.setSeconds(0);
+        nextHour.setMilliseconds(0);
+        delay = nextHour.getTime() - now.getTime();
+      }
       setTimeout(() => {
         location.reload();
         scheduleRefresh();
       }, delay);
     }
     
-    // ページロード時に更新をスケジュール
     scheduleRefresh();
 </script>
 </body>
