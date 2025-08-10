@@ -342,3 +342,57 @@ def create_html(data):
     </html>
     """
     return html_template
+
+# (以下、update_github_file と if __name__ == "__main__": の部分は変更ありません)
+def update_github_file(content):
+    token = os.getenv('GITHUB_TOKEN')
+    if not token:
+        print("デバッグ: GITHUB_TOKENが設定されていません。")
+        return
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    url = f"https://api.github.com/repos/{USER_NAME}/{REPO_NAME}/contents/{TARGET_FILE}"
+    
+    sha = None
+    try:
+        r = requests.get(url, headers=headers)
+        r.raise_for_status()
+        sha = r.json().get('sha')
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code != 404:
+            raise
+
+    encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    
+    data = {
+        "message": f"Update JR Freight status ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})",
+        "content": encoded_content,
+        "branch": BRANCH_NAME
+    }
+    if sha:
+        data["sha"] = sha
+
+    r = requests.put(url, headers=headers, data=json.dumps(data))
+    
+    if r.status_code not in [200, 201]:
+        print(f"エラー: ファイルの更新に失敗しました。Status Code: {r.status_code}")
+        print(f"レスポンス: {r.text}")
+        raise Exception("ファイルの更新/作成に失敗しました。")
+    
+    print("ファイルが正常に更新/作成されました。")
+
+if __name__ == "__main__":
+    print("処理を開始します。")
+    scraped_data = fetch_and_parse_data()
+    if scraped_data:
+        html_content = create_html(scraped_data)
+        if html_content:
+            update_github_file(html_content)
+            print("処理が正常に完了しました。")
+        else:
+            print("HTMLコンテンツの生成に失敗しました。")
+    else:
+        print("データのスクレイピングに失敗しました。処理を終了します。")
