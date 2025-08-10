@@ -9,10 +9,32 @@
         .container { max-width: 800px; margin: 0 auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1 { border-bottom: 3px solid #0056b3; padding-bottom: 10px; color: #0056b3; }
         ul { list-style: none; padding: 0; }
-        li { margin: 1em 0; border-left: 5px solid #0056b3; padding-left: 15px; }
-        a { text-decoration: none; color: #0056b3; font-size: 1.1em; transition: color 0.2s; }
-        a:hover { text-decoration: underline; color: #003d82; }
-        .loading { text-align: center; color: #777; }
+        /* ★ liのスタイルを更新 */
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 0;
+            border-bottom: 1px solid #eee;
+        }
+        li:first-child { border-top: 1px solid #eee; }
+        a {
+            text-decoration: none;
+            color: #0056b3;
+            font-size: 1.1em;
+            padding: 15px;
+            flex-grow: 1; /* タイトル部分が伸びるように */
+            transition: background-color 0.2s;
+        }
+        a:hover { background-color: #f9f9f9; }
+        .loading { text-align: center; color: #777; padding: 20px; }
+        /* ★ 日付用のスタイルを追加 */
+        .report-date {
+            color: #666;
+            font-size: 0.9em;
+            padding-right: 15px;
+            white-space: nowrap; /* 日付が改行しないように */
+        }
     </style>
 </head>
 <body>
@@ -27,39 +49,38 @@
         document.addEventListener('DOMContentLoaded', function() {
             const listElement = document.getElementById('report-list');
 
-            // 1. 一覧データ用のJSONファイルを読み込む
             fetch('reports-list.json')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('一覧ファイル(reports-list.json)の読み込みに失敗しました。');
-                    }
-                    return response.json();
-                })
+                .then(response => response.ok ? response.json() : Promise.reject('ファイルの読み込みに失敗'))
                 .then(data => {
-                    // 読み込み中の表示を消す
                     listElement.innerHTML = ''; 
-
-                    // データが空の場合の表示
                     if (data.length === 0) {
                         listElement.innerHTML = '<li>登録されている本部報はありません。</li>';
                         return;
                     }
 
-                    // 2. 読み込んだデータを使って、リスト項目(li)を生成して追加
+                    // ★ JavaScriptを修正して日付要素を作成
                     data.forEach(report => {
                         const listItem = document.createElement('li');
                         const link = document.createElement('a');
-                        
+                        const dateSpan = document.createElement('span');
+
+                        // リンクの設定
                         link.href = `report-viewer.html?report=${report.id}`;
                         link.textContent = report.title;
                         
+                        // 日付の設定
+                        dateSpan.className = 'report-date';
+                        dateSpan.textContent = report.date || ''; // 日付がなくてもエラーにならないように
+
+                        // 要素をliに追加
                         listItem.appendChild(link);
+                        listItem.appendChild(dateSpan);
                         listElement.appendChild(listItem);
                     });
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    listElement.innerHTML = `<li>エラー: ${error.message}</li>`;
+                    listElement.innerHTML = `<li class="loading">エラーが発生しました。</li>`;
                 });
         });
     </script>
