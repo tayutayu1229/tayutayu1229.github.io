@@ -1,277 +1,202 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JR貨物 運行状況</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f7f6;
-            color: #333;
-        }
-        .container {
-            max-width: 1000px;
-            margin: auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        h1, h2 {
-            color: #1a73e8;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
-        }
-        .header-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            font-size: 1.1em;
-            color: #555;
-        }
-        .incident-list {
-            margin-bottom: 20px;
-        }
-        .incident-item {
-            background-color: #fce8e6;
-            border: 1px solid #e74c3c;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-        .incident-item h3 {
-            margin-top: 0;
-            color: #e74c3c;
-        }
-        .train-line {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            overflow: hidden;
-        }
-        .train-line h3 {
-            background-color: #e2e8f0;
-            margin: 0;
-            padding: 15px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .train-line h3::after {
-            content: '+';
-            font-size: 1.5em;
-            transition: transform 0.3s ease;
-        }
-        .train-line.active h3::after {
-            content: '-';
-        }
-        .train-list {
-            padding: 0 15px;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-        }
-        .train-line.active .train-list {
-            max-height: 20000px;
-            padding: 15px;
-        }
-        .train-item {
-            border-bottom: 1px solid #eee;
-            padding: 10px 0;
-        }
-        .train-item:last-child {
-            border-bottom: none;
-        }
-        .train-item p {
-            margin: 5px 0;
-        }
-        .status-badge {
-            display: inline-block;
-            background-color: #f1c40f;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        .status-badge.停車中 {
-            background-color: #3498db;
-        }
-        .status-badge.着予定 {
-            background-color: #9b59b6;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JR貨物 運行状況</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<style>
+body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background-color: #f8f9fa;
+    color: #343a40;
+}
+.header-bar {
+    background-color: #005ab3;
+    color: #fff;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 0.5rem;
+}
+.header-bar h1 {
+    font-weight: 700;
+    font-size: 2rem;
+    margin: 0;
+}
+.incident-item {
+    background-color: #fce8e6;
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+.status-badge {
+    display: inline-block;
+    padding: 0.3em 0.6em;
+    font-size: 90%;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 0.25rem;
+}
+.status-停車中 { background-color: #d9534f; }
+.status-遅れ { background-color: #f0ad4e; }
+.status-運休 { background-color: #6c757d; }
+.status-着予定 { background-color: #9b59b6; }
+.train-line {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+.train-line h3 {
+    background-color: #e9ecef;
+    margin: 0;
+    padding: 10px 15px;
+    cursor: pointer;
+}
+.train-list {
+    display: none;
+    padding: 15px;
+}
+.train-line.active .train-list {
+    display: block;
+}
+</style>
 </head>
 <body>
+<div class="container py-4">
+    <header class="header-bar text-center">
+        <h1>JR貨物 運行状況</h1>
+        <p id="company-name"></p>
+        <p id="updated-time"></p>
+    </header>
 
-<div class="container">
-    <div class="header-info">
-        <div>
-            <h1>JR貨物 運行状況</h1>
-        </div>
-        <div>
-            <p id="company-name"></p>
-            <p id="updated-time"></p>
-        </div>
-    </div>
-    
-    <div id="status-title"></div>
+    <div id="status-title" class="mb-4"></div>
 
-    <div class="incident-list">
+    <div class="mb-4">
         <h2>輸送障害情報</h2>
         <div id="incidents"></div>
     </div>
 
-    <div id="affected-trains">
+    <div id="affected-trains" class="mb-4">
         <h2>影響のある貨物列車</h2>
     </div>
-    
-    <div id="related-files">
+
+    <div id="related-files" class="mb-4">
         <h2>関連情報</h2>
     </div>
 
+    <footer class="text-center text-muted mt-4" style="font-size:0.85rem;">
+        このページは自動生成されています
+    </footer>
 </div>
 
 <script>
-    async function fetchAndUpdateData() {
-        try {
-            const response = await fetch('JR Frieght Railway.json');
-            if (!response.ok) {
-                throw new Error('Network response was not ok ' + response.statusText);
-            }
-            const data = await response.json();
-            renderPage(data);
-        } catch (error) {
-            console.error('Failed to fetch data.json:', error);
-            document.querySelector('.container').innerHTML = '<p>データの取得に失敗しました。時間をおいて再度お試しください。最新の情報は<a href="https://www.jrfreight.co.jp/jrfreight/i_daiya.html">JR貨物公式サイト</a>でご確認ください。</p>';
-        }
+async function fetchAndUpdateData() {
+    try {
+        const res = await fetch('JR Frieght Railway.json');
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        renderPage(data);
+    } catch (err) {
+        console.error(err);
+        document.querySelector('.container').innerHTML =
+            '<p>データ取得に失敗しました。<a href="https://www.jrfreight.co.jp/jrfreight/i_daiya.html">公式サイト</a>をご確認ください。</p>';
     }
+}
 
-    function renderPage(data) {
-        // Header
-        const companyNameEl = document.getElementById('company-name');
-        if (companyNameEl) companyNameEl.textContent = data.company;
+function renderPage(data) {
+    document.getElementById('company-name').textContent = data.company || '';
+    document.getElementById('updated-time').textContent = `最終更新: ${data.date || ''} ${data.time || ''}`;
+    document.getElementById('status-title').innerHTML = data.status_title ? `<h3>${data.status_title}</h3>` : '';
 
-        const updatedTimeEl = document.getElementById('updated-time');
-        if (updatedTimeEl) updatedTimeEl.textContent = `最終更新: ${data.date} ${data.time}`;
-        
-        const statusTitleEl = document.getElementById('status-title');
-        if (statusTitleEl) statusTitleEl.innerHTML = data.status_title ? `<h2>${data.status_title}</h2>` : '';
-
-        // Incidents
-        const incidentContainer = document.getElementById('incidents');
-        if (incidentContainer) {
-            incidentContainer.innerHTML = '';
-            if (data.incidents && data.incidents.length > 0) {
-                data.incidents.forEach(incident => {
-                    const incidentItem = document.createElement('div');
-                    incidentItem.className = 'incident-item';
-                    incidentItem.innerHTML = `
-                        <h3>${incident.impact}</h3>
-                        <p><strong>期間:</strong> ${incident.time_period}</p>
-                        <p><strong>場所:</strong> ${incident.location}</p>
-                        <p><strong>原因:</strong> ${incident.cause}</p>
-                    `;
-                    incidentContainer.appendChild(incidentItem);
-                });
-            } else {
-                 incidentContainer.innerHTML = '<p>現在、輸送障害情報はございません。</p>';
-            }
-        }
-
-        // Affected Trains
-        const trainContainer = document.getElementById('affected-trains');
-        if (trainContainer) {
-            trainContainer.innerHTML = '<h2>影響のある貨物列車</h2>';
-            if (data.affected_trains && data.affected_trains.length > 0) {
-                data.affected_trains.forEach(line => {
-                    const lineDiv = document.createElement('div');
-                    lineDiv.className = 'train-line';
-                    
-                    const header = document.createElement('h3');
-                    header.textContent = line.line;
-                    lineDiv.appendChild(header);
-
-                    const trainList = document.createElement('div');
-                    trainList.className = 'train-list';
-                    line.trains.forEach(train => {
-                        const trainItem = document.createElement('div');
-                        trainItem.className = 'train-item';
-                        let statusBadgeClass = '';
-                        if (train.status.includes('停車中')) {
-                            statusBadgeClass = '停車中';
-                        } else if (train.status.includes('予定') || train.status.includes('分')) {
-                            statusBadgeClass = '着予定';
-                        }
-                        
-                        trainItem.innerHTML = `
-                            <p><strong>列車番号:</strong> ${train.train_number}</p>
-                            <p><strong>区間:</strong> ${train.route}</p>
-                            <p><strong>現在地:</strong> ${train.current_location}</p>
-                            <p><strong>状況:</strong> <span class="status-badge ${statusBadgeClass}">${train.status}</span></p>
-                        `;
-                        trainList.appendChild(trainItem);
-                    });
-                    lineDiv.appendChild(trainList);
-                    trainContainer.appendChild(lineDiv);
-                });
-            } else {
-                 trainContainer.innerHTML = '<h2>影響のある貨物列車</h2><p>現在、影響のある貨物列車はございません。</p>';
-            }
-        }
-        
-        // Related Files
-        const filesContainer = document.getElementById('related-files');
-        if (filesContainer) {
-            filesContainer.innerHTML = '<h2>関連情報</h2>';
-            if (data.related_files && data.related_files.length > 0) {
-                 data.related_files.forEach(file => {
-                    const fileItem = document.createElement('p');
-                    fileItem.innerHTML = `<a href="${file.url}">${file.title}</a>`;
-                    filesContainer.appendChild(fileItem);
-                });
-            } else {
-                filesContainer.innerHTML = '<h2>関連情報</h2><p>現在、関連情報ファイルはございません。</p>';
-            }
-        }
-
-        document.querySelectorAll('.train-line h3').forEach(header => {
-            header.addEventListener('click', (e) => {
-                const parent = e.target.closest('.train-line');
-                parent.classList.toggle('active');
-            });
+    const incidentsEl = document.getElementById('incidents');
+    incidentsEl.innerHTML = '';
+    if (data.incidents?.length) {
+        data.incidents.forEach(inc => {
+            const el = document.createElement('div');
+            el.className = 'incident-item';
+            el.innerHTML = `<h5>${inc.impact}</h5>
+                <p><strong>期間:</strong> ${inc.time_period}</p>
+                <p><strong>場所:</strong> ${inc.location}</p>
+                <p><strong>原因:</strong> ${inc.cause}</p>`;
+            incidentsEl.appendChild(el);
         });
+    } else {
+        incidentsEl.innerHTML = '<p>現在、輸送障害はありません。</p>';
     }
 
-    window.onload = fetchAndUpdateData;
+    const trainsEl = document.getElementById('affected-trains');
+    if (data.affected_trains?.length) {
+        data.affected_trains.forEach(line => {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'train-line';
+            const header = document.createElement('h3');
+            header.textContent = line.line;
+            lineDiv.appendChild(header);
+            const list = document.createElement('div');
+            list.className = 'train-list';
+            line.trains.forEach(train => {
+                const statusClass = getStatusClass(train.status);
+                list.innerHTML += `<div class="mb-2 border-bottom pb-2">
+                    <p><strong>列車番号:</strong> ${train.train_number}</p>
+                    <p><strong>区間:</strong> ${train.route}</p>
+                    <p><strong>現在地:</strong> ${train.current_location}</p>
+                    <p><strong>状態:</strong> <span class="status-badge ${statusClass}">${train.status}</span></p>
+                </div>`;
+            });
+            lineDiv.appendChild(list);
+            trainsEl.appendChild(lineDiv);
+        });
+        activateAccordion();
+    } else {
+        trainsEl.innerHTML += '<p>現在、影響のある貨物列車はありません。</p>';
+    }
 
-    // 毎時15分にページ全体を再読み込み
-    function scheduleRefresh() {
-      const now = new Date();
-      let delay;
-      if (now.getMinutes() < 15) {
-        delay = (15 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
-      } else {
-        const nextHour = new Date(now.getTime());
-        nextHour.setHours(now.getHours() + 1);
-        nextHour.setMinutes(15);
-        nextHour.setSeconds(0);
-        nextHour.setMilliseconds(0);
-        delay = nextHour.getTime() - now.getTime();
-      }
-      setTimeout(() => {
+    const filesEl = document.getElementById('related-files');
+    if (data.related_files?.length) {
+        data.related_files.forEach(f => {
+            filesEl.innerHTML += `<p><a href="${f.url}" target="_blank">${f.title}</a></p>`;
+        });
+    } else {
+        filesEl.innerHTML += '<p>関連情報はありません。</p>';
+    }
+}
+
+function getStatusClass(status) {
+    if (status.includes('停車中')) return 'status-停車中';
+    if (status.includes('遅れ')) return 'status-遅れ';
+    if (status.includes('運休')) return 'status-運休';
+    if (status.includes('予定') || status.includes('分')) return 'status-着予定';
+    return '';
+}
+
+function activateAccordion() {
+    document.querySelectorAll('.train-line h3').forEach(h => {
+        h.addEventListener('click', () => h.parentElement.classList.toggle('active'));
+    });
+}
+
+function scheduleRefresh() {
+    const now = new Date();
+    let delay;
+    if (now.getMinutes() < 15) {
+        delay = (15 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000;
+    } else {
+        const next = new Date();
+        next.setHours(now.getHours() + 1, 15, 0, 0);
+        delay = next - now;
+    }
+    setTimeout(() => {
         location.reload();
-        scheduleRefresh();
-      }, delay);
-    }
-    
+    }, delay);
+}
+
+window.onload = () => {
+    fetchAndUpdateData();
     scheduleRefresh();
+};
 </script>
 </body>
 </html>
