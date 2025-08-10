@@ -67,14 +67,22 @@ def create_html(data):
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
     sections = re.split(r'(<.+?>)', data["status_text"])
-    accordion_html = ""
+    section_html = ""
     if len(sections) > 1:
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
-            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
-            content = '<br>'.join(content_lines)
-            accordion_html += f"""
-            <div class="status-section" data-search-content="{header} {sections[i+1].strip()}">
+            content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n') if line.strip()]
+            
+            # 列車情報を整理して表示
+            formatted_content = []
+            for line in content_lines:
+                if line.strip():
+                    formatted_content.append(f'<div class="train-line">{line}</div>')
+            
+            content = ''.join(formatted_content)
+            
+            section_html += f"""
+            <div class="status-section section-divider" data-search-content="{header} {sections[i+1].strip()}">
                 <div class="status-header">
                     <span class="section-title">{header}</span>
                 </div>
@@ -232,34 +240,31 @@ def create_html(data):
             }}
             
             .status-details {{
-                padding: 20px 24px;
+                padding: 16px 20px;
                 font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
                 font-size: 13px;
-                line-height: 1.6;
+                line-height: 1.3;
                 color: #555555;
                 white-space: pre-line;
                 background: #fafafa;
-                max-height: 600px;
-                overflow-y: auto;
                 border-radius: 0 0 6px 6px;
+                word-break: break-all;
             }}
             
-            .status-details::-webkit-scrollbar {{
-                width: 8px;
+            .train-line {{
+                margin: 2px 0;
+                padding: 1px 0;
             }}
             
-            .status-details::-webkit-scrollbar-track {{
-                background: #f0f0f0;
-                border-radius: 4px;
+            .section-divider {{
+                border-bottom: 2px solid #e0e0e0;
+                margin: 30px 0;
+                padding-bottom: 10px;
             }}
             
-            .status-details::-webkit-scrollbar-thumb {{
-                background: #c0c0c0;
-                border-radius: 4px;
-            }}
-            
-            .status-details::-webkit-scrollbar-thumb:hover {{
-                background: #a0a0a0;
+            .section-divider:last-child {{
+                border-bottom: none;
+                margin-bottom: 0;
             }}
             
             .status-badge {{
@@ -379,9 +384,13 @@ def create_html(data):
                 }}
                 
                 .status-details {{
-                    padding: 16px 18px;
+                    padding: 12px 16px;
                     font-size: 12px;
-                    max-height: 400px;
+                    line-height: 1.2;
+                }}
+                
+                .train-line {{
+                    margin: 1px 0;
                 }}
                 
                 .section-header {{
@@ -405,8 +414,13 @@ def create_html(data):
                 }}
                 
                 .status-details {{
-                    max-height: 300px;
                     font-size: 11px;
+                    line-height: 1.1;
+                    padding: 10px 14px;
+                }}
+                
+                .train-line {{
+                    margin: 0.5px 0;
                 }}
             }}
         </style>
@@ -438,7 +452,7 @@ def create_html(data):
             <h2 class="section-header">{data["status_title"]}</h2>
             
             <div class="status-accordion">
-                {accordion_html}
+                {section_html}
             </div>
             
             <div class="no-results" id="noResults">
