@@ -15,13 +15,11 @@ BRANCH_NAME = "main"
 
 def highlight_keywords(line):
     highlights = {
-        "停車中": "status-stopped", 
-        "遅れ": "status-delay",
-        "運休": "status-cancelled", 
-        "見合わせ": "status-suspended",
+        "停車中": "status-stopped", "遅れ": "status-delay",
+        "運休": "status-cancelled", "見合わせ": "status-suspended",
     }
     for keyword, css_class in highlights.items():
-        line = re.sub(rf'({keyword})', f'<span class="status-badge {css_class}">\\1</span>', line)
+        line = re.sub(rf'\b{keyword}\b', f'<span class="status-badge {css_class}">{keyword}</span>', line)
     return line
 
 def fetch_and_parse_data():
@@ -38,8 +36,7 @@ def fetch_and_parse_data():
         title = title_elem.text.strip() if title_elem else "（標題なし）"
 
         content_elem = soup.find('div', class_='base_daiya-content')
-        if not content_elem: 
-            return None
+        if not content_elem: return None
 
         h2_tags = content_elem.find_all('h2')
         p_tags = content_elem.find_all('p')
@@ -56,20 +53,15 @@ def fetch_and_parse_data():
             status_text = p_tags[1].text.strip()
         
         return {
-            "update_time": update_time, 
-            "title": title, 
-            "overview_title": overview_title,
-            "overview_text": overview_text, 
-            "status_title": status_title, 
-            "status_text": status_text,
+            "update_time": update_time, "title": title, "overview_title": overview_title,
+            "overview_text": overview_text, "status_title": status_title, "status_text": status_text,
         }
     except Exception as e:
         print(f"解析中に予期せぬエラーが発生しました: {e}")
         return None
 
 def create_html(data):
-    if not data: 
-        return ""
+    if not data: return ""
 
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
@@ -83,10 +75,10 @@ def create_html(data):
             content = '<br>'.join(content_lines)
             collapse_id = "collapse" + str(i)
             accordion_html += f"""
-            <div class="status-section" data-keywords="{header}{sections[i+1]}">
+            <div class="status-section" data-search-content="{header} {sections[i+1].strip()}">
                 <div class="status-header" onclick="toggleSection('{collapse_id}')">
                     <span class="section-title">{header}</span>
-                    <span class="toggle-icon" id="icon-{collapse_id}">＋</span>
+                    <span class="toggle-icon" id="icon-{collapse_id}">+</span>
                 </div>
                 <div id="{collapse_id}" class="status-content collapsed">
                     <div class="status-details">{content}</div>
@@ -94,6 +86,7 @@ def create_html(data):
             </div>
             """
 
+    # エラーを回避するため、文字列の置換をf-stringの外で行う
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
     html_template = f"""
@@ -104,85 +97,316 @@ def create_html(data):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況</title>
         <style>
-            body {{
-                font-family: Arial, sans-serif;
-                background-color: #fff;
-                color: #333;
-                line-height: 1.6;
+            * {{
                 margin: 0;
                 padding: 0;
+                box-sizing: border-box;
             }}
+            
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background-color: #ffffff;
+                color: #333333;
+                line-height: 1.7;
+                font-size: 14px;
+            }}
+            
             .container {{
                 max-width: 1000px;
-                margin: auto;
-                padding: 20px;
+                margin: 0 auto;
+                padding: 40px 20px;
             }}
+            
             .header {{
+                background-color: #ffffff;
+                color: #333333;
+                padding: 40px 0 30px 0;
                 text-align: center;
-                margin-bottom: 20px;
+                border-bottom: 2px solid #f0f0f0;
+                margin-bottom: 40px;
             }}
+            
             .header h1 {{
-                font-size: 2rem;
-                font-weight: bold;
+                font-size: 32px;
+                font-weight: 600;
+                margin-bottom: 12px;
+                letter-spacing: 1px;
+                color: #2c3e50;
             }}
-            .update-time {{
-                font-size: 0.9rem;
-                color: #666;
+            
+            .header .update-time {{
+                font-size: 16px;
+                color: #666666;
+                font-weight: 400;
             }}
+            
+            .search-container {{
+                background: #fafafa;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                padding: 20px;
+                margin-bottom: 30px;
+            }}
+            
             .search-box {{
-                margin-bottom: 20px;
+                position: relative;
+                max-width: 400px;
+                margin: 0 auto;
+            }}
+            
+            .search-input {{
+                width: 100%;
+                padding: 12px 16px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                font-size: 16px;
+                background-color: #ffffff;
+                transition: border-color 0.2s ease;
+            }}
+            
+            .search-input:focus {{
+                outline: none;
+                border-color: #4a90e2;
+            }}
+            
+            .search-label {{
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+                color: #555555;
                 text-align: center;
             }}
-            .search-box input {{
-                padding: 8px;
-                width: 80%;
-                max-width: 400px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }}
+            
             .info-card {{
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                margin-bottom: 15px;
-                padding: 15px;
-                background: #fafafa;
+                background: #ffffff;
+                border: 1px solid #e8e8e8;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
             }}
+            
+            .info-card-header {{
+                background: #f8f9fa;
+                padding: 20px 24px;
+                border-bottom: 1px solid #e8e8e8;
+                font-weight: 600;
+                color: #333333;
+                font-size: 16px;
+            }}
+            
+            .info-card-body {{
+                padding: 24px;
+                white-space: pre-line;
+                line-height: 1.8;
+                color: #555555;
+            }}
+            
             .status-section {{
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                margin-bottom: 10px;
+                background: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                margin-bottom: 12px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+                transition: opacity 0.3s ease;
             }}
+            
+            .status-section.hidden {{
+                display: none;
+            }}
+            
             .status-header {{
-                background: #f5f5f5;
-                padding: 10px;
+                background: #fafafa;
+                padding: 20px 24px;
                 cursor: pointer;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background-color 0.2s ease;
             }}
+            
+            .status-header:hover {{
+                background: #f0f0f0;
+            }}
+            
+            .section-title {{
+                font-weight: 500;
+                color: #333333;
+                font-size: 15px;
+            }}
+            
+            .toggle-icon {{
+                font-size: 18px;
+                color: #666666;
+                font-weight: 600;
+                transition: transform 0.2s ease;
+                width: 20px;
+                text-align: center;
+            }}
+            
             .status-content {{
-                max-height: 0;
                 overflow: hidden;
                 transition: max-height 0.3s ease;
-                padding: 0 10px;
             }}
+            
+            .status-content.collapsed {{
+                max-height: 0;
+            }}
+            
             .status-content.expanded {{
-                max-height: 500px;
-                padding: 10px;
+                max-height: 2000px;
+                border-top: 1px solid #f0f0f0;
             }}
+            
+            .status-details {{
+                padding: 24px;
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+                font-size: 13px;
+                line-height: 1.8;
+                color: #555555;
+                white-space: pre-line;
+                background: #fafafa;
+            }}
+            
             .status-badge {{
-                padding: 2px 6px;
+                display: inline-block;
+                padding: 3px 8px;
                 border-radius: 4px;
-                font-size: 0.8rem;
-                margin-left: 4px;
+                font-weight: 500;
+                font-size: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             }}
-            .status-stopped {{ background-color: #e74c3c; color: white; }}
-            .status-delay {{ background-color: #e67e22; color: white; }}
-            .status-cancelled {{ background-color: #7f8c8d; color: white; }}
-            .status-suspended {{ background-color: #f1c40f; color: black; }}
-            @media (max-width: 600px) {{
-                .search-box input {{
-                    width: 100%;
+            
+            .status-stopped {{
+                background-color: #fee2e2;
+                color: #991b1b;
+                border: 1px solid #fca5a5;
+            }}
+            
+            .status-delay {{
+                background-color: #fef3c7;
+                color: #92400e;
+                border: 1px solid #fcd34d;
+            }}
+            
+            .status-cancelled {{
+                background-color: #f3f4f6;
+                color: #374151;
+                border: 1px solid #d1d5db;
+            }}
+            
+            .status-suspended {{
+                background-color: #dbeafe;
+                color: #1e40af;
+                border: 1px solid #93c5fd;
+            }}
+            
+            .section-header {{
+                text-align: center;
+                margin: 50px 0 30px 0;
+                font-size: 24px;
+                font-weight: 600;
+                color: #2c3e50;
+                position: relative;
+            }}
+            
+            .section-header::after {{
+                content: '';
+                position: absolute;
+                bottom: -12px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 40px;
+                height: 2px;
+                background: #4a90e2;
+                border-radius: 1px;
+            }}
+            
+            .no-results {{
+                text-align: center;
+                padding: 40px;
+                color: #888888;
+                font-style: italic;
+                display: none;
+            }}
+            
+            .footer {{
+                margin-top: 60px;
+                padding-top: 30px;
+                border-top: 1px solid #f0f0f0;
+                color: #888888;
+                text-align: center;
+                font-size: 13px;
+                line-height: 1.6;
+            }}
+            
+            @media (max-width: 768px) {{
+                .container {{
+                    padding: 20px 15px;
+                }}
+                
+                .header {{
+                    padding: 30px 0 20px 0;
+                    margin-bottom: 30px;
+                }}
+                
+                .header h1 {{
+                    font-size: 26px;
+                }}
+                
+                .search-container {{
+                    padding: 15px;
+                }}
+                
+                .search-box {{
+                    max-width: 100%;
+                }}
+                
+                .search-input {{
+                    font-size: 16px;
+                    padding: 12px 14px;
+                }}
+                
+                .info-card-header {{
+                    padding: 16px 18px;
+                    font-size: 15px;
+                }}
+                
+                .info-card-body {{
+                    padding: 18px;
+                }}
+                
+                .status-header {{
+                    padding: 16px 18px;
+                }}
+                
+                .section-title {{
+                    font-size: 14px;
+                }}
+                
+                .status-details {{
+                    padding: 18px;
+                    font-size: 12px;
+                }}
+                
+                .section-header {{
+                    font-size: 20px;
+                    margin: 40px 0 25px 0;
+                }}
+            }}
+            
+            @media (max-width: 480px) {{
+                .container {{
+                    padding: 15px 10px;
+                }}
+                
+                .header h1 {{
+                    font-size: 22px;
+                }}
+                
+                .status-badge {{
+                    font-size: 11px;
+                    padding: 2px 6px;
                 }}
             }}
         </style>
@@ -191,47 +415,83 @@ def create_html(data):
         <div class="container">
             <div class="header">
                 <h1>JR貨物 輸送状況</h1>
-                <div class="update-time">サイト更新: {data["update_time"]} | 最終取得: {current_time_str}</div>
+                <div class="update-time">サイト更新: {data["update_time"]}</div>
             </div>
-
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="線区やキーワードで検索...">
+            
+            <div class="search-container">
+                <label class="search-label">線区名・状況でフィルタ検索</label>
+                <div class="search-box">
+                    <input type="text" class="search-input" id="searchInput" placeholder="例: 東海道、遅れ、運休" />
+                </div>
             </div>
-
+            
             <div class="info-card">
-                <strong>標題:</strong><br>{data["title"]}
+                <div class="info-card-header">標題</div>
+                <div class="info-card-body">{data["title"]}</div>
             </div>
+            
             <div class="info-card">
-                <strong>{data["overview_title"]}</strong><br>{overview_text_formatted}
+                <div class="info-card-header">{data["overview_title"]}</div>
+                <div class="info-card-body">{overview_text_formatted}</div>
             </div>
-
-            <h2>{data["status_title"]}</h2>
+            
+            <h2 class="section-header">{data["status_title"]}</h2>
+            
             <div class="status-accordion">
                 {accordion_html}
             </div>
+            
+            <div class="no-results" id="noResults">
+                検索条件に一致する線区情報が見つかりませんでした。
+            </div>
+            
+            <div class="footer">
+                このページはGitHub Actionsにより自動生成されています。<br>
+                最終取得時刻 (JST): {current_time_str}
+            </div>
         </div>
-
+        
         <script>
             function toggleSection(sectionId) {{
                 const content = document.getElementById(sectionId);
                 const icon = document.getElementById('icon-' + sectionId);
-                if (content.classList.contains('expanded')) {{
-                    content.classList.remove('expanded');
-                    icon.textContent = '＋';
-                }} else {{
+                
+                if (content.classList.contains('collapsed')) {{
+                    content.classList.remove('collapsed');
                     content.classList.add('expanded');
                     icon.textContent = '−';
+                }} else {{
+                    content.classList.remove('expanded');
+                    content.classList.add('collapsed');
+                    icon.textContent = '+';
                 }}
             }}
-
-            document.getElementById('searchInput').addEventListener('input', function() {{
-                const keyword = this.value.toLowerCase();
-                document.querySelectorAll('.status-section').forEach(section => {{
-                    const text = section.getAttribute('data-keywords').toLowerCase();
-                    section.style.display = text.includes(keyword) ? '' : 'none';
+            
+            // 検索フィルター機能
+            document.getElementById('searchInput').addEventListener('input', function(e) {{
+                const searchTerm = e.target.value.toLowerCase();
+                const sections = document.querySelectorAll('.status-section');
+                const noResults = document.getElementById('noResults');
+                let visibleCount = 0;
+                
+                sections.forEach(function(section) {{
+                    const searchContent = section.getAttribute('data-search-content').toLowerCase();
+                    
+                    if (searchContent.includes(searchTerm)) {{
+                        section.classList.remove('hidden');
+                        visibleCount++;
+                    }} else {{
+                        section.classList.add('hidden');
+                    }}
                 }});
+                
+                if (visibleCount === 0 && searchTerm.length > 0) {{
+                    noResults.style.display = 'block';
+                }} else {{
+                    noResults.style.display = 'none';
+                }}
             }});
-        </script>
+        }}
     </body>
     </html>
     """
