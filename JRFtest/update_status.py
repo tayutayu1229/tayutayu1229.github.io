@@ -19,9 +19,8 @@ def highlight_keywords(line):
         "運休": "status-cancelled", "見合わせ": "status-suspended",
     }
     for keyword, css_class in highlights.items():
-        # 正規表現による置換後もキーワードをハイライトできるように調整
-        # 例: "...| 停車中" のような形式に対応
-        line = re.sub(rf'([|\s]{{2,}}|^)({keyword})\b', rf'\1<span class="status-badge {css_class}">{keyword}</span>', line)
+        if keyword in line:
+            line = line.replace(keyword, f'<span class="status-badge {css_class}">{keyword}</span>')
     return line
 
 def fetch_and_parse_data():
@@ -76,18 +75,46 @@ def create_html(data):
         for i in range(1, len(sections), 2):
             header = sections[i].strip()
             
-            # ★★★★★ ここが最終修正点 ★★★★★
-            # 1. 各行の先頭・末尾の空白を除去 (line.strip())
-            # 2. 2つ以上連続する空白(全角半角問わず)を区切り文字に置換 (re.sub)
+            # ★★★★★ ここからが表を作成する新しいロジック ★★★★★
+            table_rows_html = ""
             lines = [line.strip() for line in sections[i+1].strip().split('\n') if line.strip()]
-            content_lines = [highlight_keywords(re.sub(r'[\s　]{2,}', ' | ', line)) for line in lines]
-            content = '<br>'.join(content_lines)
+            
+            for line in lines:
+                # 連続する空白を区切り文字に変換し、それで分割して列データを作成
+                parts = re.sub(r'[\s　]{2,}', '@@@', line).split('@@@')
+                
+                # 3つの要素（列車情報、場所、状態）に整える
+                train_info = parts[0] if len(parts) > 0 else ""
+                location = parts[1] if len(parts) > 1 else ""
+                status = parts[2] if len(parts) > 2 else ""
+
+                # 状態のセルにのみキーワードハイライトを適用
+                status_highlighted = highlight_keywords(status)
+
+                table_rows_html += f"""
+                <tr>
+                    <td>{train_info}</td>
+                    <td>{location}</td>
+                    <td>{status_highlighted}</td>
+                </tr>
+                """
             
             status_html += f"""
             <div class="status-card">
                 <h5>{header}</h5>
-                <div class="status-body">
-                    {content}
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th scope="col">列車情報</th>
+                                <th scope="col">場所</th>
+                                <th scope="col">状態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {table_rows_html}
+                        </tbody>
+                    </table>
                 </div>
             </div>
             """
@@ -108,7 +135,6 @@ def create_html(data):
                 --primary-color: #005ab3;
                 --light-gray: #f8f9fa;
                 --medium-gray: #e9ecef;
-                --dark-gray: #495057;
                 --text-color: #343a40;
                 --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             }}
@@ -117,89 +143,55 @@ def create_html(data):
                 background-color: var(--light-gray);
                 color: var(--text-color);
             }}
-            .container {{
-                max-width: 900px;
-            }}
+            .container {{ max-width: 960px; }}
             .header-bar {{
                 background-color: var(--primary-color);
-                color: white;
-                padding: 1.5rem;
-                margin-bottom: 2rem;
-                border-radius: 0.5rem;
+                color: white; padding: 1.5rem; margin-bottom: 2rem; border-radius: 0.5rem;
             }}
-            .header-bar h1 {{
-                font-weight: 700;
-                font-size: 2rem;
-                margin: 0;
-            }}
-            .header-bar p {{
-                margin: 0;
-                opacity: 0.9;
-            }}
+            .header-bar h1 {{ font-weight: 700; font-size: 2rem; margin: 0; }}
+            .header-bar p {{ margin: 0; opacity: 0.9; }}
             .summary-card {{
-                background: #ffffff;
-                padding: 1.5rem 2rem;
-                border-radius: 0.5rem;
-                box-shadow: var(--card-shadow);
-                margin-bottom: 2rem;
+                background: #ffffff; padding: 1.5rem 2rem; border-radius: 0.5rem;
+                box-shadow: var(--card-shadow); margin-bottom: 2rem;
             }}
             .summary-card .title {{
-                font-weight: 500;
-                font-size: 1.2rem;
-                color: var(--primary-color);
-                margin-bottom: 0.75rem;
+                font-weight: 500; font-size: 1.2rem;
+                color: var(--primary-color); margin-bottom: 0.75rem;
             }}
-            .summary-card .content {{
-                white-space: pre-wrap;
-                line-height: 1.7;
-            }}
+            .summary-card .content {{ white-space: pre-wrap; line-height: 1.7; }}
             .section-title {{
-                font-weight: 700;
-                color: var(--dark-gray);
-                padding-bottom: 0.5rem;
-                border-bottom: 2px solid var(--medium-gray);
+                font-weight: 700; color: var(--text-color);
+                padding-bottom: 0.5rem; border-bottom: 2px solid var(--medium-gray);
                 margin-bottom: 1.5rem;
             }}
             .status-card {{
-                background: #ffffff;
-                border-left: 5px solid var(--primary-color);
-                margin-bottom: 1rem;
-                box-shadow: var(--card-shadow);
-                border-radius: 0 0.5rem 0.5rem 0;
+                background: #ffffff; margin-bottom: 1.5rem;
+                box-shadow: var(--card-shadow); border-radius: 0.5rem;
+                overflow: hidden; /* For border-radius to work with table */
             }}
             .status-card h5 {{
-                font-weight: 500;
-                padding: 0.8rem 1.2rem;
-                background-color: #fdfdff;
-                border-bottom: 1px solid var(--medium-gray);
-                margin: 0;
+                font-weight: 500; padding: 0.8rem 1.2rem;
+                background-color: #f7f9fc;
+                border-bottom: 1px solid var(--medium-gray); margin: 0;
             }}
-            .status-body {{
-                padding: 1rem 1.2rem;
-                font-family: 'monospace';
+            .table-responsive {{
+                /* テーブル自体にpaddingやmarginは不要 */
+            }}
+            .table {{
+                margin-bottom: 0; /* status-cardの底にくっつける */
                 font-size: 0.9rem;
-                line-height: 1.6;
-                white-space: pre-wrap; /* pre-wrapでも内部の連続空白はre.subで除去済み */
             }}
+            .table td, .table th {{ vertical-align: middle; }}
             .footer {{
-                margin-top: 3rem;
-                padding-top: 1.5rem;
-                border-top: 1px solid var(--medium-gray);
-                color: #6c757d;
-                text-align: center;
-                font-size: 0.85rem;
+                margin-top: 3rem; padding-top: 1.5rem;
+                border-top: 1px solid var(--medium-gray); color: #6c757d;
+                text-align: center; font-size: 0.85rem;
             }}
             .status-badge {{
-                display: inline-block;
-                padding: 0.25em 0.6em;
-                font-size: 85%;
-                font-weight: 700;
-                line-height: 1;
-                text-align: center;
-                white-space: nowrap;
-                vertical-align: baseline;
-                border-radius: 0.25rem;
-                color: #fff;
+                display: inline-block; padding: 0.3em 0.6em; font-size: 90%;
+                font-weight: 700; line-height: 1; text-align: center;
+                white-space: nowrap; vertical-align: baseline;
+                border-radius: 0.25rem; color: #fff;
             }}
             .status-stopped {{ background-color: #d9534f; }}
             .status-delay {{ background-color: #f0ad4e; }}
@@ -209,28 +201,22 @@ def create_html(data):
     </head>
     <body>
         <div class="container py-4">
-
             <header class="header-bar text-center">
                 <h1>JR貨物 輸送状況</h1>
                 <p>サイト更新: {data["update_time"]}</p>
             </header>
-
             <section class="summary-card">
                 <h4 class="title">{data["title"]}</h4>
                 <p class="content">{overview_text_formatted}</p>
             </section>
-            
             <h2 class="section-title">{data["status_title"]}</h2>
-            
             <section>
                 {status_html}
             </section>
-
             <footer class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
                 最終取得時刻 (JST): {current_time_str}
             </footer>
-
         </div>
     </body>
     </html>
