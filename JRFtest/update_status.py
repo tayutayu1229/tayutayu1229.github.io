@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta
 import os
 import json
-import base64 # ★★★ 1. この行を追加 ★★★
+import base64
 
 # --- 設定項目 ---
 USER_NAME = "tayutayu1229"
@@ -14,57 +14,72 @@ BRANCH_NAME = "main"
 
 def fetch_and_parse_data():
     """
-    JR貨物の輸送状況ページからデータを取得し、解析します。
+    JR貨物の新しいウェブサイト構造からデータを取得し、解析します。
     """
     url = "https://www.jrfreight.co.jp/i_daiya"
+    print("デバッグ: データ取得を開始します...")
     try:
         response = requests.get(url)
-        response.encoding = 'shift_jis'
+        # JR貨物サイトは現在UTF-8になりました
+        response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        update_time_element = soup.find('div', align='right')
-        update_time = update_time_element.text.strip() if update_time_element else "不明"
+        # サイトの更新時刻を取得
+        update_time_elem = soup.find('div', id='pbBlock91534')
+        update_time = update_time_elem.text.strip() if update_time_elem else "不明"
+        
+        # 標題を取得
+        title_elem = soup.find('div', id='pbBlock91536')
+        title = title_elem.text.strip() if title_elem else "（標題なし）"
 
-        tables = soup.find_all('table')
-        status_data = []
-        if len(tables) > 1:
-            rows = tables[1].find_all('tr')
-            for row in rows[1:]:
-                cols = row.find_all('td')
-                if len(cols) >= 3:
-                    direction = cols[0].text.strip()
-                    area = cols[1].text.strip()
-                    status = cols[2].text.strip().replace('\n', '<br>')
-                    status_data.append({
-                        "direction": direction,
-                        "area": area,
-                        "status": status,
-                    })
-        return {"update_time": update_time, "status_data": status_data}
+        # 輸送状況の詳細を取得
+        content_elem = soup.find('div', class_='base_daiya-content')
+        if not content_elem:
+            print("デバッグ: 'base_daiya-content' の要素が見つかりませんでした。")
+            return None
+
+        # 概要と線区情報を取得
+        h2_tags = content_elem.find_all('h2')
+        p_tags = content_elem.find_all('p')
+        
+        overview_title = h2_tags[0].text.strip() if len(h2_tags) > 0 else "概要"
+        overview_text = p_tags[0].get_text('\n', strip=True) if len(p_tags) > 0 else "情報なし"
+        
+        status_title = h2_tags[1].text.strip() if len(h2_tags) > 1 else "線区情報"
+        # <br>タグを改行に変換してテキストを取得
+        for br in p_tags[1].find_all("br"):
+            br.replace_with("\n")
+        status_text = p_tags[1].text.strip() if len(p_tags) > 1 else "情報なし"
+        
+        print("デバッグ: データの取得に成功しました。")
+        return {
+            "update_time": update_time,
+            "title": title,
+            "overview_title": overview_title,
+            "overview_text": overview_text,
+            "status_title": status_title,
+            "status_text": status_text,
+        }
+
     except requests.exceptions.RequestException as e:
         print(f"データ取得エラー: {e}")
+        return None
+    except Exception as e:
+        print(f"解析中に予期せぬエラーが発生しました: {e}")
         return None
 
 def create_html(data):
     """
-    取得したデータからHTMLコンテンツを生成します。
+    新しいデータ構造からHTMLコンテンツを生成します。
     """
     if not data:
+        print("デバッグ: create_htmlにデータが渡されませんでした。")
         return ""
 
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
-    table_rows = ""
-    for item in data["status_data"]:
-        table_rows += f"""
-        <tr>
-            <td>{item['direction']}</td>
-            <td>{item['area']}</td>
-            <td>{item['status']}</td>
-        </tr>
-        """
-
+    # <pre>タグはテキストの改行やスペースをそのまま表示するのに便利です
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -76,26 +91,36 @@ def create_html(data):
         <style>
             body {{ padding: 2em; }}
             .footer {{ margin-top: 2em; font-size: 0.9em; color: #6c757d; }}
+            .content-box {{
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: .25rem;
+                padding: 1.25rem;
+                white-space: pre-wrap; /* 改行を有効にする */
+                word-wrap: break-word;
+            }}
+            h2 {{
+                border-bottom: 2px solid #007bff;
+                padding-bottom: .5rem;
+                margin-top: 1.5rem;
+            }}
         </style>
     </head>
     <body>
         <div class="container">
             <h1 class="my-4">JR貨物 輸送状況</h1>
             <p><strong>サイト更新日時:</strong> {data["update_time"]}</p>
-            <div class="table-responsive">
-                <table class="table table-bordered table-striped">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th>方面</th>
-                            <th>地区</th>
-                            <th>状況</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_rows}
-                    </tbody>
-                </table>
+
+            <h2>{data["title"]}</h2>
+            
+            <h2 class="mt-4">{data["overview_title"]}</h2>
+            <div class="content-box">
+                <p>{data["overview_text"]}</p>
             </div>
+            
+            <h2 class="mt-4">{data["status_title"]}</h2>
+            <pre class="content-box">{data["status_text"]}</pre>
+            
             <p class="footer">このページは <a href="https://github.com/{USER_NAME}/{REPO_NAME}" target="_blank" rel="noopener">GitHub Actions</a> により自動生成されています。<br>
             最終取得時刻 (JST): {current_time_str}</p>
         </div>
@@ -128,7 +153,6 @@ def update_github_file(content):
         if e.response.status_code != 404:
             raise
 
-    # ★★★ 2. この部分を修正 ★★★
     encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
     
     data = {
@@ -159,4 +183,4 @@ if __name__ == "__main__":
         else:
             print("HTMLコンテンツの生成に失敗しました。")
     else:
-        print("データのスクレイピングに失敗しました。")
+        print("データのスクレイピングに失敗しました。処理を終了します。")
