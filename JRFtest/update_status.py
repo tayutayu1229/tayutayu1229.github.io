@@ -75,21 +75,17 @@ def create_html(data):
             content = '<br>'.join(content_lines)
             collapse_id = "collapse" + str(i)
             accordion_html += f"""
-            <div class="card bg-dark text-white">
-                <div class="card-header" id="heading{i}">
-                    <h2 class="mb-0">
-                        <button class="btn btn-link btn-block text-left text-white" type="button" data-toggle="collapse" data-target="#{collapse_id}" aria-expanded="false" aria-controls="{collapse_id}">
-                            {header}
-                        </button>
-                    </h2>
+            <div class="status-section">
+                <div class="status-header" onclick="toggleSection('{collapse_id}')">
+                    <span class="section-title">{header}</span>
+                    <span class="toggle-icon" id="icon-{collapse_id}">▼</span>
                 </div>
-                <div id="{collapse_id}" class="collapse" aria-labelledby="heading{i}">
-                    <div class="card-body">{content}</div>
+                <div id="{collapse_id}" class="status-content collapsed">
+                    <div class="status-details">{content}</div>
                 </div>
             </div>
             """
 
-    # ★★★★★ ここが修正点 ★★★★★
     # エラーを回避するため、文字列の置換をf-stringの外で行う
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
@@ -100,55 +96,262 @@ def create_html(data):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>JR貨物 輸送状況</title>
-        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
         <style>
-            body {{ background-color: #212529; color: #f8f9fa; }}
-            .container {{ padding-top: 2rem; padding-bottom: 2rem; }}
-            .card {{ border: 1px solid #495057; margin-bottom: 1rem; }}
-            .card-header {{ background-color: #343a40; }}
-            .card-body {{ background-color: #2c3034; font-family: 'monospace'; font-size: 0.9rem; white-space: pre-wrap; }}
-            .footer {{ margin-top: 2rem; color: #6c757d; text-align: center; }}
-            .status-badge {{ padding: 0.2em 0.6em; border-radius: 0.25rem; font-weight: 700; color: #fff; }}
-            .status-stopped {{ background-color: #dc3545; }}
-            .status-delay {{ background-color: #fd7e14; }}
-            .status-cancelled {{ background-color: #6c757d; }}
-            .status-suspended {{ background-color: #ffc107; color: #212529; }}
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            
+            body {{
+                font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+                background-color: #f8f9fa;
+                color: #333;
+                line-height: 1.6;
+            }}
+            
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            
+            .header {{
+                background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+                color: white;
+                padding: 30px 0;
+                margin: -20px -20px 30px -20px;
+                text-align: center;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            
+            .header h1 {{
+                font-size: 2.5rem;
+                font-weight: 300;
+                margin-bottom: 10px;
+                letter-spacing: 2px;
+            }}
+            
+            .header .update-time {{
+                font-size: 1.1rem;
+                opacity: 0.9;
+                font-weight: 300;
+            }}
+            
+            .info-card {{
+                background: white;
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                overflow: hidden;
+            }}
+            
+            .info-card-header {{
+                background: #f8f9fa;
+                padding: 15px 20px;
+                border-bottom: 1px solid #e9ecef;
+                font-weight: 600;
+                color: #495057;
+                font-size: 1.1rem;
+            }}
+            
+            .info-card-body {{
+                padding: 20px;
+                white-space: pre-line;
+                line-height: 1.8;
+            }}
+            
+            .status-section {{
+                background: white;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                margin-bottom: 10px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }}
+            
+            .status-header {{
+                background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+                padding: 15px 20px;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid #dee2e6;
+                transition: background-color 0.2s ease;
+            }}
+            
+            .status-header:hover {{
+                background: linear-gradient(90deg, #e9ecef 0%, #dee2e6 100%);
+            }}
+            
+            .section-title {{
+                font-weight: 600;
+                color: #495057;
+                font-size: 1.05rem;
+            }}
+            
+            .toggle-icon {{
+                font-size: 0.9rem;
+                color: #6c757d;
+                transition: transform 0.3s ease;
+            }}
+            
+            .status-content {{
+                overflow: hidden;
+                transition: max-height 0.3s ease, padding 0.3s ease;
+            }}
+            
+            .status-content.collapsed {{
+                max-height: 0;
+                padding: 0 20px;
+            }}
+            
+            .status-content.expanded {{
+                max-height: 1000px;
+                padding: 20px;
+            }}
+            
+            .status-details {{
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 0.9rem;
+                line-height: 1.7;
+                color: #495057;
+                white-space: pre-line;
+            }}
+            
+            .status-badge {{
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 0.8rem;
+                text-align: center;
+                min-width: 60px;
+            }}
+            
+            .status-stopped {{
+                background-color: #dc3545;
+                color: white;
+            }}
+            
+            .status-delay {{
+                background-color: #fd7e14;
+                color: white;
+            }}
+            
+            .status-cancelled {{
+                background-color: #6c757d;
+                color: white;
+            }}
+            
+            .status-suspended {{
+                background-color: #ffc107;
+                color: #212529;
+            }}
+            
+            .section-header {{
+                text-align: center;
+                margin: 40px 0 20px 0;
+                font-size: 1.8rem;
+                font-weight: 300;
+                color: #2c3e50;
+                position: relative;
+            }}
+            
+            .section-header::after {{
+                content: '';
+                position: absolute;
+                bottom: -10px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 60px;
+                height: 3px;
+                background: linear-gradient(90deg, #3498db, #2c3e50);
+                border-radius: 2px;
+            }}
+            
+            .footer {{
+                margin-top: 50px;
+                padding-top: 30px;
+                border-top: 1px solid #e9ecef;
+                color: #6c757d;
+                text-align: center;
+                font-size: 0.9rem;
+                line-height: 1.8;
+            }}
+            
+            @media (max-width: 768px) {{
+                .container {{
+                    padding: 10px;
+                }}
+                
+                .header h1 {{
+                    font-size: 2rem;
+                }}
+                
+                .status-header {{
+                    padding: 12px 15px;
+                }}
+                
+                .status-details {{
+                    font-size: 0.85rem;
+                }}
+            }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="text-center mb-4">
-                <h1 class="display-4">JR貨物 輸送状況</h1>
-                <p class="lead">サイト更新: {data["update_time"]}</p>
+            <div class="header">
+                <h1>JR貨物 輸送状況</h1>
+                <div class="update-time">サイト更新: {data["update_time"]}</div>
             </div>
-            <div class="card bg-secondary text-white shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">標題</h5>
-                    <p class="card-text">{data["title"]}</p>
-                </div>
+            
+            <div class="info-card">
+                <div class="info-card-header">標題</div>
+                <div class="info-card-body">{data["title"]}</div>
             </div>
-            <div class="card bg-secondary text-white shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">{data["overview_title"]}</h5>
-                    <p class="card-text">{overview_text_formatted}</p>
-                </div>
+            
+            <div class="info-card">
+                <div class="info-card-header">{data["overview_title"]}</div>
+                <div class="info-card-body">{overview_text_formatted}</div>
             </div>
-            <h3 class="text-center mb-3">{data["status_title"]}</h3>
-            <div class="accordion" id="statusAccordion">{accordion_html}</div>
-            <p class="footer">
+            
+            <h2 class="section-header">{data["status_title"]}</h2>
+            
+            <div class="status-accordion">
+                {accordion_html}
+            </div>
+            
+            <div class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
                 最終取得時刻 (JST): {current_time_str}
-            </p>
+            </div>
         </div>
-        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+        
+        <script>
+            function toggleSection(sectionId) {{
+                const content = document.getElementById(sectionId);
+                const icon = document.getElementById('icon-' + sectionId);
+                
+                if (content.classList.contains('collapsed')) {{
+                    content.classList.remove('collapsed');
+                    content.classList.add('expanded');
+                    icon.textContent = '▲';
+                    icon.style.transform = 'rotate(180deg)';
+                }} else {{
+                    content.classList.remove('expanded');
+                    content.classList.add('collapsed');
+                    icon.textContent = '▼';
+                    icon.style.transform = 'rotate(0deg)';
+                }}
+            }}
+        </script>
     </body>
     </html>
     """
     return html_template
 
-# (以下、update_github_file と if __name__ == "__main__": の部分は変更ありません)
 def update_github_file(content):
     token = os.getenv('GITHUB_TOKEN')
     if not token:
