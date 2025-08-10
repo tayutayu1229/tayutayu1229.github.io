@@ -66,6 +66,7 @@ def create_html(data):
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time_str = datetime.now(jst).strftime('%Y-%m-%d %H:%M:%S')
 
+    # Accordion HTML generation logic (no changes needed here)
     sections = re.split(r'(<.+?>)', data["status_text"])
     accordion_html = ""
     if len(sections) > 1:
@@ -74,25 +75,28 @@ def create_html(data):
             content_lines = [highlight_keywords(line) for line in sections[i+1].strip().split('\n')]
             content = '<br>'.join(content_lines)
             collapse_id = "collapse" + str(i)
+            # Bootstrap accordion structure
             accordion_html += f"""
-            <div class="card bg-dark text-white">
+            <div class="card">
                 <div class="card-header" id="heading{i}">
                     <h2 class="mb-0">
-                        <button class="btn btn-link btn-block text-left text-white" type="button" data-toggle="collapse" data-target="#{collapse_id}" aria-expanded="false" aria-controls="{collapse_id}">
+                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#{collapse_id}" aria-expanded="false" aria-controls="{collapse_id}">
                             {header}
                         </button>
                     </h2>
                 </div>
                 <div id="{collapse_id}" class="collapse" aria-labelledby="heading{i}">
-                    <div class="card-body">{content}</div>
+                    <div class="card-body detail-info">
+                        {content}
+                    </div>
                 </div>
             </div>
             """
-
-    # ★★★★★ ここが修正点 ★★★★★
-    # エラーを回避するため、文字列の置換をf-stringの外で行う
+    
+    # This logic remains the same to prevent errors.
     overview_text_formatted = data["overview_text"].replace('<br>', '\n')
 
+    # ★★★★★ ここからHTMLとCSSのデザインを白ベースに変更 ★★★★★
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -102,43 +106,110 @@ def create_html(data):
         <title>JR貨物 輸送状況</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
         <style>
-            body {{ background-color: #212529; color: #f8f9fa; }}
-            .container {{ padding-top: 2rem; padding-bottom: 2rem; }}
-            .card {{ border: 1px solid #495057; margin-bottom: 1rem; }}
-            .card-header {{ background-color: #343a40; }}
-            .card-body {{ background-color: #2c3034; font-family: 'monospace'; font-size: 0.9rem; white-space: pre-wrap; }}
-            .footer {{ margin-top: 2rem; color: #6c757d; text-align: center; }}
-            .status-badge {{ padding: 0.2em 0.6em; border-radius: 0.25rem; font-weight: 700; color: #fff; }}
-            .status-stopped {{ background-color: #dc3545; }}
-            .status-delay {{ background-color: #fd7e14; }}
-            .status-cancelled {{ background-color: #6c757d; }}
-            .status-suspended {{ background-color: #ffc107; color: #212529; }}
+            body {{
+                background-color: #f4f7fa; /* Slightly off-white for a softer look */
+                color: #333;
+                font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif';
+            }}
+            .container {{
+                max-width: 960px;
+            }}
+            .page-header {{
+                background-color: #ffffff;
+                border-radius: 0.25rem;
+                padding: 2rem;
+                margin-bottom: 2rem;
+                border: 1px solid #dee2e6;
+            }}
+            .page-header h1 {{
+                font-weight: 300;
+                color: #0056b3; /* A professional blue */
+            }}
+            .card {{
+                margin-bottom: 1.25rem;
+                border: 1px solid #dee2e6;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }}
+            .card-header {{
+                background-color: #e9ecef;
+                font-weight: bold;
+                color: #495057;
+            }}
+            .info-card .card-body {{
+                white-space: pre-wrap;
+                font-size: 1rem;
+                line-height: 1.6;
+            }}
+            #statusAccordion .card-header {{
+                 background-color: #fff;
+            }}
+            #statusAccordion .btn-link {{
+                font-weight: bold;
+                color: #0056b3;
+                text-decoration: none;
+            }}
+            #statusAccordion .btn-link:hover {{
+                color: #003d82;
+            }}
+            .detail-info {{
+                font-family: 'monospace';
+                font-size: 0.9rem;
+                white-space: pre-wrap;
+                background-color: #fdfdfd;
+                border-top: 1px solid #eee;
+            }}
+            .footer {{
+                margin-top: 3rem;
+                padding-top: 1.5rem;
+                border-top: 1px solid #dee2e6;
+                color: #6c757d;
+                text-align: center;
+                font-size: 0.875rem;
+            }}
+            /* Status badge styles remain the same but work well on a light background */
+            .status-badge {{
+                display: inline-block;
+                padding: 0.25em 0.6em;
+                font-size: 85%;
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+                white-space: nowrap;
+                vertical-align: baseline;
+                border-radius: 0.25rem;
+                color: #fff;
+            }}
+            .status-stopped {{ background-color: #dc3545; }} /* Red */
+            .status-delay {{ background-color: #fd7e14; }} /* Orange */
+            .status-cancelled {{ background-color: #6c757d; }} /* Gray */
+            .status-suspended {{ background-color: #ffc107; color: #212529; }} /* Yellow */
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="text-center mb-4">
-                <h1 class="display-4">JR貨物 輸送状況</h1>
-                <p class="lead">サイト更新: {data["update_time"]}</p>
+        <div class="container py-4">
+
+            <div class="page-header text-center">
+                <h1>JR貨物 輸送状況</h1>
+                <p class="lead text-muted">サイト更新: {data["update_time"]}</p>
             </div>
-            <div class="card bg-secondary text-white shadow-sm mb-4">
+
+            <div class="card info-card">
+                <div class="card-header">{data["title"]}</div>
                 <div class="card-body">
-                    <h5 class="card-title">標題</h5>
-                    <p class="card-text">{data["title"]}</p>
-                </div>
-            </div>
-            <div class="card bg-secondary text-white shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">{data["overview_title"]}</h5>
                     <p class="card-text">{overview_text_formatted}</p>
                 </div>
             </div>
-            <h3 class="text-center mb-3">{data["status_title"]}</h3>
-            <div class="accordion" id="statusAccordion">{accordion_html}</div>
-            <p class="footer">
+            
+            <h3 class="mt-5 mb-3">{data["status_title"]}</h3>
+            <div class="accordion" id="statusAccordion">
+                {accordion_html}
+            </div>
+
+            <footer class="footer">
                 このページはGitHub Actionsにより自動生成されています。<br>
                 最終取得時刻 (JST): {current_time_str}
-            </p>
+            </footer>
+
         </div>
         <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
@@ -146,6 +217,7 @@ def create_html(data):
     </body>
     </html>
     """
+    # ★★★★★ 修正ここまで ★★★★★
     return html_template
 
 # (以下、update_github_file と if __name__ == "__main__": の部分は変更ありません)
