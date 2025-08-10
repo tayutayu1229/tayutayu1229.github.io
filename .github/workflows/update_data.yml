@@ -9,11 +9,12 @@ on:
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # pushするために必要
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # リポジトリへの書き込み権限を有効にする
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
@@ -33,13 +34,13 @@ jobs:
       - name: Check for changes
         id: git-status
         run: |
-          git diff --quiet JR Frieght Railway.json || echo "changes=true" >> $GITHUB_OUTPUT
+          git diff --quiet "JR Frieght Railway.json" || echo "changes=true" >> $GITHUB_OUTPUT
 
-          - name: Commit and push changes
-      if: steps.git-status.outputs.changes == 'true'
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: "chore: update JR Freight transportation data"
-        file_pattern: JR\ Frieght\ Railway.json
-        commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
-        # 必要なら、'token: ${{ secrets.GITHUB_TOKEN }}' を追加
+      - name: Commit and push changes
+        if: steps.git-status.outputs.changes == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update JR Freight transportation data"
+          file_pattern: "JR Frieght Railway.json"
+          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          token: ${{ secrets.GITHUB_TOKEN }}
