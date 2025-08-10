@@ -1,3 +1,66 @@
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime, timezone, timedelta
+import os
+import json
+import base64
+import re
+
+# --- 設定項目 ---
+USER_NAME = "tayutayu1229"
+REPO_NAME = "tayutayu1229.github.io"
+TARGET_FILE = "JRFtest/jr_freight_status.html"
+BRANCH_NAME = "main"
+# ----------------
+
+def highlight_keywords(line):
+    highlights = {
+        "停車中": "status-stopped", "遅れ": "status-delay",
+        "運休": "status-cancelled", "見合わせ": "status-suspended",
+    }
+    for keyword, css_class in highlights.items():
+        line = re.sub(rf'\b{keyword}\b', f'<span class="status-badge {css_class}">{keyword}</span>', line)
+    return line
+
+def fetch_and_parse_data():
+    url = "https://www.jrfreight.co.jp/i_daiya"
+    try:
+        response = requests.get(url)
+        response.encoding = 'utf-8'
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        update_time_elem = soup.find('div', id='pbBlock91534')
+        update_time = update_time_elem.text.strip() if update_time_elem else "不明"
+        
+        title_elem = soup.find('div', id='pbBlock91536')
+        title = title_elem.text.strip() if title_elem else "（標題なし）"
+
+        content_elem = soup.find('div', class_='base_daiya-content')
+        if not content_elem: return None
+
+        h2_tags = content_elem.find_all('h2')
+        p_tags = content_elem.find_all('p')
+        
+        overview_title = h2_tags[0].text.strip() if len(h2_tags) > 0 else "概要"
+        overview_text = p_tags[0].get_text('<br>', strip=True) if len(p_tags) > 0 else "情報なし"
+        
+        status_title = h2_tags[1].text.strip() if len(h2_tags) > 1 else "線区情報"
+
+        status_text = ""
+        if len(p_tags) > 1:
+            for br in p_tags[1].find_all("br"):
+                br.replace_with("\n")
+            status_text = p_tags[1].text.strip()
+        
+        return {
+            "update_time": update_time, "title": title, "overview_title": overview_title,
+            "overview_text": overview_text, "status_title": status_title, "status_text": status_text,
+        }
+    except Exception as e:
+        print(f"解析中に予期せぬエラーが発生しました: {e}")
+        return None
+
+
 def create_html(data):
     if not data: return ""
 
