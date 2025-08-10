@@ -247,15 +247,16 @@ def create_html(data):
             .status-content {{
                 overflow: hidden;
                 transition: max-height 0.3s ease;
-            }}
-            
-            .status-content.collapsed {{
                 max-height: 0;
             }}
             
             .status-content.expanded {{
                 max-height: 2000px;
                 border-top: 1px solid #f0f0f0;
+            }}
+            
+            .status-content.collapsed {{
+                max-height: 0;
             }}
             
             .status-details {{
@@ -468,27 +469,34 @@ def create_html(data):
             }}
             
             // 検索フィルター機能
-            document.getElementById('searchInput').addEventListener('input', function(e) {{
-                const searchTerm = e.target.value.toLowerCase();
-                const sections = document.querySelectorAll('.status-section');
-                const noResults = document.getElementById('noResults');
-                let visibleCount = 0;
-                
-                sections.forEach(function(section) {{
-                    const searchContent = section.getAttribute('data-search-content').toLowerCase();
-                    
-                    if (searchContent.includes(searchTerm)) {{
-                        section.classList.remove('hidden');
-                        visibleCount++;
-                    }} else {{
-                        section.classList.add('hidden');
-                    }}
-                }});
-                
-                if (visibleCount === 0 && searchTerm.length > 0) {{
-                    noResults.style.display = 'block';
-                }} else {{
-                    noResults.style.display = 'none';
+            document.addEventListener('DOMContentLoaded', function() {{
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {{
+                    searchInput.addEventListener('input', function(e) {{
+                        const searchTerm = e.target.value.toLowerCase();
+                        const sections = document.querySelectorAll('.status-section');
+                        const noResults = document.getElementById('noResults');
+                        let visibleCount = 0;
+                        
+                        sections.forEach(function(section) {{
+                            const searchContent = section.getAttribute('data-search-content').toLowerCase();
+                            
+                            if (searchContent.includes(searchTerm)) {{
+                                section.style.display = 'block';
+                                section.classList.remove('hidden');
+                                visibleCount++;
+                            }} else {{
+                                section.style.display = 'none';
+                                section.classList.add('hidden');
+                            }}
+                        }});
+                        
+                        if (visibleCount === 0 && searchTerm.length > 0) {{
+                            noResults.style.display = 'block';
+                        }} else {{
+                            noResults.style.display = 'none';
+                        }}
+                    }});
                 }}
             }});
         }}
