@@ -1,0 +1,49 @@
+# ワークフローの名前
+name: Build and DDDDeploy Knowledge Base
+
+# ワークフローが起動するきっかけ（トリガー）
+on:
+  push:
+    branches:
+      - main  # mainブランチにpushされた時
+    paths:
+      - 'knowledge/**'  # knowledgeフォルダ内で変更があった場合のみ起動する
+
+# 実行するジョブを定義
+jobs:
+  build-and-deploy:
+    # 実行環境を指定
+    runs-on: ubuntu-latest
+    
+    # ジョブ内のステップを定義
+    steps:
+      # 1. リポジトリのコードをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Pythonの環境をセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. 必要なPythonライブラリをインストール
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install markdown python-frontmatter
+
+      # 4. ビルドスクリプトを実行してdb.jsonを生成
+      - name: Build static site
+        # ▼▼▼ ここが修正点 ▼▼▼
+        working-directory: ./knowledge
+        run: python build.py
+
+      # 5. ビルドしたサイトをGitHub Pagesとして公開
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: .
+          force_orphan: true
