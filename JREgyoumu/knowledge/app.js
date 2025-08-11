@@ -1,38 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ======== ▼▼▼ あなたのリポジトリ情報に書き換えてください ▼▼▼ ========
-    const GITHUB_USER = 'tayutayu1229';
-    const GITHUB_REPO = 'tayutayu1229.github.io';
-    // ================================================================
-
-    const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/articles`;
-
+    // DOM要素を取得
     const articleListEl = document.getElementById('article-list');
     const articleContentEl = document.getElementById('article-content');
     const searchBoxEl = document.getElementById('search-box');
 
-    let allArticles = [];
+    let allArticles = []; // 全記事データを保持する配列
 
+    // データベース(db.json)を読み込むメイン関数
     async function main() {
         try {
-            const response = await fetch(API_URL);
+            // ▼▼▼ この一行が重要！ローカルのdb.jsonを読み込みます ▼▼▼
+            const response = await fetch('db.json'); 
             if (!response.ok) {
-                throw new Error('記事一覧の取得に失敗しました。リポジトリ情報を確認してください。');
+                throw new Error('データベースファイル(db.json)の読み込みに失敗しました。');
             }
-            const files = await response.json();
-            // .mdファイルのみをフィルタリング
-            allArticles = files.filter(file => file.name.endsWith('.md')).map(file => ({
-                title: file.name.replace('.md', '').replace(/^\d+-/, ''), // ファイル名からタイトルを生成
-                path: file.path,
-                download_url: file.download_url
-            }));
-            
+            allArticles = await response.json();
             renderArticleList(allArticles);
         } catch (error) {
             console.error(error);
-            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${error.message}</p></div>`;
+            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${error.message}</p><p>GitHub Actionsの実行が成功しているか確認してください。</p></div>`;
         }
     }
 
+    // 記事リストを画面に表示する関数
     function renderArticleList(articles) {
         if (articles.length === 0) {
             articleListEl.innerHTML = '<p style="padding: 20px;">記事が見つかりません。</p>';
@@ -42,6 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
         articles.forEach(article => {
             const li = document.createElement('li');
             li.textContent = article.title;
+            li.dataset.id = article.id;
+            
             li.addEventListener('click', () => {
                 const allListItems = articleListEl.querySelectorAll('li');
                 allListItems.forEach(item => item.classList.remove('selected'));
@@ -54,29 +46,26 @@ document.addEventListener('DOMContentLoaded', () => {
         articleListEl.appendChild(ul);
     }
 
-    async function renderArticleContent(article) {
-        try {
-            const response = await fetch(article.download_url);
-            const markdownText = await response.text();
-            // marked.js を使ってMarkdownをHTMLに変換
-            const contentHtml = marked.parse(markdownText); 
-            
-            articleContentEl.innerHTML = `
-                <h2>${article.title}</h2>
-                <div>${contentHtml}</div>
-            `;
-        } catch (error) {
-            articleContentEl.innerHTML = `<p style="color:red;">記事の読み込みに失敗しました。</p>`;
-        }
+    // 選択された記事の内容を画面に表示する関数
+    function renderArticleContent(article) {
+        articleContentEl.innerHTML = `
+            <h2>${article.title}</h2>
+            <p><small>公開日: ${article.date}</small></p>
+            <div>${article.content_html}</div>
+        `;
     }
-
+    
+    // 検索ボックスの入力イベント
     searchBoxEl.addEventListener('keyup', (e) => {
         const searchTerm = e.target.value.toLowerCase();
-        const filteredArticles = allArticles.filter(article =>
-            article.title.toLowerCase().includes(searchTerm)
+        
+        const filteredArticles = allArticles.filter(article => 
+            article.title.toLowerCase().includes(searchTerm) ||
+            article.content_md.toLowerCase().includes(searchTerm)
         );
         renderArticleList(filteredArticles);
     });
 
+    // 初期化
     main();
 });
