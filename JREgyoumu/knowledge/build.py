@@ -6,15 +6,12 @@ import frontmatter
 def build_database():
     """articlesフォルダからMarkdownを読み込み、db.jsonを生成する"""
     
-    # このスクリプト自身の場所を基準に、articlesフォルダのパスを正しく設定
-    # これにより、どこから実行されても正しく動作する
     script_dir = os.path.dirname(os.path.abspath(__file__))
     articles_dir = os.path.join(script_dir, 'articles')
     output_path = os.path.join(script_dir, 'db.json')
     
     articles_data = []
     
-    # 記事ファイルを名前順に処理
     if not os.path.exists(articles_dir):
         print(f"⚠️ 警告: '{articles_dir}' が見つかりません。空のdb.jsonを生成します。")
         article_files = []
@@ -26,25 +23,22 @@ def build_database():
             filepath = os.path.join(articles_dir, filename)
             
             with open(filepath, 'r', encoding='utf-8') as f:
-                # frontmatterをパースしてメタデータとコンテンツを取得
                 post = frontmatter.load(f)
-                
-                # Markdown本文をHTMLに変換
                 html_content = markdown.markdown(post.content)
                 
                 # 1つの記事データを辞書としてまとめる
                 article = {
                     'id': os.path.splitext(filename)[0],
                     'title': post.metadata.get('title', '無題'),
-                    'date': post.metadata.get('date', '日付なし'),
+                    # ▼▼▼ ここが修正点 ▼▼▼
+                    'date': str(post.metadata.get('date', '日付なし')),
                     'content_html': html_content,
-                    'content_md': post.content # 検索用に元のテキストも保持
+                    'content_md': post.content
                 }
                 articles_data.append(article)
 
     # `db.json`として書き出し
     with open(output_path, 'w', encoding='utf-8') as f:
-        # ensure_ascii=False で日本語が文字化けしないようにする
         json.dump(articles_data, f, indent=2, ensure_ascii=False)
 
     print(f"✅ `db.json`の生成が完了しました。{len(articles_data)}件の記事が書き込まれました。")
