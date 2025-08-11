@@ -9,16 +9,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // データベース(db.json)を読み込むメイン関数
     async function main() {
         try {
-            // ▼▼▼ この一行が重要！ローカルのdb.jsonを読み込みます ▼▼▼
             const response = await fetch('db.json'); 
+
+            // ▼▼▼ エラーハンドリング強化 ▼▼▼
             if (!response.ok) {
-                throw new Error('データベースファイル(db.json)の読み込みに失敗しました。');
+                // 404エラー（ファイルが見つからない）の場合
+                if (response.status === 404) {
+                    throw new Error(
+                        'データベースファイル(db.json)が見つかりません (404 Not Found)。<br>' +
+                        'GitHub Actionsのビルドが成功し、gh-pagesブランチにファイルが正しく配置されているか確認してください。'
+                    );
+                }
+                // その他のHTTPエラーの場合
+                throw new Error(`サーバーエラーが発生しました (ステータス: ${response.status})。`);
             }
+            // ▲▲▲ ここまで ▲▲▲
+
+            // JSONのパースを試みる (ここでSyntaxErrorが発生する可能性)
             allArticles = await response.json();
             renderArticleList(allArticles);
+
         } catch (error) {
-            console.error(error);
-            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${error.message}</p><p>GitHub Actionsの実行が成功しているか確認してください。</p></div>`;
+            // ▼▼▼ エラーハンドリング強化 ▼▼▼
+            console.error('エラーが発生しました:', error);
+            let userMessage = '';
+
+            // JSON形式が不正な場合
+            if (error instanceof SyntaxError) {
+                userMessage = 
+                    'データベースファイル(db.json)の形式が正しくありません。<br>' +
+                    'ファイルが破損しているか、ビルドが正常に完了しなかった可能性があります。';
+            // ネットワーク接続の問題などの場合
+            } else if (error instanceof TypeError) {
+                userMessage = 
+                    'ネットワークエラーが発生しました。<br>' + 
+                    'インターネット接続を確認してください。';
+            // 上記以外の、自分で定義したエラーメッセージなどの場合
+            } else {
+                userMessage = error.message;
+            }
+
+            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${userMessage}</p></div>`;
+            // ▲▲▲ ここまで ▲▲▲
         }
     }
 
