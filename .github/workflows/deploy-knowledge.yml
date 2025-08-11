@@ -1,15 +1,15 @@
 # ワークフローの名前
 name: Build and Deploy Knowledge Base
 
-# このワークフローが起動する「きっかけ」
+# ワークフローが起動する「きっかけ」
 on:
-  # mainブランチにpush(送信)された時
   push:
     branches:
       - main
-    # ただし、knowledgeフォルダの中のファイルに変更があった場合のみ
+    # ▼▼▼ 修正点1 ▼▼▼
+    # 監視するパスを新しいフォルダ構成に合わせる
     paths:
-      - 'knowledge/**'
+      - 'JREgyoumu/knowledge/**'
 
 # 実行する一連の作業(ジョブ)
 jobs:
@@ -35,9 +35,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install markdown python-frontmatter
 
-      # 4. knowledgeフォルダに移動して、ビルドを実行します
+      # 4. ビルドを実行します
       - name: Build static site
-        working-directory: ./knowledge
+        # ▼▼▼ 修正点2 ▼▼▼
+        # ビルドを実行する場所を新しいフォルダ構成に合わせる
+        working-directory: ./JREgyoumu/knowledge
         run: python build.py
 
       # 5. 完成したファイルを gh-pages ブランチにデプロイ(公開)します
@@ -46,5 +48,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
+          # ルートを公開対象にすることで、JREgyoumu/knowledgeの
+          # フォルダ構造が維持されるため、この設定は変更不要
           publish_dir: .
           force_orphan: true
