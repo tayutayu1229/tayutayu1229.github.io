@@ -34,6 +34,9 @@ def main():
             entry = parse_markdown(path)
             entries.append(entry)
 
+    # 🔧 出力先ディレクトリがなければ作成
+    os.makedirs(os.path.dirname(OUTPUT_JSON), exist_ok=True)
+
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
 
