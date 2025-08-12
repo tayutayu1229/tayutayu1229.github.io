@@ -1,128 +1,86 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const categoryList = document.getElementById("category-list");
-    const tagList = document.getElementById("tag-list");
-    const articleList = document.getElementById("article-list");
-    const reloadTitle = document.getElementById("reload-title");
-    const searchInput = document.getElementById("search-input");
-    const sortSelect = document.getElementById("sort-select");
-    const resultCount = document.getElementById("result-count");
+// ====== データ読み込み ======
+fetch("data.json")
+  .then(res => res.json())
+  .then(data => {
+    window.knowledgeData = data;
+    initCategories();
+    displayArticles(data);
+  })
+  .catch(err => {
+    console.error("データ読み込みエラー:", err);
+  });
 
-    let allData = [];
-    let filteredData = [];
-    let selectedCategory = null;
-    let selectedTag = null;
+// ====== カテゴリ生成 ======
+function initCategories() {
+  const categoryList = document.getElementById("category-list");
+  categoryList.innerHTML = ""; // 初期化
 
-    reloadTitle.addEventListener("click", (e) => {
-        e.preventDefault();
-        location.reload();
+  // 重複を排除してカテゴリ一覧生成
+  const categories = [...new Set(window.knowledgeData.map(a => a.category))];
+
+  categories.forEach(cat => {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = "#";
+    a.className = "cat-link";
+    a.textContent = cat;
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      // 選択状態の更新
+      document.querySelectorAll(".cat-link").forEach(link => link.classList.remove("active"));
+      a.classList.add("active");
+      filterByCategory(cat);
+    });
+    li.appendChild(a);
+    categoryList.appendChild(li);
+  });
+}
+
+// ====== 記事一覧表示（タイトルのみ → クリックで詳細） ======
+function displayArticles(articles) {
+  const list = document.getElementById("article-list");
+  list.innerHTML = "";
+  document.getElementById("result-count").textContent = `${articles.length} 件のナレッジがあります`;
+
+  articles.forEach(article => {
+    // タイトル部分
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "article-summary";
+    summaryDiv.innerHTML = `<h2>${article.title}</h2>`;
+
+    // 詳細部分（初期は非表示）
+    const detailsDiv = document.createElement("div");
+    detailsDiv.className = "article-details";
+    detailsDiv.style.display = "none";
+    detailsDiv.innerHTML = `
+      <p>${article.content}</p>
+      <div class="meta">カテゴリ: ${article.category} / 更新日: ${article.updated}</div>
+    `;
+
+    // タイトルクリックで詳細表示/非表示
+    summaryDiv.addEventListener("click", () => {
+      const isVisible = detailsDiv.style.display === "block";
+      document.querySelectorAll(".article-details").forEach(el => el.style.display = "none"); // 他を閉じる
+      detailsDiv.style.display = isVisible ? "none" : "block";
     });
 
-    fetch("data.json")
-        .then(res => res.json())
-        .then(data => {
-            allData = data;
-            filteredData = [...allData];
+    list.appendChild(summaryDiv);
+    list.appendChild(detailsDiv);
+  });
+}
 
-            const categories = [...new Set(data.map(item => item.category))];
-            categories.forEach(cat => {
-                const li = document.createElement("li");
-                const a = document.createElement("a");
-                a.href = "#";
-                a.textContent = cat;
-                a.addEventListener("click", (e) => {
-                    e.preventDefault();
-                    selectedCategory = cat;
-                    selectedTag = null;
-                    updateView();
-                });
-                li.appendChild(a);
-                categoryList.appendChild(li);
-            });
+// ====== カテゴリフィルタ ======
+function filterByCategory(cat) {
+  const filtered = window.knowledgeData.filter(a => a.category === cat);
+  displayArticles(filtered);
+}
 
-            const tags = [...new Set(data.flatMap(item => item.tags))];
-            tags.forEach(tag => {
-                const li = document.createElement("li");
-                const a = document.createElement("a");
-                a.href = "#";
-                a.textContent = tag;
-                a.addEventListener("click", (e) => {
-                    e.preventDefault();
-                    selectedTag = tag;
-                    selectedCategory = null;
-                    updateView();
-                });
-                li.appendChild(a);
-                tagList.appendChild(li);
-            });
-
-            updateView();
-        });
-
-    searchInput.addEventListener("input", () => updateView());
-    sortSelect.addEventListener("change", () => updateView());
-
-    function updateView() {
-        let data = [...allData];
-
-        if (selectedCategory) {
-            data = data.filter(item => item.category === selectedCategory);
-        }
-
-        if (selectedTag) {
-            data = data.filter(item => item.tags.includes(selectedTag));
-        }
-
-        const keyword = searchInput.value.trim().toLowerCase();
-        if (keyword) {
-            data = data.filter(item =>
-                item.title.toLowerCase().includes(keyword) ||
-                item.content.toLowerCase().includes(keyword) ||
-                item.tags.some(tag => tag.toLowerCase().includes(keyword))
-            );
-        }
-
-        data.sort((a, b) => {
-            if (sortSelect.value === "desc") {
-                return new Date(b.last_update) - new Date(a.last_update);
-            } else {
-                return new Date(a.last_update) - new Date(b.last_update);
-            }
-        });
-
-        filteredData = data;
-        showArticles(filteredData);
-    }
-
-    function showArticles(articles) {
-        articleList.innerHTML = "";
-        resultCount.textContent = `表示件数: ${articles.length}件`;
-
-        if (articles.length === 0) {
-            articleList.innerHTML = "<p>該当する記事がありません。</p>";
-            return;
-        }
-
-        articles.forEach((article, index) => {
-            const summaryDiv = document.createElement("div");
-            summaryDiv.classList.add("article-summary");
-            summaryDiv.innerHTML = `
-                <h2>${article.title}</h2>
-                <p>${article.content.substring(0, 100)}...</p>
-            `;
-
-            const detailDiv = document.createElement("div");
-            detailDiv.classList.add("article-details");
-            detailDiv.innerHTML = `
-                <p>${article.content}</p>
-                <small>カテゴリ: ${article.category} / タグ: ${article.tags.join(", ")} / 更新日: ${article.last_update}</small>
-            `;
-
-            summaryDiv.addEventListener("click", () => {
-                detailDiv.style.display = (detailDiv.style.display === "block") ? "none" : "block";
-            });
-
-            articleList.appendChild(summaryDiv);
-            articleList.appendChild(detailDiv);
-        });
-    }
+// ====== 検索機能（サイドバー） ======
+document.getElementById("search-box").addEventListener("input", e => {
+  const keyword = e.target.value.toLowerCase();
+  const filtered = window.knowledgeData.filter(a =>
+    a.title.toLowerCase().includes(keyword) ||
+    a.content.toLowerCase().includes(keyword)
+  );
+  displayArticles(filtered);
 });
