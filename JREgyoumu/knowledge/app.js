@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBoxEl = document.getElementById('search-box');
 
     // ▼▼▼ この部分でパスを明示的に定義します ▼▼▼
-    const dbUrl = '/db.json';
+    const dbUrl = 'JREgyoumu/knowledge/db.json';
     // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     let allArticles = []; 
