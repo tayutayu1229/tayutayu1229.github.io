@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
       card.innerHTML = `
         <h3>${item.title}</h3>
         <p><strong>${item.desc}</strong></p>
-        <p>${item.content}</p>
+        <div>${marked.parse(item.content)}</div>
       `;
       container.appendChild(card);
     });
