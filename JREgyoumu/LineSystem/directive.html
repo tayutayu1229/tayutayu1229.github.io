@@ -40,6 +40,11 @@
     .train-marker.delayed { background:#ef4444; }
     /* card */
     .card { background:#fff; border-radius:8px; box-shadow: 0 6px 18px rgba(14, 30, 37, 0.06); }
+
+    /* Ensure Leaflet popups appear above the map elements */
+    .leaflet-popup-pane { z-index: 10000 !important; }
+    .leaflet-popup { z-index: 10001 !important; }
+    .leaflet-tooltip { z-index: 10002 !important; }
   </style>
 </head>
 <body class="antialiased">
@@ -121,18 +126,7 @@
   </main>
 </div>
 
-<!-- モーダル（列車詳細） -->
-<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
-  <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
-      <h3 class="text-2xl font-bold">列車詳細情報</h3>
-      <button id="close-modal" class="text-gray-600 text-3xl">&times;</button>
-    </div>
-    <div id="modal-content" class="text-gray-700"></div>
-  </div>
-</div>
-
-<!-- Firebase + App logic -->
+<!-- Firebase + App logic (元の機能を保持) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
@@ -163,14 +157,10 @@
   const summaryTotalEl = document.getElementById('summary-total');
   const summaryDelayedEl = document.getElementById('summary-delayed');
   const lastUpdatedHeader = document.getElementById('last-updated-time-header');
-  const modal = document.getElementById('modal');
-  const closeModalBtn = document.getElementById('close-modal');
-  const modalContentEl = document.getElementById('modal-content');
 
   const updateButton = document.getElementById('update-button');
   const messageInput = document.getElementById('message-input');
   const statusDisplay = document.getElementById('status-display');
-  const lastUpdatedTime = document.getElementById('last-updated-time');
 
   // ODPT
   const API_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
@@ -254,57 +244,61 @@
     } catch (e) { console.error('fetchTimetableData:', e); }
   }
 
-  /* ---------- train information / alerts ---------- */
-  async function fetchTrainInformation() {
+  /* ---------- train information / alerts + summary ---------- */
+  // This updates the left sidebar summary and alert list.
+  async function updateSummaryAndAlerts() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
-      if (!res.ok) throw new Error('Failed to fetch train information');
-      const data = await res.json();
+      // 1) 総路線数: 列車リアルタイム情報からのユニーク路線数
+      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      const trainsData = trainsRes.ok ? await trainsRes.json() : [];
+      const routeSet = new Set(trainsData.map(t => t['odpt:railway']).filter(Boolean));
+      const totalRoutes = routeSet.size;
 
-      // Filter out '平常運転' and 'お知らせ'
-      const filtered = data.filter(info => {
+      // 2) 遅延路線数 & 通知: TrainInformation から平常運転以外を抽出
+      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      const infos = infoRes.ok ? await infoRes.json() : [];
+      const filtered = infos.filter(info => {
         const status = info['odpt:trainInformationStatus']?.ja;
         return status && status !== '平常運転' && status !== 'お知らせ';
       });
+      const delayedRoutes = filtered.length;
 
+      // Update summary panel safely (check DOM)
+      const totalEl = document.querySelector('#summary-total div:last-child');
+      const delayedEl = document.querySelector('#summary-delayed div:last-child');
+      if (totalEl) totalEl.textContent = `${totalRoutes}`;
+      if (delayedEl) delayedEl.textContent = `${delayedRoutes} / ${totalRoutes}`;
+
+      // Update alert area: show only filtered (平常運転以外)
       if (filtered.length > 0) {
         alertAreaEl.innerHTML = '';
         filtered.forEach(info => {
-          const p = document.createElement('p');
           const railwayName = allRailways.find(r => r['owl:sameAs'] === info['odpt:railway'])?.['odpt:railwayTitle']?.['ja'] || shortName(info['odpt:railway']);
           const status = info['odpt:trainInformationStatus']?.ja || '';
           const text = info['odpt:trainInformationText']?.ja || '';
+          const p = document.createElement('p');
           p.textContent = `${railwayName}: ${status} — ${text}`;
           alertAreaEl.appendChild(p);
         });
       } else {
         alertAreaEl.innerHTML = '<p id="alert-message">現在運行情報に関する通知はありません。</p>';
       }
+
     } catch (e) {
-      console.error('fetchTrainInformation:', e);
+      console.error('updateSummaryAndAlerts:', e);
       alertAreaEl.innerHTML = `<p class="text-red-500">運行情報の取得に失敗しました。</p>`;
     }
   }
 
-  /* ---------- realtime trains + map rendering ---------- */
+  /* ---------- realtime trains + map rendering (popup-based) ---------- */
   async function updateDashboard() {
     try {
       const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
       if (!res.ok) throw new Error('Failed to fetch train data');
       const trains = await res.json();
 
-      // Update summaries (always global, no route selection)
-      const activeRailways = new Set(trains.map(t => t['odpt:railway']));
-      const totalRailways = activeRailways.size;
-      const delayedRailways = new Set(trains.filter(t => t['odpt:delay'] > 0).map(t => t['odpt:railway'])).size;
-
-      summaryTotalEl.querySelector('div:last-child')?.textContent !== undefined ?
-        summaryTotalEl.querySelector('div:last-child').textContent = `${totalRailways}` :
-        (summaryTotalEl.querySelector('div:nth-child(1)') && (summaryTotalEl.querySelector('div:nth-child(1)').innerText = `${totalRailways}`));
-
-      // Set delayed text (safe)
-      const delayedEl = summaryDelayedEl.querySelector('div:last-child') || summaryDelayedEl.querySelector('div:nth-child(2)');
-      if (delayedEl) delayedEl.textContent = `${delayedRailways} / ${totalRailways}`;
+      // Update summaries also by counting active railways here for quick responsiveness (optional)
+      // but the authoritative summary is from updateSummaryAndAlerts which we call regularly.
 
       // clear markers
       trainMarkers.forEach(m => map.removeLayer(m));
@@ -315,76 +309,79 @@
         const toSn = shortName(train['odpt:toStation']);
         const from = allStations[fromSn];
         const to = allStations[toSn];
+
         const delayMin = Math.floor(Number(train['odpt:delay'] || 0) / 60);
-        const trainNumber = shortName(train['odpt:trainNumber']);
+        const tn = shortName(train['odpt:trainNumber']);
+        const cars = train['odpt:carComposition'] || '不明';
+        const destTitle = (train['odpt:destinationStation'] && train['odpt:destinationStation'][0])
+          ? allStations[shortName(train['odpt:destinationStation'][0])]?.title
+          : '不明';
+        const status = delayMin > 0 ? `${delayMin}分遅延` : '定刻';
+        const rail = allRailways.find(r => r['owl:sameAs'] === train['odpt:railway']);
+        const railName = rail?.['odpt:railwayTitle']?.['ja'] || shortName(train['odpt:railway']);
 
+        // Determine marker position & section text
+        let lat, lng, sectionText;
         if (from?.geo && to?.geo) {
-          const lat = (from.geo.lat + to.geo.lat) / 2;
-          const lng = (from.geo.long + to.geo.long) / 2;
-
-          const iconHtml = `<div style="text-align:center"><i class="fas fa-train" style="font-size:12px"></i><div style="font-size:9px">${trainNumber}</div></div>`;
-          const markerIcon = L.divIcon({
-            className: `train-marker ${delayMin>0 ? 'delayed':''}`,
-            html: iconHtml,
-            iconSize: [40,40],
-            iconAnchor: [20,20]
-          });
-
-          const marker = L.marker([lat,lng], { icon: markerIcon }).addTo(map);
-          marker.bindPopup(createPopupContent(train, from, to, delayMin));
-          marker.on('click', () => showTrainDetails(train));
-          trainMarkers.push(marker);
+          // moving between stations — place at midpoint
+          lat = (from.geo.lat + to.geo.lat) / 2;
+          lng = (from.geo.long + to.geo.long) / 2;
+          sectionText = `${from.title} 〜 ${to.title}`;
+        } else if (from?.geo) {
+          // station stop — place at station coords and mark as 停車中
+          lat = from.geo.lat;
+          lng = from.geo.long;
+          sectionText = `${from.title} 停車中`;
+        } else if (to?.geo) {
+          // rare case: only toStation present (approaching) — place at that station
+          lat = to.geo.lat;
+          lng = to.geo.long;
+          sectionText = `${to.title} 停車中`;
+        } else {
+          // no usable geo info — skip
+          return;
         }
+
+        // Popup HTML in requested compact format:
+        // 路線名
+        // 列車番号　行先 行 両数
+        // 区間 or 停車中
+        // 定刻/遅延
+        const popupHtml = `
+          <div style="font-size:14px; line-height:1.4; text-align:left; color:#111;">
+            <strong>${railName}</strong><br>
+            ${tn}　${destTitle} 行 ${cars}両<br>
+            ${sectionText}<br>
+            <span style="font-weight:700; color:${delayMin>0? '#b91c1c':'#15803d'}">${status}</span>
+          </div>
+        `;
+
+        // Create marker icon (small train with number)
+        const iconHtml = `<div style="text-align:center"><i class="fas fa-train" style="font-size:12px"></i><div style="font-size:9px">${tn}</div></div>`;
+        const markerIcon = L.divIcon({
+          className: `train-marker ${delayMin>0 ? 'delayed':''}`,
+          html: iconHtml,
+          iconSize: [40,40],
+          iconAnchor: [20,20]
+        });
+
+        const marker = L.marker([lat,lng], { icon: markerIcon }).addTo(map);
+        // Bind popup and open on click (default Leaflet behavior)
+        marker.bindPopup(popupHtml, { offset: [0, -10], autoClose: true, closeOnClick: true });
+        trainMarkers.push(marker);
       });
 
       // update last updated time
       const now = new Date();
       const timeStr = now.toLocaleTimeString();
       lastUpdatedHeader.textContent = timeStr;
-      lastUpdatedTime.textContent = timeStr;
+      const lastUpdatedTimeSmall = document.getElementById('last-updated-time');
+      if (lastUpdatedTimeSmall) lastUpdatedTimeSmall.textContent = timeStr;
 
     } catch (e) {
       console.error('updateDashboard:', e);
       alertAreaEl.innerHTML = `<p class="text-red-500">データの取得に失敗しました: ${e.message}</p>`;
     }
-  }
-
-  function createPopupContent(train, from, to, delayMin) {
-    const rail = allRailways.find(r => r['owl:sameAs'] === train['odpt:railway']);
-    const railName = rail?.['odpt:railwayTitle']?.['ja'] || shortName(train['odpt:railway']);
-    const dest = (train['odpt:destinationStation'] && train['odpt:destinationStation'][0]) ? allStations[shortName(train['odpt:destinationStation'][0])]?.title : '不明';
-    return `
-      <div style="text-align:center;font-size:14px;color:#111">
-        <strong style="display:block;margin-bottom:6px">${railName}</strong>
-        <div>列車番号: ${shortName(train['odpt:trainNumber'])}</div>
-        <div>行先: ${dest} 行</div>
-        <div style="margin-top:6px;font-weight:700;color:${delayMin>0? '#b91c1c':'#15803d'}">${delayMin>0? `${delayMin}分遅延`:'定刻'}</div>
-      </div>
-    `;
-  }
-
-  function showTrainDetails(train) {
-    const tn = shortName(train['odpt:trainNumber']);
-    const rail = allRailways.find(r => r['owl:sameAs'] === train['odpt:railway']);
-    const railName = rail?.['odpt:railwayTitle']?.['ja'] || shortName(train['odpt:railway']);
-    const destTitle = (train['odpt:destinationStation'] && train['odpt:destinationStation'][0]) ? allStations[shortName(train['odpt:destinationStation'][0])]?.title : '不明';
-    const fromTitle = allStations[shortName(train['odpt:fromStation'])]?.title || '不明';
-    const toTitle = allStations[shortName(train['odpt:toStation'])]?.title || '不明';
-    const delayMin = Math.floor(Number(train['odpt:delay'] || 0) / 60);
-    const status = delayMin>0 ? '遅延' : '正常';
-
-    modalContentEl.innerHTML = `
-      <div class="space-y-3">
-        <p><strong>路線名:</strong> ${railName}</p>
-        <p><strong>列車番号:</strong> ${tn}</p>
-        <p><strong>行先:</strong> ${destTitle} 行</p>
-        <p><strong>遅延度合い:</strong> <span style="color:${delayMin>0? '#b91c1c':'#15803d'}; font-weight:700">${delayMin}分</span></p>
-        <p><strong>運行状況:</strong> <span style="font-weight:700">${status}</span></p>
-        <p><strong>現在位置:</strong> ${fromTitle} - ${toTitle} 間</p>
-      </div>
-    `;
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
   }
 
   /* ---------- Firestore: station display message (operation panel functionality kept but UI hidden) ---------- */
@@ -418,8 +415,6 @@
   });
 
   mapStyleSelect.addEventListener('change', (e) => setMapStyle(e.target.value));
-  closeModalBtn.addEventListener('click', () => { modal.classList.add('hidden'); modal.classList.remove('flex'); });
-  modal.addEventListener('click', (ev) => { if (ev.target === modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } });
   if (updateButton) updateButton.addEventListener('click', updateStationDisplayMessage);
 
   /* ---------- init ---------- */
@@ -438,12 +433,12 @@
     await Promise.all([fetchStationData(), fetchRailwayData(), fetchTimetableData()]);
 
     // initial draw
+    await updateSummaryAndAlerts();
     await updateDashboard();
-    await fetchTrainInformation();
     startMessageWatch();
 
     // periodic
-    setInterval(() => { updateDashboard(); fetchTrainInformation(); }, 15000);
+    setInterval(() => { updateDashboard(); updateSummaryAndAlerts(); }, 15000);
   }
 
   // mobile: ensure map size correct after initial layout
