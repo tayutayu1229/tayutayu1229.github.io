@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - main
-    # ▼▼▼ 修正点1 ▼▼▼
-    # 監視するパスを新しいフォルダ構成に合わせる
     paths:
       - 'JREgyoumu/knowledge/**'
 
@@ -37,12 +35,15 @@ jobs:
 
       # 4. ビルドを実行します
       - name: Build static site
-        # ▼▼▼ 修正点2 ▼▼▼
-        # ビルドを実行する場所を新しいフォルダ構成に合わせる
         working-directory: ./JREgyoumu/knowledge
         run: python build.py
 
-      # 5. 完成したファイルを gh-pages ブランチにデプロイ(公開)します
+      # ▼▼▼ ここに新しいステップを追加 ▼▼▼
+      # 5. Jekyllを無効化するファイルを作成
+      - name: Disable Jekyll
+        run: touch ./JREgyoumu/knowledge/.nojekyll
+
+      # 6. 完成したファイルを gh-pages ブランチにデプロイ(公開)します
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
