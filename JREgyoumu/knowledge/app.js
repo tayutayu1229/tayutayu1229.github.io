@@ -4,57 +4,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const articleContentEl = document.getElementById('article-content');
     const searchBoxEl = document.getElementById('search-box');
 
-    let allArticles = []; // 全記事データを保持する配列
+    // ▼▼▼ この部分でパスを明示的に定義します ▼▼▼
+    const basePath = '/JREgyoumu/knowledge';
+    const dbUrl = `${basePath}/db.json`;
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+    let allArticles = []; 
 
     // データベース(db.json)を読み込むメイン関数
     async function main() {
-        try {
-            const response = await fetch('db.json'); 
+        // デバッグ用に、どのURLを読もうとしているかコンソールに表示します
+        console.log(`これからこのURLからdb.jsonを読み込みます: ${dbUrl}`);
 
-            // ▼▼▼ エラーハンドリング強化 ▼▼▼
+        try {
+            const response = await fetch(dbUrl); 
+
             if (!response.ok) {
-                // 404エラー（ファイルが見つからない）の場合
                 if (response.status === 404) {
                     throw new Error(
-                        'データベースファイル(db.json)が見つかりません (404 Not Found)。<br>' +
-                        'GitHub Actionsのビルドが成功し、gh-pagesブランチにファイルが正しく配置されているか確認してください。'
+                        `データベースファイルが見つかりません(404 Not Found)。<br>URL: ${dbUrl}<br>` +
+                        'パスが正しいか、gh-pagesブランチにファイルが存在するか確認してください。'
                     );
                 }
-                // その他のHTTPエラーの場合
-                throw new Error(`サーバーエラーが発生しました (ステータス: ${response.status})。`);
+                throw new Error(`サーバーエラー (ステータス: ${response.status})。`);
             }
-            // ▲▲▲ ここまで ▲▲▲
 
-            // JSONのパースを試みる (ここでSyntaxErrorが発生する可能性)
             allArticles = await response.json();
             renderArticleList(allArticles);
 
         } catch (error) {
-            // ▼▼▼ エラーハンドリング強化 ▼▼▼
             console.error('エラーが発生しました:', error);
-            let userMessage = '';
-
-            // JSON形式が不正な場合
-            if (error instanceof SyntaxError) {
-                userMessage = 
-                    'データベースファイル(db.json)の形式が正しくありません。<br>' +
-                    'ファイルが破損しているか、ビルドが正常に完了しなかった可能性があります。';
-            // ネットワーク接続の問題などの場合
-            } else if (error instanceof TypeError) {
-                userMessage = 
-                    'ネットワークエラーが発生しました。<br>' + 
-                    'インターネット接続を確認してください。';
-            // 上記以外の、自分で定義したエラーメッセージなどの場合
-            } else {
-                userMessage = error.message;
-            }
-
-            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${userMessage}</p></div>`;
-            // ▲▲▲ ここまで ▲▲▲
+            articleContentEl.innerHTML = `<div class="placeholder"><h2>エラー</h2><p>${error.message}</p></div>`;
         }
     }
 
-    // 記事リストを画面に表示する関数
+    // (これ以降の関数は変更ありません)
     function renderArticleList(articles) {
         if (articles.length === 0) {
             articleListEl.innerHTML = '<p style="padding: 20px;">記事が見つかりません。</p>';
@@ -78,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
         articleListEl.appendChild(ul);
     }
 
-    // 選択された記事の内容を画面に表示する関数
     function renderArticleContent(article) {
         articleContentEl.innerHTML = `
             <h2>${article.title}</h2>
@@ -87,10 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
     
-    // 検索ボックスの入力イベント
     searchBoxEl.addEventListener('keyup', (e) => {
         const searchTerm = e.target.value.toLowerCase();
-        
         const filteredArticles = allArticles.filter(article => 
             article.title.toLowerCase().includes(searchTerm) ||
             article.content_md.toLowerCase().includes(searchTerm)
@@ -98,6 +79,5 @@ document.addEventListener('DOMContentLoaded', () => {
         renderArticleList(filteredArticles);
     });
 
-    // 初期化
     main();
 });
