@@ -1,15 +1,15 @@
-# ワークフローの名前
-name: Build and Deploy Knowledge Base
+name: Build and Commit DB
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'JREgyoumu/knowledge/**'
+      # このフォルダ内で記事が変更された時のみ起動する
+      - 'JREgyoumu/knowledge/articles/**'
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -21,22 +21,17 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install markdown python-frontmatter
+        run: pip install markdown python-frontmatter
 
-      - name: Build static site
+      - name: Build db.json
+        # 正しい場所でビルドを実行
         working-directory: ./JREgyoumu/knowledge
         run: python build.py
 
-      - name: Disable Jekyll
-        run: touch ./JREgyoumu/knowledge/.nojekyll
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Commit db.json
+        # ビルドされて変更があったdb.jsonだけを自動コミットする
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          # ▼▼▼ この一行が最重要です！▼▼▼
-          publish_dir: ./JREgyoumu/knowledge
-          force_orphan: true
+          commit_message: "Automated build: Update db.json"
+          # コミット対象のファイルを正確に指定
+          file_pattern: JREgyoumu/knowledge/db.json
