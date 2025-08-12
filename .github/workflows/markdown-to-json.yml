@@ -1,0 +1,36 @@
+name: 📚 Convert Markdown to Knowledge JSON
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ✅ リポジトリをチェックアウト
+        uses: actions/checkout@v3
+
+      - name: 🐍 Pythonをセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 必要なパッケージをインストール（任意）
+        run: |
+          pip install -r requirements.txt || true
+
+      - name: 🔄 Markdown → JSON 変換スクリプトを実行
+        run: |
+          python scripts/generate_json.py
+
+      - name: 🚀 変更をコミットしてプッシュ
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add JREgyoumu/KnowL/data/knowledge.json
+          git commit -m "Update knowledge.json via GitHub Actions" || echo "No changes to commit"
+          git push
