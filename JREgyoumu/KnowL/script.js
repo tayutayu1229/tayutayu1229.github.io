@@ -12,20 +12,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedCategory = null;
     let selectedTag = null;
 
-    // タイトルクリックで更新
     reloadTitle.addEventListener("click", (e) => {
         e.preventDefault();
         location.reload();
     });
 
-    // JSON読み込み
     fetch("data.json")
         .then(res => res.json())
         .then(data => {
             allData = data;
             filteredData = [...allData];
 
-            // カテゴリ一覧生成
             const categories = [...new Set(data.map(item => item.category))];
             categories.forEach(cat => {
                 const li = document.createElement("li");
@@ -42,7 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 categoryList.appendChild(li);
             });
 
-            // タグ一覧生成
             const tags = [...new Set(data.flatMap(item => item.tags))];
             tags.forEach(tag => {
                 const li = document.createElement("li");
@@ -62,24 +58,20 @@ document.addEventListener("DOMContentLoaded", () => {
             updateView();
         });
 
-    // 検索イベント
     searchInput.addEventListener("input", () => updateView());
     sortSelect.addEventListener("change", () => updateView());
 
     function updateView() {
         let data = [...allData];
 
-        // カテゴリフィルタ
         if (selectedCategory) {
             data = data.filter(item => item.category === selectedCategory);
         }
 
-        // タグフィルタ
         if (selectedTag) {
             data = data.filter(item => item.tags.includes(selectedTag));
         }
 
-        // 検索
         const keyword = searchInput.value.trim().toLowerCase();
         if (keyword) {
             data = data.filter(item =>
@@ -89,7 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
             );
         }
 
-        // 並び替え
         data.sort((a, b) => {
             if (sortSelect.value === "desc") {
                 return new Date(b.last_update) - new Date(a.last_update);
@@ -111,14 +102,27 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        articles.forEach(article => {
-            const section = document.createElement("article");
-            section.innerHTML = `
+        articles.forEach((article, index) => {
+            const summaryDiv = document.createElement("div");
+            summaryDiv.classList.add("article-summary");
+            summaryDiv.innerHTML = `
                 <h2>${article.title}</h2>
+                <p>${article.content.substring(0, 100)}...</p>
+            `;
+
+            const detailDiv = document.createElement("div");
+            detailDiv.classList.add("article-details");
+            detailDiv.innerHTML = `
                 <p>${article.content}</p>
                 <small>カテゴリ: ${article.category} / タグ: ${article.tags.join(", ")} / 更新日: ${article.last_update}</small>
             `;
-            articleList.appendChild(section);
+
+            summaryDiv.addEventListener("click", () => {
+                detailDiv.style.display = (detailDiv.style.display === "block") ? "none" : "block";
+            });
+
+            articleList.appendChild(summaryDiv);
+            articleList.appendChild(detailDiv);
         });
     }
 });
