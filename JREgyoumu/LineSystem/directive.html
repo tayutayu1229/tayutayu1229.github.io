@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車旅客案内システム - 指令端末</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Firebase SDKの読み込み -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // グローバル変数としてFirebase関連のオブジェクトを定義
+        window.firebase = {};
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        window.firebase.app = initializeApp(firebaseConfig);
+        window.firebase.auth = getAuth(window.firebase.app);
+        window.firebase.db = getFirestore(window.firebase.app);
+        window.firebase.signInWithCustomToken = signInWithCustomToken;
+        window.firebase.signInAnonymously = signInAnonymously;
+        window.firebase.onAuthStateChanged = onAuthStateChanged;
+        window.firebase.doc = doc;
+        window.firebase.setDoc = setDoc;
+        window.firebase.onSnapshot = onSnapshot;
+
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        #map { height: 500px; z-index: 1; }
+        .train-marker {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            border-radius: 50%;
+            background-color: #3b82f6;
+            cursor: pointer;
+            padding: 2px;
+        }
+        .train-marker.delayed { background-color: #ef4444; }
+        .train-marker .train-icon {
+            font-size: 12px;
+        }
+        .train-marker .train-number {
+            font-size: 8px;
+            line-height: 1;
+        }
+        .train-marker.popup-content {
+            font-size: 14px;
+            text-align: center;
+            color: #333;
+        }
+        .train-marker.popup-content strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        .tooltip {
+            background-color: #333;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            display: none;
+            position: absolute;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- メインコンテナ -->
+    <div class="flex h-screen overflow-hidden">
+        <!-- サイドバー（操作パネル） -->
+        <div class="w-1/4 bg-gray-900 text-white p-6 flex flex-col justify-between overflow-y-auto">
+            <div>
+                <h1 class="text-3xl font-extrabold mb-8 flex items-center gap-3">
+                    <i class="fas fa-desktop text-blue-400"></i>
+                    列車旅客案内システム
+                </h1>
+
+                <!-- 運行状況サマリー -->
+                <div class="mb-8">
+                    <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">運行状況サマリー</h2>
+                    <div class="mb-4">
+                        <label for="railway-summary-select" class="block text-sm font-medium text-gray-400 mb-1">路線選択</label>
+                        <select id="railway-summary-select" class="w-full bg-gray-800 text-gray-200 border border-gray-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div id="summary-panel" class="space-y-3">
+                        <div id="summary-total" class="flex justify-between items-center bg-gray-800 p-3 rounded-lg">
+                            <span class="text-gray-400"></span>
+                            <span class="text-2xl font-bold"></span>
+                        </div>
+                        <div id="summary-delayed" class="flex justify-between items-center bg-gray-800 p-3 rounded-lg">
+                            <span class="text-gray-400"></span>
+                            <span class="text-2xl font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 地図選択パネル -->
+                <div class="mb-8">
+                    <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">地図の種類</h2>
+                    <select id="map-style-select" class="w-full bg-gray-800 text-gray-200 border border-gray-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="osm">OpenStreetMap</option>
+                        <option value="gsi_std">国土地理院（標準地図）</option>
+                        <option value="gsi_light">国土地理院（淡色地図）</option>
+                        <option value="esri_topo">ESRI World Topo Map</option>
+                    </select>
+                </div>
+
+                <!-- アラート通知エリア -->
+                <div class="mb-8">
+                    <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">アラート通知エリア</h2>
+                    <div id="alert-area" class="bg-yellow-800 text-yellow-100 p-4 rounded-lg min-h-[5rem]">
+                        <p id="alert-message">現在、緊急のお知らせはありません。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作パネル -->
+            <div>
+                <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">操作パネル</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="message-input" class="block text-sm font-medium text-gray-400 mb-1">駅連絡テキスト編集</label>
+                        <textarea id="message-input" rows="3" class="w-full bg-gray-800 text-gray-200 border border-gray-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-2">宛先選択</label>
+                        <div class="flex items-center space-x-4 mb-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="destination-type" value="all" class="form-radio" checked>
+                                <span class="ml-2 text-gray-200">全駅連絡</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="destination-type" value="specific" class="form-radio">
+                                <span class="ml-2 text-gray-200">駅指定で連絡</span>
+                            </label>
+                        </div>
+                        <div id="station-selector" class="space-y-2 hidden">
+                            <select id="railway-send-select" class="w-full bg-gray-800 text-gray-200 border border-gray-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                            <select id="station-send-select" class="w-full bg-gray-800 text-gray-200 border border-gray-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled></select>
+                        </div>
+                    </div>
+
+                    <button id="update-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors duration-200">
+                        <i class="fas fa-paper-plane mr-2"></i>送信
+                    </button>
+                    <div id="status-display" class="text-center text-sm text-gray-400 mt-2">
+                        最終更新: <span id="last-updated-time">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- メインコンテンツ -->
+        <div class="flex-grow flex flex-col">
+            <!-- メインヘッダー -->
+            <div class="bg-gray-200 p-4 text-center">
+                <h2 class="text-2xl font-bold">列車運行状況</h2>
+            </div>
+
+            <!-- 路線マップビュー -->
+            <div id="map" class="flex-grow"></div>
+
+            <!-- 詳細列車情報画面（モーダル） -->
+            <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+                <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-xl">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 class="text-2xl font-bold">列車詳細情報</h3>
+                        <button id="close-modal" class="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+                    </div>
+                    <div id="modal-content">
+                        <!-- 詳細情報がここに挿入されます -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebaseのグローバル変数を使用
+        const app = window.firebase.app;
+        const auth = window.firebase.auth;
+        const db = window.firebase.db;
+        const signInWithCustomToken = window.firebase.signInWithCustomToken;
+        const signInAnonymously = window.firebase.signInAnonymously;
+        const onAuthStateChanged = window.firebase.onAuthStateChanged;
+        const doc = window.firebase.doc;
+        const setDoc = window.firebase.setDoc;
+        const onSnapshot = window.firebase.onSnapshot;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const API_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+            const API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/';
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // Firebase認証処理
+            let userId = null;
+            if (typeof __initial_auth_token !== 'undefined') {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            userId = auth.currentUser?.uid || 'anonymous';
+            
+            // UIエレメントの取得
+            const railwaySummarySelect = document.getElementById('railway-summary-select');
+            const summaryTotalEl = document.getElementById('summary-total');
+            const summaryDelayedEl = document.getElementById('summary-delayed');
+            const alertAreaEl = document.getElementById('alert-area');
+            const lastUpdatedTimeEl = document.getElementById('last-updated-time');
+            const updateButton = document.getElementById('update-button');
+            const messageInput = document.getElementById('message-input');
+            const modal = document.getElementById('modal');
+            const closeModalButton = document.getElementById('close-modal');
+            const modalContentEl = document.getElementById('modal-content');
+            const mapStyleSelect = document.getElementById('map-style-select');
+            
+            // 新しいUI要素
+            const destinationTypeRadios = document.getElementsByName('destination-type');
+            const stationSelectorDiv = document.getElementById('station-selector');
+            const railwaySendSelect = document.getElementById('railway-send-select');
+            const stationSendSelect = document.getElementById('station-send-select');
+
+            // マップの初期化
+            let map;
+            let currentTileLayer;
+            const createMap = () => {
+                if (map) {
+                    map.remove();
+                }
+                map = L.map('map').setView([35.6812, 139.7671], 12); // 東京駅周辺
+                setMapStyle('osm'); // 初期表示
+            };
+            
+            const setMapStyle = (style) => {
+                if (currentTileLayer) {
+                    map.removeLayer(currentTileLayer);
+                }
+                let tileUrl;
+                let attribution;
+                switch(style) {
+                    case 'gsi_std':
+                        tileUrl = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
+                        attribution = '<a href="http://www.gsi.go.jp/kikakuchousei/kikakuchousei40184.html" target="_blank">国土地理院</a>';
+                        break;
+                    case 'gsi_light':
+                        tileUrl = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
+                        attribution = '<a href="http://www.gsi.go.jp/kikakuchousei/kikakuchousei40184.html" target="_blank">国土地理院</a>';
+                        break;
+                    case 'esri_topo':
+                        tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+                        attribution = 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community';
+                        break;
+                    case 'osm':
+                    default:
+                        tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+                        attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+                        break;
+                }
+                currentTileLayer = L.tileLayer(tileUrl, { attribution: attribution }).addTo(map);
+            };
+
+            let trainMarkers = [];
+            let allRailways = [];
+            let allStations = {};
+            let allTimetables = {};
+
+            // ODPTのIDから短縮名を取得するヘルパー関数
+            const getShortName = (uri) => uri ? uri.split(':').pop().split('.').pop() : '';
+            
+            // 全路線の情報を取得
+            const fetchRailwayData = async () => {
+                const url = `${API_ENDPOINT}odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch railway data');
+                    const data = await response.json();
+                    allRailways = data;
+                } catch (error) {
+                    console.error('Error fetching railway data:', error);
+                }
+            };
+            
+            // 全駅の情報を取得
+            const fetchStationData = async () => {
+                const url = `${API_ENDPOINT}odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch station data');
+                    const data = await response.json();
+                    data.forEach(station => {
+                        const shortName = getShortName(station['owl:sameAs']);
+                        allStations[shortName] = {
+                            title: station['odpt:stationTitle']['ja'],
+                            geo: station['geo:lat'] && station['geo:long'] ? { lat: station['geo:lat'], long: station['geo:long'] } : null,
+                            sameAs: station['owl:sameAs'],
+                            railway: station['odpt:railway']
+                        };
+                    });
+                } catch (error) {
+                    console.error('Error fetching station data:', error);
+                }
+            };
+
+            // 全時刻表を取得
+            const fetchTimetableData = async () => {
+                const url = `${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch timetable data');
+                    const data = await response.json();
+                    data.forEach(timetable => {
+                        allTimetables[getShortName(timetable['odpt:trainNumber'])] = timetable;
+                    });
+                } catch (error) {
+                    console.error('Error fetching timetable data:', error);
+                }
+            };
+            
+            // 運行情報（アラート）を取得
+            const fetchTrainInformation = async () => {
+                const url = `${API_ENDPOINT}odpt:TrainInformation?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`;
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch train information');
+                    const data = await response.json();
+                    
+                    // 平常運転とお知らせを除外して表示
+                    const filteredInfo = data.filter(info => {
+                        const status = info['odpt:trainInformationStatus'] && info['odpt:trainInformationStatus']['ja'];
+                        return status && status !== '平常運転' && status !== 'お知らせ';
+                    });
+                    
+                    if (filteredInfo.length > 0) {
+                        alertAreaEl.innerHTML = '';
+                        filteredInfo.forEach(info => {
+                            const p = document.createElement('p');
+                            const railwayName = allRailways.find(r => r['owl:sameAs'] === info['odpt:railway'])?.['odpt:railwayTitle']?.['ja'];
+                            if (railwayName) {
+                                p.textContent = `${railwayName}: ${info['odpt:trainInformationStatus']['ja']} (${info['odpt:trainInformationText']['ja']})`;
+                                alertAreaEl.appendChild(p);
+                            }
+                        });
+                    } else {
+                        alertAreaEl.innerHTML = '<p id="alert-message">現在、緊急のお知らせはありません。</p>';
+                    }
+                } catch (error) {
+                    console.error('Error fetching train information:', error);
+                    alertAreaEl.innerHTML = `<p id="alert-message" class="text-red-300">運行情報の取得に失敗しました。</p>`;
+                }
+            };
+
+            // メインデータ取得と描画
+            const updateDashboard = async () => {
+                // ローディング表示
+                updateButton.disabled = true;
+                updateButton.innerHTML = '<i class="fas fa-sync-alt animate-spin mr-2"></i>更新中...';
+                
+                try {
+                    // リアルタイム列車在線状況
+                    const url = `${API_ENDPOINT}odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch train data');
+                    const trains = await response.json();
+                    
+                    // 運行中の路線のみをドロップダウンに表示
+                    const activeRailways = new Set(trains.map(t => t['odpt:railway']));
+                    railwaySummarySelect.innerHTML = '';
+                    const allOption = document.createElement('option');
+                    allOption.value = 'all';
+                    allOption.textContent = '全路線';
+                    railwaySummarySelect.appendChild(allOption);
+                    allRailways.forEach(railway => {
+                        if (activeRailways.has(railway['owl:sameAs'])) {
+                            const option = document.createElement('option');
+                            option.value = railway['owl:sameAs'];
+                            option.textContent = railway['odpt:railwayTitle']['ja'];
+                            railwaySummarySelect.appendChild(option);
+                        }
+                    });
+                    
+                    // サマリーの更新
+                    const selectedRailwayId = railwaySummarySelect.value;
+                    const totalRailways = activeRailways.size;
+                    
+                    if (selectedRailwayId === 'all') {
+                        const delayedRailways = new Set(trains.filter(t => t['odpt:delay'] > 0).map(t => t['odpt:railway'])).size;
+                        summaryTotalEl.querySelector('span:first-child').textContent = '総路線数';
+                        summaryTotalEl.querySelector('span:last-child').textContent = `${totalRailways}`;
+                        summaryTotalEl.querySelector('span:last-child').className = 'text-2xl font-bold text-blue-400';
+                        
+                        summaryDelayedEl.querySelector('span:first-child').textContent = '遅延路線数';
+                        summaryDelayedEl.querySelector('span:last-child').textContent = `${delayedRailways} / ${totalRailways}`;
+                        summaryDelayedEl.querySelector('span:last-child').className = 'text-2xl font-bold text-red-400';
+
+                    } else {
+                        const filteredTrains = trains.filter(t => t['odpt:railway'] === selectedRailwayId);
+                        const delayedTrains = filteredTrains.filter(t => t['odpt:delay'] > 0).length;
+                        
+                        summaryTotalEl.querySelector('span:first-child').textContent = '総列車本数';
+                        summaryTotalEl.querySelector('span:last-child').textContent = `${filteredTrains.length}`;
+                        summaryTotalEl.querySelector('span:last-child').className = 'text-2xl font-bold text-blue-400';
+                        
+                        summaryDelayedEl.querySelector('span:first-child').textContent = '遅延本数';
+                        summaryDelayedEl.querySelector('span:last-child').textContent = `${delayedTrains}`;
+                        summaryDelayedEl.querySelector('span:last-child').className = 'text-2xl font-bold text-red-400';
+                    }
+
+                    // マップ上のマーカーをクリア
+                    trainMarkers.forEach(marker => map.removeLayer(marker));
+                    trainMarkers = [];
+
+                    trains.forEach(train => {
+                        const fromStationShortName = getShortName(train['odpt:fromStation']);
+                        const toStationShortName = getShortName(train['odpt:toStation']);
+                        const fromStation = allStations[fromStationShortName];
+                        const toStation = allStations[toStationShortName];
+                        const delay = Math.floor(train['odpt:delay'] / 60);
+                        const trainNumber = getShortName(train['odpt:trainNumber']);
+
+                        if (fromStation && fromStation.geo && toStation && toStation.geo) {
+                            const lat = (fromStation.geo.lat + toStation.geo.lat) / 2;
+                            const lng = (fromStation.geo.long + toStation.geo.long) / 2;
+
+                            const markerColor = delay > 0 ? 'delayed' : 'normal';
+                            const markerIcon = L.divIcon({
+                                className: `train-marker ${markerColor}`,
+                                html: `<div class="train-icon"><i class="fas fa-train"></i></div><div class="train-number">${trainNumber}</div>`,
+                                iconSize: [40, 40],
+                                iconAnchor: [20, 20]
+                            });
+                            const marker = L.marker([lat, lng], {icon: markerIcon}).addTo(map);
+                            trainMarkers.push(marker);
+
+                            const popupContent = `
+                                <div class="popup-content text-center">
+                                    <strong class="text-lg">${allRailways.find(r => r['owl:sameAs'] === train['odpt:railway'])['odpt:railwayTitle']['ja']}</strong>
+                                    <p>列車番号: ${trainNumber}</p>
+                                    <p>行先: ${allStations[getShortName(train['odpt:destinationStation'][0])]?.title || '不明な駅'}行き</p>
+                                    <p class="${delay > 0 ? 'text-red-500 font-bold' : 'text-green-600 font-bold'}">
+                                        ${delay > 0 ? `${delay}分遅延` : '定刻'}
+                                    </p>
+                                </div>
+                            `;
+                            marker.bindPopup(popupContent);
+                            
+                            marker.on('click', () => {
+                                showTrainDetails(train);
+                            });
+                        }
+                    });
+                    
+                    lastUpdatedTimeEl.textContent = new Date().toLocaleTimeString();
+                    
+                } catch (error) {
+                    console.error('Error updating dashboard:', error);
+                    alertAreaEl.innerHTML = `<p class="text-red-300">データの取得に失敗しました: ${error.message}</p>`;
+                } finally {
+                    updateButton.disabled = false;
+                    updateButton.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>送信';
+                }
+            };
+            
+            // 詳細モーダルの表示
+            const showTrainDetails = (train) => {
+                const trainNumber = getShortName(train['odpt:trainNumber']);
+                const railwayName = allRailways.find(r => r['owl:sameAs'] === train['odpt:railway'])['odpt:railwayTitle']['ja'];
+                const destinationStation = allStations[getShortName(train['odpt:destinationStation'][0])];
+                const destinationName = destinationStation ? destinationStation.title : '不明な駅';
+                const fromStationTitle = allStations[getShortName(train['odpt:fromStation'])]?.title || '不明な駅';
+                const toStationTitle = allStations[getShortName(train['odpt:toStation'])]?.title || '不明な駅';
+                const delay = Math.floor(train['odpt:delay'] / 60);
+                const trainStatus = delay > 0 ? '遅延' : '正常';
+                
+                modalContentEl.innerHTML = `
+                    <div class="space-y-3">
+                        <p class="text-gray-600"><strong>路線名:</strong> ${railwayName}</p>
+                        <p class="text-gray-600"><strong>列車番号:</strong> ${trainNumber}</p>
+                        <p class="text-gray-600"><strong>行先:</strong> ${destinationName}行き</p>
+                        <p class="text-gray-600"><strong>遅延度合い:</strong> <span class="font-bold ${delay > 0 ? 'text-red-500' : 'text-green-600'}">${delay}分</span></p>
+                        <p class="text-gray-600"><strong>運行状況:</strong> <span class="font-bold ${delay > 0 ? 'text-red-500' : 'text-green-600'}">${trainStatus}</span></p>
+                        <p class="text-gray-600"><strong>現在位置:</strong> ${fromStationTitle} - ${toStationTitle}間</p>
+                    </div>
+                `;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            };
+
+            // モーダルを閉じる
+            closeModalButton.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+
+            // マップスタイルの変更イベント
+            mapStyleSelect.addEventListener('change', (e) => {
+                setMapStyle(e.target.value);
+            });
+
+            // サマリー表示の変更イベント
+            railwaySummarySelect.addEventListener('change', () => {
+                updateDashboard();
+            });
+
+            // 宛先選択ラジオボタンのイベントリスナー
+            destinationTypeRadios.forEach(radio => {
+                radio.addEventListener('change', () => {
+                    if (radio.value === 'specific') {
+                        stationSelectorDiv.classList.remove('hidden');
+                        stationSendSelect.disabled = false;
+                        railwaySendSelect.disabled = false;
+                    } else {
+                        stationSelectorDiv.classList.add('hidden');
+                        stationSendSelect.disabled = true;
+                        railwaySendSelect.disabled = true;
+                    }
+                });
+            });
+
+            // 路線選択（連絡用）のイベントリスナー
+            railwaySendSelect.addEventListener('change', () => {
+                const selectedRailwayUri = railwaySendSelect.value;
+                const railway = allRailways.find(r => r['owl:sameAs'] === selectedRailwayUri);
+                stationSendSelect.innerHTML = '';
+                if (railway && railway['odpt:stationOrder']) {
+                    railway['odpt:stationOrder'].forEach(station => {
+                        const stationShortName = getShortName(station['odpt:station']);
+                        const stationTitle = allStations[stationShortName]?.title;
+                        if (stationTitle) {
+                            const option = document.createElement('option');
+                            option.value = stationShortName;
+                            option.textContent = stationTitle;
+                            stationSendSelect.appendChild(option);
+                        }
+                    });
+                }
+            });
+
+            // 案内表示テキストをFirestoreに保存する関数
+            const updateStationDisplayMessage = async () => {
+                if (!userId) {
+                    console.error('User not authenticated.');
+                    return;
+                }
+                const message = messageInput.value;
+                let destinationId = 'all';
+
+                if (document.querySelector('input[name="destination-type"]:checked').value === 'specific') {
+                    destinationId = stationSendSelect.value;
+                    if (!destinationId) {
+                        alert('連絡する駅を選択してください。');
+                        return;
+                    }
+                }
+
+                const messageRef = doc(db, `artifacts/${appId}/public/data/station_messages/${destinationId}`);
+                
+                try {
+                    await setDoc(messageRef, {
+                        text: message,
+                        updatedAt: new Date().toISOString(),
+                        sender: '指令端末'
+                    });
+                    console.log('案内表示メッセージが更新されました。');
+                    lastUpdatedTimeEl.textContent = new Date().toLocaleTimeString();
+                    alertAreaEl.innerHTML = `<p class="text-green-300">メッセージを送信しました。宛先: ${destinationId === 'all' ? '全駅' : allStations[destinationId]?.title}</p>`;
+                } catch (e) {
+                    console.error('メッセージの更新中にエラーが発生しました:', e);
+                    alertAreaEl.innerHTML = `<p class="text-red-300">メッセージの送信に失敗しました。</p>`;
+                }
+            };
+            
+            // 更新ボタンのクリックイベント
+            updateButton.addEventListener('click', updateStationDisplayMessage);
+
+            // 初期化処理
+            const init = async () => {
+                createMap();
+                await fetchStationData();
+                await fetchRailwayData();
+                await fetchTimetableData();
+                
+                // 路線選択ドロップダウン（連絡用）を初期化
+                allRailways.forEach(railway => {
+                    const option = document.createElement('option');
+                    option.value = railway['owl:sameAs'];
+                    option.textContent = railway['odpt:railwayTitle']['ja'];
+                    railwaySendSelect.appendChild(option);
+                });
+                
+                // 初回の駅ドロップダウンを路線から生成
+                railwaySendSelect.dispatchEvent(new Event('change'));
+
+                updateDashboard();
+                fetchTrainInformation();
+
+                // 15秒ごとに定期更新
+                setInterval(() => {
+                    updateDashboard();
+                    fetchTrainInformation();
+                }, 15000);
+            };
+
+            init();
+        });
+    </script>
+</body>
+</html>
