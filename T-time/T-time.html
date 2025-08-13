@@ -240,10 +240,19 @@
       const numberInput = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
       const type = document.getElementById("train-type").value;
-
-      // 漢字の数字が含まれているかチェック
-      if (numberInput.match(/[一二三四五六七八九〇]+/g)) {
-        document.getElementById("error-log").textContent = "列車番号に漢字の数字は使用できません。半角数字で入力してください。";
+      
+      // 数字の前に漢字がないかチェック
+      if (numberInput.match(/^[一-龠]/)) {
+        document.getElementById("error-log").textContent = "列車番号は数字または英字で始めてください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+      // 漢字の数字以外の漢字は使用できないようにする
+      if (numberInput.match(/[^\u0000-\u007E一-龠]+/g)) {
+        document.getElementById("error-log").textContent = "列車番号に数字以外の漢字は使用できません。";
         document.getElementById("error-log").style.display = "block";
         document.getElementById("train-info").style.display = "none";
         document.getElementById("timetable").innerHTML = "";
