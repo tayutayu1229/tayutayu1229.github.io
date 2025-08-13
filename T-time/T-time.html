@@ -116,15 +116,25 @@
     }
 
     async function searchTrain() {
-      const number = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
       const type = document.getElementById("train-type").value;
+      const numberInput = document.getElementById("train-number").value.trim().toUpperCase().replace(/[^\d]/g, '');
 
-      currentMatches = timetableData.filter(t =>
-        t.trainNumber === number &&
-        (line === "" || t.line === line) &&
-        (type === "" || t.type === type)
-      );
+      if (!numberInput) {
+        document.getElementById("error-log").textContent = "列車番号の数字部分を入力してください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
+      currentMatches = timetableData.filter(t => {
+        const trainNumberDigits = t.trainNumber.replace(/[^\d]/g, '');
+        return (line === "" || t.line === line) &&
+               (type === "" || t.type === type) &&
+               trainNumberDigits === numberInput;
+      });
 
       if (currentMatches.length === 0) {
         document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
@@ -142,10 +152,8 @@
         displayTrain(currentMatches[0]);
       } else {
         const dateSelect = document.getElementById("select-date");
-
         const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
         dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
-
         document.getElementById("date-selector-container").classList.remove("hidden");
         displayTrain(currentMatches[0]);
       }
