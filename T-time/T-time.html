@@ -237,9 +237,12 @@
     }
     
     async function searchTrain() {
-      const number = document.getElementById("train-number").value.trim();
+      const numberInput = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
       const type = document.getElementById("train-type").value;
+      
+      // M, D, および数字の部分だけを抽出
+      const number = numberInput.match(/[MD\d]+/g) ? numberInput.match(/[MD\d]+/g).join('') : '';
 
       // 列車種別の選択は必須
       if (type === "") {
@@ -250,9 +253,9 @@
         document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
-
+      
       // 列車種別と列車番号が同じ値の場合はエラー
-      if (type === number) {
+      if (type === numberInput) {
         document.getElementById("error-log").textContent = "選択した列車種別と列車番号が同じです。別の列車番号を入力してください。";
         document.getElementById("error-log").style.display = "block";
         document.getElementById("train-info").style.display = "none";
@@ -260,7 +263,7 @@
         document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
-      
+
       currentMatches = timetableData.filter(t => {
         const lineMatch = line === "" || t.line === line;
         const typeMatch = t.type === type;
@@ -270,8 +273,9 @@
           return lineMatch && typeMatch;
         }
 
-        // 列車番号が入力されている場合は、列車番号、列車種別、線区でフィルタリング
-        return lineMatch && typeMatch && t.trainNumber === number;
+        // 列車番号が入力されている場合は、M, D, 数字の部分だけを比較
+        const trainNumberFromData = t.trainNumber.match(/[MD\d]+/g) ? t.trainNumber.match(/[MD\d]+/g).join('') : '';
+        return lineMatch && typeMatch && trainNumberFromData === number;
       });
 
       if (currentMatches.length === 0) {
