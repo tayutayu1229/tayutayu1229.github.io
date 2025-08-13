@@ -55,13 +55,20 @@
       padding: 6px 16px;
       border-radius: 8px;
     }
+    .station-select-item:hover {
+        background-color: #f3f4f6;
+    }
+    .error-box {
+      border: 2px dashed #e5e7eb;
+      color: #9ca3af;
+    }
   </style>
 </head>
 <body class="antialiased">
 
-<div class="min-h-screen flex flex-col lg:flex-row">
+<div id="app-container" class="min-h-screen flex flex-col lg:flex-row">
   
-  <aside class="sidebar p-6 lg:mr-6 lg:mb-0 mb-6 sidebar-bg">
+  <aside id="sidebar" class="sidebar p-6 lg:mr-6 lg:mb-0 mb-6 sidebar-bg flex flex-col">
     <div class="flex items-center justify-between mb-4">
       <h1 class="text-2xl font-extrabold flex items-center gap-3">
         <i class="fas fa-bullhorn"></i>
@@ -72,98 +79,146 @@
         </a>
     </div>
 
-    <div class="mt-8 relative">
-      <label for="station-search" class="block text-sm font-semibold text-gray-200 mb-2">駅を検索</label>
-      <input type="text" id="station-search" class="w-full p-2 border border-gray-300 rounded-md shadow-sm text-gray-900" placeholder="例: 東京">
-      <div id="station-list" class="absolute z-10 w-full mt-2 bg-white rounded-md shadow-lg max-h-60 overflow-y-auto hidden">
-        </div>
+    <div id="line-list-container" class="mt-8 flex-1 flex flex-col hidden">
+      <p class="text-sm font-semibold text-gray-200 mb-2">この駅の路線</p>
+      <nav class="space-y-2 flex-1 overflow-y-auto pr-2">
+        <div id="line-list" class="space-y-2">
+          </div>
+      </nav>
     </div>
-    
-    <nav class="space-y-2 mt-8">
-      <p class="text-sm font-semibold text-gray-200 mb-2">路線選択</p>
-      <div id="line-list" class="space-y-2">
-        </div>
-    </nav>
   </aside>
 
-  <main class="flex-1 p-6 flex flex-col">
-    
-    <header class="p-4 card mb-6">
-      <div class="flex items-center justify-between">
-        <h2 class="text-xl font-bold accent-text flex flex-col items-start gap-1">
-          <span id="current-station-name" class="station-name-box text-base font-semibold"></span>
-          <span id="current-line-name" class="text-lg font-bold"></span>
-        </h2>
-        <div class="flex items-center gap-4">
-          <span id="last-updated" class="text-sm font-semibold text-gray-500">最終更新: --:--:--</span>
-          <button id="refresh-button" class="accent-text text-xl hover:opacity-75 transition-opacity">
-            <i class="fas fa-arrows-rotate"></i>
-          </button>
+  <main id="main-content-area" class="flex-1 p-6 flex flex-col">
+
+    <div id="station-selection" class="flex items-center justify-center bg-gray-100 flex-1 p-6 hidden">
+      <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-3xl font-bold text-gray-800">JR東日本 駅端末</h2>
+        </div>
+
+        <div id="url-error-message" class="bg-red-100 text-red-700 p-4 rounded-lg mb-4 hidden">
+            <p><i class="fas fa-exclamation-triangle mr-2"></i>指定された駅IDの駅が見つかりませんでした。</p>
+        </div>
+
+        <div class="mb-6">
+          <h3 class="text-xl font-bold text-gray-700 flex items-center gap-2 mb-2"><i class="fas fa-route accent-text"></i>路線から探す</h3>
+          <select id="line-select-dropdown" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800">
+              <option value="">全ての路線</option>
+          </select>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2"><i class="fas fa-train accent-text"></i>駅名で探す</h3>
+          <div class="relative">
+            <input type="text" id="station-search" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="駅名を入力してください...">
+            <div id="station-select-list" class="w-full mt-2 bg-white rounded-md shadow-lg max-h-60 overflow-y-auto hidden">
+              </div>
+          </div>
         </div>
       </div>
-      <div id="info-banner" class="mt-4 p-3 rounded-md hidden">
-        <i class="mr-2"></i>
-        <span id="info-text" class="font-medium"></span>
-      </div>
-    </header>
+    </div>
 
-    <div class="flex-1 card p-6">
-      <div id="direction-buttons" class="flex gap-2 mb-4">
+    <div id="station-timetable" class="flex-1 p-6 flex flex-col hidden">
+      <header class="p-4 card mb-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-bold accent-text flex flex-col items-start gap-1">
+            <span id="current-station-name" class="station-name-box text-base font-semibold"></span>
+            <span id="current-line-name" class="text-lg font-bold"></span>
+          </h2>
+          <div class="flex items-center gap-4">
+            <button id="back-to-station-select-button" class="accent-text text-sm font-semibold hover:opacity-75 transition-opacity px-4 py-2 rounded-full border border-gray-300">
+              <i class="fas fa-arrow-left mr-2"></i>駅選択に戻る
+            </button>
+            <span id="last-updated" class="text-sm font-semibold text-gray-500">最終更新: --:--:--</span>
+            <button id="refresh-button" class="accent-text text-xl hover:opacity-75 transition-opacity">
+              <i class="fas fa-arrows-rotate"></i>
+            </button>
           </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">時刻</th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">行先</th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">種別</th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状態</th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">列車番号</th>
-            </tr>
-          </thead>
-          <tbody id="timetable-body" class="bg-white divide-y divide-gray-200">
-            </tbody>
-        </table>
-      </div>
-      <div id="no-timetable-data" class="hidden text-center text-gray-500 p-8">
-          <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
-          <p>時刻表データが見つかりませんでした。</p>
+        </div>
+        <div id="info-banner" class="mt-4 p-3 rounded-md hidden">
+          <i class="mr-2"></i>
+          <span id="info-text" class="font-medium"></span>
+        </div>
+      </header>
+
+      <div class="flex-1 card p-6">
+        <div id="direction-buttons" class="flex gap-2 mb-4 flex-wrap">
+            </div>
+        <div class="overflow-x-auto">
+          <table id="timetable-table" class="min-w-full divide-y divide-gray-200 hidden">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">時刻</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">行先</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">種別</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">列車番号</th>
+              </tr>
+            </thead>
+            <tbody id="timetable-body" class="bg-white divide-y divide-gray-200">
+              </tbody>
+          </table>
+        </div>
+        <div id="no-data-message" class="hidden text-center text-gray-500 p-8 error-box">
+            <i class="fas fa-exclamation-circle text-4xl mb-4"></i>
+            <p id="no-data-text"></p>
+        </div>
       </div>
     </div>
   </main>
+
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-    const stationSearch = document.getElementById('station-search');
-    const stationList = document.getElementById('station-list');
+    const stationSelectionScreen = document.getElementById('station-selection');
+    const stationTimetableScreen = document.getElementById('station-timetable');
+    const lineListContainer = document.getElementById('line-list-container');
+    const lineSelectDropdown = document.getElementById('line-select-dropdown');
+    const stationSelectList = document.getElementById('station-select-list');
+    const stationSearchInput = document.getElementById('station-search');
     const lineList = document.getElementById('line-list');
     const directionButtons = document.getElementById('direction-buttons');
     const timetableBody = document.getElementById('timetable-body');
-    const noTimetableData = document.getElementById('no-timetable-data');
+    const timetableTable = document.getElementById('timetable-table');
+    const noDataMessage = document.getElementById('no-data-message');
+    const noDataText = document.getElementById('no-data-text');
+    const urlErrorMessage = document.getElementById('url-error-message');
     const infoBanner = document.getElementById('info-banner');
     const infoText = document.getElementById('info-text');
     const lastUpdated = document.getElementById('last-updated');
     const currentStationNameElement = document.getElementById('current-station-name');
     const currentLineNameElement = document.getElementById('current-line-name');
     const refreshButton = document.getElementById('refresh-button');
+    const backToStationSelectButton = document.getElementById('back-to-station-select-button');
 
-    // APIキーはここに設定してください
     const API_KEY = "wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh";
-
-    // APIエンドポイント
-    const API_URLS = {
-        stations: `https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-        railways: `https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-        stationTimetables: `https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-        trainStatus: `https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-        trainInformation: `https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${API_KEY}`
-    };
 
     let apiData = {};
     const railwayMap = {};
     const stationMap = {};
+    const stationToRailwaysMap = {};
+    let stationsWithTimetable = [];
     
+    const additionalRailwayIds = [
+        "odpt.Railway:JR-East.Tokaido",
+        "odpt.Railway:JR-East.Takasaki",
+        "odpt.Railway:JR-East.Tohoku",
+        "odpt.Railway:JR-East.Joban",
+        "odpt.Railway:JR-East.Yokosuka",
+        "odpt.Railway:JR-East.Sobu",
+    ];
+    
+    const additionalRailways = [
+        { "odpt:railwayTitle": { "ja": "東海道線" }, "owl:sameAs": "odpt.Railway:JR-East.Tokaido" },
+        { "odpt:railwayTitle": { "ja": "高崎線" }, "owl:sameAs": "odpt.Railway:JR-East.Takasaki" },
+        { "odpt:railwayTitle": { "ja": "東北本線" }, "owl:sameAs": "odpt.Railway:JR-East.Tohoku" },
+        { "odpt:railwayTitle": { "ja": "常磐線" }, "owl:sameAs": "odpt.Railway:JR-East.Joban" },
+        { "odpt:railwayTitle": { "ja": "横須賀線" }, "owl:sameAs": "odpt.Railway:JR-East.Yokosuka" },
+        { "odpt:railwayTitle": { "ja": "総武本線" }, "owl:sameAs": "odpt.Railway:JR-East.Sobu" },
+    ];
+    let allRailways = [];
+    let apiRailwaysWithTimetable = [];
+
     const trainTypeMap = {
         "odpt.TrainType:JR-East.Local": "普通",
         "odpt.TrainType:JR-East.LimitedExpress": "特急",
@@ -188,14 +243,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const fetchDataFromAPI = async () => {
         try {
-            const [stations, railways, stationTimetables, trainStatus, trainInformation] = await Promise.all([
+            const API_URLS = {
+                stations: `https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
+                railways: `https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
+                trainStatus: `https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
+                trainInformation: `https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${API_KEY}`
+            };
+
+            const apiCalls = [
                 fetch(API_URLS.stations).then(res => res.json()),
                 fetch(API_URLS.railways).then(res => res.json()),
-                fetch(API_URLS.stationTimetables).then(res => res.json()),
                 fetch(API_URLS.trainStatus).then(res => res.json()),
                 fetch(API_URLS.trainInformation).then(res => res.json())
-            ]);
-            apiData = { stations, railways, stationTimetables, trainStatus, trainInformation };
+            ];
+
+            const additionalStationCalls = additionalRailwayIds.map(railwayId => 
+                fetch(`https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}&acl:consumerKey=${API_KEY}`).then(res => res.json())
+            );
+            
+            const allApiCalls = [...apiCalls, ...additionalStationCalls];
+            const results = await Promise.all(allApiCalls);
+            
+            const [stations, railways, trainStatus, trainInformation] = results.slice(0, 4);
+            const additionalStationsData = results.slice(4).flat();
+            
+            apiData = {
+                stations: [...stations, ...additionalStationsData],
+                railways,
+                trainStatus,
+                trainInformation
+            };
+
             console.log("APIからデータを取得しました", apiData);
             return true;
         } catch (error) {
@@ -203,43 +281,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             return false;
         }
     };
-
+    
+    const fetchTimetableData = async (stationId, railwayId) => {
+        try {
+            const url = `https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}&odpt:station=${stationId}&acl:consumerKey=${API_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            return data;
+        } catch (error) {
+            console.error("時刻表データの取得に失敗しました:", error);
+            return null;
+        }
+    };
+    
     const initializeData = async () => {
         const fetchSuccess = await fetchDataFromAPI();
-        
-        // APIからデータが取得できなかった場合は、ユーザーから提供されたモックデータを使用
         if (!fetchSuccess) {
-            console.log("モックデータを使用します");
+            console.warn("APIデータ取得に失敗したため、モックデータを使用します。");
             apiData = {
                 stations: [
-                    { "dc:title": "東京", "owl:sameAs": "odpt.Station:JR-East.ChuoRapid.Tokyo", "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "東京" } },
-                    { "dc:title": "東京", "owl:sameAs": "odpt.Station:JR-East.KeihinTohoku.Tokyo", "odpt:railway": "odpt.Railway:JR-East.KeihinTohoku", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "東京" } },
-                    { "dc:title": "新宿", "owl:sameAs": "odpt.Station:JR-East.ChuoRapid.Shinjuku", "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "新宿" } },
-                    { "dc:title": "品川", "owl:sameAs": "odpt.Station:JR-East.Yamanote.Shinagawa", "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "品川" } },
-                    { "dc:title": "品川", "owl:sameAs": "odpt.Station:JR-East.Joban.Shinagawa", "odpt:railway": "odpt.Railway:JR-East.Joban", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "品川" } },
-                    { "dc:title": "上野", "owl:sameAs": "odpt.Station:JR-East.Joban.Ueno", "odpt:railway": "odpt.Railway:JR-East.Joban", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "上野" } },
-                    { "dc:title": "上野", "owl:sameAs": "odpt.Station:JR-East.Yamanote.Ueno", "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:operator": "odpt.Operator:JR-East", "odpt:stationTitle": { "ja": "上野" } },
+                    { "dc:title": "東京", "owl:sameAs": "odpt.Station:JR-East.ChuoRapid.Tokyo", "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:stationTitle": { "ja": "東京" } },
+                    { "dc:title": "東京", "owl:sameAs": "odpt.Station:JR-East.Yamanote.Tokyo", "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:stationTitle": { "ja": "東京" } },
+                    { "dc:title": "新宿", "owl:sameAs": "odpt.Station:JR-East.ChuoRapid.Shinjuku", "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:stationTitle": { "ja": "新宿" } },
+                    { "dc:title": "新宿", "owl:sameAs": "odpt.Station:JR-East.Yamanote.Shinjuku", "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:stationTitle": { "ja": "新宿" } },
+                    { "dc:title": "品川", "owl:sameAs": "odpt.Station:JR-East.Yamanote.Shinagawa", "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:stationTitle": { "ja": "品川" } },
                 ],
-                stationTimetables: [
-                    { "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:station": "odpt.Station:JR-East.ChuoRapid.Tokyo", "odpt:railDirection": "odpt.RailDirection:Inbound", "odpt:stationTimetableObject": [
-                        { "odpt:trainNumber": "418H", "odpt:departureTime": "10:20", "odpt:destinationStation": ["odpt.Station:JR-East.ChuoRapid.Hachioji"], "odpt:trainType": "odpt.TrainType:JR-East.Rapid" },
-                        { "odpt:trainNumber": "478T", "odpt:departureTime": "10:35", "odpt:destinationStation": ["odpt.Station:JR-East.ChuoRapid.Takao"], "odpt:trainType": "odpt.TrainType:JR-East.SpecialRapid" },
-                        { "odpt:trainNumber": "464T", "odpt:departureTime": "10:45", "odpt:destinationStation": ["odpt.Station:JR-East.ChuoRapid.Ome"], "odpt:trainType": "odpt.TrainType:JR-East.Rapid" },
-                    ]},
-                    { "odpt:railway": "odpt.Railway:JR-East.Joban", "odpt:station": "odpt.Station:JR-East.Joban.Shinagawa", "odpt:railDirection": "odpt.RailDirection:Outbound", "odpt:stationTimetableObject": [
-                        { "odpt:trainNumber": "454M", "odpt:departureTime": "10:28", "odpt:destinationStation": ["odpt.Station:JR-East.JobanRapid.Ueno"], "odpt:trainType": "odpt.TrainType:JR-East.Rapid" },
-                        { "odpt:trainNumber": "2456M", "odpt:departureTime": "10:35", "odpt:destinationStation": ["odpt.Station:JR-East.JobanRapid.Ueno"], "odpt:trainType": "odpt.TrainType:JR-East.Local" },
-                    ]},
+                railways: [
+                    {"odpt:railwayTitle": {"ja": "中央線快速"}, "owl:sameAs": "odpt.Railway:JR-East.ChuoRapid"},
+                    {"odpt:railwayTitle": {"ja": "山手線"}, "owl:sameAs": "odpt.Railway:JR-East.Yamanote"},
+                    {"odpt:railwayTitle": {"ja": "京浜東北線"}, "owl:sameAs": "odpt.Railway:JR-East.KeihinTohoku"},
                 ],
                 trainStatus: [
-                    {"@id":"urn:uuid:781002bd-79f9-4a28-a339-d0481ae11e3f","@type":"odpt:Train","odpt:delay":300,"owl:sameAs":"odpt.Train:JR-East.Joban.454M","odpt:railway":"odpt.Railway:JR-East.Joban","odpt:trainNumber":"454M","odpt:destinationStation":["odpt.Station:JR-East.JobanRapid.Ueno"]},
-                    {"@id":"urn:uuid:4448cde6-c3f8-416e-8279-f8e5f98655db","@type":"odpt:Train","odpt:delay":0,"owl:sameAs":"odpt.Train:JR-East.Joban.2456M","odpt:railway":"odpt.Railway:JR-East.Joban","odpt:trainNumber":"2456M","odpt:destinationStation":["odpt.Station:JR-East.JobanRapid.Ueno"]},
-                    { "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:trainNumber": "418H", "odpt:delay": 300, "odpt:destinationStation": ["odpt.Station:JR-East.ChuoRapid.Hachioji"] },
-                    { "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:trainNumber": "478T", "odpt:delay": 0, "odpt:destinationStation": ["odpt.Station:JR-East.ChuoRapid.Takao"] },
+                    { "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:trainNumber": "418H", "odpt:delay": 300 },
                 ],
                 trainInformation: [
                     { "odpt:railway": "odpt.Railway:JR-East.ChuoRapid", "odpt:trainInformationText": { "ja": "中央線快速電車は、人身事故の影響で、上下線の一部列車に遅れと運休が出ています。" } },
-                    { "odpt:railway": "odpt.Railway:JR-East.Joban", "odpt:trainInformationText": { "ja": "常磐線は、平常運転です。" } },
+                    { "odpt:railway": "odpt.Railway:JR-East.Yamanote", "odpt:trainInformationText": { "ja": "山手線は、平常運転です。" } },
                 ]
             };
         }
@@ -247,78 +324,172 @@ document.addEventListener('DOMContentLoaded', async () => {
         apiData.railways.forEach(r => { railwayMap[r['owl:sameAs']] = r['odpt:railwayTitle']['ja']; });
         apiData.stations.forEach(s => { stationMap[s['owl:sameAs']] = s['odpt:stationTitle']['ja']; });
 
-        const initialStation = getStationsWithTimetable()[0]?.['odpt:stationTitle']['ja'];
-        if (initialStation) {
-            updateDisplay(initialStation);
+        apiRailwaysWithTimetable = apiData.railways.filter(r => (apiData.trainStatus.some(ts => ts['odpt:railway'] === r['owl:sameAs'])));
+        allRailways = [...apiRailwaysWithTimetable];
+        
+        const apiRailwaysSet = new Set(apiRailwaysWithTimetable.map(r => r['owl:sameAs']));
+        additionalRailways.forEach(ar => {
+            if (!apiRailwaysSet.has(ar['owl:sameAs'])) {
+                allRailways.push(ar);
+                railwayMap[ar['owl:sameAs']] = ar['odpt:railwayTitle']['ja'];
+            }
+        });
+
+        apiData.stations.forEach(s => {
+            const stationName = s['odpt:stationTitle']['ja'];
+            if (!stationToRailwaysMap[stationName]) {
+                stationToRailwaysMap[stationName] = [];
+            }
+            const railwayExists = stationToRailwaysMap[stationName].some(item => item['odpt:railway'] === s['odpt:railway']);
+            if (!railwayExists) {
+                stationToRailwaysMap[stationName].push(s);
+            }
+        });
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const stationSelectMode = urlParams.get('station-select');
+        const stationIdFromUrl = urlParams.get('station');
+
+        if (stationSelectMode || !stationIdFromUrl) {
+            displayStationSelection();
         } else {
-            noTimetableData.classList.remove('hidden');
-            currentStationNameElement.textContent = `駅`;
-            currentLineNameElement.textContent = '';
-            infoText.textContent = `表示可能な駅が見つかりませんでした。`;
-            infoBanner.className = 'mt-4 p-3 rounded-md bg-red-100 text-red-700';
-            infoBanner.querySelector('i').className = 'fas fa-exclamation-triangle mr-2';
-            infoBanner.classList.remove('hidden');
+            const stationObj = apiData.stations.find(s => s['owl:sameAs'] === stationIdFromUrl);
+            if (stationObj) {
+                displayStationPage(stationObj['odpt:stationTitle']['ja']);
+            } else {
+                displayStationSelection(null, true);
+            }
         }
     };
 
-    const getStationsWithTimetable = () => {
-        const timetableStationIds = new Set(apiData.stationTimetables.map(t => t['odpt:station']));
-        return apiData.stations.filter(s => timetableStationIds.has(s['owl:sameAs']));
+    const displayStationSelection = (filterRailwayId = null, urlError = false) => {
+        stationSelectionScreen.classList.remove('hidden');
+        stationTimetableScreen.classList.add('hidden');
+        lineListContainer.classList.add('hidden');
+        
+        if (urlError) {
+            urlErrorMessage.classList.remove('hidden');
+        } else {
+            urlErrorMessage.classList.add('hidden');
+        }
+
+        populateLineSelectDropdown();
+        populateStationSelectList(filterRailwayId);
     };
 
-    const populateStationSearch = (keyword = '') => {
-        stationList.innerHTML = '';
-        const stations = getStationsWithTimetable();
-        const filteredStations = stations.filter(s => s['odpt:stationTitle']['ja'].includes(keyword));
+    const populateLineSelectDropdown = () => {
+        lineSelectDropdown.innerHTML = '';
+        const defaultOption = document.createElement('option');
+        defaultOption.value = "";
+        defaultOption.textContent = "全ての路線";
+        lineSelectDropdown.appendChild(defaultOption);
+        
+        allRailways.sort((a, b) => a['odpt:railwayTitle']['ja'].localeCompare(b['odpt:railwayTitle']['ja'], 'ja'));
+        
+        allRailways.forEach(r => {
+            const option = document.createElement('option');
+            option.value = r['owl:sameAs'];
+            option.textContent = r['odpt:railwayTitle']['ja'] || r['owl:sameAs'].split(':').pop();
+            lineSelectDropdown.appendChild(option);
+        });
+    };
 
-        if (filteredStations.length > 0) {
-            stationList.classList.remove('hidden');
-            filteredStations.forEach(s => {
-                const item = document.createElement('div');
-                item.className = "p-2 cursor-pointer hover:bg-gray-100 text-gray-900";
-                item.textContent = s['odpt:stationTitle']['ja'];
-                item.setAttribute('data-station-name', s['odpt:stationTitle']['ja']);
-                stationList.appendChild(item);
+    const populateStationSelectList = (filterRailwayId = null) => {
+        stationSelectList.innerHTML = '';
+        let stationsToDisplay = [];
+        
+        if (filterRailwayId) {
+            const stationsOnLine = apiData.stations.filter(s => s['odpt:railway'] === filterRailwayId);
+            const uniqueStations = [...new Map(stationsOnLine.map(item => [item['odpt:stationTitle']['ja'], item])).values()];
+            stationsToDisplay = uniqueStations;
+        } else {
+            const uniqueStations = [...new Map(apiData.stations.map(item => [item['odpt:stationTitle']['ja'], item])).values()];
+            stationsToDisplay = uniqueStations;
+        }
+        
+        stationsToDisplay.sort((a, b) => a['odpt:stationTitle']['ja'].localeCompare(b['odpt:stationTitle']['ja'], 'ja'));
+        
+        if (stationsToDisplay.length > 0) {
+            stationSelectList.classList.remove('hidden');
+            stationsToDisplay.forEach(s => {
+                const stationName = s['odpt:stationTitle']['ja'];
+                const firstStationId = stationToRailwaysMap[stationName][0]['owl:sameAs'];
+                const item = document.createElement('a');
+                item.className = "p-2 block cursor-pointer hover:bg-gray-100 text-gray-900";
+                item.textContent = stationName;
+                item.href = `?station=${firstStationId}`;
+                stationSelectList.appendChild(item);
             });
         } else {
-            stationList.classList.add('hidden');
+            stationSelectList.innerHTML = `<div class="p-4 text-center text-gray-500">駅が見つかりませんでした。</div>`;
+            stationSelectList.classList.remove('hidden');
         }
     };
+    
+    const displayStationPage = (stationName) => {
+        stationSelectionScreen.classList.add('hidden');
+        stationTimetableScreen.classList.remove('hidden');
+        lineListContainer.classList.remove('hidden');
+        
+        currentStationNameElement.textContent = stationName;
+        
+        const railwaysAtStation = stationToRailwaysMap[stationName] || [];
+        if (railwaysAtStation.length === 0) {
+            currentLineNameElement.textContent = "路線なし";
+            timetableTable.classList.add('hidden');
+            infoBanner.classList.add('hidden');
+            noDataText.textContent = "この駅には路線データがありません。";
+            noDataMessage.classList.remove('hidden');
+            directionButtons.innerHTML = '';
+            lineList.innerHTML = '';
+            return;
+        }
 
-    const populateLineList = (stationName, activeRailwayId = null) => {
+        populateLineList(stationName);
+
+        const firstLineItem = lineList.querySelector('.line-item');
+        if (firstLineItem) {
+            firstLineItem.classList.add('active');
+            const firstRailwayId = firstLineItem.getAttribute('data-railway');
+            updateDisplay(stationName, firstRailwayId);
+        } else {
+            currentLineNameElement.textContent = "路線なし";
+            timetableTable.classList.add('hidden');
+            infoBanner.classList.add('hidden');
+            noDataText.textContent = "この駅には路線データがありません。";
+            noDataMessage.classList.remove('hidden');
+            directionButtons.innerHTML = '';
+        }
+    };
+    
+    const populateLineList = (stationName) => {
         lineList.innerHTML = '';
-        const railwaysAtStationWithTimetable = [...new Set(apiData.stationTimetables
-            .filter(t => apiData.stations.some(s => s['odpt:stationTitle']['ja'] === stationName && s['owl:sameAs'] === t['odpt:station']))
-            .map(t => t['odpt:railway']))];
+        const railwaysAtStation = stationToRailwaysMap[stationName] || [];
+        const uniqueRailways = [...new Map(railwaysAtStation.map(item => [item['odpt:railway'], item])).values()];
 
-        let firstLineItem = null;
-        if (railwaysAtStationWithTimetable.length > 0) {
-            railwaysAtStationWithTimetable.forEach((railwayId, index) => {
+        if (uniqueRailways.length > 0) {
+            uniqueRailways.forEach((s, index) => {
+                const railwayId = s['odpt:railway'];
                 const railwayName = railwayMap[railwayId] || railwayId.split(':').pop();
                 const item = document.createElement('a');
                 item.href = "#";
-                const isActive = (activeRailwayId && activeRailwayId === railwayId) || (!activeRailwayId && index === 0);
+                const isActive = (index === 0);
                 item.className = `line-item flex items-center gap-3 p-3 rounded-md transition-colors ${isActive ? 'active' : ''}`;
                 item.setAttribute('data-railway', railwayId);
-                item.setAttribute('data-station', stationName);
+                item.setAttribute('data-station-name', stationName);
                 item.innerHTML = `<i class="fas fa-route"></i><span>${railwayName}</span>`;
                 lineList.appendChild(item);
-                if (isActive) {
-                    firstLineItem = item;
-                }
             });
         }
-        return firstLineItem || lineList.querySelector('.line-item');
     };
-    
-    const populateDirectionButtons = (stationName, railwayId, activeDirectionId = null) => {
+
+    const populateDirectionButtons = (timetable, activeDirectionId = null) => {
         directionButtons.innerHTML = '';
-        const stationObjs = apiData.stations.filter(s => s['odpt:stationTitle']['ja'] === stationName && s['odpt:railway'] === railwayId);
-        const stationIds = stationObjs.map(s => s['owl:sameAs']);
+        if (!timetable || timetable.length === 0) {
+            return;
+        }
         
-        const directions = new Set(apiData.stationTimetables
-            .filter(t => stationIds.includes(t['odpt:station']))
-            .map(t => t['odpt:railDirection']));
+        const directions = new Set(timetable.map(t => t['odpt:railDirection']));
 
         if (directions.size > 0) {
             Array.from(directions).forEach((dir, index) => {
@@ -335,46 +506,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-
-    const displayTimetable = (stationName, railwayId, directionId) => {
+    const displayTimetable = (timetable, railwayId, directionId) => {
         timetableBody.innerHTML = '';
-        noTimetableData.classList.add('hidden');
-        
-        // ヘッダーの駅名と路線名を更新
-        currentStationNameElement.textContent = stationName;
-        const railwayName = railwayMap[railwayId] || railwayId.split(':').pop();
-        currentLineNameElement.textContent = railwayName;
+        noDataMessage.classList.add('hidden');
+        timetableTable.classList.add('hidden');
 
-        const trainInfo = apiData.trainInformation.find(info => info['odpt:railway'] === railwayId);
-        if (trainInfo) {
-            const text = trainInfo['odpt:trainInformationText']['ja'];
-            infoText.textContent = text;
-            infoBanner.classList.remove('hidden');
-            if (text.includes("遅延") || text.includes("運休") || text.includes("見合わせ")) {
-                infoBanner.className = 'mt-4 p-3 rounded-md bg-red-100 text-red-700';
-                infoBanner.querySelector('i').className = 'fas fa-exclamation-triangle mr-2';
-            } else {
-                infoBanner.className = 'mt-4 p-3 rounded-md bg-green-100 text-green-700';
-                infoBanner.querySelector('i').className = 'fas fa-check-circle mr-2';
-            }
-        } else {
-            infoBanner.classList.add('hidden');
-        }
-        
-        const stationObj = apiData.stations.find(s => s['odpt:stationTitle']['ja'] === stationName && s['odpt:railway'] === railwayId);
-        if (!stationObj) {
-            noTimetableData.classList.remove('hidden');
+        if (!timetable || timetable.length === 0) {
+            noDataText.textContent = "時刻表データが見つかりませんでした。";
+            noDataMessage.classList.remove('hidden');
             return;
         }
-        const stationId = stationObj['owl:sameAs'];
-        
-        const timetable = apiData.stationTimetables.find(tbl => tbl['odpt:railway'] === railwayId && tbl['odpt:station'] === stationId && tbl['odpt:railDirection'] === directionId);
 
-        if (timetable && timetable['odpt:stationTimetableObject'].length > 0) {
+        const selectedTimetable = timetable.find(tbl => tbl['odpt:railDirection'] === directionId);
+
+        if (selectedTimetable && selectedTimetable['odpt:stationTimetableObject'].length > 0) {
             const now = new Date();
             const nowTime = now.getHours() * 60 + now.getMinutes();
 
-            const upcomingTrains = timetable['odpt:stationTimetableObject']
+            const upcomingTrains = selectedTimetable['odpt:stationTimetableObject']
                 .sort((a, b) => {
                     const [aHour, aMinute] = a['odpt:departureTime'].split(':').map(Number);
                     const [bHour, bMinute] = b['odpt:departureTime'].split(':').map(Number);
@@ -388,6 +537,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .slice(0, 5);
 
             if (upcomingTrains.length > 0) {
+                timetableTable.classList.remove('hidden');
                 upcomingTrains.forEach(train => {
                     const row = document.createElement('tr');
                     let statusText = '定刻';
@@ -416,38 +566,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                     timetableBody.appendChild(row);
                 });
             } else {
-                noTimetableData.classList.remove('hidden');
+                noDataText.textContent = "この時間帯に運行する列車はありません。";
+                noDataMessage.classList.remove('hidden');
             }
         } else {
-            noTimetableData.classList.remove('hidden');
+            noDataText.textContent = "時刻表データが見つかりませんでした。";
+            noDataMessage.classList.remove('hidden');
         }
     };
     
-    const updateDisplay = (stationName, railwayId, directionId) => {
-        stationSearch.value = stationName;
-        stationList.classList.add('hidden');
-        const activeLineItem = populateLineList(stationName, railwayId);
-        
-        if (activeLineItem) {
-            const currentRailwayId = activeLineItem.getAttribute('data-railway');
-            populateDirectionButtons(stationName, currentRailwayId, directionId);
-            const activeDirectionButton = directionButtons.querySelector('.direction-button.active');
-            if (activeDirectionButton) {
-                const currentDirectionId = activeDirectionButton.getAttribute('data-direction-id');
-                displayTimetable(stationName, currentRailwayId, currentDirectionId);
+    const updateDisplay = async (stationName, railwayId, directionId = null) => {
+        const stationObj = apiData.stations.find(s => s['odpt:stationTitle']['ja'] === stationName && s['odpt:railway'] === railwayId);
+        if (!stationObj) {
+            noDataText.textContent = "指定された駅と路線の組み合わせが見つかりませんでした。";
+            noDataMessage.classList.remove('hidden');
+            timetableTable.classList.add('hidden');
+            directionButtons.innerHTML = '';
+            return;
+        }
+        const stationId = stationObj['owl:sameAs'];
+        const timetable = await fetchTimetableData(stationId, railwayId);
+
+        populateDirectionButtons(timetable, directionId);
+
+        const currentDirectionId = directionButtons.querySelector('.direction-button.active')?.getAttribute('data-direction-id') || (timetable && timetable.length > 0 ? timetable[0]['odpt:railDirection'] : null);
+
+        displayTimetable(timetable, railwayId, currentDirectionId);
+
+        const railwayName = railwayMap[railwayId] || railwayId.split(':').pop();
+        currentLineNameElement.textContent = railwayName;
+
+        const trainInfo = apiData.trainInformation.find(info => info['odpt:railway'] === railwayId);
+        if (trainInfo) {
+            const text = trainInfo['odpt:trainInformationText']['ja'];
+            infoText.textContent = text;
+            infoBanner.classList.remove('hidden');
+            if (text.includes("遅延") || text.includes("運休") || text.includes("見合わせ")) {
+                infoBanner.className = 'mt-4 p-3 rounded-md bg-red-100 text-red-700';
+                infoBanner.querySelector('i').className = 'fas fa-exclamation-triangle mr-2';
             } else {
-                timetableBody.innerHTML = '';
-                infoBanner.classList.add('hidden');
-                noTimetableData.classList.remove('hidden');
-                currentStationNameElement.textContent = stationName;
-                currentLineNameElement.textContent = '';
+                infoBanner.className = 'mt-4 p-3 rounded-md bg-green-100 text-green-700';
+                infoBanner.querySelector('i').className = 'fas fa-check-circle mr-2';
             }
         } else {
-            timetableBody.innerHTML = '';
             infoBanner.classList.add('hidden');
-            noTimetableData.classList.remove('hidden');
-            currentStationNameElement.textContent = stationName;
-            currentLineNameElement.textContent = '';
         }
 
         const updateTime = new Date().toLocaleTimeString('ja-JP');
@@ -455,7 +617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const refreshDataAndDisplay = async () => {
-        const stationName = stationSearch.value;
+        const stationName = currentStationNameElement.textContent;
         const currentRailwayId = lineList.querySelector('.line-item.active')?.getAttribute('data-railway');
         const currentDirectionId = directionButtons.querySelector('.direction-button.active')?.getAttribute('data-direction-id');
         
@@ -465,23 +627,59 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initializeData();
 
-    stationSearch.addEventListener('input', (e) => {
-        populateStationSearch(e.target.value);
+    // Event Listeners for Station Selection Screen
+    lineSelectDropdown.addEventListener('change', (e) => {
+        const selectedRailwayId = e.target.value;
+        populateStationSelectList(selectedRailwayId);
     });
 
-    stationList.addEventListener('click', (e) => {
-        const selectedStationName = e.target.getAttribute('data-station-name');
-        if (selectedStationName) {
-            updateDisplay(selectedStationName);
+    stationSearchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const selectedRailwayId = lineSelectDropdown.value;
+        
+        let stationsToSearch = [];
+        
+        if (selectedRailwayId) {
+            stationsToSearch = apiData.stations.filter(s => s['odpt:railway'] === selectedRailwayId);
+        } else {
+            stationsToSearch = apiData.stations;
+        }
+
+        const uniqueStations = [...new Map(stationsToSearch.map(item => [item['odpt:stationTitle']['ja'], item])).values()];
+        const filteredStations = uniqueStations.filter(s => s['odpt:stationTitle']['ja'].toLowerCase().includes(searchTerm));
+        
+        stationSelectList.innerHTML = '';
+        if (filteredStations.length > 0) {
+            filteredStations.forEach(s => {
+                const stationName = s['odpt:stationTitle']['ja'];
+                const firstStationId = stationToRailwaysMap[stationName][0]['owl:sameAs'];
+                const item = document.createElement('a');
+                item.className = "p-2 block cursor-pointer hover:bg-gray-100 text-gray-900";
+                item.textContent = stationName;
+                item.href = `?station=${firstStationId}`;
+                stationSelectList.appendChild(item);
+            });
+        } else {
+            stationSelectList.innerHTML = `<div class="p-4 text-center text-gray-500">駅が見つかりませんでした。</div>`;
+            stationSelectList.classList.remove('hidden');
         }
     });
-    
+
+    stationSearchInput.addEventListener('focus', () => {
+        stationSelectList.classList.remove('hidden');
+        if (stationSearchInput.value === '') {
+            const selectedRailwayId = lineSelectDropdown.value;
+            populateStationSelectList(selectedRailwayId);
+        }
+    });
+
     document.addEventListener('click', (e) => {
-        if (!stationSearch.contains(e.target) && !stationList.contains(e.target)) {
-            stationList.classList.add('hidden');
+        if (!stationSelectionScreen.contains(e.target)) {
+            stationSelectList.classList.add('hidden');
         }
     });
 
+    // Event Listeners for Main Content
     lineList.addEventListener('click', (e) => {
         const lineItem = e.target.closest('.line-item');
         if (lineItem) {
@@ -489,16 +687,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             lineList.querySelectorAll('.line-item').forEach(i => i.classList.remove('active'));
             lineItem.classList.add('active');
             const railwayId = lineItem.getAttribute('data-railway');
-            const stationName = stationSearch.value;
-            
-            populateDirectionButtons(stationName, railwayId);
-            const firstDirectionButton = directionButtons.querySelector('.direction-button');
-            if (firstDirectionButton) {
-                const directionId = firstDirectionButton.getAttribute('data-direction-id');
-                firstDirectionButton.classList.add('active');
-                displayTimetable(stationName, railwayId, directionId);
-            }
+            const stationName = lineItem.getAttribute('data-station-name');
+            updateDisplay(stationName, railwayId);
         }
+    });
+
+    refreshButton.addEventListener('click', refreshDataAndDisplay);
+
+    backToStationSelectButton.addEventListener('click', () => {
+        window.location.href = '?station-select=true';
     });
     
     directionButtons.addEventListener('click', (e) => {
@@ -507,13 +704,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             directionButtons.querySelectorAll('.direction-button').forEach(btn => btn.classList.remove('active'));
             directionButton.classList.add('active');
             const railwayId = lineList.querySelector('.line-item.active').getAttribute('data-railway');
-            const stationName = stationSearch.value;
+            const stationName = currentStationNameElement.textContent;
             const directionId = directionButton.getAttribute('data-direction-id');
-            displayTimetable(stationName, railwayId, directionId);
+            updateDisplay(stationName, railwayId, directionId);
         }
     });
-
-    refreshButton.addEventListener('click', refreshDataAndDisplay);
 });
 </script>
 
