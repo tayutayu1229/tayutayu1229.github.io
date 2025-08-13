@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>列車旅客案内システム - 指令端末</title>
 
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- FontAwesome / Leaflet -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -29,8 +27,8 @@
     @media (max-width: 768px) {
       .sidebar { width: 100%; min-width: 0; }
     }
-    /* map height */
-    #map { height: calc(100vh - 64px); border-radius: 0.5rem; }
+    /* map height: We will handle this with flexbox now */
+    #map { border-radius: 0.5rem; }
     /* train marker */
     .train-marker {
       width: 32px; height: 32px; display:flex; align-items:center; justify-content:center;
@@ -49,22 +47,19 @@
 </head>
 <body class="antialiased">
 
-<div class="min-h-screen flex flex-col lg:flex-row">
+<div class="h-screen flex flex-col lg:flex-row">
 
-  <!-- LEFT SIDEBAR -->
-  <aside class="sidebar p-6 card lg:mr-6 lg:mb-0 mb-6">
+  <aside class="sidebar p-6 card lg:mr-6 lg:mb-0 mb-6 flex flex-col h-full">
     <div class="flex items-center justify-between mb-4">
       <h1 class="text-2xl font-extrabold flex items-center gap-3 text-[var(--accent)]">
         <i class="fas fa-desktop"></i>
         <span>指令端末</span>
       </h1>
-      <!-- 前のページに戻る -->
       <button href="sysindex.html" id="back-button" class="bg-gray-100 text-[var(--accent)] px-3 py-1 rounded-md hover:bg-gray-50 border border-gray-200 text-sm">
         <i class="fas fa-arrow-left mr-2"></i>戻る
       </button>
     </div>
 
-    <!-- 運行状況サマリー -->
     <section class="mb-6">
       <div class="px-4 py-3">
         <h2 class="text-lg font-semibold mb-2 border-b-2 border-[var(--accent)] pb-2">運行状況サマリー</h2>
@@ -81,26 +76,25 @@
       </div>
     </section>
 
-    <!-- 地図種別 -->
     <section class="mb-6 px-4 py-3">
       <h3 class="text-sm font-semibold mb-2">地図の種類</h3>
       <select id="map-style-select" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-md text-sm">
         <option value="osm">OpenStreetMap</option>
+        <option value="openrailway">OpenRailwayMap (鉄道)</option>
+        <option value="opentopo">OpenTopoMap (地形)</option>
         <option value="gsi_std">国土地理院（標準地図）</option>
         <option value="gsi_light">国土地理院（淡色地図）</option>
         <option value="esri_topo">ESRI World Topo Map</option>
       </select>
     </section>
 
-    <!-- 運行情報通知 -->
-    <section class="mb-6 px-4 py-3">
+    <section class="flex-1 px-4 py-3 flex flex-col min-h-0">
       <h3 class="text-lg font-semibold mb-2 border-b-2 border-[var(--accent)] pb-2">運行情報通知</h3>
-      <div id="alert-area" class="bg-gray-50 p-3 rounded-md min-h-[5rem] text-sm text-gray-700">
+      <div id="alert-area" class="bg-gray-50 p-3 rounded-md text-sm text-gray-700 space-y-2 h-full overflow-y-auto">
         <p id="alert-message">現在運行情報に関する通知はありません。</p>
       </div>
     </section>
 
-    <!-- 操作パネル（UI非表示だが機能は残す） -->
     <section style="display:none;">
       <h4 class="text-sm font-medium mb-2">操作パネル（駅端末向け）</h4>
       <textarea id="message-input" rows="3" class="w-full p-2 border border-gray-200 rounded-md bg-gray-50"></textarea>
@@ -109,8 +103,7 @@
     </section>
   </aside>
 
-  <!-- MAIN CONTENT -->
-  <main class="flex-1 flex flex-col">
+  <main class="flex-1 flex flex-col h-full">
     <header class="p-6">
       <div class="card p-4">
         <div class="flex items-center justify-between">
@@ -121,12 +114,11 @@
     </header>
 
     <div class="flex-1 p-6">
-      <div id="map" class="card"></div>
+      <div id="map" class="card h-full"></div>
     </div>
   </main>
 </div>
 
-<!-- Firebase + App logic (元の機能を保持) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
@@ -165,6 +157,9 @@
   // ODPT
   const API_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
   const API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/';
+  // 列車と駅情報にはJR-Eastを、運行情報にはjre-isを使用する
+  const API_OPERATOR_TRAIN = 'odpt.Operator:JR-East';
+  const API_OPERATOR_INFO = 'odpt.Operator:jre-is';
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
   let userId = 'anonymous';
@@ -188,6 +183,15 @@
     if (currentTileLayer) map.removeLayer(currentTileLayer);
     let tileUrl, attribution;
     switch(style) {
+      case 'openrailway':
+        // URLをhttpに変更し、サブドメインを明示的に指定して表示を修正
+        tileUrl = 'http://{a-c}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png';
+        attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Style: <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA 2.0</a> <a href="http://www.openrailwaymap.org/">OpenRailwayMap</a>';
+        break;
+      case 'opentopo':
+        tileUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+        attribution = 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+        break;
       case 'gsi_std':
         tileUrl = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
         attribution = '<a href="http://www.gsi.go.jp/" target="_blank">国土地理院</a>';
@@ -210,7 +214,8 @@
   /* ---------- fetch static resources ---------- */
   async function fetchRailwayData() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:Railway?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
       if (!res.ok) throw new Error('Failed to fetch railway data');
       allRailways = await res.json();
     } catch (e) { console.error('fetchRailwayData:', e); }
@@ -218,7 +223,8 @@
 
   async function fetchStationData() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:Station?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
       if (!res.ok) throw new Error('Failed to fetch station data');
       const data = await res.json();
       data.forEach(st => {
@@ -234,7 +240,8 @@
 
   async function fetchTimetableData() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
       if (!res.ok) throw new Error('Failed to fetch timetable data');
       const data = await res.json();
       data.forEach(tt => {
@@ -249,17 +256,19 @@
   async function updateSummaryAndAlerts() {
     try {
       // 1) 総路線数: 列車リアルタイム情報からのユニーク路線数
-      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
       const trainsData = trainsRes.ok ? await trainsRes.json() : [];
       const routeSet = new Set(trainsData.map(t => t['odpt:railway']).filter(Boolean));
       const totalRoutes = routeSet.size;
 
-      // 2) 遅延路線数 & 通知: TrainInformation から平常運転以外を抽出
-      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      // 2) 遅延路線数 & 通知: TrainInformation から平常運転とお知らせ以外を抽出
+      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=${API_OPERATOR_INFO}&acl:consumerKey=${API_KEY}`);
       const infos = infoRes.ok ? await infoRes.json() : [];
+      // 運行情報テキストまたは運行情報ステータスが「平常運転」でも「お知らせ」でもないものを抽出
       const filtered = infos.filter(info => {
+        const text = info['odpt:trainInformationText']?.ja;
         const status = info['odpt:trainInformationStatus']?.ja;
-        return status && status !== '平常運転' && status !== 'お知らせ';
+        return (text && text !== '平常運転') && (status !== 'お知らせ');
       });
       const delayedRoutes = filtered.length;
 
@@ -271,14 +280,19 @@
 
       // Update alert area: show only filtered (平常運転以外)
       if (filtered.length > 0) {
-        alertAreaEl.innerHTML = '';
+        alertAreaEl.innerHTML = ''; // Clear previous alerts
         filtered.forEach(info => {
           const railwayName = allRailways.find(r => r['owl:sameAs'] === info['odpt:railway'])?.['odpt:railwayTitle']?.['ja'] || shortName(info['odpt:railway']);
-          const status = info['odpt:trainInformationStatus']?.ja || '';
-          const text = info['odpt:trainInformationText']?.ja || '';
-          const p = document.createElement('p');
-          p.textContent = `${railwayName}: ${status} — ${text}`;
-          alertAreaEl.appendChild(p);
+          const text = info['odpt:trainInformationText']?.ja || '情報なし';
+
+          // Create a card-like div for each alert with red styling
+          const cardDiv = document.createElement('div');
+          cardDiv.className = 'card p-3 rounded-md border border-red-300 bg-red-50';
+          cardDiv.innerHTML = `
+            <p class="text-sm font-semibold text-red-800">${railwayName}</p>
+            <p class="text-xs text-red-700 mt-1">${text}</p>
+          `;
+          alertAreaEl.appendChild(cardDiv);
         });
       } else {
         alertAreaEl.innerHTML = '<p id="alert-message">現在運行情報に関する通知はありません。</p>';
@@ -293,16 +307,16 @@
   /* ---------- realtime trains + map rendering (popup-based) ---------- */
   async function updateDashboard() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+      const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
       if (!res.ok) throw new Error('Failed to fetch train data');
       const trains = await res.json();
-
-      // Update summaries also by counting active railways here for quick responsiveness (optional)
-      // but the authoritative summary is from updateSummaryAndAlerts which we call regularly.
 
       // clear markers
       trainMarkers.forEach(m => map.removeLayer(m));
       trainMarkers = [];
+
+      // 同じ駅にいる列車を数えるためのマップ
+      const stationMarkerCounts = {};
 
       trains.forEach(train => {
         const fromSn = shortName(train['odpt:fromStation']);
@@ -321,25 +335,49 @@
         const railName = rail?.['odpt:railwayTitle']?.['ja'] || shortName(train['odpt:railway']);
 
         // Determine marker position & section text
-        let lat, lng, sectionText;
-        if (from?.geo && to?.geo) {
-          // moving between stations — place at midpoint
+        let lat, lng, sectionText, markerStationId = null;
+        if (train['geo:lat'] && train['geo:long']) {
+          // Case 1: Use direct geolocation if available
+          lat = train['geo:lat'];
+          lng = train['geo:long'];
+          sectionText = `${from?.title || '出発地不明'} 〜 ${to?.title || '目的地不明'}`;
+        } else if (from?.geo && to?.geo) {
+          // Case 2: moving between stations — place at midpoint
           lat = (from.geo.lat + to.geo.lat) / 2;
           lng = (from.geo.long + to.geo.long) / 2;
           sectionText = `${from.title} 〜 ${to.title}`;
         } else if (from?.geo) {
-          // station stop — place at station coords and mark as 停車中
+          // Case 3: station stop — place at station coords
           lat = from.geo.lat;
           lng = from.geo.long;
           sectionText = `${from.title} 停車中`;
+          markerStationId = fromSn;
         } else if (to?.geo) {
-          // rare case: only toStation present (approaching) — place at that station
+          // Case 4: rare case: only toStation present (approaching) — place at that station
           lat = to.geo.lat;
           lng = to.geo.long;
           sectionText = `${to.title} 停車中`;
+          markerStationId = toSn;
         } else {
-          // no usable geo info — skip
+          // No usable geo info — skip this train
           return;
+        }
+        
+        // 重なりを避けるためのオフセットを計算 (Case 3 & 4のみ)
+        if (markerStationId) {
+          if (!stationMarkerCounts[markerStationId]) {
+            stationMarkerCounts[markerStationId] = 0;
+          }
+          const offsetIndex = stationMarkerCounts[markerStationId];
+          const offsetDirection = (offsetIndex % 2 === 0 ? 1 : -1);
+          const offsetMagnitude = Math.floor(offsetIndex / 2) + 1;
+          // 経度（横方向）のオフセットを3倍に拡大
+          const lngOffset = offsetDirection * offsetMagnitude * 0.00025;
+          // 緯度（縦方向）は小さくずらす
+          const latOffset = offsetDirection * offsetMagnitude * 0.00000; 
+          lat += latOffset;
+          lng += lngOffset;
+          stationMarkerCounts[markerStationId]++;
         }
 
         // Popup HTML in requested compact format:
@@ -365,7 +403,9 @@
           iconAnchor: [20,20]
         });
 
+        // オフセットを適用したマーカーを作成
         const marker = L.marker([lat,lng], { icon: markerIcon }).addTo(map);
+        
         // Bind popup and open on click (default Leaflet behavior)
         marker.bindPopup(popupHtml, { offset: [0, -10], autoClose: true, closeOnClick: true });
         trainMarkers.push(marker);
