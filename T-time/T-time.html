@@ -241,8 +241,19 @@
       const line = document.getElementById("line").value;
       const type = document.getElementById("train-type").value;
 
-      if (type !== "" && number !== "") {
-        document.getElementById("error-log").textContent = "列車種別と列車番号を同時に指定することはできません。いずれか一方を選択してください。";
+      // 列車種別の選択は必須
+      if (type === "") {
+        document.getElementById("error-log").textContent = "列車種別を選択してください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
+      // 列車種別と列車番号が同じ値の場合はエラー
+      if (type === number) {
+        document.getElementById("error-log").textContent = "選択した列車種別と列車番号が同じです。別の列車番号を入力してください。";
         document.getElementById("error-log").style.display = "block";
         document.getElementById("train-info").style.display = "none";
         document.getElementById("timetable").innerHTML = "";
@@ -250,29 +261,17 @@
         return;
       }
       
-      if (type === "" && number === "") {
-        document.getElementById("error-log").textContent = "検索条件を一つ以上入力してください。";
-        document.getElementById("error-log").style.display = "block";
-        document.getElementById("train-info").style.display = "none";
-        document.getElementById("timetable").innerHTML = "";
-        document.getElementById("date-selector-container").classList.add("hidden");
-        return;
-      }
-
       currentMatches = timetableData.filter(t => {
         const lineMatch = line === "" || t.line === line;
+        const typeMatch = t.type === type;
         
-        // 列車番号が入力されている場合
-        if (number !== "") {
-          return lineMatch && t.trainNumber === number;
+        // 列車番号が空欄の場合は、列車種別と線区でフィルタリング
+        if (number === "") {
+          return lineMatch && typeMatch;
         }
 
-        // 列車種別が選択されている場合
-        if (type !== "") {
-          return lineMatch && t.type === type;
-        }
-
-        return false;
+        // 列車番号が入力されている場合は、列車番号、列車種別、線区でフィルタリング
+        return lineMatch && typeMatch && t.trainNumber === number;
       });
 
       if (currentMatches.length === 0) {
