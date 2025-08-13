@@ -1,119 +1,3 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>列車別ダイヤモニタ</title>
-  <style>
-    body {
-      font-family: "MS PGothic", sans-serif;
-      font-weight: bold;
-      background-color: #ffffff;
-      color: #000000;
-      margin: 0;
-      padding: 0;
-    }
-
-    header {
-      background-color: #01977a;
-      color: white;
-      padding: 10px;
-      text-align: center;
-    }
-
-    .container {
-      margin: 20px;
-    }
-
-    .selection-header {
-      background-color: #01977a;
-      color: white;
-      padding: 8px 12px;
-      display: inline-block;
-      margin-bottom: 10px;
-      border-radius: 5px;
-    }
-
-    .selection {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 15px;
-    }
-
-    .selection label {
-      margin-right: 8px;
-    }
-
-    .selection select,
-    .selection input {
-      padding: 5px;
-    }
-
-    .selection-group {
-      display: flex;
-      align-items: center;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    table {
-      width: 80%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-
-    table, th, td {
-      border: 1px solid #01977a;
-    }
-
-    th, td {
-      padding: 6px;
-      line-height: 1.2;
-    }
-  
-    th {
-      background-color: #01977a;
-      color: white;
-      padding: 10px;
-      text-align: left;
-    }
-
-    td {
-      padding: 10px;
-      color: #000;
-      background-color: #ffffff;
-    }
-
-    .back-button,
-    .display-button {
-      margin-top: 20px;
-      display: inline-block;
-      padding: 10px 20px;
-      background-color: #01977a;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-    }
-
-    .back-button:hover,
-    .display-button:hover {
-      background-color: #017a63;
-    }
-
-    #error-log {
-      background-color: #ffcccc;
-      color: #990000;
-      padding: 10px;
-      margin: 10px 0;
-      border: 1px solid #990000;
-      display: none;
-    }
-  </style>
-</head>
 <body>
   <header>
     <h1>列車別ダイヤモニタ</h1>
@@ -121,30 +5,32 @@
   <div class="container">
     <a href="../toppage.html" class="back-button">前のページに戻る</a>
     <a href="alltrain.html">登録列車一覧を見る</a>
-
     <div id="error-log"></div>
 
-    
     <div class="selection">
       <div class="selection-header">表示内容選択</div>
       <div class="selection-group">
         <label for="line">線区:</label>
         <select id="line">
-        <option value="">すべて</option>
-      </select>
+          <option value="">すべて</option>
+        </select>
       </div>
       <div class="selection-group hidden" id="date-selector-container">
-      <label for="select-date">施行日:</label>
-      <select id="select-date"></select>
+        <label for="select-date">施行日:</label>
+        <select id="select-date"></select>
       </div>
       <div class="selection-group">
-      <label for="train-number">列車番号:</label>
-      <input type="text" id="train-number" placeholder="例: 123M">
+        <label for="train-type">列車種別:</label>
+        <select id="train-type">
+          <option value="">すべて</option>
+        </select>
+      </div>
+      <div class="selection-group">
+        <label for="train-number">列車番号:</label>
+        <input type="text" id="train-number" placeholder="例: 123M">
       </div>
       <button class="display-button" id="display-button">表示</button>
     </div>
-
-    
 
     <div id="train-info" style="margin-top: 10px; display: none;">
       <p>■<span id="info-line"></span>　施行日: <span id="info-date"></span></p>
@@ -189,6 +75,15 @@
           opt.textContent = l;
           lineSelect.appendChild(opt);
         });
+
+        const types = [...new Set(timetableData.map(t => t.type))].sort();
+        const typeSelect = document.getElementById("train-type");
+        types.forEach(t => {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t;
+          typeSelect.appendChild(opt);
+        });
       } catch (e) {
         document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。";
         document.getElementById("error-log").style.display = "block";
@@ -219,18 +114,38 @@
         tbody.appendChild(tr);
       });
     }
-    
-  
 
-    
-      // 検索処理を共通関数として定義
-  async function searchTrain() {
-      const number = document.getElementById("train-number").value.trim();
+    async function searchTrain() {
       const line = document.getElementById("line").value;
+      const type = document.getElementById("train-type").value;
+      const trainNumberInput = document.getElementById("train-number").value.trim().toUpperCase();
 
-      currentMatches = timetableData.filter(t =>
-        t.trainNumber === number && (line === "" || t.line === line)
-      );
+      // 列車番号の入力チェック
+      // 数字とM, D以外の文字が含まれている場合はエラー
+      if (/[^0-9MD]/.test(trainNumberInput)) {
+        document.getElementById("error-log").textContent = "列車番号は数字と「M」「D」のみで入力してください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+      
+      if (!trainNumberInput) {
+        document.getElementById("error-log").textContent = "列車番号を入力してください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
+      currentMatches = timetableData.filter(t => {
+        const tNumber = t.trainNumber.toUpperCase();
+        return (line === "" || t.line === line) &&
+               (type === "" || t.type === type) &&
+               tNumber === trainNumberInput;
+      });
 
       if (currentMatches.length === 0) {
         document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
@@ -244,61 +159,49 @@
       document.getElementById("error-log").style.display = "none";
 
       if (currentMatches.length === 1) {
-  document.getElementById("date-selector-container").classList.add("hidden");
-  displayTrain(currentMatches[0]);
-} else {
-  const dateSelect = document.getElementById("select-date");
-
-  // ✅ 重複のない施行日だけを表示
-  const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-  dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
-
-  document.getElementById("date-selector-container").classList.remove("hidden");
-  displayTrain(currentMatches[0]); // 最初のやつを表示
-}
-
-    };
-
-    // ボタンによる検索
-  document.getElementById("display-button").addEventListener("click", searchTrain);
-
-  // Enterキーによる検索
-  document.getElementById("train-number").addEventListener("keypress", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchTrain();
+        document.getElementById("date-selector-container").classList.add("hidden");
+        displayTrain(currentMatches[0]);
+      } else {
+        const dateSelect = document.getElementById("select-date");
+        const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
+        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]);
+      }
     }
-  });
-    
+
+    document.getElementById("display-button").addEventListener("click", searchTrain);
+    document.getElementById("train-number").addEventListener("keypress", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchTrain();
+      }
+    });
     document.getElementById("select-date").addEventListener("change", function () {
       const selected = currentMatches.find(m => m.startDate === this.value);
       if (selected) displayTrain(selected);
     });
-    
+    document.getElementById("train-type").addEventListener("change", searchTrain);
+
     loadTimetableData();
-  
-    // トークン検証
+
     const token = localStorage.getItem('authToken');
     const tokenExpiry = localStorage.getItem('tokenExpiry');
 
     if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-        // 無効な場合はログインページへ
         alert('セッションが切れました');
         window.location.href = '../index.html';
     }
 
-    // ログアウト関数
     function logout() {
         localStorage.removeItem('authToken');
         localStorage.removeItem('tokenExpiry');
         window.location.href = '../index.html';
     }
 
-    // ログアウトボタンにイベント追加
     const logoutButton = document.querySelector('.logout-button');
     if (logoutButton) {
         logoutButton.addEventListener('click', logout);
     }
   </script>
 </body>
-</html>
