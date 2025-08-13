@@ -72,7 +72,7 @@
       padding: 6px;
       line-height: 1.2;
     }
-  
+    
     th {
       background-color: #01977a;
       color: white;
@@ -138,6 +138,12 @@
       <select id="select-date"></select>
       </div>
       <div class="selection-group">
+        <label for="train-type">列車種別:</label>
+        <select id="train-type">
+            <option value="">すべて</option>
+        </select>
+      </div>
+      <div class="selection-group">
       <label for="train-number">列車番号:</label>
       <input type="text" id="train-number" placeholder="例: 123M">
       </div>
@@ -189,6 +195,17 @@
           opt.textContent = l;
           lineSelect.appendChild(opt);
         });
+
+        // ✅ 列車種別の選択肢を動的に追加
+        const types = [...new Set(timetableData.map(t => t.type))];
+        const typeSelect = document.getElementById("train-type");
+        types.forEach(t => {
+            const opt = document.createElement("option");
+            opt.value = t;
+            opt.textContent = t;
+            typeSelect.appendChild(opt);
+        });
+
       } catch (e) {
         document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。";
         document.getElementById("error-log").style.display = "block";
@@ -220,16 +237,16 @@
       });
     }
     
-  
-
-    
-      // 検索処理を共通関数として定義
-  async function searchTrain() {
+    // 検索処理を共通関数として定義
+    async function searchTrain() {
       const number = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
+      const type = document.getElementById("train-type").value; // ✅ 列車種別を取得
 
       currentMatches = timetableData.filter(t =>
-        t.trainNumber === number && (line === "" || t.line === line)
+        t.trainNumber === number &&
+        (line === "" || t.line === line) &&
+        (type === "" || t.type === type) // ✅ 列車種別でフィルタリング
       );
 
       if (currentMatches.length === 0) {
@@ -244,31 +261,31 @@
       document.getElementById("error-log").style.display = "none";
 
       if (currentMatches.length === 1) {
-  document.getElementById("date-selector-container").classList.add("hidden");
-  displayTrain(currentMatches[0]);
-} else {
-  const dateSelect = document.getElementById("select-date");
+        document.getElementById("date-selector-container").classList.add("hidden");
+        displayTrain(currentMatches[0]);
+      } else {
+        const dateSelect = document.getElementById("select-date");
 
-  // ✅ 重複のない施行日だけを表示
-  const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-  dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        // ✅ 重複のない施行日だけを表示
+        const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
+        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
 
-  document.getElementById("date-selector-container").classList.remove("hidden");
-  displayTrain(currentMatches[0]); // 最初のやつを表示
-}
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]); // 最初のやつを表示
+      }
 
     };
 
     // ボタンによる検索
-  document.getElementById("display-button").addEventListener("click", searchTrain);
+    document.getElementById("display-button").addEventListener("click", searchTrain);
 
-  // Enterキーによる検索
-  document.getElementById("train-number").addEventListener("keypress", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchTrain();
-    }
-  });
+    // Enterキーによる検索
+    document.getElementById("train-number").addEventListener("keypress", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchTrain();
+      }
+    });
     
     document.getElementById("select-date").addEventListener("change", function () {
       const selected = currentMatches.find(m => m.startDate === this.value);
@@ -276,7 +293,7 @@
     });
     
     loadTimetableData();
-  
+    
     // トークン検証
     const token = localStorage.getItem('authToken');
     const tokenExpiry = localStorage.getItem('tokenExpiry');
