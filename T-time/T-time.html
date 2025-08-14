@@ -185,7 +185,18 @@
     async function loadTimetableData() {
       try {
         const res = await fetch("timetables.json");
+        // 修正箇所：レスポンスがOKでなかった場合もエラーをスロー
+        if (!res.ok) {
+          throw new Error(`JSONファイルの読み込みに失敗しました (${res.status} ${res.statusText})`);
+        }
         timetableData = await res.json();
+
+        // 修正箇所：データがない場合のエラーハンドリング
+        if (!Array.isArray(timetableData) || timetableData.length === 0) {
+          document.getElementById("error-log").textContent = "timetables.jsonに有効なデータがありません。";
+          document.getElementById("error-log").style.display = "block";
+          return;
+        }
 
         const lines = [...new Set(timetableData.map(t => t.line))];
         const lineSelect = document.getElementById("line");
@@ -205,7 +216,7 @@
           crownSelect.appendChild(opt);
         });
       } catch (e) {
-        document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。";
+        document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。詳細: " + e.message;
         document.getElementById("error-log").style.display = "block";
       }
     }
