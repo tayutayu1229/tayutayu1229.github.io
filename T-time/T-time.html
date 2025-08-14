@@ -204,6 +204,7 @@
 
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
         const crownSelect = document.getElementById("crown");
+        crownSelect.innerHTML = `<option value="">すべて</option>`; // 既存のオプションをクリア
         crowns.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c;
@@ -213,6 +214,10 @@
       } catch (e) {
         document.getElementById("error-log").textContent = "エラー: " + e.message;
         document.getElementById("error-log").style.display = "block";
+        document.getElementById("display-button").disabled = true;
+        document.getElementById("train-number").disabled = true;
+        document.getElementById("line").disabled = true;
+        document.getElementById("crown").disabled = true;
       }
     }
 
@@ -242,15 +247,13 @@
       });
     }
     
-  
-  async function searchTrain() {
+    async function searchTrain() {
       const number = document.getElementById("train-number").value.trim();
       const line = document.getElementById("line").value;
       const crown = document.getElementById("crown").value;
 
-      // 修正箇所: 入力値のバリデーションを強化
       const trainNumberInput = document.getElementById("train-number");
-      if (!trainNumberInput.checkValidity()) {
+      if (number !== "" && !trainNumberInput.checkValidity()) {
         document.getElementById("error-log").textContent = "列車番号は数字から始めてください。";
         document.getElementById("error-log").style.display = "block";
         document.getElementById("train-info").style.display = "none";
@@ -286,38 +289,35 @@
       document.getElementById("error-log").style.display = "none";
 
       if (currentMatches.length === 1) {
-  document.getElementById("date-selector-container").classList.add("hidden");
-  displayTrain(currentMatches[0]);
-} else {
-  const dateSelect = document.getElementById("select-date");
-
-  const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-  dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
-
-  document.getElementById("date-selector-container").classList.remove("hidden");
-  displayTrain(currentMatches[0]);
-}
-
+        document.getElementById("date-selector-container").classList.add("hidden");
+        displayTrain(currentMatches[0]);
+      } else {
+        const dateSelect = document.getElementById("select-date");
+        const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
+        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]);
+      }
     };
 
-  document.getElementById("display-button").addEventListener("click", searchTrain);
+    document.getElementById("display-button").addEventListener("click", searchTrain);
 
-  document.getElementById("train-number").addEventListener("keypress", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchTrain();
-    }
-  });
-    
+    document.getElementById("train-number").addEventListener("keypress", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchTrain();
+      }
+    });
+      
     document.getElementById("select-date").addEventListener("change", function () {
       const selected = currentMatches.find(m => m.startDate === this.value);
       if (selected) displayTrain(selected);
     });
-    
+      
     document.getElementById("crown").addEventListener("change", searchTrain);
-    
+      
     loadTimetableData();
-  
+    
     const token = localStorage.getItem('authToken');
     const tokenExpiry = localStorage.getItem('tokenExpiry');
 
