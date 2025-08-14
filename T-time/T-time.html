@@ -204,7 +204,7 @@
 
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
         const crownSelect = document.getElementById("crown");
-        crownSelect.innerHTML = `<option value="">すべて</option>`; // 既存のオプションをクリア
+        crownSelect.innerHTML = `<option value="">すべて</option>`;
         crowns.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c;
@@ -271,11 +271,13 @@
         return;
       }
       
-      currentMatches = timetableData.filter(t =>
-        t.trainNumber === number && 
-        (line === "" || t.line === line) &&
-        (crown === "" || t.crown === crown)
-      );
+      currentMatches = timetableData.filter(t => {
+        // 修正箇所: 列車番号の文頭から数字以外の文字を無視して検索
+        const normalizedTrainNumber = t.trainNumber.replace(/^[^0-9]+/, '');
+        return normalizedTrainNumber === number && 
+               (line === "" || t.line === line) &&
+               (crown === "" || t.crown === crown);
+      });
 
       if (currentMatches.length === 0) {
         document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
