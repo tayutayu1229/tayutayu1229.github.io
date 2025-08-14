@@ -185,17 +185,12 @@
     async function loadTimetableData() {
       try {
         const res = await fetch("timetables.json");
-        // 修正箇所：レスポンスがOKでなかった場合もエラーをスロー
         if (!res.ok) {
           throw new Error(`JSONファイルの読み込みに失敗しました (${res.status} ${res.statusText})`);
         }
         timetableData = await res.json();
-
-        // 修正箇所：データがない場合のエラーハンドリング
         if (!Array.isArray(timetableData) || timetableData.length === 0) {
-          document.getElementById("error-log").textContent = "timetables.jsonに有効なデータがありません。";
-          document.getElementById("error-log").style.display = "block";
-          return;
+          throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
         }
 
         const lines = [...new Set(timetableData.map(t => t.line))];
@@ -216,7 +211,7 @@
           crownSelect.appendChild(opt);
         });
       } catch (e) {
-        document.getElementById("error-log").textContent = "JSONの読み込みに失敗しました。詳細: " + e.message;
+        document.getElementById("error-log").textContent = "エラー: " + e.message;
         document.getElementById("error-log").style.display = "block";
       }
     }
@@ -253,6 +248,16 @@
       const line = document.getElementById("line").value;
       const crown = document.getElementById("crown").value;
 
+      // 修正箇所: 列車番号に種別冠が部分的に含まれている場合にエラーを表示
+      if (number !== "" && crown !== "" && number.includes(crown)) {
+        document.getElementById("error-log").textContent = "列車番号に種別冠が含まれているため、検索できません。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+      
       currentMatches = timetableData.filter(t =>
         t.trainNumber === number && 
         (line === "" || t.line === line) &&
