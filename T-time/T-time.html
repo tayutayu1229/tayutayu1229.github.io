@@ -145,7 +145,7 @@
       </div>
       <div class="selection-group">
       <label for="train-number">列車番号:</label>
-      <input type="text" id="train-number" placeholder="例: 123M">
+      <input type="text" id="train-number" pattern="^[0-9].*" placeholder="例: 123M">
       </div>
       <button class="display-button" id="display-button">表示</button>
     </div>
@@ -248,7 +248,17 @@
       const line = document.getElementById("line").value;
       const crown = document.getElementById("crown").value;
 
-      // 修正箇所: 列車番号に種別冠が部分的に含まれている場合にエラーを表示
+      // 修正箇所: 入力値のバリデーションを強化
+      const trainNumberInput = document.getElementById("train-number");
+      if (!trainNumberInput.checkValidity()) {
+        document.getElementById("error-log").textContent = "列車番号は数字から始めてください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
       if (number !== "" && crown !== "" && number.includes(crown)) {
         document.getElementById("error-log").textContent = "列車番号に種別冠が含まれているため、検索できません。";
         document.getElementById("error-log").style.display = "block";
