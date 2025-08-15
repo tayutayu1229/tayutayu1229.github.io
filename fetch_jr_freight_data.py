@@ -8,7 +8,7 @@ import json
 
 USER_NAME = "tayutayu1229"
 REPO_NAME = "tayutayu1229.github.io"
-TARGET_FILE = "JRFtest/jr_freight_status.html"
+TARGET_FILE = "JRFtest/a.html"
 BRANCH_NAME = "main"
 
 URL = "https://www.jrfreight.co.jp/i_daiya"
