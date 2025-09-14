@@ -34,12 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // フィルタリングロジック
         if (dateInput.length > 0) {
+            const searchDateFormatted = dateInput.replace(/-/g, '/');
             const dateObj = new Date(dateInput);
             const dayOfWeek = dateObj.getDay();
             const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
             
             filteredData = filteredData.filter(item => {
-                const isTempOperation = item.type === "臨時" && item.date === dateInput;
+                const isTempOperation = item.type === "臨時" && item.date === searchDateFormatted;
                 const isRegularOperation = item.type === "通常" && 
                                             ((item.weekday === "平日" && !isWeekend) || 
                                              (item.weekday === "土休日" && isWeekend) ||
@@ -53,14 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (operationNumberInput.length > 0) {
             filteredData = filteredData.filter(item => item.operation_number.toLowerCase().includes(operationNumberInput));
         }
-        // 列車番号と区間の検索ロジックを統合し、どちらかがヒットすれば表示
         if (trainNumberInput.length > 0) {
-            filteredData = filteredData.filter(item => {
-                return item.train_runs.some(run => 
+            filteredData = filteredData.filter(item => 
+                item.train_runs.some(run => 
                     (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
                     (run.route && run.route.toLowerCase().includes(trainNumberInput))
-                );
-            });
+                )
+            );
         }
         
         displayResults(filteredData);
@@ -92,8 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         results.forEach(item => {
-            const hasMultipleRuns = item.train_runs.length > 1;
-
             item.train_runs.forEach((run, index) => {
                 const row = document.createElement('tr');
                 row.dataset.id = item.id;
