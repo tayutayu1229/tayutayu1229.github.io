@@ -36,10 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateObj = new Date(dateInput);
                 const dayOfWeek = dateObj.getDay();
                 const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-                
+
                 const isTempOperation = item.type === "臨時" && item.date === searchDateFormatted;
-                const isRegularOperation = item.type === "通常" && 
-                                            ((item.weekday === "平日" && !isWeekend) || 
+                const isRegularOperation = item.type === "通常" &&
+                                            ((item.weekday === "平日" && !isWeekend) ||
                                              (item.weekday === "土休日" && isWeekend) ||
                                              (item.weekday === "曜日関係なし"));
                 if (!isTempOperation && !isRegularOperation) {
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 列車番号フィルタ
             if (trainNumberInput.length > 0) {
-                const trainOrRouteMatch = item.train_runs.some(run => 
+                const trainOrRouteMatch = item.train_runs.some(run =>
                     (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
                     (run.route && run.route.toLowerCase().includes(trainNumberInput))
                 );
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return true; // すべての条件を満たした場合
         });
-        
+
         displayResults(filteredData);
         updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput);
     }
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFilterDisplay(date, division, opNum, trainNum) {
-        document.getElementById('filter_display').textContent = 
+        document.getElementById('filter_display').textContent =
             `絞り込み状況：施行日：${date || '指定なし'} 区所名：${division || '指定なし'} 運用番号：${opNum || '指定なし'} 列車番号：${trainNum || '指定なし'}`;
     }
 
@@ -104,13 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
             item.train_runs.forEach((run, index) => {
                 const row = document.createElement('tr');
                 row.dataset.id = item.id;
-                
+
                 if (index === 0) {
                     const dateCell = document.createElement('td');
                     dateCell.textContent = item.type === '臨時' ? item.date : item.weekday;
                     dateCell.rowSpan = item.train_runs.length;
                     row.appendChild(dateCell);
-                    
+
                     const divisionCell = document.createElement('td');
                     divisionCell.textContent = item.division;
                     divisionCell.rowSpan = item.train_runs.length;
@@ -121,11 +121,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     opNumCell.rowSpan = item.train_runs.length;
                     row.appendChild(opNumCell);
                 }
-                
+
                 const trainNumCell = document.createElement('td');
                 trainNumCell.textContent = run.train_number || '';
                 row.appendChild(trainNumCell);
-                
+
                 const routeCell = document.createElement('td');
                 routeCell.textContent = run.route;
                 row.appendChild(routeCell);
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDetails(item) {
         const modal = document.getElementById('modal');
         const detailsContainer = document.getElementById('modal-details');
-        
+
         let trainRunsHtml = '<ul>';
         item.train_runs.forEach(run => {
             trainRunsHtml += `<li><strong>${run.train_number || ''}</strong>: ${run.route}</li>`;
