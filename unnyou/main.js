@@ -28,42 +28,51 @@ document.addEventListener('DOMContentLoaded', () => {
         const operationNumberInput = document.getElementById('operation_number_input').value.trim().toLowerCase();
         const trainNumberInput = document.getElementById('train_number_input').value.trim().toLowerCase();
 
-        updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput);
-
-        let filteredData = data;
-
-        // フィルタリングロジック
-        if (dateInput.length > 0) {
-            const searchDateFormatted = dateInput.replace(/-/g, '/');
-            const dateObj = new Date(dateInput);
-            const dayOfWeek = dateObj.getDay();
-            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-            
-            filteredData = filteredData.filter(item => {
+        // フィルタリングをここで行う
+        let filteredData = data.filter(item => {
+            // 施行日フィルタ
+            if (dateInput.length > 0) {
+                const searchDateFormatted = dateInput.replace(/-/g, '/');
+                const dateObj = new Date(dateInput);
+                const dayOfWeek = dateObj.getDay();
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+                
                 const isTempOperation = item.type === "臨時" && item.date === searchDateFormatted;
                 const isRegularOperation = item.type === "通常" && 
                                             ((item.weekday === "平日" && !isWeekend) || 
                                              (item.weekday === "土休日" && isWeekend) ||
                                              (item.weekday === "曜日関係なし"));
-                return isTempOperation || isRegularOperation;
-            });
-        }
-        if (divisionSelect.length > 0) {
-            filteredData = filteredData.filter(item => item.division === divisionSelect);
-        }
-        if (operationNumberInput.length > 0) {
-            filteredData = filteredData.filter(item => item.operation_number.toLowerCase().includes(operationNumberInput));
-        }
-        if (trainNumberInput.length > 0) {
-            filteredData = filteredData.filter(item => 
-                item.train_runs.some(run => 
+                if (!isTempOperation && !isRegularOperation) {
+                    return false;
+                }
+            }
+
+            // 区所名フィルタ
+            if (divisionSelect.length > 0 && item.division !== divisionSelect) {
+                return false;
+            }
+
+            // 運用番号フィルタ
+            if (operationNumberInput.length > 0 && !item.operation_number.toLowerCase().includes(operationNumberInput)) {
+                return false;
+            }
+            
+            // 列車番号フィルタ
+            if (trainNumberInput.length > 0) {
+                const trainOrRouteMatch = item.train_runs.some(run => 
                     (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
                     (run.route && run.route.toLowerCase().includes(trainNumberInput))
-                )
-            );
-        }
+                );
+                if (!trainOrRouteMatch) {
+                    return false;
+                }
+            }
+
+            return true; // すべての条件を満たした場合
+        });
         
         displayResults(filteredData);
+        updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput);
     }
 
     function populateDivisionSelect(data) {
