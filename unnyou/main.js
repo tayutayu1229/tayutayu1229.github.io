@@ -1,11 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     let data = [];
 
-    // 1. JSONデータの非同期読み込み
+    // JSONデータの非同期読み込み
     fetch('data.json')
         .then(response => {
             if (!response.ok) {
-                // HTTPステータスが200番台以外の場合
                 throw new Error(`データの読み込みに失敗しました。HTTPエラー: ${response.status}`);
             }
             return response.json();
@@ -13,10 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(jsonData => {
             data = jsonData;
             populateDivisionSelect(data);
-            displayResults(data); // データを取得したら、初期表示
+            displayResults(data);
         })
         .catch(error => {
-            // fetch処理自体の失敗（ネットワークエラー等）の場合
             console.error('Error loading JSON data:', error);
             document.getElementById('results_table').querySelector('tbody').innerHTML = `<tr><td colspan="6">データの読み込みに失敗しました。<br>${error.message}</td></tr>`;
         });
@@ -35,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let filteredData = data;
 
         // フィルタリングロジック
-        if (dateInput) {
+        if (dateInput.length > 0) {
             const dateObj = new Date(dateInput);
             const dayOfWeek = dateObj.getDay();
             const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
@@ -49,22 +47,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return isTempOperation || isRegularOperation;
             });
         }
-        if (divisionSelect) {
+        if (divisionSelect.length > 0) {
             filteredData = filteredData.filter(item => item.division === divisionSelect);
         }
-        if (operationNumberInput) {
+        if (operationNumberInput.length > 0) {
             filteredData = filteredData.filter(item => item.operation_number.toLowerCase().includes(operationNumberInput));
         }
-        if (trainNumberInput) {
-            filteredData = filteredData.filter(item => 
-                item.train_runs.some(run => run.train_number && run.train_number.toLowerCase().includes(trainNumberInput))
-            );
+        // 列車番号と区間の検索ロジックを統合し、どちらかがヒットすれば表示
+        if (trainNumberInput.length > 0) {
+            filteredData = filteredData.filter(item => {
+                return item.train_runs.some(run => 
+                    (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
+                    (run.route && run.route.toLowerCase().includes(trainNumberInput))
+                );
+            });
         }
         
         displayResults(filteredData);
     }
 
-    // JSONから全ての区所名を抽出してドロップダウンを生成
     function populateDivisionSelect(data) {
         const divisions = [...new Set(data.map(item => item.division))].filter(Boolean).sort();
         const select = document.getElementById('division_select');
