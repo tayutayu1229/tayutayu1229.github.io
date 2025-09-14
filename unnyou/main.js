@@ -111,11 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     opNumCell.textContent = item.operation_number;
                     opNumCell.rowSpan = item.train_runs.length;
                     row.appendChild(opNumCell);
-
-                    const vehiclesCell = document.createElement('td');
-                    vehiclesCell.textContent = item.vehicles;
-                    vehiclesCell.rowSpan = item.train_runs.length;
-                    row.appendChild(vehiclesCell);
                 }
                 
                 const trainNumCell = document.createElement('td');
@@ -125,6 +120,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const routeCell = document.createElement('td');
                 routeCell.textContent = run.route;
                 row.appendChild(routeCell);
+
+                if (index === 0) {
+                    const vehiclesCell = document.createElement('td');
+                    vehiclesCell.textContent = item.vehicles;
+                    vehiclesCell.rowSpan = item.train_runs.length;
+                    row.appendChild(vehiclesCell);
+                }
 
                 row.addEventListener('click', () => showDetails(item));
                 tbody.appendChild(row);
