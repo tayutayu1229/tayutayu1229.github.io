@@ -1,11 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let data = []; // データを格納する配列
+    let data = [];
 
     // 1. JSONデータの非同期読み込み
     fetch('data.json')
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // HTTPステータスが200番台以外の場合
+                throw new Error(`データの読み込みに失敗しました。HTTPエラー: ${response.status}`);
             }
             return response.json();
         })
@@ -15,8 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
             displayResults(data); // データを取得したら、初期表示
         })
         .catch(error => {
+            // fetch処理自体の失敗（ネットワークエラー等）の場合
             console.error('Error loading JSON data:', error);
-            document.getElementById('results_table').querySelector('tbody').innerHTML = '<tr><td colspan="6">データの読み込みに失敗しました。</td></tr>';
+            document.getElementById('results_table').querySelector('tbody').innerHTML = `<tr><td colspan="6">データの読み込みに失敗しました。<br>${error.message}</td></tr>`;
         });
 
     const searchButton = document.getElementById('search_button');
@@ -27,12 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const divisionSelect = document.getElementById('division_select').value;
         const operationNumberInput = document.getElementById('operation_number_input').value.trim().toLowerCase();
         const trainNumberInput = document.getElementById('train_number_input').value.trim().toLowerCase();
-        const routeInput = document.getElementById('route_input').value.trim().toLowerCase();
 
-        updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput, routeInput);
+        updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput);
 
         let filteredData = data;
 
+        // フィルタリングロジック
         if (dateInput) {
             const dateObj = new Date(dateInput);
             const dayOfWeek = dateObj.getDay();
@@ -58,17 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.train_runs.some(run => run.train_number && run.train_number.toLowerCase().includes(trainNumberInput))
             );
         }
-        if (routeInput) {
-            filteredData = filteredData.filter(item => 
-                item.train_runs.some(run => run.route && run.route.toLowerCase().includes(routeInput))
-            );
-        }
-
+        
         displayResults(filteredData);
     }
 
+    // JSONから全ての区所名を抽出してドロップダウンを生成
     function populateDivisionSelect(data) {
-        const divisions = [...new Set(data.map(item => item.division))].filter(Boolean); // nullやundefinedを除外
+        const divisions = [...new Set(data.map(item => item.division))].filter(Boolean).sort();
         const select = document.getElementById('division_select');
         divisions.forEach(division => {
             const option = document.createElement('option');
@@ -78,9 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateFilterDisplay(date, division, opNum, trainNum, route) {
+    function updateFilterDisplay(date, division, opNum, trainNum) {
         document.getElementById('filter_display').textContent = 
-            `絞り込み状況：施行日：${date || '指定なし'} 区所名：${division || '指定なし'} 運用番号：${opNum || '指定なし'} 列車番号：${trainNum || '指定なし'} 区間：${route || '指定なし'}`;
+            `絞り込み状況：施行日：${date || '指定なし'} 区所名：${division || '指定なし'} 運用番号：${opNum || '指定なし'} 列車番号：${trainNum || '指定なし'}`;
     }
 
     function displayResults(results) {
@@ -93,56 +91,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         results.forEach(item => {
-            const firstRun = item.train_runs[0];
             const hasMultipleRuns = item.train_runs.length > 1;
 
-            const row = document.createElement('tr');
-            row.dataset.id = item.id;
-            
-            const dateCell = document.createElement('td');
-            dateCell.textContent = item.type === '臨時' ? item.date : item.weekday;
-            dateCell.rowSpan = item.train_runs.length;
-            row.appendChild(dateCell);
-            
-            const divisionCell = document.createElement('td');
-            divisionCell.textContent = item.division;
-            divisionCell.rowSpan = item.train_runs.length;
-            row.appendChild(divisionCell);
+            item.train_runs.forEach((run, index) => {
+                const row = document.createElement('tr');
+                row.dataset.id = item.id;
+                
+                if (index === 0) {
+                    const dateCell = document.createElement('td');
+                    dateCell.textContent = item.type === '臨時' ? item.date : item.weekday;
+                    dateCell.rowSpan = item.train_runs.length;
+                    row.appendChild(dateCell);
+                    
+                    const divisionCell = document.createElement('td');
+                    divisionCell.textContent = item.division;
+                    divisionCell.rowSpan = item.train_runs.length;
+                    row.appendChild(divisionCell);
 
-            const opNumCell = document.createElement('td');
-            opNumCell.textContent = item.operation_number;
-            opNumCell.rowSpan = item.train_runs.length;
-            row.appendChild(opNumCell);
+                    const opNumCell = document.createElement('td');
+                    opNumCell.textContent = item.operation_number;
+                    opNumCell.rowSpan = item.train_runs.length;
+                    row.appendChild(opNumCell);
 
-            const vehiclesCell = document.createElement('td');
-            vehiclesCell.textContent = item.vehicles;
-            vehiclesCell.rowSpan = item.train_runs.length;
-            row.appendChild(vehiclesCell);
-            
-            const trainNumCell = document.createElement('td');
-            trainNumCell.textContent = firstRun.train_number || '';
-            row.appendChild(trainNumCell);
-            
-            const routeCell = document.createElement('td');
-            routeCell.textContent = firstRun.route;
-            row.appendChild(routeCell);
-            
-            row.addEventListener('click', () => showDetails(item));
-            tbody.appendChild(row);
+                    const vehiclesCell = document.createElement('td');
+                    vehiclesCell.textContent = item.vehicles;
+                    vehiclesCell.rowSpan = item.train_runs.length;
+                    row.appendChild(vehiclesCell);
+                }
+                
+                const trainNumCell = document.createElement('td');
+                trainNumCell.textContent = run.train_number || '';
+                row.appendChild(trainNumCell);
+                
+                const routeCell = document.createElement('td');
+                routeCell.textContent = run.route;
+                row.appendChild(routeCell);
 
-            if (hasMultipleRuns) {
-                item.train_runs.slice(1).forEach(run => {
-                    const extraRow = document.createElement('tr');
-                    const extraTrainNumCell = document.createElement('td');
-                    extraTrainNumCell.textContent = run.train_number || '';
-                    extraRow.appendChild(extraTrainNumCell);
-                    const extraRouteCell = document.createElement('td');
-                    extraRouteCell.textContent = run.route;
-                    extraRow.appendChild(extraRouteCell);
-                    extraRow.addEventListener('click', () => showDetails(item));
-                    tbody.appendChild(extraRow);
-                });
-            }
+                row.addEventListener('click', () => showDetails(item));
+                tbody.appendChild(row);
+            });
         });
     }
 
