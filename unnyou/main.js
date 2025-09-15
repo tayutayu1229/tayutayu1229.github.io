@@ -30,15 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const searchDateFormatted = dateInput ? dateInput.replace(/-/g, '/') : null;
 
-        // フィルタリングをここで行う
         let filteredData = data.filter(item => {
-            // 施行日フィルタ
             const dateMatch = (() => {
                 if (!searchDateFormatted) {
                     return true;
                 }
 
-                // 通常運用の場合
                 if (item.type === "通常") {
                     const dateObj = new Date(dateInput);
                     const dayOfWeek = dateObj.getDay();
@@ -49,20 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             (item.weekday === "曜日関係なし"));
                 }
 
-                // 臨時運用の場合
                 if (item.type === "臨時") {
-                    // 日付が配列形式の場合
                     if (Array.isArray(item.date)) {
                         return item.date.includes(searchDateFormatted);
                     }
-                    // 日付が期間形式の場合
                     if (item.start_date && item.end_date) {
                         const startDate = new Date(item.start_date);
                         const endDate = new Date(item.end_date);
                         const inputDate = new Date(searchDateFormatted);
                         return inputDate >= startDate && inputDate <= endDate;
                     }
-                    // 単一の日付の場合
                     if (typeof item.date === 'string') {
                         return item.date === searchDateFormatted;
                     }
@@ -70,13 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             })();
 
-            // 区所名フィルタ
             const divisionMatch = divisionSelect.length === 0 || item.division === divisionSelect;
-
-            // 運用番号フィルタ
             const opNumMatch = operationNumberInput.length === 0 || item.operation_number.toLowerCase().includes(operationNumberInput);
-            
-            // 列車番号フィルタ
             const trainNumMatch = trainNumberInput.length === 0 || item.train_runs.some(run => 
                 (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
                 (run.route && run.route.toLowerCase().includes(trainNumberInput))
@@ -121,14 +109,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (index === 0) {
                     const dateCell = document.createElement('td');
-                    // 日付の表示形式を調整
                     if (item.type === '臨時') {
                         if (Array.isArray(item.date)) {
-                            dateCell.textContent = item.date.join(', ');
+                            const dates = item.date.map(d => {
+                                const parts = d.split('/');
+                                return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+                            });
+                            const month = dates[0].split('/')[0];
+                            const days = dates.map(d => d.split('/')[1]);
+                            dateCell.textContent = `${month}/${days.join('.')}`;
                         } else if (item.start_date && item.end_date) {
-                            dateCell.textContent = `${item.start_date}〜${item.end_date}`;
+                            const startDateParts = item.start_date.split('/');
+                            const endDateParts = item.end_date.split('/');
+                            const startDisplay = `${parseInt(startDateParts[1], 10)}/${parseInt(startDateParts[2], 10)}`;
+                            const endDisplay = `${parseInt(endDateParts[1], 10)}/${parseInt(endDateParts[2], 10)}`;
+                            dateCell.textContent = `${startDisplay}〜${endDisplay}`;
                         } else {
-                            dateCell.textContent = item.date;
+                            const parts = item.date.split('/');
+                            dateCell.textContent = `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
                         }
                     } else {
                         dateCell.textContent = item.weekday;
