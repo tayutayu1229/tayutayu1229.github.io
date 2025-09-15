@@ -27,50 +27,64 @@ document.addEventListener('DOMContentLoaded', () => {
         const divisionSelect = document.getElementById('division_select').value;
         const operationNumberInput = document.getElementById('operation_number_input').value.trim().toLowerCase();
         const trainNumberInput = document.getElementById('train_number_input').value.trim().toLowerCase();
+        
+        const searchDateFormatted = dateInput ? dateInput.replace(/-/g, '/') : null;
 
         // フィルタリングをここで行う
         let filteredData = data.filter(item => {
             // 施行日フィルタ
-            if (dateInput.length > 0) {
-                const searchDateFormatted = dateInput.replace(/-/g, '/');
-                const dateObj = new Date(dateInput);
-                const dayOfWeek = dateObj.getDay();
-                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-
-                const isTempOperation = item.type === "臨時" && item.date === searchDateFormatted;
-                const isRegularOperation = item.type === "通常" &&
-                                            ((item.weekday === "平日" && !isWeekend) ||
-                                             (item.weekday === "土休日" && isWeekend) ||
-                                             (item.weekday === "曜日関係なし"));
-                if (!isTempOperation && !isRegularOperation) {
-                    return false;
+            const dateMatch = (() => {
+                if (!searchDateFormatted) {
+                    return true;
                 }
-            }
+
+                // 通常運用の場合
+                if (item.type === "通常") {
+                    const dateObj = new Date(dateInput);
+                    const dayOfWeek = dateObj.getDay();
+                    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+                    
+                    return ((item.weekday === "平日" && !isWeekend) || 
+                            (item.weekday === "土休日" && isWeekend) ||
+                            (item.weekday === "曜日関係なし"));
+                }
+
+                // 臨時運用の場合
+                if (item.type === "臨時") {
+                    // 日付が配列形式の場合
+                    if (Array.isArray(item.date)) {
+                        return item.date.includes(searchDateFormatted);
+                    }
+                    // 日付が期間形式の場合
+                    if (item.start_date && item.end_date) {
+                        const startDate = new Date(item.start_date);
+                        const endDate = new Date(item.end_date);
+                        const inputDate = new Date(searchDateFormatted);
+                        return inputDate >= startDate && inputDate <= endDate;
+                    }
+                    // 単一の日付の場合
+                    if (typeof item.date === 'string') {
+                        return item.date === searchDateFormatted;
+                    }
+                }
+                return false;
+            })();
 
             // 区所名フィルタ
-            if (divisionSelect.length > 0 && item.division !== divisionSelect) {
-                return false;
-            }
+            const divisionMatch = divisionSelect.length === 0 || item.division === divisionSelect;
 
             // 運用番号フィルタ
-            if (operationNumberInput.length > 0 && !item.operation_number.toLowerCase().includes(operationNumberInput)) {
-                return false;
-            }
+            const opNumMatch = operationNumberInput.length === 0 || item.operation_number.toLowerCase().includes(operationNumberInput);
             
             // 列車番号フィルタ
-            if (trainNumberInput.length > 0) {
-                const trainOrRouteMatch = item.train_runs.some(run =>
-                    (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
-                    (run.route && run.route.toLowerCase().includes(trainNumberInput))
-                );
-                if (!trainOrRouteMatch) {
-                    return false;
-                }
-            }
+            const trainNumMatch = trainNumberInput.length === 0 || item.train_runs.some(run => 
+                (run.train_number && run.train_number.toLowerCase().includes(trainNumberInput)) ||
+                (run.route && run.route.toLowerCase().includes(trainNumberInput))
+            );
 
-            return true; // すべての条件を満たした場合
+            return dateMatch && divisionMatch && opNumMatch && trainNumMatch;
         });
-
+        
         displayResults(filteredData);
         updateFilterDisplay(dateInput, divisionSelect, operationNumberInput, trainNumberInput);
     }
@@ -87,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFilterDisplay(date, division, opNum, trainNum) {
-        document.getElementById('filter_display').textContent =
+        document.getElementById('filter_display').textContent = 
             `絞り込み状況：施行日：${date || '指定なし'} 区所名：${division || '指定なし'} 運用番号：${opNum || '指定なし'} 列車番号：${trainNum || '指定なし'}`;
     }
 
@@ -104,13 +118,24 @@ document.addEventListener('DOMContentLoaded', () => {
             item.train_runs.forEach((run, index) => {
                 const row = document.createElement('tr');
                 row.dataset.id = item.id;
-
+                
                 if (index === 0) {
                     const dateCell = document.createElement('td');
-                    dateCell.textContent = item.type === '臨時' ? item.date : item.weekday;
+                    // 日付の表示形式を調整
+                    if (item.type === '臨時') {
+                        if (Array.isArray(item.date)) {
+                            dateCell.textContent = item.date.join(', ');
+                        } else if (item.start_date && item.end_date) {
+                            dateCell.textContent = `${item.start_date}〜${item.end_date}`;
+                        } else {
+                            dateCell.textContent = item.date;
+                        }
+                    } else {
+                        dateCell.textContent = item.weekday;
+                    }
                     dateCell.rowSpan = item.train_runs.length;
                     row.appendChild(dateCell);
-
+                    
                     const divisionCell = document.createElement('td');
                     divisionCell.textContent = item.division;
                     divisionCell.rowSpan = item.train_runs.length;
@@ -121,11 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     opNumCell.rowSpan = item.train_runs.length;
                     row.appendChild(opNumCell);
                 }
-
+                
                 const trainNumCell = document.createElement('td');
                 trainNumCell.textContent = run.train_number || '';
                 row.appendChild(trainNumCell);
-
+                
                 const routeCell = document.createElement('td');
                 routeCell.textContent = run.route;
                 row.appendChild(routeCell);
@@ -146,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDetails(item) {
         const modal = document.getElementById('modal');
         const detailsContainer = document.getElementById('modal-details');
-
+        
         let trainRunsHtml = '<ul>';
         item.train_runs.forEach(run => {
             trainRunsHtml += `<li><strong>${run.train_number || ''}</strong>: ${run.route}</li>`;
