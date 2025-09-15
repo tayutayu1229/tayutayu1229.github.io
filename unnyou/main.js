@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const startDateParts = item.start_date.split('/');
                             const endDateParts = item.end_date.split('/');
                             const startDisplay = `${parseInt(startDateParts[1], 10)}/${parseInt(startDateParts[2], 10)}`;
-                            const endDisplay = `${parseInt(endDateParts[1], 10)}/${parseInt(endDateParts[2], 10)}`;
+                            const endDisplay = `${parseInt(endDateParts[1], 10)}`;
                             dateCell.textContent = `${startDisplay}〜${endDisplay}`;
                         } else {
                             const parts = item.date.split('/');
