@@ -122,8 +122,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             const startDateParts = item.start_date.split('/');
                             const endDateParts = item.end_date.split('/');
                             const startDisplay = `${parseInt(startDateParts[1], 10)}/${parseInt(startDateParts[2], 10)}`;
-                            const endDisplay = `${parseInt(endDateParts[1], 10)}`;
-                            dateCell.textContent = `${startDisplay}〜${endDisplay}`;
+                            const endDisplay = `${parseInt(endDateParts[1], 10)}/${parseInt(endDateParts[2], 10)}`;
+                            // 月が同じ場合は日のみ表示
+                            if (startDateParts[1] === endDateParts[1]) {
+                                dateCell.textContent = `${startDisplay}〜${parseInt(endDateParts[2], 10)}`;
+                            } else {
+                                dateCell.textContent = `${startDisplay}〜${endDisplay}`;
+                            }
                         } else {
                             const parts = item.date.split('/');
                             dateCell.textContent = `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
@@ -170,14 +175,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('modal');
         const detailsContainer = document.getElementById('modal-details');
         
-        let trainRunsHtml = '<ul>';
+        // 施行日の表示形式を生成
+        let displayDate = '';
+        if (item.type === '臨時') {
+            if (Array.isArray(item.date)) {
+                const dates = item.date.map(d => {
+                    const parts = d.split('/');
+                    return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+                });
+                const month = dates[0].split('/')[0];
+                const days = dates.map(d => d.split('/')[1]);
+                displayDate = `${month}/${days.join('.')}`;
+            } else if (item.start_date && item.end_date) {
+                const startDateParts = item.start_date.split('/');
+                const endDateParts = item.end_date.split('/');
+                const startDisplay = `${parseInt(startDateParts[1], 10)}/${parseInt(startDateParts[2], 10)}`;
+                const endDisplay = `${parseInt(endDateParts[1], 10)}/${parseInt(endDateParts[2], 10)}`;
+                if (startDateParts[1] === endDateParts[1]) {
+                    displayDate = `${startDisplay}〜${parseInt(endDateParts[2], 10)}`;
+                } else {
+                    displayDate = `${startDisplay}〜${endDisplay}`;
+                }
+            } else {
+                const parts = item.date.split('/');
+                displayDate = `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+            }
+        } else {
+            displayDate = item.weekday;
+        }
+
+        // 列車情報のフォーマットをスペース区切りに修正
+        let trainRunsHtml = '';
         item.train_runs.forEach(run => {
-            trainRunsHtml += `<li><strong>${run.train_number || ''}</strong>: ${run.route}</li>`;
+            trainRunsHtml += `<p><strong>${run.train_number || ''}</strong>&emsp;${run.route}</p>`;
         });
-        trainRunsHtml += '</ul>';
 
         detailsContainer.innerHTML = `
             <h2>運用詳細</h2>
+            <p><strong>施行日:</strong> ${displayDate}</p>
             <p><strong>運用番号:</strong> ${item.operation_number}</p>
             <p><strong>区所名:</strong> ${item.division}</p>
             <p><strong>形式:</strong> ${item.vehicles}</p>
