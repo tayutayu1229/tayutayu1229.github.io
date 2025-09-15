@@ -63,6 +63,11 @@
             font-family: 'Courier New', monospace;
             background-color: #f8f9fa;
         }
+        .date-input-options {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -84,12 +89,29 @@
                 </select>
             </div>
             
-            <div class="input-group">
-                <label for="date_input">施行日 (臨時のみ):</label>
-                <input type="date" id="date_input">
+            <div id="date_input_group" class="input-group">
+                <label>施行日 (臨時のみ):</label>
+                <div class="date-input-options">
+                    <label><input type="radio" name="date_option" value="single" checked> 単一の日付</label>
+                    <label><input type="radio" name="date_option" value="list"> 日付リスト</label>
+                    <label><input type="radio" name="date_option" value="period"> 期間</label>
+                </div>
+                
+                <div id="single_date_container">
+                    <input type="date" id="single_date_input">
+                </div>
+                
+                <div id="list_date_container" style="display:none;">
+                    <textarea id="list_date_input" placeholder="例: 2025/09/01, 2025/09/04, 2025/09/07" rows="3"></textarea>
+                </div>
+                
+                <div id="period_date_container" style="display:none;">
+                    開始日: <input type="date" id="start_date_input">
+                    終了日: <input type="date" id="end_date_input">
+                </div>
             </div>
             
-            <div class="input-group">
+            <div id="weekday_input_group" class="input-group">
                 <label for="weekday_select">曜日 (通常のみ):</label>
                 <select id="weekday_select">
                     <option value="">選択してください</option>
@@ -145,6 +167,46 @@
             const generateButton = document.getElementById('generate_button');
             const addRunButton = document.getElementById('add_run_button');
             const trainRunsContainer = document.getElementById('train_runs_container');
+            const typeSelect = document.getElementById('type_select');
+            const dateInputGroup = document.getElementById('date_input_group');
+            const weekdayInputGroup = document.getElementById('weekday_input_group');
+            const dateOptions = document.querySelectorAll('input[name="date_option"]');
+            const singleDateContainer = document.getElementById('single_date_container');
+            const listDateContainer = document.getElementById('list_date_container');
+            const periodDateContainer = document.getElementById('period_date_container');
+            
+            // 初期表示
+            updateFormFields();
+
+            typeSelect.addEventListener('change', updateFormFields);
+            dateOptions.forEach(option => {
+                option.addEventListener('change', updateDateInput);
+            });
+
+            function updateFormFields() {
+                if (typeSelect.value === '臨時') {
+                    dateInputGroup.style.display = 'flex';
+                    weekdayInputGroup.style.display = 'none';
+                } else {
+                    dateInputGroup.style.display = 'none';
+                    weekdayInputGroup.style.display = 'flex';
+                }
+            }
+            
+            function updateDateInput() {
+                const selectedOption = document.querySelector('input[name="date_option"]:checked').value;
+                singleDateContainer.style.display = 'none';
+                listDateContainer.style.display = 'none';
+                periodDateContainer.style.display = 'none';
+                
+                if (selectedOption === 'single') {
+                    singleDateContainer.style.display = 'block';
+                } else if (selectedOption === 'list') {
+                    listDateContainer.style.display = 'block';
+                } else if (selectedOption === 'period') {
+                    periodDateContainer.style.display = 'block';
+                }
+            }
 
             addRunButton.addEventListener('click', () => {
                 const newRunItem = document.createElement('div');
@@ -165,9 +227,7 @@
 
             generateButton.addEventListener('click', () => {
                 const id = document.getElementById('id_input').value;
-                const type = document.getElementById('type_select').value;
-                const date = document.getElementById('date_input').value.replace(/-/g, '/');
-                const weekday = document.getElementById('weekday_select').value;
+                const type = typeSelect.value;
                 const division = document.getElementById('division_input').value;
                 const operationNumber = document.getElementById('operation_number_input').value;
                 const vehicles = document.getElementById('vehicles_input').value;
@@ -177,17 +237,52 @@
                 document.querySelectorAll('.train-run-item').forEach(item => {
                     const trainNumber = item.querySelector('.train-number-input').value;
                     const route = item.querySelector('.train-route-input').value;
-                    trainRuns.push({
-                        train_number: trainNumber || null,
-                        route: route
-                    });
+                    if (route) {
+                        trainRuns.push({
+                            train_number: trainNumber || null,
+                            route: route
+                        });
+                    }
                 });
+
+                let dateData = {
+                    date: null,
+                    weekday: null,
+                    start_date: null,
+                    end_date: null
+                };
+
+                if (type === '臨時') {
+                    const dateOption = document.querySelector('input[name="date_option"]:checked').value;
+                    if (dateOption === 'single') {
+                        const singleDate = document.getElementById('single_date_input').value;
+                        if (singleDate) {
+                            dateData.date = singleDate.replace(/-/g, '/');
+                        }
+                    } else if (dateOption === 'list') {
+                        const listDate = document.getElementById('list_date_input').value;
+                        if (listDate) {
+                            dateData.date = listDate.split(',').map(d => d.trim().replace(/-/g, '/'));
+                        }
+                    } else if (dateOption === 'period') {
+                        const startDate = document.getElementById('start_date_input').value;
+                        const endDate = document.getElementById('end_date_input').value;
+                        if (startDate && endDate) {
+                            dateData.start_date = startDate.replace(/-/g, '/');
+                            dateData.end_date = endDate.replace(/-/g, '/');
+                        }
+                    }
+                } else {
+                    dateData.weekday = document.getElementById('weekday_select').value;
+                }
 
                 const data = {
                     id: parseInt(id),
                     type: type,
-                    weekday: type === '通常' ? weekday : null,
-                    date: type === '臨時' ? date : null,
+                    weekday: dateData.weekday,
+                    date: dateData.date,
+                    start_date: dateData.start_date,
+                    end_date: dateData.end_date,
                     division: division,
                     operation_number: operationNumber,
                     vehicles: vehicles,
