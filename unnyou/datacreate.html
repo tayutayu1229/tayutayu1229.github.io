@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運用データ作成ツール</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input, select, textarea {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .json-output {
+            margin-top: 20px;
+        }
+        #json_output_area {
+            width: 100%;
+            height: 200px;
+            font-family: 'Courier New', monospace;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>運用データ作成ツール</h1>
+
+        <div class="input-form">
+            <div class="input-group">
+                <label for="id_input">ID:</label>
+                <input type="number" id="id_input" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="type_select">種別:</label>
+                <select id="type_select" required>
+                    <option value="臨時">臨時</option>
+                    <option value="通常">通常</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="date_input">施行日 (臨時のみ):</label>
+                <input type="date" id="date_input">
+            </div>
+            
+            <div class="input-group">
+                <label for="weekday_select">曜日 (通常のみ):</label>
+                <select id="weekday_select">
+                    <option value="">選択してください</option>
+                    <option value="平日">平日</option>
+                    <option value="土休日">土休日</option>
+                    <option value="曜日関係なし">曜日関係なし</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="division_input">区所名:</label>
+                <input type="text" id="division_input" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="operation_number_input">運用番号:</label>
+                <input type="text" id="operation_number_input" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="vehicles_input">形式:</label>
+                <input type="text" id="vehicles_input" required>
+            </div>
+            
+            <div class="input-group">
+                <label>列車情報 (列車番号と区間):</label>
+                <div id="train_runs_container" class="train-runs-container">
+                    <div class="train-run-item">
+                        <input type="text" placeholder="列車番号" class="train-number-input">
+                        <input type="text" placeholder="区間" class="train-route-input">
+                        <button class="remove-run">削除</button>
+                    </div>
+                </div>
+                <button id="add_run_button">列車情報を追加</button>
+            </div>
+            
+            <div class="input-group">
+                <label for="successor_input">後継承 (任意):</label>
+                <input type="text" id="successor_input">
+            </div>
+
+            <button id="generate_button">JSONを生成</button>
+        </div>
+
+        <div class="json-output">
+            <h2>生成されたJSONデータ</h2>
+            <textarea id="json_output_area" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const generateButton = document.getElementById('generate_button');
+            const addRunButton = document.getElementById('add_run_button');
+            const trainRunsContainer = document.getElementById('train_runs_container');
+
+            addRunButton.addEventListener('click', () => {
+                const newRunItem = document.createElement('div');
+                newRunItem.className = 'train-run-item';
+                newRunItem.innerHTML = `
+                    <input type="text" placeholder="列車番号" class="train-number-input">
+                    <input type="text" placeholder="区間" class="train-route-input">
+                    <button class="remove-run">削除</button>
+                `;
+                trainRunsContainer.appendChild(newRunItem);
+            });
+
+            trainRunsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-run')) {
+                    e.target.closest('.train-run-item').remove();
+                }
+            });
+
+            generateButton.addEventListener('click', () => {
+                const id = document.getElementById('id_input').value;
+                const type = document.getElementById('type_select').value;
+                const date = document.getElementById('date_input').value.replace(/-/g, '/');
+                const weekday = document.getElementById('weekday_select').value;
+                const division = document.getElementById('division_input').value;
+                const operationNumber = document.getElementById('operation_number_input').value;
+                const vehicles = document.getElementById('vehicles_input').value;
+                const successor = document.getElementById('successor_input').value || null;
+
+                const trainRuns = [];
+                document.querySelectorAll('.train-run-item').forEach(item => {
+                    const trainNumber = item.querySelector('.train-number-input').value;
+                    const route = item.querySelector('.train-route-input').value;
+                    trainRuns.push({
+                        train_number: trainNumber || null,
+                        route: route
+                    });
+                });
+
+                const data = {
+                    id: parseInt(id),
+                    type: type,
+                    weekday: type === '通常' ? weekday : null,
+                    date: type === '臨時' ? date : null,
+                    division: division,
+                    operation_number: operationNumber,
+                    vehicles: vehicles,
+                    train_runs: trainRuns,
+                    successor: successor
+                };
+
+                const jsonOutputArea = document.getElementById('json_output_area');
+                jsonOutputArea.value = JSON.stringify(data, null, 2);
+            });
+        });
+    </script>
+</body>
+</html>
