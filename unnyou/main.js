@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>形式:</strong> ${item.vehicles}</p>
             <h3>列車情報</h3>
             ${trainRunsHtml}
-            ${item.successor ? `<p><strong>後継承:</strong> ${item.successor}</p>` : ''}
+            ${item.successor ? `<p><strong>後継承(備考):</strong> ${item.successor}</p>` : ''}
         `;
         modal.style.display = 'block';
     }
