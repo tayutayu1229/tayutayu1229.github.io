@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocuBase - 企業文書リポジトリ</title>
+    <title>DocuBase - 文書共有システム</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
@@ -148,13 +148,91 @@
         }
         /* ファイルカードの基本設定 */
         .file-card {
+            background: var(--card-background);
+            border-radius: 8px;
             box-shadow: var(--shadow-light);
-            transition: all 0.3s;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid #eee;
         }
+        .file-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--primary-color);
+        }
+        .file-card a {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
         .card-info { padding: 15px; }
-        .card-preview { position: relative; height: 180px; overflow: hidden; }
-        .card-preview img { width: 100%; height: 100%; object-fit: cover; }
-        .file-icon { position: absolute; top: 10px; right: 10px; }
+        
+        /* プレビュー関連のCSS (重要: 確実に再統合) */
+        .card-preview { 
+            position: relative; 
+            height: 180px; 
+            overflow: hidden; 
+        }
+        .card-preview img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            transition: opacity 0.3s; 
+        }
+        .card-preview .no-image {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            background-color: #e0e0e0;
+            color: var(--meta-color);
+            font-size: 1.1em;
+        }
+        .no-image i { font-size: 2em; margin-bottom: 10px; }
+
+        /* ファイルアイコン/タグのCSS (重要: 確実に再統合) */
+        .file-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        .file-icon i { margin-right: 5px; }
+        .file-icon.pdf-type { 
+            background-color: var(--pdf-color); /* PDFは赤 */
+        }
+        .file-icon.image-type { 
+            background-color: var(--primary-color); /* 画像は濃緑 */
+        }
+
+        /* カード情報 */
+        .card-info h2 {
+            font-size: 1.1em;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .metadata {
+            font-size: 0.85em;
+            color: var(--meta-color);
+            display: flex;
+            justify-content: space-between;
+        }
+        .metadata span i {
+            margin-right: 5px;
+            color: var(--primary-color);
+        }
 
 
         /* ============================================== */
@@ -378,7 +456,7 @@
                 renderFileCards(filteredData);
             };
 
-            // --- ファイルカード生成関数 ---
+            // --- ファイルカード生成関数 (DOM生成による修正版) ---
             const renderFileCards = (dataToRender) => {
                 fileGrid.innerHTML = ''; 
                 if (dataToRender.length === 0) {
@@ -421,14 +499,15 @@
                         const img = document.createElement('img');
                         img.src = previewPath;
                         img.alt = `${file.title} プレビュー`;
-                        // 画像読み込み失敗時のフォールバック処理をonerrorに設定
                         img.onerror = function() {
                             this.classList.add('hidden');
-                            this.nextElementSibling.classList.remove('hidden');
+                            // nextElementSiblingが確実にnoImageDivを指すようにするため、noImageDivをimgの直後に配置
+                            const noImage = this.nextElementSibling;
+                            if (noImage) noImage.classList.remove('hidden');
                         };
                         previewDiv.appendChild(img);
 
-                        // イメージなしブロック (初期非表示)
+                        // イメージなしブロック (画像がロードされない場合の代替表示)
                         const noImageDiv = document.createElement('div');
                         noImageDiv.className = 'no-image hidden';
                         noImageDiv.innerHTML = `<i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし`;
@@ -446,7 +525,7 @@
                     const iconSpan = document.createElement('span');
                     iconSpan.className = `file-icon ${iconTypeClass}`;
                     iconSpan.innerHTML = `<i class="fas ${iconClass}"></i> ${fileExtension}`;
-                    previewDiv.appendChild(iconSpan);
+                    previewDiv.appendChild(iconSpan); // ★ここがプレビューの部分のロゴ/タグの要素
 
                     link.appendChild(previewDiv);
 
@@ -461,10 +540,11 @@
 
                     const metadataDiv = document.createElement('div');
                     metadataDiv.className = 'metadata';
+                    // メタデータ内のHTML要素もtextContentではなくinnerHTMLで設定
                     metadataDiv.innerHTML = `
                         <span><i class="fas fa-calendar-alt"></i> ${file.date}</span>
                         <span><i class="fas fa-tag"></i> ${tagMap[file.tag] || file.tag}</span>
-                    `;
+                    `; // ★ここがタグ（マニュアル、レポートなど）の要素
                     infoDiv.appendChild(metadataDiv);
                     
                     link.appendChild(infoDiv);
