@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocuBase - 文書共有システム</title>
+    <title>DocuBase - 企業文書リポジトリ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
+        /* 変数定義（JR東日本風グリーンベース） */
         :root {
             --primary-color: #009B49; /* JR東日本コーポレートグリーン */
             --primary-dark: #007C3A; 
-            --accent-color: #FF6F00;  /* オレンジ（強調色） */
+            --accent-color: #FF6F00;  /* オレンジ（期間検索ボタンに使用） */
             --pdf-color: #E74C3C;     /* 赤 */
             --background-color: #F8F8F8;
             --card-background: #ffffff;
@@ -28,12 +29,11 @@
             padding: 30px;
         }
         
-        /* ヘッダーと「戻る」ボタン */
         .header-container {
             max-width: 1200px;
             margin: 0 auto 40px;
             padding-bottom: 10px;
-            border-bottom: 3px solid var(--primary-color); /* 強調 */
+            border-bottom: 3px solid var(--primary-color);
             display: flex;
             align-items: center;
         }
@@ -48,9 +48,7 @@
             margin-right: 20px;
             transition: background-color 0.2s;
         }
-        .back-button:hover {
-            background-color: var(--primary-dark);
-        }
+        .back-button:hover { background-color: var(--primary-dark); }
         .header-title-area { flex-grow: 1; }
         .header-title-area h1 {
             color: var(--primary-color);
@@ -60,7 +58,7 @@
         }
         .header-title-area h1 i { margin-right: 15px; }
 
-        /* フィルタリング/ナビゲーション */
+        /* ナビゲーションボタン */
         .filter-nav {
             max-width: 1200px;
             margin: 0 auto 20px;
@@ -81,12 +79,9 @@
         .filter-nav button.active {
             background-color: var(--primary-color);
             color: white;
-            border-color: var(--primary-color);
             font-weight: 600;
         }
-        .filter-nav button:not(.active):hover {
-            background-color: #E8F5E9; /* 薄いグリーン */
-        }
+        .filter-nav button:not(.active):hover { background-color: #E8F5E9; }
 
         .content-section {
             max-width: 1200px;
@@ -94,6 +89,53 @@
             padding-top: 20px;
         }
         
+        /* 日付フィルタエリア */
+        .date-filter-area {
+            max-width: 1200px;
+            margin: 10px auto 30px;
+            padding: 15px;
+            background-color: #f0f0f0; 
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid #ccc;
+            flex-wrap: wrap;
+        }
+        .date-filter-area label {
+            font-weight: 600;
+            color: var(--text-color);
+            white-space: nowrap;
+        }
+        .date-filter-area input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            flex-grow: 1;
+            min-width: 120px;
+        }
+        .date-filter-button, .clear-button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        .date-filter-button {
+            background-color: var(--accent-color); 
+            color: white;
+        }
+        .date-filter-button:hover { background-color: #E66100; }
+        .clear-button {
+            background-color: #ddd;
+            color: var(--text-color);
+        }
+        .clear-button:hover { background-color: #ccc; }
+
+        /* ファイルグリッド */
         .file-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -133,7 +175,6 @@
             object-fit: cover;
             transition: opacity 0.3s;
         }
-        /* 画像がない場合の代替プレビュー */
         .card-preview .no-image {
             display: flex;
             flex-direction: column;
@@ -144,10 +185,7 @@
             color: var(--meta-color);
             font-size: 1.1em;
         }
-        .no-image i {
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
+        .no-image i { font-size: 2em; margin-bottom: 10px; }
 
         /* ファイルアイコンとラベル */
         .file-icon {
@@ -162,12 +200,8 @@
             display: flex;
             align-items: center;
         }
-        .file-icon.pdf-type {
-            background-color: var(--pdf-color); /* PDFは赤 */
-        }
-        .file-icon.image-type {
-            background-color: var(--primary-color); /* 画像はグリーン */
-        }
+        .file-icon.pdf-type { background-color: var(--pdf-color); }
+        .file-icon.image-type { background-color: var(--primary-color); }
         .file-icon i { margin-right: 5px; }
 
         .card-info { padding: 15px; }
@@ -209,7 +243,8 @@
     <header class="header-container">
         <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
         <div class="header-title-area">
-            <h1><i class="fas fa-train"></i>DocuBase</h1> </div>
+            <h1><i class="fas fa-train"></i>DocuBase</h1> 
+        </div>
     </header>
 
     <nav class="filter-nav main-nav">
@@ -218,6 +253,16 @@
     </nav>
     
     <div id="file-list" class="content-section">
+        
+        <div class="date-filter-area">
+            <label for="startDate">開始日:</label>
+            <input type="date" id="startDate">
+            <label for="endDate">終了日:</label>
+            <input type="date" id="endDate">
+            <button id="applyDateFilter" class="date-filter-button"><i class="fas fa-search"></i> 期間で絞り込み</button>
+            <button id="clearDateFilter" class="clear-button"><i class="fas fa-times"></i> クリア</button>
+        </div>
+
         <nav class="filter-nav tag-nav">
             <button data-filter="all" class="active">すべて</button>
             </nav>
@@ -234,8 +279,8 @@
             <ul>
                 <li>**新しいファイル追加の手順:**
                     <ol>
-                        <li>PDF/画像を適切なフォルダにアップロードします。画像（.jpg, .pngなど）は`images/`に、PDFは`pdfs/`に、PDFのプレビュー画像は`previews/`に格納してください。</li>
-                        <li>**`data.json`** を開き、新しいファイルのエントリを追加します。</li>
+                        <li>PDFは`pdfs/`に、画像（.jpg, .pngなど）は`images/`に、PDFのプレビュー画像は`previews/`に格納してください。</li>
+                        <li>**`data.json`** を開き、新しいファイルのエントリを**日付（`YYYY/MM/DD`形式）を含めて**追加します。</li>
                         <li>ブラウザを再読み込みすると、新しいファイルが表示されます。</li>
                     </ol>
                 </li>
@@ -262,53 +307,91 @@
             const mainNavButtons = document.querySelectorAll('.main-nav button');
             const fileListSection = document.getElementById('file-list');
             const adminAreaSection = document.getElementById('admin-area');
+
+            // NEW: 日付フィルタ要素の取得
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const applyDateFilterButton = document.getElementById('applyDateFilter');
+            const clearDateFilterButton = document.getElementById('clearDateFilter');
             
             let fileData = [];
+            let currentFilterTag = 'all'; // 現在選択されているタグフィルタ
+            let currentDateRange = { start: null, end: null }; // 現在選択されている日付フィルタ
 
-            // --- 1. JSONデータの読み込みとファイルカード生成 ---
-            const loadFiles = async () => {
-                try {
-                    const response = await fetch('data.json');
-                    if (!response.ok) {
-                        throw new Error(`Failed to load data.json. Status: ${response.status}`);
-                    }
-                    fileData = await response.json();
-                    
-                    loadingMessage.classList.add('hidden'); 
-                    
-                    renderFileCards(fileData);
-                    setupFilters(fileData);
-                } catch (error) {
-                    console.error('Error loading file data:', error);
-                    loadingMessage.textContent = 'ファイルの読み込みに失敗しました。data.jsonファイルを確認してください。';
-                }
+            // --- ヘルパー関数 ---
+            // "YYYY/MM/DD"形式をDateオブジェクトに変換
+            const parseDate = (dateString) => {
+                if (!dateString) return null;
+                const parts = dateString.split('/').map(Number);
+                // UTCでパースすることで、ローカルタイムゾーンの影響を排除
+                return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
             };
-            
+
+            // --- マスターフィルタ関数 ---
+            const applyMasterFilter = () => {
+                let filteredData = fileData;
+                
+                // 1. タグフィルタの適用
+                if (currentFilterTag !== 'all') {
+                    filteredData = filteredData.filter(file => {
+                        if (currentFilterTag === 'pdf') return file.type === 'pdf';
+                        if (currentFilterTag === 'image') return file.type === 'image';
+                        return file.tag === currentFilterTag;
+                    });
+                }
+                
+                // 2. 日付フィルタの適用
+                const start = currentDateRange.start;
+                const end = currentDateRange.end;
+
+                if (start || end) {
+                    filteredData = filteredData.filter(file => {
+                        const fileDate = parseDate(file.date);
+                        if (!fileDate) return false; // 日付がないファイルは除外
+
+                        let isAfterStart = true;
+                        if (start) {
+                            // ファイルの日付 >= 開始日
+                            isAfterStart = fileDate.getTime() >= start.getTime();
+                        }
+
+                        let isBeforeEnd = true;
+                        if (end) {
+                            // ファイルの日付 <= 終了日
+                            isBeforeEnd = fileDate.getTime() <= end.getTime();
+                        }
+
+                        return isAfterStart && isBeforeEnd;
+                    });
+                }
+
+                renderFileCards(filteredData);
+            };
+
+            // --- ファイルカード生成関数 ---
             const renderFileCards = (dataToRender) => {
                 fileGrid.innerHTML = ''; 
+                if (dataToRender.length === 0) {
+                    fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--meta-color);">該当するファイルは見つかりませんでした。</p>';
+                    return;
+                }
                 dataToRender.forEach(file => {
-                    // ファイルパスの決定
                     const filePath = file.type === 'pdf' ? `pdfs/${file.filename}` : `images/${file.filename}`;
                     
-                    // プレビューパスの決定
                     let previewPath;
                     if (file.type === 'pdf') {
-                        // PDFの場合: preview_pathを優先し、なければ空欄
                         previewPath = file.preview_path || '';
                     } else if (file.type === 'image') {
-                        // 画像の場合: ファイル自体をプレビューとして使用
-                        previewPath = filePath;
+                        previewPath = filePath; // 画像ファイル自体をプレビューに使用
                     }
 
                     const hasPreview = previewPath !== '';
                     
-                    // プレビューHTMLの生成
                     const previewHtml = hasPreview 
                         ? `<img src="${previewPath}" alt="${file.title} プレビュー" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
-                           <div class="no-image hidden"><i class="fas fa-file-alt"></i> イメージなし</div>`
+                           <div class="no-image hidden"><i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし</div>`
                         : `<div class="no-image"><i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし</div>`;
 
-                    // アイコンとラベルのHTML生成
                     const iconClass = file.type === 'pdf' ? 'fa-file-pdf' : 'fa-image';
                     const iconTypeClass = file.type === 'pdf' ? 'pdf-type' : 'image-type';
 
@@ -336,13 +419,13 @@
                 });
             };
 
-            // --- 2. フィルタボタンの動的生成と設定 ---
+            // --- フィルタボタンの動的生成と設定 ---
             const setupFilters = (data) => {
                 // 既存の「すべて」ボタンを日本語に設定
                 const allButton = tagNav.querySelector('[data-filter="all"]');
                 allButton.textContent = tagMap['all'];
 
-                const existingTags = new Set(['pdf', 'image']); // typeベースのフィルタ
+                const existingTags = new Set(['pdf', 'image']);
                 data.forEach(file => existingTags.add(file.tag));
                 
                 // 既存の「すべて」ボタン以外をクリア
@@ -354,7 +437,7 @@
                     if (tag === 'all') return;
                     const button = document.createElement('button');
                     button.setAttribute('data-filter', tag);
-                    button.textContent = tagMap[tag] || tag.charAt(0).toUpperCase() + tag.slice(1); // タグマップにない場合はキャピタライズ
+                    button.textContent = tagMap[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
                     tagNav.appendChild(button);
                 });
 
@@ -367,19 +450,67 @@
                         filterButtons.forEach(btn => btn.classList.remove('active'));
                         button.classList.add('active');
 
-                        const filteredData = fileData.filter(file => {
-                            if (filter === 'all') return true;
-                            if (filter === 'pdf' && file.type === 'pdf') return true;
-                            if (filter === 'image' && file.type === 'image') return true;
-                            if (file.tag === filter) return true;
-                            return false;
-                        });
-                        renderFileCards(filteredData);
+                        currentFilterTag = filter;
+                        applyMasterFilter(); // マスターフィルタを適用
                     });
                 });
             };
 
-            // --- 3. メインナビゲーション (ファイルリスト / 管理) 切り替え ---
+            // --- JSONデータの読み込み ---
+            const loadFiles = async () => {
+                try {
+                    const response = await fetch('data.json');
+                    if (!response.ok) {
+                        throw new Error(`Failed to load data.json. Status: ${response.status}`);
+                    }
+                    fileData = await response.json();
+                    loadingMessage.classList.add('hidden'); 
+                    setupFilters(fileData);
+                    applyMasterFilter(); // 初期表示
+                } catch (error) {
+                    console.error('Error loading file data:', error);
+                    loadingMessage.textContent = 'ファイルの読み込みに失敗しました。data.jsonファイルを確認してください。';
+                }
+            };
+
+            // --- イベントリスナーの設定 ---
+            
+            // 日付フィルタボタン
+            applyDateFilterButton.addEventListener('click', () => {
+                const startValue = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
+                const endValue = endDateInput.value ? endDateInput.value.replace(/-/g, '/') : null;
+
+                // 入力値が存在する場合のみDateオブジェクトに変換
+                currentDateRange.start = startValue ? parseDate(startValue) : null;
+                currentDateRange.end = endValue ? parseDate(endValue) : null;
+                
+                if (!currentDateRange.start && !currentDateRange.end) {
+                     alert('開始日または終了日を入力してください。');
+                     return;
+                }
+
+                // 開始日が終了日より後ではないかチェック
+                if (currentDateRange.start && currentDateRange.end && currentDateRange.start.getTime() > currentDateRange.end.getTime()) {
+                    alert('開始日が終了日より後の日付になっています。期間を確認してください。');
+                    currentDateRange.start = null;
+                    currentDateRange.end = null;
+                    startDateInput.value = '';
+                    endDateInput.value = '';
+                    return;
+                }
+
+                applyMasterFilter();
+            });
+
+            // 日付フィルタクリアボタン
+            clearDateFilterButton.addEventListener('click', () => {
+                startDateInput.value = '';
+                endDateInput.value = '';
+                currentDateRange = { start: null, end: null };
+                applyMasterFilter();
+            });
+
+            // メインナビゲーション
             mainNavButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const target = button.getAttribute('data-target');
@@ -392,7 +523,9 @@
                     
                     if (target === 'file-list') {
                         fileListSection.classList.remove('hidden');
+                        // ファイルリストに戻ったとき、フィルタをリセット
                         tagNav.querySelector('[data-filter="all"]').click(); 
+                        clearDateFilterButton.click();
                     } else if (target === 'admin-area') {
                         adminAreaSection.classList.remove('hidden');
                     }
