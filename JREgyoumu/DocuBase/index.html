@@ -7,15 +7,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
-        /* 変数定義で色を統一 */
+        /* 変数定義（緑を基調色に） */
         :root {
-            --primary-color: #0056b3; /* 濃い青 */
-            --background-color: #f4f7f9; /* わずかに青みがかった背景 */
+            --primary-color: #28a745; /* 濃い緑 */
+            --primary-light: #4caf50; /* 少し明るい緑 */
+            --background-color: #f8fcf8; /* わずかに緑みがかった背景 */
             --card-background: #ffffff;
             --text-color: #333;
             --meta-color: #666;
-            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.08);
-            --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.15);
+            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.05);
+            --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.1);
         }
 
         body {
@@ -26,53 +27,82 @@
             padding: 30px;
         }
         
-        /* ヘッダーとタイトル */
+        /* ヘッダーと「戻る」ボタン */
         .header-container {
             max-width: 1200px;
             margin: 0 auto 40px;
-            padding-bottom: 20px;
+            padding-bottom: 10px;
             border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
         }
-        .header-container h1 {
+        .back-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 20px;
+            transition: background-color 0.2s;
+        }
+        .back-button:hover {
+            background-color: var(--primary-light);
+        }
+        .header-title-area {
+            flex-grow: 1;
+        }
+        .header-title-area h1 {
             color: var(--primary-color);
             font-weight: 300;
             font-size: 2.5em;
             margin: 0;
         }
-        .header-container h1 i {
+        .header-title-area h1 i {
             margin-right: 15px;
         }
 
-        /* フィルタリング/ナビゲーション（JSで制御） */
+        /* フィルタリング/ナビゲーション */
         .filter-nav {
-            margin-top: 15px;
+            max-width: 1200px;
+            margin: 0 auto 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
         .filter-nav button {
             background: none;
-            border: none;
-            padding: 10px 20px;
-            margin-right: 5px;
-            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 8px 15px;
+            font-size: 0.9em;
             cursor: pointer;
             color: var(--meta-color);
-            border-bottom: 2px solid transparent;
-            transition: color 0.2s, border-bottom 0.2s;
-        }
-        .filter-nav button:hover {
-            color: var(--primary-color);
+            transition: all 0.2s;
         }
         .filter-nav button.active {
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--primary-color);
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
             font-weight: 600;
         }
+        .filter-nav button:not(.active):hover {
+            border-color: var(--primary-light);
+            color: var(--primary-color);
+        }
 
-        /* ファイルグリッド */
-        .file-grid {
+        /* コンテンツエリアの切り替え */
+        .content-section {
             max-width: 1200px;
             margin: 0 auto;
+            padding-top: 20px;
+        }
+        
+        /* ファイルグリッド */
+        .file-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 30px;
         }
 
@@ -101,13 +131,27 @@
             position: relative;
             height: 180px;
             overflow: hidden;
-            background-color: #f0f0f0; /* 画像がない場合の背景 */
         }
         .card-preview img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+        /* 画像がない場合の代替プレビュー */
+        .card-preview .no-image {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            background-color: #e0e0e0; /* グレーの背景 */
+            color: var(--meta-color);
+            font-size: 1.1em;
+        }
+        .no-image i {
+            font-size: 2em;
+            margin-bottom: 10px;
         }
 
         /* PDFアイコンとラベル */
@@ -124,14 +168,10 @@
             display: flex;
             align-items: center;
         }
-        .file-icon i {
-            margin-right: 5px;
-        }
+        .file-icon i { margin-right: 5px; }
 
         /* 情報エリア */
-        .card-info {
-            padding: 15px;
-        }
+        .card-info { padding: 15px; }
         .card-info h2 {
             font-size: 1.1em;
             margin-top: 0;
@@ -152,94 +192,174 @@
             color: var(--primary-color);
         }
 
-        /* 非表示クラス（JS用） */
-        .hidden {
-            display: none !important;
+        /* 管理エリアのスタイル */
+        #admin-section {
+            background-color: #fff3cd; /* 警戒色（黄色）ベース */
+            border: 1px solid #ffeeba;
+            padding: 20px;
+            border-radius: 8px;
+            color: #856404;
         }
+        #admin-section h2 {
+            margin-top: 0;
+            color: #856404;
+        }
+
+        /* 非表示クラス（JS用） */
+        .hidden { display: none !important; }
 
     </style>
 </head>
 <body>
 
     <header class="header-container">
-        <h1><i class="fas fa-archive"></i>DocuBase</h1>
-        
-        <nav class="filter-nav">
-            <button data-filter="all" class="active">すべて</button>
-            <button data-filter="pdf">PDF文書</button>
-            <button data-filter="image">画像</button>
-        </nav>
+        <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
+        <div class="header-title-area">
+            <h1><i class="fas fa-archive"></i>DocuBase</h1>
+        </div>
     </header>
 
-    <main id="fileGrid" class="file-grid">
-        <section class="file-card" data-type="pdf">
-            <a href="pdfs/proposal_q4_2025.pdf" target="_blank">
-                <div class="card-preview">
-                    <img src="previews/proposal_q4_2025.jpg" alt="Q4提案書プレビュー">
-                    <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
-                </div>
-                <div class="card-info">
-                    <h2>2025年 Q4 事業計画提案書</h2>
-                    <div class="metadata">
-                        <span><i class="fas fa-calendar-alt"></i> 2025/10/01</span>
-                        <span><i class="fas fa-weight-hanging"></i> 4.2 MB</span>
-                    </div>
-                </div>
-            </a>
-        </section>
-
-        <section class="file-card" data-type="pdf">
-            <a href="pdfs/compliance_manual.pdf" target="_blank">
-                <div class="card-preview">
-                    <img src="previews/compliance_manual.jpg" alt="コンプライアンスマニュアルプレビュー">
-                    <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
-                </div>
-                <div class="card-info">
-                    <h2>コンプライアンス・マニュアル (最新版)</h2>
-                    <div class="metadata">
-                        <span><i class="fas fa-calendar-alt"></i> 2025/08/15</span>
-                        <span><i class="fas fa-weight-hanging"></i> 9.8 MB</span>
-                    </div>
-                </div>
-            </a>
-        </section>
-
-        <section class="file-card" data-type="image">
-            <a href="images/office_layout.jpg" target="_blank">
-                <div class="card-preview">
-                    <img src="images/office_layout.jpg" alt="オフィスレイアウト図">
-                    <span class="file-icon" style="background-color: #28a745;"><i class="fas fa-image"></i> JPG</span>
-                </div>
-                <div class="card-info">
-                    <h2>新オフィスレイアウト図</h2>
-                    <div class="metadata">
-                        <span><i class="fas fa-calendar-alt"></i> 2025/09/20</span>
-                        <span><i class="fas fa-weight-hanging"></i> 1.5 MB</span>
-                    </div>
-                </div>
-            </a>
-        </section>
+    <nav class="filter-nav main-nav">
+        <button data-target="file-list" class="active">ファイルリスト</button>
+        <button data-target="admin-area">管理</button>
+    </nav>
+    
+    <div id="file-list" class="content-section">
+        <nav class="filter-nav tag-nav">
+            <button data-filter="all" class="active">すべて</button>
+            <button data-filter="pdf">PDF</button>
+            <button data-filter="image">画像</button>
+            <button data-filter="report">レポート</button>
+            <button data-filter="manual">マニュアル</button>
+        </nav>
         
+        <main id="fileGrid" class="file-grid">
+            <section class="file-card" data-type="pdf" data-tag="report">
+                <a href="pdfs/proposal_q4_2025.pdf" target="_blank">
+                    <div class="card-preview">
+                        <img src="previews/proposal_q4_2025.jpg" alt="Q4提案書プレビュー" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+                        <div class="no-image hidden"><i class="fas fa-file-alt"></i> イメージなし</div>
+                        <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
+                    </div>
+                    <div class="card-info">
+                        <h2>2025年 Q4 事業計画提案書</h2>
+                        <div class="metadata">
+                            <span><i class="fas fa-calendar-alt"></i> 2025/10/01</span>
+                            <span><i class="fas fa-tag"></i> レポート</span>
+                        </div>
+                    </div>
+                </a>
+            </section>
+
+            <section class="file-card" data-type="pdf" data-tag="manual">
+                <a href="pdfs/compliance_manual.pdf" target="_blank">
+                    <div class="card-preview">
+                        <img src="" alt="コンプライアンスマニュアルプレビュー" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+                        <div class="no-image"><i class="fas fa-file-alt"></i> イメージなし</div>
+                        <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
+                    </div>
+                    <div class="card-info">
+                        <h2>コンプライアンス・マニュアル (最新版)</h2>
+                        <div class="metadata">
+                            <span><i class="fas fa-calendar-alt"></i> 2025/08/15</span>
+                            <span><i class="fas fa-tag"></i> マニュアル</span>
+                        </div>
+                    </div>
+                </a>
+            </section>
+
+            <section class="file-card" data-type="image" data-tag="other">
+                <a href="images/office_layout.jpg" target="_blank">
+                    <div class="card-preview">
+                        <img src="images/office_layout.jpg" alt="オフィスレイアウト図" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+                        <div class="no-image hidden"><i class="fas fa-image"></i> イメージなし</div>
+                        <span class="file-icon" style="background-color: var(--primary-color);"><i class="fas fa-image"></i> JPG</span>
+                    </div>
+                    <div class="card-info">
+                        <h2>新オフィスレイアウト図</h2>
+                        <div class="metadata">
+                            <span><i class="fas fa-calendar-alt"></i> 2025/09/20</span>
+                            <span><i class="fas fa-tag"></i> その他</span>
+                        </div>
+                    </div>
+                </a>
+            </section>
+            
         </main>
+    </div>
+
+    <div id="admin-area" class="content-section hidden">
+        <section id="admin-section">
+            <h2><i class="fas fa-cog"></i> 管理者向け情報</h2>
+            <p>このセクションは静的なHTMLで表示されています。実際のファイルアップロードや削除には、サーバーサイドのプログラムが必要です。</p>
+            <ul>
+                <li>ファイル格納場所: `/pdfs/` および `/previews/`</li>
+                <li>ファイル管理方法: `index.html` 内の`<section class="file-card">`を編集して追加・削除してください。</li>
+                <li>注意: 機密情報を含むファイルをアップロードする場合は、静的なHTMLではなく、認証機能を持つシステム（PHP, Node.js, Pythonなど）をご利用ください。</li>
+            </ul>
+        </section>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const filterButtons = document.querySelectorAll('.filter-nav button');
+            const tagFilterButtons = document.querySelectorAll('.tag-nav button');
+            const mainNavButtons = document.querySelectorAll('.main-nav button');
             const fileCards = document.querySelectorAll('.file-card');
+            const fileListSection = document.getElementById('file-list');
+            const adminAreaSection = document.getElementById('admin-area');
 
-            filterButtons.forEach(button => {
+            // --- 1. メインナビゲーション (ファイルリスト / 管理) 切り替え ---
+            mainNavButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const target = button.getAttribute('data-target');
+                    
+                    // ナビボタンの切り替え
+                    mainNavButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    // コンテンツの切り替え
+                    fileListSection.classList.add('hidden');
+                    adminAreaSection.classList.add('hidden');
+                    
+                    if (target === 'file-list') {
+                        fileListSection.classList.remove('hidden');
+                        // ファイルリストに戻ったとき、タグフィルタを「すべて」にリセット
+                        document.querySelector('.tag-nav button[data-filter="all"]').click(); 
+                    } else if (target === 'admin-area') {
+                        adminAreaSection.classList.remove('hidden');
+                    }
+                });
+            });
+
+
+            // --- 2. ファイルカードの絞り込み機能 ---
+            tagFilterButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const filter = button.getAttribute('data-filter');
                     
                     // アクティブボタンの切り替え
-                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    tagFilterButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
 
                     // ファイルカードの表示/非表示を切り替え
                     fileCards.forEach(card => {
                         const cardType = card.getAttribute('data-type');
+                        const cardTag = card.getAttribute('data-tag');
                         
-                        if (filter === 'all' || cardType === filter) {
+                        let shouldDisplay = false;
+
+                        if (filter === 'all') {
+                            shouldDisplay = true;
+                        } else if (filter === 'pdf' && cardType === 'pdf') {
+                            shouldDisplay = true;
+                        } else if (filter === 'image' && cardType === 'image') {
+                            shouldDisplay = true;
+                        } else if (cardTag === filter) { 
+                            // data-tagでの絞り込み
+                            shouldDisplay = true;
+                        }
+
+                        if (shouldDisplay) {
                             card.classList.remove('hidden');
                         } else {
                             card.classList.add('hidden');
@@ -247,6 +367,10 @@
                     });
                 });
             });
+
+            // --- 3. 画像が読み込めなかった場合の代替表示設定（HTMLのonerror属性で実装済み） ---
+            // <img ... onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+            // ここではJS側の追加処理は不要です。
         });
     </script>
 </body>
