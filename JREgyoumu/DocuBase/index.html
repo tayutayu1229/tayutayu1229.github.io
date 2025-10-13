@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocuBase - 文書共有システム</title>
+    <title>DocuBase - 企業文書リポジトリ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
@@ -470,13 +470,14 @@
             
             .modal-close { top: 5px; right: 15px; }
         }
+        
+        .hidden { display: none !important; }
 
     </style>
 </head>
 <body>
 
-    <div id="loading-overlay" class="hidden">
-        <div class="spinner"></div>
+    <div id="loading-overlay"> <div class="spinner"></div>
         <p style="margin-top: 15px; color: var(--primary-color);">データを読み込み中...</p>
     </div>
 
@@ -535,7 +536,8 @@
             </nav>
         
         <main id="fileGrid" class="file-grid grid-cards"> 
-            </main>
+            <p id="no-results" class="hidden" style="grid-column: 1 / -1; text-align: center; color: var(--meta-color);">該当するファイルは見つかりませんでした。</p>
+        </main>
     </div>
 
     <div id="admin-area" class="content-section hidden">
@@ -573,7 +575,7 @@
 
         const fileGrid = document.getElementById('fileGrid');
         const tagNav = document.querySelector('.tag-nav');
-        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingOverlay = document.getElementById('loading-overlay'); // ローディングオーバーレイを制御
         const startDateInput = document.getElementById('startDate');
         const endDateInput = document.getElementById('endDate');
         const sortSelect = document.getElementById('sortSelect');
@@ -596,7 +598,6 @@
             return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
         };
         const formatSize = (kb) => {
-            // size_kbが未定義、null、または0の場合は 'N/A' を返す
             if (kb === undefined || kb === null || kb === 0) return 'N/A';
             
             if (kb < 1024) return `${kb} KB`;
@@ -663,6 +664,7 @@
         const renderFileCards = (dataToRender) => {
             fileGrid.innerHTML = ''; 
             if (dataToRender.length === 0) {
+                 // 該当ファイルがない場合は、メッセージを表示
                 fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--meta-color);">該当するファイルは見つかりませんでした。</p>';
                 return;
             }
@@ -691,7 +693,6 @@
                 shareButton.onclick = (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // ファイルパスが相対パスのため、document.URLと組み合わせる
                     const fullUrl = new URL(filePath, document.URL).href; 
                     navigator.clipboard.writeText(fullUrl);
                     alert('共有リンクをクリップボードにコピーしました:\n' + fullUrl);
@@ -702,7 +703,6 @@
                 // --- リンク要素 (モーダル/DL) ---
                 const link = document.createElement('a');
                 link.href = filePath;
-                // PDFや画像はモーダル表示、その他は直接ダウンロード
                 if (file.type === 'pdf' || file.type === 'image') {
                     link.onclick = (e) => {
                         e.preventDefault();
@@ -772,7 +772,6 @@
                 const tooltipText = document.createElement('div');
                 tooltipText.className = 'tooltip-text';
                 
-                // データの欠損チェックを強化
                 const displayDescription = file.description && file.description.trim() !== '' ? file.description : '説明なし';
 
                 tooltipText.innerHTML = `
@@ -797,7 +796,6 @@
                 return;
             }
 
-            // ZIP化のサーバー機能がないため、ここではすべてのファイルを新しいタブで開くことで代替
             if (confirm(`${selectedFiles.length}個のファイルをダウンロードします。よろしいですか？`)) {
                 selectedFiles.forEach(checkbox => {
                     window.open(checkbox.value, '_blank');
@@ -816,7 +814,6 @@
                 img.src = filePath;
                 modalBody.appendChild(img);
             } else if (file.type === 'pdf') {
-                // PDF Viewer (Chrome, Edgeでは動作保証)
                 const iframe = document.createElement('iframe');
                 iframe.src = filePath;
                 iframe.style.width = '100%'; 
@@ -824,7 +821,6 @@
                 iframe.setAttribute('frameborder', '0');
                 modalBody.appendChild(iframe);
             } else {
-                // PDF/画像以外はダウンロードを促す
                 modalBody.innerHTML = `<p style="color:white; font-size: 1.2em; margin-top: 100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color); text-decoration: underline;">ここをクリックしてダウンロード</a>してください。</p>`;
             }
 
@@ -833,7 +829,6 @@
 
         const closeModal = () => {
             fileModal.style.display = 'none';
-            // iframeのsrcをクリアして、音声などが残り続けないようにする
             modalBody.innerHTML = '';
         };
         window.onclick = (event) => {
@@ -854,14 +849,12 @@
             
             tagNav.innerHTML = '';
             
-            // "すべて" ボタンを再作成
             const allButton = document.createElement('button');
             allButton.setAttribute('data-filter', 'all');
             allButton.textContent = tagMap['all'];
             allButton.classList.add('active');
             tagNav.appendChild(allButton);
 
-            // 動的タグボタン
             existingTags.forEach(tag => {
                 if (tag === 'all') return;
                 const button = document.createElement('button');
@@ -911,13 +904,14 @@
                 applyMasterFilter();
             } catch (error) {
                 console.error('Error loading file data:', error);
-                alert('ファイルの読み込みに失敗しました。data.jsonファイルを確認してください。');
+                fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--pdf-color);">ファイルの読み込みに失敗しました。data.jsonファイルが存在するか、形式が正しいか確認してください。</p>';
             } finally {
+                // データの読み込み成功・失敗に関わらず、オーバーレイを非表示にする
                 loadingOverlay.classList.add('hidden');
             }
         };
 
-        // --- イベントリスナーの割り当て (変更なし) ---
+        // --- イベントリスナーの割り当て ---
         document.getElementById('applyDateFilter').addEventListener('click', () => {
             const startValue = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
             const endValue = endDateInput.value ? endDateInput.value.replace(/-/g, '/') : null;
@@ -945,6 +939,7 @@
                 document.querySelectorAll('.main-nav button').forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
 
+                // 両方のセクションを非表示にし、ターゲットのみを表示
                 document.getElementById('file-list').classList.add('hidden');
                 document.getElementById('admin-area').classList.add('hidden');
                 
@@ -960,6 +955,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupLayoutSwitcher();
             loadFiles();
+            
+            // ファイルリストが初期で選択されているため、管理者エリアを初期非表示にする必要はない
+            // HTMLで既に hiddenクラスを付与済み
         });
     </script>
 </body>
