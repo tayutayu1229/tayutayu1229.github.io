@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuBase - 企業文書リポジトリ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* 変数定義で色を統一 */
+        :root {
+            --primary-color: #0056b3; /* 濃い青 */
+            --background-color: #f4f7f9; /* わずかに青みがかった背景 */
+            --card-background: #ffffff;
+            --text-color: #333;
+            --meta-color: #666;
+            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px;
+        }
+        
+        /* ヘッダーとタイトル */
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .header-container h1 {
+            color: var(--primary-color);
+            font-weight: 300;
+            font-size: 2.5em;
+            margin: 0;
+        }
+        .header-container h1 i {
+            margin-right: 15px;
+        }
+
+        /* フィルタリング/ナビゲーション（JSで制御） */
+        .filter-nav {
+            margin-top: 15px;
+        }
+        .filter-nav button {
+            background: none;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            color: var(--meta-color);
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-bottom 0.2s;
+        }
+        .filter-nav button:hover {
+            color: var(--primary-color);
+        }
+        .filter-nav button.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* ファイルグリッド */
+        .file-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 30px;
+        }
+
+        /* ファイルカード */
+        .file-card {
+            background: var(--card-background);
+            border-radius: 8px;
+            box-shadow: var(--shadow-light);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid #eee;
+        }
+        .file-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .file-card a {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        /* プレビュー画像エリア */
+        .card-preview {
+            position: relative;
+            height: 180px;
+            overflow: hidden;
+            background-color: #f0f0f0; /* 画像がない場合の背景 */
+        }
+        .card-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.9;
+        }
+
+        /* PDFアイコンとラベル */
+        .file-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #dc3545; /* PDFの標準的な赤 */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        .file-icon i {
+            margin-right: 5px;
+        }
+
+        /* 情報エリア */
+        .card-info {
+            padding: 15px;
+        }
+        .card-info h2 {
+            font-size: 1.1em;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .metadata {
+            font-size: 0.85em;
+            color: var(--meta-color);
+            display: flex;
+            justify-content: space-between;
+        }
+        .metadata span i {
+            margin-right: 5px;
+            color: var(--primary-color);
+        }
+
+        /* 非表示クラス（JS用） */
+        .hidden {
+            display: none !important;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header class="header-container">
+        <h1><i class="fas fa-archive"></i>DocuBase</h1>
+        
+        <nav class="filter-nav">
+            <button data-filter="all" class="active">すべて</button>
+            <button data-filter="pdf">PDF文書</button>
+            <button data-filter="image">画像</button>
+        </nav>
+    </header>
+
+    <main id="fileGrid" class="file-grid">
+        <section class="file-card" data-type="pdf">
+            <a href="pdfs/proposal_q4_2025.pdf" target="_blank">
+                <div class="card-preview">
+                    <img src="previews/proposal_q4_2025.jpg" alt="Q4提案書プレビュー">
+                    <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
+                </div>
+                <div class="card-info">
+                    <h2>2025年 Q4 事業計画提案書</h2>
+                    <div class="metadata">
+                        <span><i class="fas fa-calendar-alt"></i> 2025/10/01</span>
+                        <span><i class="fas fa-weight-hanging"></i> 4.2 MB</span>
+                    </div>
+                </div>
+            </a>
+        </section>
+
+        <section class="file-card" data-type="pdf">
+            <a href="pdfs/compliance_manual.pdf" target="_blank">
+                <div class="card-preview">
+                    <img src="previews/compliance_manual.jpg" alt="コンプライアンスマニュアルプレビュー">
+                    <span class="file-icon"><i class="fas fa-file-pdf"></i> PDF</span>
+                </div>
+                <div class="card-info">
+                    <h2>コンプライアンス・マニュアル (最新版)</h2>
+                    <div class="metadata">
+                        <span><i class="fas fa-calendar-alt"></i> 2025/08/15</span>
+                        <span><i class="fas fa-weight-hanging"></i> 9.8 MB</span>
+                    </div>
+                </div>
+            </a>
+        </section>
+
+        <section class="file-card" data-type="image">
+            <a href="images/office_layout.jpg" target="_blank">
+                <div class="card-preview">
+                    <img src="images/office_layout.jpg" alt="オフィスレイアウト図">
+                    <span class="file-icon" style="background-color: #28a745;"><i class="fas fa-image"></i> JPG</span>
+                </div>
+                <div class="card-info">
+                    <h2>新オフィスレイアウト図</h2>
+                    <div class="metadata">
+                        <span><i class="fas fa-calendar-alt"></i> 2025/09/20</span>
+                        <span><i class="fas fa-weight-hanging"></i> 1.5 MB</span>
+                    </div>
+                </div>
+            </a>
+        </section>
+        
+        </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const filterButtons = document.querySelectorAll('.filter-nav button');
+            const fileCards = document.querySelectorAll('.file-card');
+
+            filterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const filter = button.getAttribute('data-filter');
+                    
+                    // アクティブボタンの切り替え
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    // ファイルカードの表示/非表示を切り替え
+                    fileCards.forEach(card => {
+                        const cardType = card.getAttribute('data-type');
+                        
+                        if (filter === 'all' || cardType === filter) {
+                            card.classList.remove('hidden');
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
