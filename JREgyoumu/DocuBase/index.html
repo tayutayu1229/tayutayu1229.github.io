@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocuBase - 企業文書リポジトリ</title>
+    <title>DocuBase - 文書共有システム</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
         :root {
-            --primary-color: #28a745;
-            --primary-light: #4caf50;
-            --background-color: #f8fcf8;
+            --primary-color: #009B49; /* JR東日本コーポレートグリーン */
+            --primary-dark: #007C3A; 
+            --accent-color: #FF6F00;  /* オレンジ（強調色） */
+            --pdf-color: #E74C3C;     /* 赤 */
+            --background-color: #F8F8F8;
             --card-background: #ffffff;
             --text-color: #333;
             --meta-color: #666;
@@ -26,11 +28,12 @@
             padding: 30px;
         }
         
+        /* ヘッダーと「戻る」ボタン */
         .header-container {
             max-width: 1200px;
             margin: 0 auto 40px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 3px solid var(--primary-color); /* 強調 */
             display: flex;
             align-items: center;
         }
@@ -46,17 +49,18 @@
             transition: background-color 0.2s;
         }
         .back-button:hover {
-            background-color: var(--primary-light);
+            background-color: var(--primary-dark);
         }
         .header-title-area { flex-grow: 1; }
         .header-title-area h1 {
             color: var(--primary-color);
-            font-weight: 300;
+            font-weight: 600;
             font-size: 2.5em;
             margin: 0;
         }
         .header-title-area h1 i { margin-right: 15px; }
 
+        /* フィルタリング/ナビゲーション */
         .filter-nav {
             max-width: 1200px;
             margin: 0 auto 20px;
@@ -66,12 +70,12 @@
         }
         .filter-nav button {
             background: none;
-            border: 1px solid #ccc;
+            border: 1px solid var(--primary-color);
             border-radius: 20px;
             padding: 8px 15px;
             font-size: 0.9em;
             cursor: pointer;
-            color: var(--meta-color);
+            color: var(--primary-color);
             transition: all 0.2s;
         }
         .filter-nav button.active {
@@ -81,8 +85,7 @@
             font-weight: 600;
         }
         .filter-nav button:not(.active):hover {
-            border-color: var(--primary-light);
-            color: var(--primary-color);
+            background-color: #E8F5E9; /* 薄いグリーン */
         }
 
         .content-section {
@@ -97,6 +100,7 @@
             gap: 30px;
         }
 
+        /* ファイルカード */
         .file-card {
             background: var(--card-background);
             border-radius: 8px;
@@ -108,6 +112,7 @@
         .file-card:hover {
             transform: translateY(-4px);
             box-shadow: var(--shadow-hover);
+            border-color: var(--primary-color);
         }
 
         .file-card a {
@@ -116,6 +121,7 @@
             display: block;
         }
 
+        /* プレビュー画像エリア */
         .card-preview {
             position: relative;
             height: 180px;
@@ -127,6 +133,7 @@
             object-fit: cover;
             transition: opacity 0.3s;
         }
+        /* 画像がない場合の代替プレビュー */
         .card-preview .no-image {
             display: flex;
             flex-direction: column;
@@ -142,11 +149,11 @@
             margin-bottom: 10px;
         }
 
+        /* ファイルアイコンとラベル */
         .file-icon {
             position: absolute;
             top: 10px;
             right: 10px;
-            background-color: #dc3545;
             color: white;
             padding: 5px 10px;
             border-radius: 4px;
@@ -155,8 +162,11 @@
             display: flex;
             align-items: center;
         }
+        .file-icon.pdf-type {
+            background-color: var(--pdf-color); /* PDFは赤 */
+        }
         .file-icon.image-type {
-            background-color: var(--primary-color);
+            background-color: var(--primary-color); /* 画像はグリーン */
         }
         .file-icon i { margin-right: 5px; }
 
@@ -197,10 +207,9 @@
 <body>
 
     <header class="header-container">
-        <button class="back-button" href="/JREgyoumu/JREtop.html"><i class="fas fa-arrow-left"></i> 戻る</button>
+        <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
         <div class="header-title-area">
-            <h1><i class="fas fa-archive"></i>DocuBase</h1>
-        </div>
+            <h1><i class="fas fa-train"></i>DocuBase</h1> </div>
     </header>
 
     <nav class="filter-nav main-nav">
@@ -220,13 +229,12 @@
 
     <div id="admin-area" class="content-section hidden">
         <section id="admin-section">
-            <h2><i class="fas fa-cog"></i> 管理者向け情報</h2>
+            <h2><i class="fas fa-cogs"></i> 管理者向け情報</h2>
             <p>ファイルを追加・更新・削除する場合は、**`data.json`** ファイルを直接編集してください。このページは、そのJSONファイルに基づいて自動生成されています。</p>
             <ul>
                 <li>**新しいファイル追加の手順:**
                     <ol>
-                        <li>PDF/画像を`pdfs/`または`images/`フォルダにアップロードします。</li>
-                        <li>対応するプレビュー画像を`previews/`フォルダにアップロードします（任意）。</li>
+                        <li>PDF/画像を適切なフォルダにアップロードします。画像（.jpg, .pngなど）は`images/`に、PDFは`pdfs/`に、PDFのプレビュー画像は`previews/`に格納してください。</li>
                         <li>**`data.json`** を開き、新しいファイルのエントリを追加します。</li>
                         <li>ブラウザを再読み込みすると、新しいファイルが表示されます。</li>
                     </ol>
@@ -237,6 +245,16 @@
     </div>
 
     <script>
+        // タグ名と表示名のマッピング（日本語化）
+        const tagMap = {
+            'all': 'すべて',
+            'pdf': 'PDF文書',
+            'image': '画像ファイル',
+            'manual': 'マニュアル',
+            'report': 'レポート',
+            'other': 'その他'
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             const fileGrid = document.getElementById('fileGrid');
             const tagNav = document.querySelector('.tag-nav');
@@ -256,7 +274,7 @@
                     }
                     fileData = await response.json();
                     
-                    loadingMessage.classList.add('hidden'); // ローディングメッセージを非表示
+                    loadingMessage.classList.add('hidden'); 
                     
                     renderFileCards(fileData);
                     setupFilters(fileData);
@@ -267,13 +285,24 @@
             };
             
             const renderFileCards = (dataToRender) => {
-                fileGrid.innerHTML = ''; // リストをクリア
+                fileGrid.innerHTML = ''; 
                 dataToRender.forEach(file => {
+                    // ファイルパスの決定
                     const filePath = file.type === 'pdf' ? `pdfs/${file.filename}` : `images/${file.filename}`;
                     
-                    // プレビューHTMLの生成
-                    const previewPath = file.preview_path || '';
+                    // プレビューパスの決定
+                    let previewPath;
+                    if (file.type === 'pdf') {
+                        // PDFの場合: preview_pathを優先し、なければ空欄
+                        previewPath = file.preview_path || '';
+                    } else if (file.type === 'image') {
+                        // 画像の場合: ファイル自体をプレビューとして使用
+                        previewPath = filePath;
+                    }
+
                     const hasPreview = previewPath !== '';
+                    
+                    // プレビューHTMLの生成
                     const previewHtml = hasPreview 
                         ? `<img src="${previewPath}" alt="${file.title} プレビュー" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
                            <div class="no-image hidden"><i class="fas fa-file-alt"></i> イメージなし</div>`
@@ -281,7 +310,7 @@
 
                     // アイコンとラベルのHTML生成
                     const iconClass = file.type === 'pdf' ? 'fa-file-pdf' : 'fa-image';
-                    const iconStyle = file.type === 'pdf' ? '' : 'image-type';
+                    const iconTypeClass = file.type === 'pdf' ? 'pdf-type' : 'image-type';
 
                     const card = document.createElement('section');
                     card.className = `file-card`;
@@ -292,13 +321,13 @@
                         <a href="${filePath}" target="_blank">
                             <div class="card-preview">
                                 ${previewHtml}
-                                <span class="file-icon ${iconStyle}"><i class="fas ${iconClass}"></i> ${file.type.toUpperCase()}</span>
+                                <span class="file-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i> ${file.type.toUpperCase()}</span>
                             </div>
                             <div class="card-info">
                                 <h2>${file.title}</h2>
                                 <div class="metadata">
                                     <span><i class="fas fa-calendar-alt"></i> ${file.date}</span>
-                                    <span><i class="fas fa-tag"></i> ${file.tag.charAt(0).toUpperCase() + file.tag.slice(1)}</span>
+                                    <span><i class="fas fa-tag"></i> ${tagMap[file.tag] || file.tag}</span>
                                 </div>
                             </div>
                         </a>
@@ -309,11 +338,14 @@
 
             // --- 2. フィルタボタンの動的生成と設定 ---
             const setupFilters = (data) => {
-                const existingTags = new Set(['pdf', 'image']); // 常に存在するフィルタ
+                // 既存の「すべて」ボタンを日本語に設定
+                const allButton = tagNav.querySelector('[data-filter="all"]');
+                allButton.textContent = tagMap['all'];
+
+                const existingTags = new Set(['pdf', 'image']); // typeベースのフィルタ
                 data.forEach(file => existingTags.add(file.tag));
                 
                 // 既存の「すべて」ボタン以外をクリア
-                const allButton = tagNav.querySelector('[data-filter="all"]');
                 tagNav.innerHTML = '';
                 tagNav.appendChild(allButton);
                 
@@ -322,7 +354,7 @@
                     if (tag === 'all') return;
                     const button = document.createElement('button');
                     button.setAttribute('data-filter', tag);
-                    button.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+                    button.textContent = tagMap[tag] || tag.charAt(0).toUpperCase() + tag.slice(1); // タグマップにない場合はキャピタライズ
                     tagNav.appendChild(button);
                 });
 
@@ -360,7 +392,6 @@
                     
                     if (target === 'file-list') {
                         fileListSection.classList.remove('hidden');
-                        // ファイルリストに戻ったとき、フィルタを「すべて」にリセット
                         tagNav.querySelector('[data-filter="all"]').click(); 
                     } else if (target === 'admin-area') {
                         adminAreaSection.classList.remove('hidden');
