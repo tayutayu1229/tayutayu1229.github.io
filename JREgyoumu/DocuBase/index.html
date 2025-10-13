@@ -7,11 +7,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
-        /* 変数定義（JR東日本風グリーンベース） */
+        /* 変数定義（濃い緑ベース） */
         :root {
-            --primary-color: #009B49; /* JR東日本コーポレートグリーン */
-            --primary-dark: #007C3A; 
-            --accent-color: #FF6F00;  /* オレンジ（期間検索ボタンに使用） */
+            --primary-color: #006400; /* 濃い深緑 */
+            --primary-light: #007C00; 
+            --accent-color: #FF6F00;  /* オレンジ */
             --pdf-color: #E74C3C;     /* 赤 */
             --background-color: #F8F8F8;
             --card-background: #ffffff;
@@ -48,7 +48,7 @@
             margin-right: 20px;
             transition: background-color 0.2s;
         }
-        .back-button:hover { background-color: var(--primary-dark); }
+        .back-button:hover { background-color: var(--primary-light); }
         .header-title-area { flex-grow: 1; }
         .header-title-area h1 {
             color: var(--primary-color);
@@ -102,19 +102,8 @@
             border: 1px solid #ccc;
             flex-wrap: wrap;
         }
-        .date-filter-area label {
-            font-weight: 600;
-            color: var(--text-color);
-            white-space: nowrap;
-        }
-        .date-filter-area input[type="date"] {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 1em;
-            flex-grow: 1;
-            min-width: 120px;
-        }
+        .date-filter-area label { font-weight: 600; color: var(--text-color); white-space: nowrap; }
+        .date-filter-area input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; flex-grow: 1; min-width: 120px; }
         .date-filter-button, .clear-button {
             padding: 8px 15px;
             border: none;
@@ -124,115 +113,131 @@
             transition: background-color 0.2s;
             white-space: nowrap;
         }
-        .date-filter-button {
-            background-color: var(--accent-color); 
-            color: white;
-        }
+        .date-filter-button { background-color: var(--accent-color); color: white; }
         .date-filter-button:hover { background-color: #E66100; }
-        .clear-button {
-            background-color: #ddd;
-            color: var(--text-color);
-        }
+        .clear-button { background-color: #ddd; color: var(--text-color); }
         .clear-button:hover { background-color: #ccc; }
 
-        /* ファイルグリッド */
-        .file-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 30px;
+        /* レイアウト切替ボタンエリア */
+        .layout-switcher {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            justify-content: flex-end;
         }
-
-        /* ファイルカード */
-        .file-card {
-            background: var(--card-background);
-            border-radius: 8px;
-            box-shadow: var(--shadow-light);
-            overflow: hidden;
-            transition: transform 0.3s, box-shadow 0.3s;
-            border: 1px solid #eee;
+        .layout-switcher button {
+            background: none;
+            border: 1px solid #ccc;
+            color: #666;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .file-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-hover);
+        .layout-switcher button.active {
+            background-color: var(--primary-color);
+            color: white;
             border-color: var(--primary-color);
         }
 
-        .file-card a {
-            text-decoration: none;
-            color: inherit;
-            display: block;
+        /* ファイルグリッドの基本設定 */
+        .file-grid {
+            margin-top: 15px;
+            gap: 30px;
+            display: grid;
         }
-
-        /* プレビュー画像エリア */
-        .card-preview {
-            position: relative;
-            height: 180px;
-            overflow: hidden;
+        /* ファイルカードの基本設定 */
+        .file-card {
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s;
         }
-        .card-preview img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: opacity 0.3s;
-        }
-        .card-preview .no-image {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            background-color: #e0e0e0;
-            color: var(--meta-color);
-            font-size: 1.1em;
-        }
-        .no-image i { font-size: 2em; margin-bottom: 10px; }
-
-        /* ファイルアイコンとラベル */
-        .file-icon {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-        }
-        .file-icon.pdf-type { background-color: var(--pdf-color); }
-        .file-icon.image-type { background-color: var(--primary-color); }
-        .file-icon i { margin-right: 5px; }
-
         .card-info { padding: 15px; }
-        .card-info h2 {
-            font-size: 1.1em;
-            margin-top: 0;
-            margin-bottom: 8px;
-            color: var(--text-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .card-preview { position: relative; height: 180px; overflow: hidden; }
+        .card-preview img { width: 100%; height: 100%; object-fit: cover; }
+        .file-icon { position: absolute; top: 10px; right: 10px; }
+
+
+        /* ============================================== */
+        /* === 1. カード表示 (初期設定) === */
+        /* ============================================== */
+        .file-grid.grid-cards {
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
-        .metadata {
-            font-size: 0.85em;
-            color: var(--meta-color);
+        .file-grid.grid-cards .card-preview { display: block; }
+        .file-grid.grid-cards .card-info h2 { font-size: 1.1em; }
+        .file-grid.grid-cards .metadata span:nth-child(2) { display: inline; }
+
+
+        /* ============================================== */
+        /* === 2. リスト表示 === */
+        /* ============================================== */
+        .file-grid.grid-list {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .file-grid.grid-list .file-card {
+            display: flex;
+            align-items: center;
+            border-left: 5px solid var(--primary-color);
+            box-shadow: none;
+            border-radius: 4px;
+        }
+        .file-grid.grid-list .card-preview {
+            width: 50px;
+            height: 50px;
+            margin-left: 10px;
+            border-radius: 4px;
+        }
+        .file-grid.grid-list .card-preview .file-icon { display: none; }
+        .file-grid.grid-list .card-info {
+            flex-grow: 1;
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
-        .metadata span i {
-            margin-right: 5px;
-            color: var(--primary-color);
-        }
+        .file-grid.grid-list .card-info h2 { font-size: 1em; margin: 0; }
+        .file-grid.grid-list .metadata { margin-left: 20px; }
+        .file-grid.grid-list .metadata span:nth-child(2) { display: none; } /* タグ非表示 */
 
-        #admin-section {
-            background-color: #fff3cd;
-            border: 1px solid #ffeeba;
-            padding: 20px;
-            border-radius: 8px;
-            color: #856404;
+        /* ============================================== */
+        /* === 3. サムネイル表示 === */
+        /* ============================================== */
+        .file-grid.grid-thumb {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
         }
-        #admin-section h2 { margin-top: 0; color: #856404; }
+        .file-grid.grid-thumb .card-preview { height: 100px; }
+        .file-grid.grid-thumb .card-info { padding: 8px 10px; }
+        .file-grid.grid-thumb .card-info h2 { font-size: 0.9em; margin-bottom: 0; }
+        .file-grid.grid-thumb .metadata { display: none; } /* メタデータ非表示 */
+        .file-grid.grid-thumb .file-card:hover { transform: none; box-shadow: var(--shadow-light); }
+
+        /* ============================================== */
+        /* === 4. 詳細表示 === */
+        /* ============================================== */
+        .file-grid.grid-detail {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        .file-grid.grid-detail .file-card {
+            display: flex;
+            align-items: flex-start;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .file-grid.grid-detail .card-preview {
+            width: 120px;
+            height: 100px;
+            flex-shrink: 0;
+            border-radius: 8px 0 0 8px;
+        }
+        .file-grid.grid-detail .card-preview .file-icon { top: 5px; right: 5px; font-size: 0.7em; padding: 3px 6px; }
+        .file-grid.grid-detail .card-info { padding: 15px; flex-grow: 1; }
+        .file-grid.grid-detail .card-info h2 { font-size: 1.2em; margin-bottom: 10px; }
+        .file-grid.grid-detail .metadata { display: block; font-size: 0.9em; }
+        .file-grid.grid-detail .metadata span { display: block; margin-bottom: 5px; }
+        .file-grid.grid-detail .metadata span:nth-child(2) { display: block; } /* タグ表示 */
 
         .hidden { display: none !important; }
 
@@ -243,8 +248,7 @@
     <header class="header-container">
         <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
         <div class="header-title-area">
-            <h1><i class="fas fa-train"></i>DocuBase</h1> 
-        </div>
+            <h1><i class="fas fa-database"></i>DocuBase</h1> </div>
     </header>
 
     <nav class="filter-nav main-nav">
@@ -263,12 +267,18 @@
             <button id="clearDateFilter" class="clear-button"><i class="fas fa-times"></i> クリア</button>
         </div>
 
+        <div class="layout-switcher">
+            <button class="layout-btn active" data-layout="grid-cards" title="カード表示"><i class="fas fa-th-large"></i></button>
+            <button class="layout-btn" data-layout="grid-list" title="リスト表示"><i class="fas fa-list"></i></button>
+            <button class="layout-btn" data-layout="grid-thumb" title="サムネイル表示"><i class="fas fa-grip-horizontal"></i></button>
+            <button class="layout-btn" data-layout="grid-detail" title="詳細表示"><i class="fas fa-list-alt"></i></button>
+        </div>
+
         <nav class="filter-nav tag-nav">
             <button data-filter="all" class="active">すべて</button>
             </nav>
         
-        <main id="fileGrid" class="file-grid">
-            <p id="loading-message">ファイルを読み込み中です...</p>
+        <main id="fileGrid" class="file-grid grid-cards"> <p id="loading-message">ファイルを読み込み中です...</p>
         </main>
     </div>
 
@@ -307,23 +317,25 @@
             const mainNavButtons = document.querySelectorAll('.main-nav button');
             const fileListSection = document.getElementById('file-list');
             const adminAreaSection = document.getElementById('admin-area');
-
-            // NEW: 日付フィルタ要素の取得
+            
+            // 日付フィルタ要素
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
             const applyDateFilterButton = document.getElementById('applyDateFilter');
             const clearDateFilterButton = document.getElementById('clearDateFilter');
+
+            // NEW: レイアウト切替ボタン
+            const layoutButtons = document.querySelectorAll('.layout-btn');
             
             let fileData = [];
-            let currentFilterTag = 'all'; // 現在選択されているタグフィルタ
-            let currentDateRange = { start: null, end: null }; // 現在選択されている日付フィルタ
+            let currentFilterTag = 'all';
+            let currentDateRange = { start: null, end: null };
+            let currentLayout = 'grid-cards';
 
             // --- ヘルパー関数 ---
-            // "YYYY/MM/DD"形式をDateオブジェクトに変換
             const parseDate = (dateString) => {
                 if (!dateString) return null;
                 const parts = dateString.split('/').map(Number);
-                // UTCでパースすることで、ローカルタイムゾーンの影響を排除
                 return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
             };
 
@@ -347,17 +359,15 @@
                 if (start || end) {
                     filteredData = filteredData.filter(file => {
                         const fileDate = parseDate(file.date);
-                        if (!fileDate) return false; // 日付がないファイルは除外
+                        if (!fileDate) return false; 
 
                         let isAfterStart = true;
                         if (start) {
-                            // ファイルの日付 >= 開始日
                             isAfterStart = fileDate.getTime() >= start.getTime();
                         }
 
                         let isBeforeEnd = true;
                         if (end) {
-                            // ファイルの日付 <= 終了日
                             isBeforeEnd = fileDate.getTime() <= end.getTime();
                         }
 
@@ -382,7 +392,7 @@
                     if (file.type === 'pdf') {
                         previewPath = file.preview_path || '';
                     } else if (file.type === 'image') {
-                        previewPath = filePath; // 画像ファイル自体をプレビューに使用
+                        previewPath = filePath; 
                     }
 
                     const hasPreview = previewPath !== '';
@@ -394,6 +404,8 @@
 
                     const iconClass = file.type === 'pdf' ? 'fa-file-pdf' : 'fa-image';
                     const iconTypeClass = file.type === 'pdf' ? 'pdf-type' : 'image-type';
+                    const fileExtension = file.filename.split('.').pop().toUpperCase();
+
 
                     const card = document.createElement('section');
                     card.className = `file-card`;
@@ -404,7 +416,7 @@
                         <a href="${filePath}" target="_blank">
                             <div class="card-preview">
                                 ${previewHtml}
-                                <span class="file-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i> ${file.type.toUpperCase()}</span>
+                                <span class="file-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i> ${fileExtension}</span>
                             </div>
                             <div class="card-info">
                                 <h2>${file.title}</h2>
@@ -421,18 +433,15 @@
 
             // --- フィルタボタンの動的生成と設定 ---
             const setupFilters = (data) => {
-                // 既存の「すべて」ボタンを日本語に設定
                 const allButton = tagNav.querySelector('[data-filter="all"]');
                 allButton.textContent = tagMap['all'];
 
                 const existingTags = new Set(['pdf', 'image']);
                 data.forEach(file => existingTags.add(file.tag));
                 
-                // 既存の「すべて」ボタン以外をクリア
                 tagNav.innerHTML = '';
                 tagNav.appendChild(allButton);
                 
-                // タグボタンを生成
                 existingTags.forEach(tag => {
                     if (tag === 'all') return;
                     const button = document.createElement('button');
@@ -441,7 +450,6 @@
                     tagNav.appendChild(button);
                 });
 
-                // フィルタイベントリスナーを設定
                 const filterButtons = tagNav.querySelectorAll('button');
                 filterButtons.forEach(button => {
                     button.addEventListener('click', () => {
@@ -451,10 +459,26 @@
                         button.classList.add('active');
 
                         currentFilterTag = filter;
-                        applyMasterFilter(); // マスターフィルタを適用
+                        applyMasterFilter();
                     });
                 });
             };
+
+            // --- レイアウト切替機能 ---
+            layoutButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const newLayout = button.getAttribute('data-layout');
+                    
+                    // ボタンのアクティブ状態を切り替え
+                    layoutButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // fileGridのクラスを切り替え
+                    fileGrid.classList.remove(currentLayout);
+                    fileGrid.classList.add(newLayout);
+                    currentLayout = newLayout;
+                });
+            });
 
             // --- JSONデータの読み込み ---
             const loadFiles = async () => {
@@ -466,7 +490,7 @@
                     fileData = await response.json();
                     loadingMessage.classList.add('hidden'); 
                     setupFilters(fileData);
-                    applyMasterFilter(); // 初期表示
+                    applyMasterFilter(); 
                 } catch (error) {
                     console.error('Error loading file data:', error);
                     loadingMessage.textContent = 'ファイルの読み込みに失敗しました。data.jsonファイルを確認してください。';
@@ -480,7 +504,6 @@
                 const startValue = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
                 const endValue = endDateInput.value ? endDateInput.value.replace(/-/g, '/') : null;
 
-                // 入力値が存在する場合のみDateオブジェクトに変換
                 currentDateRange.start = startValue ? parseDate(startValue) : null;
                 currentDateRange.end = endValue ? parseDate(endValue) : null;
                 
@@ -489,7 +512,6 @@
                      return;
                 }
 
-                // 開始日が終了日より後ではないかチェック
                 if (currentDateRange.start && currentDateRange.end && currentDateRange.start.getTime() > currentDateRange.end.getTime()) {
                     alert('開始日が終了日より後の日付になっています。期間を確認してください。');
                     currentDateRange.start = null;
@@ -526,6 +548,8 @@
                         // ファイルリストに戻ったとき、フィルタをリセット
                         tagNav.querySelector('[data-filter="all"]').click(); 
                         clearDateFilterButton.click();
+                        // レイアウトも初期状態に戻す
+                        document.querySelector('.layout-btn[data-layout="grid-cards"]').click(); 
                     } else if (target === 'admin-area') {
                         adminAreaSection.classList.remove('hidden');
                     }
