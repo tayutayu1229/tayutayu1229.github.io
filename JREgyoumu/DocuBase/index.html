@@ -36,7 +36,7 @@
             min-height: 100vh;
         }
         
-        /* ヘッダー、ナビゲーション、コントロールエリアのCSSは省略（変更なし） */
+        /* 基本レイアウト */
         .header-container { max-width: 1200px; margin: 0 auto 30px; padding-bottom: 10px; border-bottom: 3px solid var(--primary-color); display: flex; align-items: center; flex-wrap: wrap; }
         .back-button { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 0.9em; margin-right: 10px; transition: background-color 0.2s; }
         .back-button:hover { background-color: var(--primary-light); }
@@ -100,7 +100,7 @@
         .action-btn:hover { background: var(--accent-color); }
         
         /* ------------------------------------ */
-        /* レイアウト定義 (修正・強化) */
+        /* レイアウト定義 */
         /* ------------------------------------ */
 
         /* 1. カード表示 (初期/正方形) */
@@ -110,6 +110,9 @@
         }
         .file-grid.grid-cards .file-card { display: block; }
         .file-grid.grid-cards .card-preview { height: 160px; }
+        /* カード表示のPDFプレビューを強制的に非表示にするための上書き */
+        .file-grid.grid-cards .file-card[data-type="pdf"] .card-preview { background-color: #333; }
+        .file-grid.grid-cards .file-card[data-type="pdf"] .card-preview .no-image { display: none !important; }
 
         /* 2. リスト表示 (シンプル) */
         .file-grid.grid-list {
@@ -165,7 +168,6 @@
             gap: 1px;
         }
         .file-grid.grid-detail .file-card {
-            /* flexではなく、内部のcard-infoでグリッドを制御 */
             display: grid; 
             grid-template-columns: 30px 1fr 60px; /* Checkbox, Info, Actions */
             align-items: center;
@@ -175,7 +177,7 @@
             border-bottom: 1px solid #ddd;
             padding: 10px 15px;
             box-shadow: none;
-            overflow: visible; /* Tooltipが出るように */
+            overflow: visible;
         }
         .file-grid.grid-detail .select-checkbox { margin: auto; position: static; }
         .file-grid.grid-detail .card-actions { margin: auto; position: static; display: flex; gap: 5px;}
@@ -199,7 +201,6 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        /* メタデータは各項目を独立した列として扱う */
         .file-grid.grid-detail .metadata { 
             display: contents; 
             font-size: 0.9em; 
@@ -217,24 +218,75 @@
             .file-grid.grid-list .card-info h2 { width: 100%; margin-bottom: 5px; }
             .file-grid.grid-list .metadata { width: 100%; justify-content: flex-start; }
 
-            /* モバイルの詳細表示（要素を縦に積み、横ずれを防ぐ）*/
             .file-grid.grid-detail .file-card {
-                grid-template-columns: 30px 1fr; /* チェックボックスと情報 */
+                grid-template-columns: 30px 1fr;
                 padding: 10px;
             }
             .file-grid.grid-detail .card-info { 
-                grid-template-columns: 1fr; /* 全項目1列 */
+                grid-template-columns: 1fr;
                 gap: 5px;
                 padding: 0 10px;
             }
             .file-grid.grid-detail .card-actions { 
-                grid-column: 2 / 3; /* 2列目に配置 */
+                grid-column: 2 / 3;
                 justify-content: flex-end;
                 margin-top: 5px;
             }
         }
         
         .hidden { display: none !important; }
+
+        /* モーダルCSS */
+        .modal {
+            display: none; 
+            position: fixed;
+            z-index: 200;
+            padding-top: 60px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.9);
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 1200px;
+            text-align: center;
+        }
+        .modal-content img, .modal-content iframe {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .modal-caption {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            color: #ccc;
+            padding: 10px 0;
+            height: 150px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .modal-close:hover, .modal-close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
 
     </style>
 </head>
@@ -379,6 +431,75 @@
         const getFileIcon = (type) => {
             return typeMap[type] ? typeMap[type].icon : typeMap['other'].icon;
         };
+        
+        // --- タグフィルタボタンのセットアップ関数 (欠落していたものを復元) ---
+        const setupFilters = (data) => {
+            const existingTags = new Set(['pdf', 'image', 'word', 'excel']);
+            data.forEach(file => {
+                if (file.tag) existingTags.add(file.tag);
+            });
+            
+            tagNav.innerHTML = '';
+            
+            const allButton = document.createElement('button');
+            allButton.setAttribute('data-filter', 'all');
+            allButton.textContent = tagMap['all'];
+            allButton.classList.add('active');
+            tagNav.appendChild(allButton);
+
+            existingTags.forEach(tag => {
+                if (tag === 'all') return;
+                const button = document.createElement('button');
+                button.setAttribute('data-filter', tag);
+                button.textContent = tagMap[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
+                tagNav.appendChild(button);
+            });
+
+            tagNav.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    currentFilterTag = e.target.getAttribute('data-filter');
+                    tagNav.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    applyMasterFilter();
+                });
+            });
+        };
+
+
+        // --- モーダル/プレビュー機能 ---
+        const openModal = (file) => {
+            const filePath = getFilepath(file);
+            modalBody.innerHTML = '';
+            modalCaption.textContent = file.title;
+
+            if (file.type === 'image') {
+                const img = document.createElement('img');
+                img.src = filePath;
+                modalBody.appendChild(img);
+            } else if (file.type === 'pdf') {
+                // PDF Viewerをモーダル内に表示
+                const iframe = document.createElement('iframe');
+                iframe.src = filePath;
+                iframe.style.width = '90vw';
+                iframe.style.height = '90vh';
+                iframe.setAttribute('frameborder', '0');
+                modalBody.appendChild(iframe);
+            } else {
+                modalBody.innerHTML = `<p style="color:white; font-size: 1.2em; margin-top: 100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color); text-decoration: underline;">ここをクリックしてダウンロード</a>してください。</p>`;
+            }
+            fileModal.style.display = 'block';
+        };
+
+        const closeModal = () => {
+            fileModal.style.display = 'none';
+            modalBody.innerHTML = '';
+        };
+        window.onclick = (event) => {
+            if (event.target === fileModal) {
+                closeModal();
+            }
+        };
+
 
         // --- メインフィルタリング & ソートロジック ---
         const applyMasterFilter = () => {
@@ -412,12 +533,13 @@
                 if (sortValue === 'date_desc') return parseDate(b.date) - parseDate(a.date);
                 if (sortValue === 'date_asc') return parseDate(a.date) - parseDate(b.date);
                 if (sortValue === 'name_asc') return a.title.localeCompare(b.title, 'ja');
-                if (sortValue === 'size_desc') return b.size_kb - a.size_kb;
+                if (sortValue === 'size_desc') return (b.size_kb || 0) - (a.size_kb || 0); // null/undefined対応
                 return 0;
             });
 
             renderFileCards(filteredData);
         };
+
 
         // --- ファイルカード生成関数 (PDFプレビュー非表示ロジックを修正) ---
         const renderFileCards = (dataToRender) => {
@@ -433,6 +555,7 @@
                 const card = document.createElement('section');
                 card.className = `file-card tooltip-container`;
                 card.setAttribute('data-id', file.filename);
+                card.setAttribute('data-type', file.type); // PDFのカスタムCSS用
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
@@ -454,14 +577,20 @@
                     alert('共有リンクをクリップボードにコピーしました:\n' + fullUrl);
                 };
                 actionDiv.appendChild(shareButton);
-                card.appendChild(actionDiv);
+                
+                // card-actionsはgrid-detail以外ではlinkの外側に配置
+                if (currentLayout !== 'grid-detail') {
+                    card.appendChild(actionDiv);
+                }
+
 
                 const link = document.createElement('a');
                 link.href = filePath;
-                // PDFと画像はモーダル表示
+                
+                // PDFと画像はモーダル表示に設定 (動作確認済)
                 if (file.type === 'pdf' || file.type === 'image') {
                     link.onclick = (e) => {
-                        e.preventDefault(); // デフォルトのリンク移動をキャンセル
+                        e.preventDefault(); 
                         openModal(file);
                     };
                 } else {
@@ -473,43 +602,45 @@
                 previewDiv.className = 'card-preview';
                 
                 let previewPath = file.preview_path || '';
-                const hasPreview = previewPath !== '' && file.type !== 'pdf'; // PDFではプレビューを無効化
+                // PDFは常にプレビュー表示をスキップし、card-preview自体を空にする
+                const needsCustomPreview = file.type !== 'pdf';
                 
-                if (hasPreview) {
-                    const img = document.createElement('img');
-                    img.src = previewPath;
-                    img.alt = `${file.title} プレビュー`;
-                    img.onerror = function() {
-                        this.classList.add('hidden');
-                        const noImage = this.nextElementSibling;
-                        if (noImage) noImage.classList.remove('hidden');
-                    };
-                    previewDiv.appendChild(img);
+                if (needsCustomPreview) {
+                    const hasPreview = previewPath !== '';
+                    
+                    if (hasPreview) {
+                        const img = document.createElement('img');
+                        img.src = previewPath;
+                        img.alt = `${file.title} プレビュー`;
+                        // プレビュー画像読み込み失敗時のフォールバック処理
+                        img.onerror = function() {
+                            this.classList.add('hidden');
+                            const noImage = this.nextElementSibling;
+                            if (noImage) noImage.classList.remove('hidden');
+                        };
+                        previewDiv.appendChild(img);
 
-                    const noImageDiv = document.createElement('div');
-                    noImageDiv.className = 'no-image hidden';
-                    noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
-                    previewDiv.appendChild(noImageDiv);
-                } else {
-                    const noImageDiv = document.createElement('div');
-                    noImageDiv.className = 'no-image';
-                    // PDFの場合、プレビューエリア自体を非表示にするため、カード表示でこのブロックが動くのはPDF/画像以外のときのみ
-                    if(file.type !== 'pdf' && file.type !== 'image' || !previewPath) {
-                       noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
-                       previewDiv.appendChild(noImageDiv);
-                    } else if(file.type === 'pdf') {
-                        // PDFの場合はプレビューエリアを空にする（grid-cards表示でのみ影響）
-                        previewDiv.innerHTML = '';
+                        const noImageDiv = document.createElement('div');
+                        noImageDiv.className = 'no-image hidden';
+                        noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
+                        previewDiv.appendChild(noImageDiv);
+                    } else {
+                        const noImageDiv = document.createElement('div');
+                        noImageDiv.className = 'no-image';
+                        noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
+                        previewDiv.appendChild(noImageDiv);
                     }
+                } else {
+                    // PDFの場合、プレビューエリアを空にする（カード背景色で表示される）
+                    previewDiv.innerHTML = `<div class="no-image" style="background-color: var(--card-background);"><i class="fas ${getFileIcon(file.type)}" style="color: var(--pdf-color); font-size: 2em;"></i></div>`;
                 }
+
                 
                 // ファイルアイコン (ロゴとテキスト)
-                if(file.type !== 'pdf') { // PDFのアイコンはプレビューエリア外に表示されるため
-                   const iconSpan = document.createElement('span');
-                   iconSpan.className = `file-icon ${getFileTypeClass(file.type)}`;
-                   iconSpan.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> ${fileExtension}`;
-                   previewDiv.appendChild(iconSpan); 
-                }
+                const iconSpan = document.createElement('span');
+                iconSpan.className = `file-icon ${getFileTypeClass(file.type)}`;
+                iconSpan.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> ${fileExtension}`;
+                previewDiv.appendChild(iconSpan); 
 
                 link.appendChild(previewDiv);
 
@@ -519,11 +650,24 @@
 
                 const titleH2 = document.createElement('h2');
                 titleH2.textContent = file.title;
+                
+                // 詳細表示の場合、タイトルクリックでモーダルを開く
+                if (currentLayout === 'grid-detail' && (file.type === 'pdf' || file.type === 'image')) {
+                    titleH2.style.cursor = 'pointer';
+                    titleH2.onclick = (e) => { e.preventDefault(); openModal(file); };
+                } else if (currentLayout === 'grid-detail') {
+                    // PDF/画像以外の場合、詳細表示では直接ダウンロードさせる
+                    titleH2.onclick = () => { window.open(filePath, '_blank'); };
+                    titleH2.style.cursor = 'pointer';
+                }
+
                 infoDiv.appendChild(titleH2);
 
                 const metadataDiv = document.createElement('div');
                 metadataDiv.className = 'metadata';
-                // データの並び順を詳細リスト用に調整（CSSで制御するが、HTML要素の準備）
+                // データの並び順を詳細リスト用に調整（CSSで制御）
+                const displayDescription = file.description && file.description.trim() !== '' ? file.description : '説明なし';
+                
                 metadataDiv.innerHTML = `
                     <span data-label="タイトル">${file.title}</span>
                     <span data-label="タグ">${tagMap[file.tag] || file.tag}</span>
@@ -532,14 +676,9 @@
                 `; 
                 infoDiv.appendChild(metadataDiv);
                 
-                link.appendChild(infoDiv);
-
                 // --- Tooltip ---
                 const tooltipText = document.createElement('div');
                 tooltipText.className = 'tooltip-text';
-                
-                const displayDescription = file.description && file.description.trim() !== '' ? file.description : '説明なし';
-
                 tooltipText.innerHTML = `
                     <strong>${file.title}</strong><br>
                     <hr style="border-color: rgba(255,255,255,0.2); margin: 5px 0;">
@@ -549,53 +688,18 @@
                 `;
                 card.appendChild(tooltipText);
 
-                // 詳細表示の場合、linkの中にcard-infoが全て入っていると構造がおかしくなるため、linkとcardは分離させる
+
                 if (currentLayout === 'grid-detail') {
-                    card.appendChild(checkbox);
-                    card.appendChild(infoDiv); // linkではなくinfoDivを直接カードに追加
-                    card.appendChild(actionDiv);
-                    // titleH2はlink経由でクリック可能にする
-                    titleH2.onclick = (e) => { e.preventDefault(); openModal(file); };
+                    // 詳細表示はリンクを使わず、グリッドの子要素として配置
+                    card.appendChild(infoDiv);
+                    card.appendChild(actionDiv); // card-actionsをここで追加
                 } else {
+                    link.appendChild(infoDiv);
                     card.appendChild(link);
                 }
 
                 fileGrid.appendChild(card);
             });
-        };
-
-        // --- PDFプレビュー機能の修正 ---
-        const openModal = (file) => {
-            const filePath = getFilepath(file);
-            modalBody.innerHTML = '';
-            modalCaption.textContent = file.title;
-
-            if (file.type === 'image') {
-                const img = document.createElement('img');
-                img.src = filePath;
-                modalBody.appendChild(img);
-            } else if (file.type === 'pdf') {
-                // PDF Viewerをモーダル内に表示
-                const iframe = document.createElement('iframe');
-                iframe.src = filePath;
-                iframe.style.width = '90vw'; // モーダル内の幅を広げる
-                iframe.style.height = '90vh'; // モーダル内の高さを広げる
-                iframe.setAttribute('frameborder', '0');
-                modalBody.appendChild(iframe);
-            } else {
-                modalBody.innerHTML = `<p style="color:white; font-size: 1.2em; margin-top: 100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color); text-decoration: underline;">ここをクリックしてダウンロード</a>してください。</p>`;
-            }
-            fileModal.style.display = 'block';
-        };
-
-        const closeModal = () => {
-            fileModal.style.display = 'none';
-            modalBody.innerHTML = '';
-        };
-        window.onclick = (event) => {
-            if (event.target === fileModal) {
-                closeModal();
-            }
         };
 
         // --- レイアウト切替機能の修正 ---
@@ -617,10 +721,11 @@
             });
         };
         
-        // --- データのロード (変更なし) ---
+        // --- データのロード (ロードエラーの原因解消) ---
         const loadFiles = async () => {
             loadingOverlay.classList.remove('hidden');
             try {
+                // data.jsonの読み込みは、ローカル環境では簡易サーバーを使うのが安全です (CORS回避)
                 const response = await fetch('data.json');
                 if (!response.ok) throw new Error(`Failed to load data.json. Status: ${response.status}`);
                 fileData = await response.json();
@@ -631,18 +736,19 @@
                     <p style="font-weight: 600;">合計ファイルサイズ: ${formatSize(totalSize)}</p>
                 `;
 
+                // setupFiltersがこの時点で定義されているため、ReferenceErrorは解消
                 setupFilters(fileData);
                 applyMasterFilter();
             } catch (error) {
-                console.error('Error loading file data:', error);
-                fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--pdf-color);">ファイルの読み込みに失敗しました。data.jsonファイルが存在するか、形式が正しいか確認してください。</p>';
+                 // 637行目のエラーログ
+                 console.error('Error loading file data:', error);
+                 fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--pdf-color);">ファイルの読み込みに失敗しました。data.jsonファイルが存在するか、形式が正しいか確認してください。</p>';
             } finally {
                 loadingOverlay.classList.add('hidden');
             }
         };
 
-        // ... (その他のイベントリスナーは省略) ...
-
+        // --- その他のイベントリスナー ---
         document.getElementById('applyDateFilter').addEventListener('click', () => {
             const startValue = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
             const endValue = endDateInput.value ? endDateInput.value.replace(/-/g, '/') : null;
@@ -692,6 +798,7 @@
             });
         });
 
+        // 初期化処理
         document.addEventListener('DOMContentLoaded', () => {
             setupLayoutSwitcher();
             loadFiles();
