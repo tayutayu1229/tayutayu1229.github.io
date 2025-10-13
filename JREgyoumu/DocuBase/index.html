@@ -22,7 +22,6 @@
             --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.05);
             --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.1);
             
-            /* 管理者エリア */
             --admin-bg-color: #fff3cd;      
             --admin-border-color: #ffeeba;  
             --admin-text-color: #856404;    
@@ -53,7 +52,7 @@
         .search-sort-group input, .search-sort-group select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
         #bulkDownload { background-color: var(--accent-color); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; }
         
-        /* 日付フィルタエリア (CSS再適用) */
+        /* 日付フィルタエリア */
         .date-filter-area { padding: 15px; background-color: #f0f0f0; border-radius: 8px; display: flex; gap: 10px; align-items: center; border: 1px solid #ccc; flex-wrap: wrap; margin-bottom: 20px; }
         .date-filter-area label { font-weight: 600; color: var(--text-color); white-space: nowrap; font-size: 0.9em; }
         .date-filter-area input[type="date"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; flex-grow: 1; min-width: 120px; }
@@ -78,7 +77,12 @@
         }
         .file-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--primary-color); }
         .file-card a { text-decoration: none; color: inherit; display: block; }
-        .card-info { padding: 15px; }
+        .card-info { 
+            padding: 15px;
+            position: relative; /* チェックボックスとアクションボタンの基点 */
+        }
+        
+        /* --- プレビューエリア --- */
         .card-preview { position: relative; height: 160px; overflow: hidden; } 
         .card-preview img { width: 100%; height: 100%; object-fit: cover; }
         .card-preview .no-image { 
@@ -99,63 +103,125 @@
         .other-type { background-color: var(--meta-color); }
 
         .card-info h2 { font-size: 1.1em; margin-top: 0; margin-bottom: 8px; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .metadata { font-size: 0.85em; color: var(--meta-color); display: flex; flex-wrap: wrap; justify-content: space-between; }
         
-        /* 1. カード表示 (初期/正方形) - ユーザーの希望の表示 */
-        .file-grid.grid-cards {
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            grid-auto-rows: min-content;
+        /* --- メタデータ表示の強化 (カード表示用) --- */
+        .metadata-detail {
+            font-size: 0.85em;
+            color: var(--meta-color);
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #eee;
         }
+        .metadata-detail div {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .metadata-detail strong {
+            color: var(--text-color);
+            width: 50px;
+            font-weight: 600;
+            flex-shrink: 0;
+            margin-right: 10px;
+        }
+        .metadata-detail span {
+            flex-grow: 1;
+            line-height: 1.4;
+        }
+
+
+        /* --- カスタムチェックボックスとアクションボタン --- */
+        .select-checkbox {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 10;
+            opacity: 0; /* 標準のチェックボックスを隠す */
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .select-checkbox + label {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 9;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ccc;
+            border-radius: 4px; /* 四角だが角を丸く */
+            background: #fff;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .select-checkbox:checked + label {
+            border-color: var(--primary-color);
+            background-color: var(--primary-color);
+        }
+        .select-checkbox:checked + label::after {
+            content: "\f00c"; /* Font Awesomeのチェックマーク */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 12px;
+            color: white;
+            position: absolute;
+            top: 2px;
+            left: 3px;
+        }
+        .card-actions {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            z-index: 5;
+        }
+        .action-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.2s;
+            margin-left: 5px;
+        }
+        .action-btn:hover {
+            background-color: var(--primary-light);
+        }
+
+        
+        /* 1. カード表示 (初期/正方形) */
+        .file-grid.grid-cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: min-content; }
         
         /* 2. リスト表示 */
-        .file-grid.grid-list {
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-        .file-grid.grid-list .file-card {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            height: auto;
-        }
-        .file-grid.grid-list .card-preview { 
-            height: 50px;
-            width: 50px;
-            flex-shrink: 0;
-            border-radius: 4px;
-            margin-right: 15px;
-        }
-        .file-grid.grid-list .card-info { 
-            padding: 0; 
-            flex-grow: 1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .file-grid.grid-list .file-icon { position: static; padding: 0; margin-left: 5px; color: var(--text-color); background: none; font-size: 0.8em; }
-
+        .file-grid.grid-list { grid-template-columns: 1fr; gap: 10px; }
+        .file-grid.grid-list .file-card { display: flex; align-items: center; padding: 10px; height: auto; position: relative; }
+        .file-grid.grid-list .card-preview { height: 50px; width: 50px; flex-shrink: 0; border-radius: 4px; margin: 0 15px 0 30px; }
+        .file-grid.grid-list .card-info { padding: 0; flex-grow: 1; display: flex; justify-content: space-between; align-items: center; }
+        .file-grid.grid-list .card-info h2 { width: 40%; }
+        .file-grid.grid-list .metadata-detail { display: none; }
+        .file-grid.grid-list .metadata { display: flex; gap: 20px; font-size: 0.9em; }
+        .file-grid.grid-list .action-btn { position: static; margin-left: 10px; }
+        .file-grid.grid-list .select-checkbox + label { left: 10px; }
+        
 
         /* 3. サムネイル表示 */
-        .file-grid.grid-thumb {
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-            gap: 15px;
-        }
-        .file-grid.grid-thumb .file-card {
-            height: 180px;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-        }
-        .file-grid.grid-thumb .card-preview { height: 100px; }
-        .file-grid.grid-thumb .card-info { padding: 8px; }
-        .file-grid.grid-thumb .card-info h2 { font-size: 0.9em; margin: 0; }
-        .file-grid.grid-thumb .metadata { display: none; }
-        
+        .file-grid.grid-thumb { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
+        .file-grid.grid-thumb .file-card { height: 200px; padding: 0; display: flex; flex-direction: column; }
+        .file-grid.grid-thumb .card-preview { height: 120px; }
+        .file-grid.grid-thumb .card-info { padding: 8px; flex-grow: 1; }
+        .file-grid.grid-thumb .card-info h2 { font-size: 0.9em; margin: 0; white-space: normal; height: 3.6em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+        .file-grid.grid-thumb .metadata-detail { display: none; }
+        .file-grid.grid-thumb .select-checkbox + label { top: 8px; left: 8px; }
+        .file-grid.grid-thumb .card-actions { bottom: 8px; right: 8px; }
+
         /* 4. 詳細リスト表示 */
         .file-grid.grid-detail { grid-template-columns: 1fr; gap: 1px; }
         .file-grid.grid-detail .file-card {
             display: grid; 
-            grid-template-columns: 30px 1fr 60px; 
+            grid-template-columns: 30px 1fr 150px 60px; /* Checkbox, Info(Title), Meta, Actions */
             align-items: center;
             border-radius: 0;
             border-left: none;
@@ -165,16 +231,12 @@
             box-shadow: none;
             overflow: visible;
         }
-        .file-grid.grid-detail .card-preview, .file-grid.grid-detail .file-icon { display: none; }
-        .file-grid.grid-detail .card-info {
-            padding: 0 15px;
-            display: grid;
-            grid-template-columns: 3fr 1.5fr 1fr 1.5fr; 
-            gap: 15px;
-            align-items: center;
-        }
-        .file-grid.grid-detail .metadata { display: contents; font-size: 0.9em; }
-        .file-grid.grid-detail .metadata span i { display: none; } 
+        .file-grid.grid-detail .card-preview, .file-grid.grid-detail .file-icon, .file-grid.grid-detail .metadata-detail { display: none; }
+        .file-grid.grid-detail .select-checkbox + label { position: static; margin: auto; }
+        .file-grid.grid-detail .card-info { padding: 0 15px; margin: auto 0; }
+        .file-grid.grid-detail .card-info h2 { margin: 0; }
+        .file-grid.grid-detail .metadata { display: flex; gap: 20px; font-size: 0.9em; color: var(--meta-color); }
+        .file-grid.grid-detail .card-actions { position: static; margin: auto; }
 
 
         /* --- 管理者エリアのCSS --- */
@@ -207,13 +269,10 @@
             color: var(--accent-color);
             text-decoration: underline;
         }
-        #admin-section ol {
-            padding-left: 20px;
-        }
-        
+
         /* --- ローディングオーバーレイの修正 --- */
         #loading-overlay {
-            position: fixed; /* 画面に固定 */
+            position: fixed; 
             top: 0;
             left: 0;
             width: 100%;
@@ -223,7 +282,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 9999; /* 最前面に表示 */
+            z-index: 9999;
         }
         .spinner {
             border: 8px solid #f3f3f3;
@@ -240,7 +299,7 @@
 
         .hidden { display: none !important; }
 
-        /* モーダルCSS */
+        /* モーダルCSS (閉じるボタンの位置修正済み) */
         .modal {
             display: none; 
             position: fixed;
@@ -277,11 +336,10 @@
             padding: 10px 0;
             height: 150px;
         }
-        /* モーダルの閉じるボタンの位置修正 */
         .modal-close {
             position: absolute;
             top: 15px;
-            right: 35px; /* 右上に配置 */
+            right: 35px; 
             color: #f1f1f1;
             font-size: 40px;
             font-weight: bold;
@@ -313,7 +371,7 @@
     <header class="header-container">
         <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
         <div class="header-title-area">
-            <h1><i class="fas fa-database"></i>DocuBase - 文書共有システム</h1> 
+            <h1><i class="fas fa-database"></i>DocuBase</h1> 
         </div>
     </header>
 
@@ -424,7 +482,6 @@
         };
         const getFilepath = (file) => {
             const typeInfo = typeMap[file.type] || typeMap['other'];
-            // フォルダのパスを決定
             let folder = typeInfo.folder;
             if (file.type === 'image') {
                 folder = 'images/';
@@ -548,16 +605,15 @@
                 return 0;
             });
             
-            // レイアウトが切り替わっても、currentLayoutに基づいてカードを再描画する
             renderFileCards(filteredData);
         };
 
 
-        // --- ファイルカード生成関数 ---
+        // --- ファイルカード生成関数 (デザイン強化) ---
         const renderFileCards = (dataToRender) => {
             fileGrid.innerHTML = ''; 
             
-            // fileGridに現在のレイアウトクラスを適用 (レイアウト切り替え機能の修正)
+            // fileGridに現在のレイアウトクラスを適用
             fileGrid.className = `file-grid ${currentLayout}`; 
             
             if (dataToRender.length === 0) {
@@ -569,18 +625,27 @@
                 const fileExtension = file.filename.split('.').pop().toUpperCase();
 
                 const card = document.createElement('section');
-                card.className = `file-card tooltip-container`;
+                card.className = `file-card`;
                 card.setAttribute('data-id', file.filename);
                 card.setAttribute('data-type', file.type);
-
+                
+                // --- チェックボックス (カスタムデザイン) ---
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.className = 'select-checkbox';
+                checkbox.id = `checkbox-${file.filename}`;
                 checkbox.value = filePath;
                 card.appendChild(checkbox);
 
+                const checkboxLabel = document.createElement('label');
+                checkboxLabel.setAttribute('for', `checkbox-${file.filename}`);
+                card.appendChild(checkboxLabel);
+
+
+                // --- アクションボタン (共有マーク) ---
                 const actionDiv = document.createElement('div');
                 actionDiv.className = 'card-actions';
+                
                 const shareButton = document.createElement('button');
                 shareButton.className = 'action-btn';
                 shareButton.title = '共有リンクをコピー';
@@ -593,12 +658,9 @@
                     alert('共有リンクをクリップボードにコピーしました:\n' + fullUrl);
                 };
                 actionDiv.appendChild(shareButton);
-                
-                if (currentLayout !== 'grid-detail') {
-                    card.appendChild(actionDiv);
-                }
 
 
+                // --- リンク (詳細リストではタイトルに適用するため、ここではリンク先は一旦保留)
                 const link = document.createElement('a');
                 link.href = filePath;
                 
@@ -635,12 +697,9 @@
                     
                     previewDiv.appendChild(img);
                     previewDiv.appendChild(noImageDiv);
-                    
-                    // 画像が存在する場合でも、デフォルトでは noImageDiv を非表示にしておく
                     noImageDiv.style.display = 'none';
 
                 } else {
-                    // プレビューパスがない場合
                     const noImageDiv = document.createElement('div');
                     noImageDiv.className = 'no-image';
                     noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
@@ -648,7 +707,7 @@
                 }
 
                 
-                // ファイルアイコン (ロゴとテキスト)
+                // ファイルアイコン (PDF, Wordなどのタグ)
                 const iconSpan = document.createElement('span');
                 iconSpan.className = `file-icon ${getFileTypeClass(file.type)}`;
                 iconSpan.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> ${fileExtension}`;
@@ -663,6 +722,7 @@
                 const titleH2 = document.createElement('h2');
                 titleH2.textContent = file.title;
                 
+                // タイトルクリック動作の設定（詳細リストの場合）
                 if (currentLayout === 'grid-detail') {
                     titleH2.style.cursor = 'pointer';
                     if (file.type === 'pdf' || file.type === 'image') {
@@ -674,37 +734,39 @@
 
                 infoDiv.appendChild(titleH2);
 
-                const metadataDiv = document.createElement('div');
-                metadataDiv.className = 'metadata';
+                // --- メタデータ詳細（カード表示用） ---
+                const metadataDetailDiv = document.createElement('div');
+                metadataDetailDiv.className = 'metadata-detail';
                 const displayDescription = file.description && file.description.trim() !== '' ? file.description : '説明なし';
                 
+                metadataDetailDiv.innerHTML = `
+                    <div><strong>種別:</strong> <span>${tagMap[file.tag] || file.tag}</span></div>
+                    <div><strong>サイズ:</strong> <span>${formatSize(file.size_kb)}</span></div>
+                    <div><strong>日付:</strong> <span>${file.date || 'N/A'}</span></div>
+                    <div><strong>説明:</strong> <span>${displayDescription}</span></div>
+                `; 
+                infoDiv.appendChild(metadataDetailDiv);
+                
+                // --- リスト/詳細表示用の簡略メタデータ ---
+                const metadataDiv = document.createElement('div');
+                metadataDiv.className = 'metadata';
                 metadataDiv.innerHTML = `
-                    <span data-label="タイトル">${file.title}</span>
                     <span data-label="タグ">${tagMap[file.tag] || file.tag}</span>
                     <span data-label="サイズ">${formatSize(file.size_kb)}</span>
-                    <span data-label="日付">${file.date}</span>
+                    <span data-label="日付">${file.date || 'N/A'}</span>
                 `; 
-                infoDiv.appendChild(metadataDiv);
-                
-                // --- Tooltip ---
-                const tooltipText = document.createElement('div');
-                tooltipText.className = 'tooltip-text';
-                tooltipText.innerHTML = `
-                    <strong>${file.title}</strong><br>
-                    <hr style="border-color: rgba(255,255,255,0.2); margin: 5px 0;">
-                    種別: ${tagMap[file.tag] || file.tag}<br>
-                    サイズ: ${formatSize(file.size_kb)}<br>
-                    説明: ${displayDescription}
-                `;
-                card.appendChild(tooltipText);
+                if (currentLayout === 'grid-list' || currentLayout === 'grid-detail') {
+                    infoDiv.appendChild(metadataDiv);
+                }
 
 
-                if (currentLayout === 'grid-detail') {
+                if (currentLayout === 'grid-detail' || currentLayout === 'grid-list') {
                     card.appendChild(infoDiv);
                     card.appendChild(actionDiv);
                 } else {
                     link.appendChild(infoDiv);
                     card.appendChild(link);
+                    card.appendChild(actionDiv); // カード表示ではリンクの外に配置
                 }
 
                 fileGrid.appendChild(card);
@@ -720,10 +782,7 @@
                     layoutButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     
-                    // currentLayout を更新
                     currentLayout = newLayout;
-                    
-                    // フィルターを再適用することで、renderFileCardsが新しいレイアウトを適用する
                     applyMasterFilter(); 
                 });
             });
@@ -749,7 +808,6 @@
                  console.error('Error loading file data:', error);
                  fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--pdf-color);">ファイルの読み込みに失敗しました。data.jsonファイルが存在するか、形式が正しいか確認してください。</p>';
             } finally {
-                // ロード完了後、オーバーレイを隠す
                 loadingOverlay.classList.add('hidden');
             }
         };
@@ -775,6 +833,7 @@
         });
         
         document.getElementById('bulkDownload').addEventListener('click', () => {
+            // カスタムチェックボックスの処理
             const selectedFiles = document.querySelectorAll('.select-checkbox:checked');
             if (selectedFiles.length === 0) {
                 alert('ダウンロードするファイルを1つ以上選択してください。');
