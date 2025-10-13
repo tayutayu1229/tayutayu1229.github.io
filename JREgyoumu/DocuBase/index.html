@@ -239,18 +239,120 @@
         .file-grid.grid-detail .card-actions { position: static; margin: auto; }
 
 
-        /* 管理者エリアのCSS/ローディングCSSは変更なし */
-        #admin-section { background-color: var(--admin-bg-color); border: 1px solid var(--admin-border-color); padding: 20px; border-radius: 8px; color: var(--admin-text-color); margin-top: 20px; }
-        #admin-section h2 { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-top: 0; }
-        #admin-stats { display: flex; gap: 30px; margin-bottom: 20px; font-size: 1.1em; color: var(--text-color); }
-        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
-        .spinner { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .hidden { display: none !important; }
-        /* モーダルCSSは変更なし */
-        .modal { display: none; position: fixed; z-index: 200; padding-top: 60px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.9); }
-        .modal-close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; transition: 0.3s; }
+        /* --- 管理者エリアのCSS --- */
+        #admin-section {
+            background-color: var(--admin-bg-color);
+            border: 1px solid var(--admin-border-color);
+            padding: 20px;
+            border-radius: 8px;
+            color: var(--admin-text-color);
+            margin-top: 20px;
+        }
+        #admin-section h2 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        #admin-stats {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: var(--text-color);
+        }
+        #admin-section p, #admin-section ul {
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        #admin-section a {
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
 
+        /* --- ローディングオーバーレイの修正 --- */
+        #loading-overlay {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- モーダルCSS (PDF表示最適化) --- */
+        .modal {
+            display: none; 
+            position: fixed;
+            z-index: 200;
+            /* 修正: 上部のパディングを減らし、余白を削減 */
+            padding-top: 30px; 
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.95);
+        }
+        .modal-content {
+            /* 修正: 中央寄せと横幅の調整 */
+            margin: auto;
+            display: block;
+            width: 90%; 
+            max-width: 1300px; 
+            text-align: center;
+        }
+        .modal-content img, .modal-content iframe {
+            max-width: 100%;
+            /* 修正: 画面内に収まるように高さを設定 */
+            height: 90vh; 
+            display: block;
+            margin: 0 auto;
+        }
+        .modal-caption {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            color: #ccc;
+            padding: 10px 0;
+            height: 150px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 35px; 
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .modal-close:hover, .modal-close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -337,7 +439,7 @@
     </div>
 
     <script>
-        // 設定定数と要素
+        // 設定定数と要素 (機能ロジックは維持)
         const tagMap = {
             'all': 'すべて', 'pdf': 'PDF文書', 'image': '画像ファイル', 
             'manual': 'マニュアル', 'report': 'レポート', 'other': 'その他',
@@ -394,11 +496,10 @@
                 folder = 'pdfs/';
             }
             
-            // ファイル名をURLエンコードし、スラッシュ('/')などのパス区切り文字はエンコードしないように注意
+            // ファイル名をURLエンコード
             const encodedFilename = encodeURIComponent(file.filename);
             
-            // サーバー環境によっては、エンコードされたパスをデコードしてからリクエストしないと404になるため、
-            // サーバーが要求する形式に合わせて柔軟に対応できるようにします。
+            // エンコードされたパスを返します。
             return `${folder}${encodedFilename}`;
         };
         
@@ -413,7 +514,7 @@
             return typeMap[type] ? typeMap[type].icon : typeMap['other'].icon;
         };
         
-        // --- タグフィルタボタンのセットアップ関数は変更なし ---
+        // --- タグフィルタボタンのセットアップ関数 (機能維持) ---
         const setupFilters = (data) => {
             const existingTags = new Set(['pdf', 'image', 'word', 'excel']);
             data.forEach(file => {
@@ -447,42 +548,10 @@
         };
 
 
-        // --- モーダル/プレビュー機能の修正 ---
+        // --- モーダル/プレビュー機能 (PDF表示最適化と404対策維持) ---
         const openModal = (file) => {
-            // パスを取得
-            let filePath = getFilepath(file);
+            let filePath = getFilepath(file); 
             
-            // 404エラーの原因は、日本語ファイル名が既にエンコードされた状態で
-            // さらにブラウザによってエンコードされる二重エンコード（またはその逆）が原因の場合があります。
-            // 確実な解決策として、iframeのsrcに設定する前に一度デコードを試みます。
-            // ただし、もし `data.json` のファイル名が既に生の日本語であれば不要です。
-            // ここでは、一旦デコードしてから、ブラウザに渡す形式のファイルパスを再構築します。
-            
-            // data.jsonのファイル名が既にエンコードされている場合を想定
-            try {
-                // ファイル名をデコード
-                const rawFilename = decodeURIComponent(file.filename); 
-                // パスを再構築し、今度はファイル名をエンコードせずに使用（一般的なサーバーはこれでOKなことが多い）
-                // ただし、Chromeなどのブラウザはiframeに渡されたURLを自動でエンコードするため、
-                // 日本語ファイルを直接渡すか、適切にエンコードされたURLを渡す必要があります。
-                
-                // 今回は、getFilepathでエンコード済みパスを取得しているので、
-                // iframeで開く際もそのエンコードされたパスを使用します。
-                // 404の原因が二重エンコードでない場合、このfilePathで動作します。
-
-                // ファイルパスを直接使用
-                filePath = getFilepath(file);
-                
-                // 【最終手段として】パス全体をdecode/encodeし直す
-                const folder = typeMap[file.type] ? typeMap[file.type].folder : typeMap['other'].folder;
-                filePath = folder + encodeURIComponent(file.filename);
-                
-            } catch (e) {
-                console.warn("ファイル名デコードエラー。そのままのパスを使用します。", e);
-                // エラーが発生した場合は、そのままのパスを使用
-            }
-
-
             modalBody.innerHTML = '';
             modalCaption.textContent = file.title;
 
@@ -492,10 +561,9 @@
                 modalBody.appendChild(img);
             } else if (file.type === 'pdf') {
                 const iframe = document.createElement('iframe');
-                // 修正後のファイルパスを使用
                 iframe.src = filePath; 
-                iframe.style.width = '90vw';
-                iframe.style.height = '90vh';
+                iframe.style.width = '100%'; // CSSの.modal-content img, iframeと連携
+                iframe.style.height = '90vh'; // CSSの.modal-content img, iframeと連携
                 iframe.setAttribute('frameborder', '0');
                 modalBody.appendChild(iframe);
             } else {
@@ -515,7 +583,7 @@
         };
 
 
-        // --- メインフィルタリング & ソートロジックは変更なし ---
+        // --- メインフィルタリング & ソートロジック (機能維持) ---
         const applyMasterFilter = () => {
             let filteredData = fileData;
             const searchTerm = searchInput.value.toLowerCase();
@@ -555,7 +623,7 @@
         };
 
 
-        // --- ファイルカード生成関数は変更なし ---
+        // --- ファイルカード生成関数 (機能維持) ---
         const renderFileCards = (dataToRender) => {
             fileGrid.innerHTML = ''; 
             
@@ -566,7 +634,7 @@
                 return;
             }
             dataToRender.forEach(file => {
-                const filePath = getFilepath(file); // 修正後のパス生成関数を使用
+                const filePath = getFilepath(file); 
                 const fileExtension = file.filename.split('.').pop().toUpperCase();
 
                 const card = document.createElement('section');
@@ -574,17 +642,20 @@
                 card.setAttribute('data-id', file.filename);
                 card.setAttribute('data-type', file.type);
                 
+                // チェックボックス (機能維持)
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.className = 'select-checkbox';
                 checkbox.id = `checkbox-${file.filename}`;
-                checkbox.value = decodeURIComponent(filePath); // ダウンロード用にデコードされたパスを保存
+                // ダウンロード用にデコードされたパスを保存（404対策）
+                checkbox.value = decodeURIComponent(filePath); 
                 card.appendChild(checkbox);
 
                 const checkboxLabel = document.createElement('label');
                 checkboxLabel.setAttribute('for', `checkbox-${file.filename}`);
                 card.appendChild(checkboxLabel);
 
+                // アクションボタン (機能維持)
                 const actionDiv = document.createElement('div');
                 actionDiv.className = 'card-actions';
                 
@@ -614,6 +685,7 @@
                     link.target = '_blank';
                 }
 
+                // プレビューエリア (機能維持)
                 const previewDiv = document.createElement('div');
                 previewDiv.className = 'card-preview';
                 
@@ -653,6 +725,7 @@
 
                 link.appendChild(previewDiv);
 
+                // 情報エリア (機能維持)
                 const infoDiv = document.createElement('div');
                 infoDiv.className = 'card-info';
 
@@ -707,7 +780,7 @@
             });
         };
 
-        // --- レイアウト切替機能、データのロード、イベントリスナーは変更なし ---
+        // --- レイアウト切替機能、データのロード、イベントリスナー (機能維持) ---
         const setupLayoutSwitcher = () => {
             layoutButtons.forEach(button => {
                 button.addEventListener('click', () => {
