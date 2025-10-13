@@ -324,7 +324,7 @@
             const applyDateFilterButton = document.getElementById('applyDateFilter');
             const clearDateFilterButton = document.getElementById('clearDateFilter');
 
-            // NEW: レイアウト切替ボタン
+            // レイアウト切替ボタン
             const layoutButtons = document.querySelectorAll('.layout-btn');
             
             let fileData = [];
@@ -396,42 +396,84 @@
                     }
 
                     const hasPreview = previewPath !== '';
-                    
-                    const previewHtml = hasPreview 
-                        ? `<img src="${previewPath}" alt="${file.title} プレビュー" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
-                           <div class="no-image hidden"><i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし</div>`
-                        : `<div class="no-image"><i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし</div>`;
-
+                    const fileExtension = file.filename.split('.').pop().toUpperCase();
                     const iconClass = file.type === 'pdf' ? 'fa-file-pdf' : 'fa-image';
                     const iconTypeClass = file.type === 'pdf' ? 'pdf-type' : 'image-type';
-                    const fileExtension = file.filename.split('.').pop().toUpperCase();
 
+                    // --- HTMLをcreateElementで正しく組み立てる（表示崩れ対策） ---
 
+                    // 1. 基本となる要素 (section, a)
                     const card = document.createElement('section');
                     card.className = `file-card`;
                     card.setAttribute('data-type', file.type);
                     card.setAttribute('data-tag', file.tag);
+
+                    const link = document.createElement('a');
+                    link.href = filePath;
+                    link.target = '_blank';
+
+                    // 2. プレビューエリア (.card-preview)
+                    const previewDiv = document.createElement('div');
+                    previewDiv.className = 'card-preview';
+
+                    if (hasPreview) {
+                        // プレビュー画像
+                        const img = document.createElement('img');
+                        img.src = previewPath;
+                        img.alt = `${file.title} プレビュー`;
+                        // 画像読み込み失敗時のフォールバック処理をonerrorに設定
+                        img.onerror = function() {
+                            this.classList.add('hidden');
+                            this.nextElementSibling.classList.remove('hidden');
+                        };
+                        previewDiv.appendChild(img);
+
+                        // イメージなしブロック (初期非表示)
+                        const noImageDiv = document.createElement('div');
+                        noImageDiv.className = 'no-image hidden';
+                        noImageDiv.innerHTML = `<i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし`;
+                        previewDiv.appendChild(noImageDiv);
+
+                    } else {
+                        // プレビュー画像がない場合 (初期表示)
+                        const noImageDiv = document.createElement('div');
+                        noImageDiv.className = 'no-image';
+                        noImageDiv.innerHTML = `<i class="fas ${file.type === 'pdf' ? 'fa-file-alt' : 'fa-image'}"></i> イメージなし`;
+                        previewDiv.appendChild(noImageDiv);
+                    }
                     
-                    card.innerHTML = `
-                        <a href="${filePath}" target="_blank">
-                            <div class="card-preview">
-                                ${previewHtml}
-                                <span class="file-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i> ${fileExtension}</span>
-                            </div>
-                            <div class="card-info">
-                                <h2>${file.title}</h2>
-                                <div class="metadata">
-                                    <span><i class="fas fa-calendar-alt"></i> ${file.date}</span>
-                                    <span><i class="fas fa-tag"></i> ${tagMap[file.tag] || file.tag}</span>
-                                </div>
-                            </div>
-                        </a>
+                    // ファイルアイコン (ロゴとテキスト)
+                    const iconSpan = document.createElement('span');
+                    iconSpan.className = `file-icon ${iconTypeClass}`;
+                    iconSpan.innerHTML = `<i class="fas ${iconClass}"></i> ${fileExtension}`;
+                    previewDiv.appendChild(iconSpan);
+
+                    link.appendChild(previewDiv);
+
+
+                    // 3. 情報エリア (.card-info)
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'card-info';
+
+                    const titleH2 = document.createElement('h2');
+                    titleH2.textContent = file.title;
+                    infoDiv.appendChild(titleH2);
+
+                    const metadataDiv = document.createElement('div');
+                    metadataDiv.className = 'metadata';
+                    metadataDiv.innerHTML = `
+                        <span><i class="fas fa-calendar-alt"></i> ${file.date}</span>
+                        <span><i class="fas fa-tag"></i> ${tagMap[file.tag] || file.tag}</span>
                     `;
+                    infoDiv.appendChild(metadataDiv);
+                    
+                    link.appendChild(infoDiv);
+                    card.appendChild(link);
                     fileGrid.appendChild(card);
                 });
             };
 
-            // --- フィルタボタンの動的生成と設定 ---
+            // --- フィルタボタンの動的生成と設定 (変更なし) ---
             const setupFilters = (data) => {
                 const allButton = tagNav.querySelector('[data-filter="all"]');
                 allButton.textContent = tagMap['all'];
@@ -464,23 +506,21 @@
                 });
             };
 
-            // --- レイアウト切替機能 ---
+            // --- レイアウト切替機能 (変更なし) ---
             layoutButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const newLayout = button.getAttribute('data-layout');
                     
-                    // ボタンのアクティブ状態を切り替え
                     layoutButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     
-                    // fileGridのクラスを切り替え
                     fileGrid.classList.remove(currentLayout);
                     fileGrid.classList.add(newLayout);
                     currentLayout = newLayout;
                 });
             });
 
-            // --- JSONデータの読み込み ---
+            // --- JSONデータの読み込み (変更なし) ---
             const loadFiles = async () => {
                 try {
                     const response = await fetch('data.json');
@@ -497,7 +537,7 @@
                 }
             };
 
-            // --- イベントリスナーの設定 ---
+            // --- イベントリスナーの設定 (変更なし) ---
             
             // 日付フィルタボタン
             applyDateFilterButton.addEventListener('click', () => {
@@ -545,10 +585,8 @@
                     
                     if (target === 'file-list') {
                         fileListSection.classList.remove('hidden');
-                        // ファイルリストに戻ったとき、フィルタをリセット
                         tagNav.querySelector('[data-filter="all"]').click(); 
                         clearDateFilterButton.click();
-                        // レイアウトも初期状態に戻す
                         document.querySelector('.layout-btn[data-layout="grid-cards"]').click(); 
                     } else if (target === 'admin-area') {
                         adminAreaSection.classList.remove('hidden');
