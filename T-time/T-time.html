@@ -205,21 +205,24 @@
     const dateSelectorContainer = document.getElementById("date-selector-container");
     const selectDate = document.getElementById("select-date");
 
-    // 【NEW】線区の手動マッピングをここで定義します
+    // =========================================================================
     // 🚨 修正が必要なのはこの部分です 🚨
+    // 選択肢に出したい線区を、事業者に合わせて手動で登録してください。
+    // 配列内の線区名は、timetables.jsonのt.lineの値と完全に一致させてください。
     const manuallyDefinedLines = {
-        "JR北海道": ["函館", "室蘭", "千歳", "札沼"],
-        "JR東日本": ["山手", "京浜東北・根岸", "中央", "武蔵野", "常磐", "常磐緩行"],
-        "JR東海": ["東海道", "中央本線", "関西本線", "御殿場線"],
+        "JR北海道": ["函館本線", "室蘭本線", "千歳線", "札沼線"],
+        "JR東日本": ["中央線", "東北本線", "東海道線", "山手線", "京浜東北線", "常磐線"],
+        "JR東海": ["東海道線", "中央本線", "関西本線", "御殿場線"],
         "JR西日本": ["東海道・山陽線", "北陸本線", "関西本線", "おおさか東線"],
         "JR九州": ["鹿児島本線", "日豊本線", "長崎本線"],
         "東日本私鉄": ["東武伊勢崎線", "京王線", "小田急線", "東急東横線"],
         "その他": ["その他の線区A", "その他の線区B"]
     };
+    // =========================================================================
 
     /**
      * 線区プルダウンを更新する関数
-     * @param {string} selectedCompany - 選択された事業者名
+     * @param {string} selectedCompany - 選択された事業者名 (例: "JR東日本")
      */
     function updateLineOptions(selectedCompany) {
         lineSelect.innerHTML = `<option value="">すべて</option>`;
@@ -229,13 +232,13 @@
             return;
         }
 
-        // 選択された会社に属する線区をマッピングから取得
+        // 手動で定義したマッピングから線区リストを取得
         const lines = manuallyDefinedLines[selectedCompany] ? manuallyDefinedLines[selectedCompany].sort() : [];
 
         if (lines.length > 0) {
             lines.forEach(l => {
                 const opt = document.createElement("option");
-                // lineのvalueは、timetables.jsonのt.lineと完全に一致する必要があります
+                // valueはJSONデータ内のt.lineと一致させる
                 opt.value = l; 
                 opt.textContent = l;
                 lineSelect.appendChild(opt);
@@ -256,9 +259,7 @@
           throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
         }
 
-        // 線区の初期化（このステップは不要になったため削除）
-        // 事業者リストはHTMLに固定されているため、ここでは冠のロードのみ
-
+        // 冠（crown）のリストを読み込み
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
         crownSelect.innerHTML = `<option value="">すべて</option>`;
         crowns.forEach(c => {
@@ -279,7 +280,6 @@
     }
 
     function displayTrain(train) {
-      // (省略) 
       document.getElementById("train-info").style.display = "block";
       document.getElementById("info-line").textContent = train.line;
       document.getElementById("info-date").textContent = train.startDate;
@@ -305,13 +305,11 @@
     }
     
     async function searchTrain() {
-      // 事業者でのフィルタリングは行わない（線区を選択すれば十分なため）
-      // const company = companySelect.value; 
+      // 事業者（company）の値は検索フィルタとして使用せず、選択された線区（line）の値のみを使用します。
       const line = lineSelect.value;
       const number = trainNumberInput.value.trim();
       const crown = crownSelect.value;
       
-      // (エラーログ、リセット、初期チェックは省略)
       errorLog.style.display = "none";
       document.getElementById("train-info").style.display = "none";
       document.getElementById("timetable").innerHTML = "";
@@ -323,7 +321,6 @@
         return;
       }
       
-      // 会社選択は必須ではないため、チェックから除外します。
       if (number === "" && line === "" && crown === "") {
         errorLog.textContent = "検索条件を一つ以上指定してください。";
         errorLog.style.display = "block";
@@ -331,9 +328,6 @@
       }
 
       currentMatches = timetableData.filter(t => {
-        // 事業者でのフィルタリングは行わず、線区（line）と列車番号（crown/number）のみで絞り込みます。
-        // なぜなら、線区が選択されていれば、それがどの事業者かは検索ロジック上は重要ではないためです。
-        
         // 1. 線区のフィルタリング: 選択された線区とデータ上の線区が一致するか
         const lineMatch = (line === "" || t.line === line);
 
@@ -386,10 +380,9 @@
 
     // --- イベントリスナーの追加 ---
     
-    // 【NEW】事業者（#company）変更時のイベントリスナー
+    // 【事業者変更時の処理】線区リストを更新する
     companySelect.addEventListener("change", function() {
         const selectedCompany = this.value;
-        // 手動で定義したリストから線区オプションを生成・更新
         updateLineOptions(selectedCompany);
         lineSelect.value = ""; // 線区をリセット
     });
