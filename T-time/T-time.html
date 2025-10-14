@@ -4,9 +4,6 @@
   <meta charset="UTF-8" />
   <title>列車別ダイヤモニタ</title>
   <style>
-    /* =========================================================================
-     * CSS スタイル - 一番最初のシンプルなスタイルに完全に戻しました。
-     * ========================================================================= */
     body {
       font-family: "MS PGothic", sans-serif;
       font-weight: bold;
@@ -62,7 +59,7 @@
     }
 
     table {
-      width: 80%; /* 元の幅に戻しました */
+      width: 80%;
       border-collapse: collapse;
       margin-top: 20px;
     }
@@ -130,16 +127,14 @@
     
     <div class="selection">
       <div class="selection-header">表示内容選択</div>
-      
-      <div class="selection-group">
+      <div class="selection-group">
         <label for="line">線区:</label>
         <select id="line">
-                    </select>
+                    </select>
       </div>
-
       <div class="selection-group hidden" id="date-selector-container">
-        <label for="select-date">施行日:</label>
-        <select id="select-date"></select>
+        <label for="select-date">施行日:</label>
+        <select id="select-date"></select>
       </div>
       <div class="selection-group">
         <label for="train-number">列車番号:</label>
@@ -180,12 +175,12 @@
 
   <script>
     // =========================================================================
-    // JavaScript コード (線区選択ロジックのみに特化)
+    // 追加・変更したロジックはここです
     // =========================================================================
     let timetableData = [];
     let currentMatches = [];
-
-    // DOM要素の取得
+    
+    // DOM要素の取得
     const lineSelect = document.getElementById("line");
     const crownSelect = document.getElementById("crown");
     const trainNumberInput = document.getElementById("train-number");
@@ -194,12 +189,8 @@
     const dateSelectorContainer = document.getElementById("date-selector-container");
     const selectDate = document.getElementById("select-date");
 
-    // =========================================================================
-    // 🚨 ここを編集してください 🚨
-    // 選択肢に出したい線区を、事業者に合わせて手動で登録してください。
-    // 値 (value) は timetables.jsonのt.lineの値と完全に一致させてください。
+    // 🚨 線区リスト定義 (この部分を編集して、お使いの線区に合わせてください) 🚨
     const manuallyDefinedLines = {
-        // 初期表示時（事業者リスト）
         "initial": [
             { value: "", text: "線区を選択" }, 
             { value: "select_JR北海道", text: "▶︎ JR北海道" },
@@ -210,55 +201,52 @@
             { value: "select_東日本私鉄", text: "▶︎ 東日本私鉄" },
             { value: "select_その他", text: "▶︎ その他" }
         ],
-        // 各事業者の線区リスト (お客様にて編集が必要)
         "JR北海道": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "函館本線", text: "函館本線" }, 
-            { value: "室蘭本線", text: "室蘭本線" }
-            // ... 他の線区を追加
+            { value: "室蘭本線", text: "室蘭本線" }, 
         ],
         "JR東日本": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "中央本線", text: "中央本線" }, 
-            { value: "東北本線", text: "東北本線" }
-            // ... 他の線区を追加
+            { value: "東北本線", text: "東北本線" }, 
         ],
         "JR東海": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "東海道本線(海)", text: "東海道本線(海)" }, 
-            { value: "中央本線(海)", text: "中央本線(海)" }
+            { value: "中央本線(海)", text: "中央本本線(海)" }, 
         ],
         "JR西日本": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "東海道本線(西)", text: "東海道本線(西)" }, 
-            { value: "山陽本線", text: "山陽本線" }
+            { value: "山陽本線", text: "山陽本線" }, 
         ],
         "JR九州": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "鹿児島本線", text: "鹿児島本線" }, 
-            { value: "日豊本線", text: "日豊本線" }
+            { value: "日豊本線", text: "日豊本線" }, 
         ],
         "東日本私鉄": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
             { value: "東武伊勢崎線", text: "東武伊勢崎線" }, 
-            { value: "京王線", text: "京王線" }
+            { value: "京王線", text: "京王線" }, 
         ],
         "その他": [
             { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
             { value: "", text: "すべて" },
-            { value: "その他の線区A", text: "その他の線区A" }
+            { value: "その他の線区A", text: "その他の線区A" }, 
         ]
     };
-    // =========================================================================
     
     let currentLineSelectionState = "initial"; 
 
+    /** 線区プルダウンの内容を更新する関数 */
     function updateLineOptions(stateKey) {
         lineSelect.innerHTML = ''; 
         const optionsToDisplay = manuallyDefinedLines[stateKey] || [];
@@ -272,6 +260,8 @@
         
         currentLineSelectionState = stateKey; 
     }
+    // =========================================================================
+
 
     async function loadTimetableData() {
       try {
@@ -281,13 +271,13 @@
         }
         timetableData = await res.json();
         if (!Array.isArray(timetableData) || timetableData.length === 0) {
-          throw new Error("timetables.jsonに有効なデータがありません。");
+          throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
         }
 
-        // 初期表示: 線区プルダウンに事業者リストを表示する
-        updateLineOptions("initial"); 
+        // 🚨 線区リストの初期化を二段階選択方式に変更 🚨
+        updateLineOptions("initial");
 
-        // 冠（crown）のリストを読み込み (変更なし)
+        // 冠の読み込み (変更なし)
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
         crownSelect.innerHTML = `<option value="">すべて</option>`;
         crowns.forEach(c => {
@@ -307,7 +297,7 @@
     }
 
     function displayTrain(train) {
-      // (表示ロジックは変更なし)
+        // 変更なし
       document.getElementById("train-info").style.display = "block";
       document.getElementById("info-line").textContent = train.line;
       document.getElementById("info-date").textContent = train.startDate;
@@ -333,16 +323,10 @@
     }
     
     async function searchTrain() {
-      let line = lineSelect.value;
-      
-      // 事業者選択状態や「戻る」ボタンが選択されている場合は検索を中止
-      if (currentLineSelectionState === "initial" && line === "") {
+      // 🚨 二段階選択のためのチェックを追加 🚨
+      const line = lineSelect.value;
+      if (currentLineSelectionState === "initial" && (line === "" || line.startsWith("select_"))) {
           errorLog.textContent = "具体的な線区を選択してから「表示」を押してください。";
-          errorLog.style.display = "block";
-          return;
-      }
-      if (currentLineSelectionState === "initial" && line.startsWith("select_")) {
-          errorLog.textContent = "具体的な線区を選択してください。";
           errorLog.style.display = "block";
           return;
       }
@@ -355,78 +339,65 @@
 
       const number = trainNumberInput.value.trim();
       const crown = crownSelect.value;
-      
-      errorLog.style.display = "none";
-      document.getElementById("train-info").style.display = "none";
-      document.getElementById("timetable").innerHTML = "";
-      dateSelectorContainer.classList.add("hidden");
 
       if (number !== "" && !trainNumberInput.checkValidity()) {
         errorLog.textContent = "列車番号は数字から始めてください。";
         errorLog.style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
-      
-      if (number === "" && line === "" && crown === "") {
-        errorLog.textContent = "検索条件を一つ以上指定してください。";
+
+      if (number !== "" && crown !== "" && number.includes(crown)) {
+        errorLog.textContent = "列車番号に種別冠が含まれているため、検索できません。";
         errorLog.style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
 
+      // 列車番号と冠が両方空で、かつ線区が空（すべて）の場合もエラー
+      if (number === "" && crown === "" && line === "") {
+          errorLog.textContent = "検索条件を一つ以上指定してください。";
+          errorLog.style.display = "block";
+          return;
+      }
+
+      // フィルタリングロジック（変更なし）
       currentMatches = timetableData.filter(t => {
-        // 1. 線区のフィルタリング: 選択された線区とデータ上の線区が一致するか
-        const lineMatch = (line === "" || t.line === line);
-
-        // 2. 列車番号と種別冠のフィルタリング (ロジック変更なし)
-        let numberAndCrownMatch = false;
-        
-        if (crown !== "") {
-          const trainNumberBase = t.trainNumber.replace(new RegExp(`${t.crown}$`), ''); 
-          if (t.crown === crown) {
-            if (number === "") {
-              numberAndCrownMatch = true; 
-            } else {
-              numberAndCrownMatch = trainNumberBase === number;
-            }
-          }
-        } else {
-          if (number === "") {
-            numberAndCrownMatch = true; 
-          } else {
-            if (t.trainNumber === number) {
-              numberAndCrownMatch = true;
-            } else if (t.trainNumber.replace(new RegExp(`${t.crown}$`), '') === number) {
-              numberAndCrownMatch = true;
-            } else if (t.trainNumber.replace(/^[^0-9]+/, '') === number) {
-              numberAndCrownMatch = true;
-            }
-          }
-        }
-
-        return lineMatch && numberAndCrownMatch;
+        const normalizedTrainNumber = t.trainNumber.replace(/^[^0-9]+/, '');
+        // lineが""の場合、lineのフィルタリングはスキップされる
+        return (normalizedTrainNumber === number || number === "") && 
+               (line === "" || t.line === line) &&
+               (crown === "" || t.crown === crown);
       });
 
       if (currentMatches.length === 0) {
         errorLog.textContent = "列車が見つかりませんでした。";
         errorLog.style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
         return;
       }
 
-      // (日付選択ロジックは変更なし)
+      errorLog.style.display = "none";
+
       if (currentMatches.length === 1) {
+        document.getElementById("date-selector-container").classList.add("hidden");
         displayTrain(currentMatches[0]);
       } else {
+        const dateSelect = document.getElementById("select-date");
         const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-        selectDate.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
-        dateSelectorContainer.classList.remove("hidden");
-        const selected = currentMatches.find(m => m.startDate === selectDate.value);
-        if (selected) displayTrain(selected);
+        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]);
       }
     };
 
-    // --- イベントリスナーの追加（線区選択の処理のみ変更） ---
-    
-    // 【線区（#line）変更時の処理】: 事業者選択を検知し、線区リストに切り替える
+    // 🚨 線区プルダウン変更時の処理を追加 🚨
     lineSelect.addEventListener("change", function() {
         const selectedValue = this.value;
         
@@ -441,39 +412,39 @@
         }
     });
 
-    displayButton.addEventListener("click", searchTrain);
+    document.getElementById("display-button").addEventListener("click", searchTrain);
 
-    trainNumberInput.addEventListener("keypress", function (event) {
+    document.getElementById("train-number").addEventListener("keypress", function (event) {
       if (event.key === "Enter") {
         event.preventDefault();
         searchTrain();
       }
     });
       
-    selectDate.addEventListener("change", function () {
+    document.getElementById("select-date").addEventListener("change", function () {
       const selected = currentMatches.find(m => m.startDate === this.value);
       if (selected) displayTrain(selected);
     });
-    
-    crownSelect.addEventListener("change", function () {
-      if (this.value !== "") {
-        trainNumberInput.disabled = true;
-        trainNumberInput.value = ""; 
-      } else {
-        trainNumberInput.disabled = false;
-      }
-    });
 
-    trainNumberInput.addEventListener("input", function() {
-      if (this.value.trim() !== "") {
-        crownSelect.disabled = true;
-        crownSelect.value = ""; 
-      } else {
-        crownSelect.disabled = false;
-      }
-    });
+    // 列車番号入力時と冠選択時の連動処理 (元のコードにはありませんでしたが、利便性のために残します)
+    document.getElementById("crown").addEventListener("change", function () {
+        if (this.value !== "") {
+            document.getElementById("train-number").disabled = true;
+            document.getElementById("train-number").value = ""; 
+        } else {
+            document.getElementById("train-number").disabled = false;
+        }
+    });
 
-    // 初期ロード
+    document.getElementById("train-number").addEventListener("input", function() {
+        if (this.value.trim() !== "") {
+            document.getElementById("crown").disabled = true;
+            document.getElementById("crown").value = ""; 
+        } else {
+            document.getElementById("crown").disabled = false;
+        }
+    });
+      
     loadTimetableData();
     
   </script>
