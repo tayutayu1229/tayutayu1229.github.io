@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <title>列車別ダイヤモニタ</title>
   <style>
-    /* (CSS部分は変更なしのため省略) */
+    /* =========================================================================
+     * CSS スタイル
+     * 以前の見た目を完全に再現するためのスタイルシートです。
+     * ========================================================================= */
     body {
       font-family: "MS PGothic", sans-serif;
       font-weight: bold;
@@ -38,7 +41,7 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 15px;
+      gap: 15px; /* 要素間のスペース */
     }
 
     .selection label {
@@ -46,8 +49,10 @@
     }
 
     .selection select,
-    .selection input {
+    .selection input[type="text"] { /* input[type="text"] を明示 */
       padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
     }
 
     .selection-group {
@@ -60,7 +65,7 @@
     }
 
     table {
-      width: 80%;
+      width: 100%; /* 幅を100%に調整 */
       border-collapse: collapse;
       margin-top: 20px;
     }
@@ -72,13 +77,13 @@
     th, td {
       padding: 6px;
       line-height: 1.2;
+      text-align: left; /* th も左寄せに統一 */
     }
   
     th {
       background-color: #01977a;
       color: white;
       padding: 10px;
-      text-align: left;
     }
 
     td {
@@ -112,7 +117,34 @@
       margin: 10px 0;
       border: 1px solid #990000;
       display: none;
+      border-radius: 5px;
     }
+
+    /* train-info スタイリング */
+    #train-info {
+        background-color: #e0f2f1; /* 薄い背景色 */
+        border: 1px solid #01977a;
+        border-radius: 5px;
+        padding: 10px 15px;
+        margin-bottom: 20px;
+    }
+    #train-info p {
+        margin: 5px 0;
+        line-height: 1.5;
+    }
+    #train-info table {
+        width: auto; /* info内のテーブルは幅自動 */
+        border: none;
+        margin-top: 5px;
+    }
+    #train-info table tr td {
+        border: none;
+        padding: 2px 5px;
+        background-color: transparent;
+    }
+    #train-info table tr:nth-child(odd) {
+        background-color: #f0fafa; /* 縞模様 */
+    }
   </style>
 </head>
 <body>
@@ -121,7 +153,7 @@
   </header>
   <div class="container">
     <a href="../toppage.html" class="back-button">前のページに戻る</a>
-    <a href="alltrain.html">登録列車一覧を見る</a>
+    <a href="alltrain.html" class="display-button" style="margin-left: 10px;">登録列車一覧を見る</a>
 
     <div id="error-log"></div>
 
@@ -129,24 +161,17 @@
     <div class="selection">
       <div class="selection-header">表示内容選択</div>
       
-            <div class="selection-group">
-        <label for="company">事業者:</label>
-        <select id="company">
-          <option value="">すべて</option>
-          <option value="JR北海道">JR北海道</option>
-          <option value="JR東日本">JR東日本</option>
-          <option value="JR東海">JR東海</option>
-          <option value="JR西日本">JR西日本</option>
-          <option value="JR九州">JR九州</option>
-          <option value="東日本私鉄">東日本私鉄</option>
-          <option value="その他">その他</option>
-        </select>
-      </div>
-
-            <div class="selection-group">
+      <div class="selection-group">
         <label for="line">線区:</label>
-        <select id="line" disabled>
-          <option value="">すべて</option>
+        <select id="line">
+                    <option value="">線区を選択</option> 
+                    <option value="select_JR北海道">▶︎ JR北海道</option>
+          <option value="select_JR東日本">▶︎ JR東日本</option>
+          <option value="select_JR東海">▶︎ JR東海</option>
+          <option value="select_JR西日本">▶︎ JR西日本</option>
+          <option value="select_JR九州">▶︎ JR九州</option>
+          <option value="select_東日本私鉄">▶︎ 東日本私鉄</option>
+          <option value="select_その他">▶︎ その他</option>
         </select>
       </div>
 
@@ -192,11 +217,13 @@
   </div>
 
   <script>
+    // =========================================================================
+    // JavaScript コード
+    // =========================================================================
     let timetableData = [];
     let currentMatches = [];
 
     // DOM要素の取得
-    const companySelect = document.getElementById("company"); 
     const lineSelect = document.getElementById("line");
     const crownSelect = document.getElementById("crown");
     const trainNumberInput = document.getElementById("train-number");
@@ -206,47 +233,118 @@
     const selectDate = document.getElementById("select-date");
 
     // =========================================================================
-    // 🚨 修正が必要なのはこの部分です 🚨
+    // 🚨 ここを編集してください 🚨
     // 選択肢に出したい線区を、事業者に合わせて手動で登録してください。
-    // 配列内の線区名は、timetables.jsonのt.lineの値と完全に一致させてください。
+    // 配列内の線区名 (valueとtext) は、timetables.jsonのt.lineの値と完全に一致させてください。
     const manuallyDefinedLines = {
-        "JR北海道": ["函館本線", "室蘭本線", "千歳線", "札沼線"],
-        "JR東日本": ["中央線", "東北本線", "東海道線", "山手線", "京浜東北線", "常磐線"],
-        "JR東海": ["東海道線", "中央本線", "関西本線", "御殿場線"],
-        "JR西日本": ["東海道・山陽線", "北陸本線", "関西本線", "おおさか東線"],
-        "JR九州": ["鹿児島本線", "日豊本線", "長崎本線"],
-        "東日本私鉄": ["東武伊勢崎線", "京王線", "小田急線", "東急東横線"],
-        "その他": ["その他の線区A", "その他の線区B"]
+        // 初期表示時（事業者リスト）
+        "initial": [
+            { value: "select_JR北海道", text: "▶︎ JR北海道" },
+            { value: "select_JR東日本", text: "▶︎ JR東日本" },
+            { value: "select_JR東海", text: "▶︎ JR東海" },
+            { value: "select_JR西日本", text: "▶︎ JR西日本" },
+            { value: "select_JR九州", text: "▶︎ JR九州" },
+            { value: "select_東日本私鉄", text: "▶︎ 東日本私鉄" },
+            { value: "select_その他", text: "▶︎ その他" }
+        ],
+        // 各事業者の線区リスト (手動で編集してください)
+        "JR北海道": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, // 戻るボタン
+            { value: "", text: "すべて" }, // この事業者内のすべての線区を対象とする選択肢
+            { value: "函館本線", text: "函館本線" }, 
+            { value: "室蘭本線", text: "室蘭本線" }, 
+            { value: "千歳線", text: "千歳線" },
+            { value: "宗谷本線", text: "宗谷本線" }, // 例として追加
+            { value: "石勝線", text: "石勝線" } // 例として追加
+            // ... 他のJR北海道の線区を追加
+        ],
+        "JR東日本": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "中央本線", text: "中央本線" }, // JSONのt.lineと一致させる
+            { value: "東北本線", text: "東北本線" }, 
+            { value: "東海道本線(東)", text: "東海道本線(東)" }, // JSONのt.lineと一致させる
+            { value: "山手線", text: "山手線" }, 
+            { value: "京浜東北線", text: "京浜東北線" }, 
+            { value: "常磐線", text: "常磐線" },
+            { value: "高崎線", text: "高崎線" } // 例として追加
+            // ... 他のJR東日本の線区を追加
+        ],
+        "JR東海": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "東海道本線(海)", text: "東海道本線(海)" }, 
+            { value: "中央本線(海)", text: "中央本線(海)" }, 
+            { value: "関西本線(海)", text: "関西本線(海)" }, 
+            { value: "御殿場線", text: "御殿場線" },
+            { value: "身延線", text: "身延線" } // 例として追加
+            // ... 他のJR東海の線区を追加
+        ],
+        "JR西日本": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "東海道本線(西)", text: "東海道本線(西)" }, // 例: 湖西線を含む場合など
+            { value: "山陽本線", text: "山陽本線" }, 
+            { value: "北陸本線", text: "北陸本線" }, 
+            { value: "関西本線(西)", text: "関西本線(西)" }, // 例: 大和路線
+            { value: "大阪環状線", text: "大阪環状線" } // 例として追加
+            // ... 他のJR西日本の線区を追加
+        ],
+        "JR九州": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "鹿児島本線", text: "鹿児島本線" }, 
+            { value: "日豊本線", text: "日豊本線" }, 
+            { value: "長崎本線", text: "長崎本線" },
+            { value: "筑豊本線", text: "筑豊本線" } // 例として追加
+            // ... 他のJR九州の線区を追加
+        ],
+        "東日本私鉄": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "東武伊勢崎線", text: "東武伊勢崎線" }, 
+            { value: "京王線", text: "京王線" }, 
+            { value: "小田急線", text: "小田急線" }, 
+            { value: "東急東横線", text: "東急東横線" },
+            { value: "西武池袋線", text: "西武池袋線" } // 例として追加
+            // ... 他の東日本私鉄の線区を追加
+        ],
+        "その他": [
+            { value: "back_to_company", text: "◀︎ 事業者選択に戻る" }, 
+            { value: "", text: "すべて" },
+            { value: "その他の線区A", text: "その他の線区A" }, 
+            { value: "その他の線区B", text: "その他の線区B" }, 
+            // ... その他の線区を追加
+        ]
     };
     // =========================================================================
+    
+    // 現在の線区選択の状態を保持する変数
+    // "initial": 事業者リスト表示中
+    // "JR東日本"など: 特定の事業者の線区リスト表示中
+    let currentLineSelectionState = "initial"; 
 
     /**
-     * 線区プルダウンを更新する関数
-     * @param {string} selectedCompany - 選択された事業者名 (例: "JR東日本")
+     * 線区プルダウンの内容を更新する関数
+     * @param {string} stateKey - 表示するリストのキー ("initial" または事業者名)
+     * 例: "initial" (事業者リスト), "JR東日本" (JR東日本の線区リスト)
      */
-    function updateLineOptions(selectedCompany) {
-        lineSelect.innerHTML = `<option value="">すべて</option>`;
-        lineSelect.disabled = true; 
+    function updateLineOptions(stateKey) {
+        // select要素をクリアし、新しいオプションを追加
+        lineSelect.innerHTML = ''; // まず既存のオプションをすべて削除
+
+        // 戻る/事業者選択リストの生成
+        const optionsToDisplay = manuallyDefinedLines[stateKey] || [];
+
+        optionsToDisplay.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.value;
+            opt.textContent = item.text;
+            lineSelect.appendChild(opt);
+        });
         
-        if (selectedCompany === "") {
-            return;
-        }
-
-        // 手動で定義したマッピングから線区リストを取得
-        const lines = manuallyDefinedLines[selectedCompany] ? manuallyDefinedLines[selectedCompany].sort() : [];
-
-        if (lines.length > 0) {
-            lines.forEach(l => {
-                const opt = document.createElement("option");
-                // valueはJSONデータ内のt.lineと一致させる
-                opt.value = l; 
-                opt.textContent = l;
-                lineSelect.appendChild(opt);
-            });
-            lineSelect.disabled = false;
-        }
+        currentLineSelectionState = stateKey; // 現在の状態を更新
     }
-
 
     async function loadTimetableData() {
       try {
@@ -258,6 +356,9 @@
         if (!Array.isArray(timetableData) || timetableData.length === 0) {
           throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
         }
+
+        // 初期表示: 線区プルダウンに事業者リストを表示する
+        updateLineOptions("initial"); 
 
         // 冠（crown）のリストを読み込み
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
@@ -274,7 +375,6 @@
         displayButton.disabled = true;
         trainNumberInput.disabled = true;
         lineSelect.disabled = true;
-        companySelect.disabled = true; 
         crownSelect.disabled = true;
       }
     }
@@ -305,8 +405,22 @@
     }
     
     async function searchTrain() {
-      // 事業者（company）の値は検索フィルタとして使用せず、選択された線区（line）の値のみを使用します。
-      const line = lineSelect.value;
+      // 選択されているのが具体的な線区名（t.lineと一致する値）であるか確認
+      let line = lineSelect.value;
+      
+      // まだ事業者選択の状態である場合、検索は行わない
+      if (currentLineSelectionState === "initial" && line.startsWith("select_")) {
+          errorLog.textContent = "具体的な線区を選択してから「表示」を押してください。";
+          errorLog.style.display = "block";
+          return;
+      }
+      // 線区リスト内で「すべて」が選択されている、または「事業者選択に戻る」が選択されている場合は検索しない
+      if (line === "back_to_company") {
+          errorLog.textContent = "具体的な線区を選択するか、線区指定を空欄にしてください。";
+          errorLog.style.display = "block";
+          return;
+      }
+
       const number = trainNumberInput.value.trim();
       const crown = crownSelect.value;
       
@@ -331,10 +445,10 @@
         // 1. 線区のフィルタリング: 選択された線区とデータ上の線区が一致するか
         const lineMatch = (line === "" || t.line === line);
 
-        // 2. 列車番号と種別冠のフィルタリング
+        // 2. 列車番号と種別冠のフィルタリング (ロジック変更なし)
         let numberAndCrownMatch = false;
-
-        if (crown !== "") {
+        
+        if (crown !== "") {
           const trainNumberBase = t.trainNumber.replace(new RegExp(`${t.crown}$`), ''); 
           if (t.crown === crown) {
             if (number === "") {
@@ -366,7 +480,7 @@
         return;
       }
 
-      // (日付選択ロジックは省略)
+      // (日付選択ロジックは変更なし)
       if (currentMatches.length === 1) {
         displayTrain(currentMatches[0]);
       } else {
@@ -378,13 +492,26 @@
       }
     };
 
-    // --- イベントリスナーの追加 ---
+    // --- イベントリスナーの追加（線区選択の処理のみ変更） ---
     
-    // 【事業者変更時の処理】線区リストを更新する
-    companySelect.addEventListener("change", function() {
-        const selectedCompany = this.value;
-        updateLineOptions(selectedCompany);
-        lineSelect.value = ""; // 線区をリセット
+    // 【線区（#line）変更時の処理】: 事業者選択を検知し、線区リストに切り替える
+    lineSelect.addEventListener("change", function() {
+        const selectedValue = this.value;
+        
+        // 1. 事業者選択項目だった場合 (例: "select_JR東日本")
+        if (selectedValue.startsWith("select_")) {
+            // "select_"を削除して事業者名を取得し、線区リストに切り替える
+            const companyName = selectedValue.substring(7); // "select_" は7文字
+            updateLineOptions(companyName);
+        
+        // 2. 戻るボタンだった場合 (例: "back_to_company")
+        } else if (selectedValue === "back_to_company") {
+            // 初期状態（事業者リスト）に戻す
+            updateLineOptions("initial");
+        }
+        
+        // 3. 具体的な線区名や「すべて」が選択された場合
+        // 何もせず、検索ボタンが押されるのを待つ
     });
 
     displayButton.addEventListener("click", searchTrain);
