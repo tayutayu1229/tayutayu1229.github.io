@@ -5,22 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TempTxt - 文書テンプレート共有システム</title>
     <style>
-        /* ==================== CSS (スタイル定義) ==================== */
+        /* ==================== CSS (スタイル定義) - JR東日本グリーンベース ==================== */
+        :root {
+            --main-green: #009045; 
+            --dark-green: #006b34; 
+            --light-grey: #e9ecef;
+            --bg-light: #f4f7f9;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f7f9;
+            background-color: var(--bg-light);
             color: #333;
         }
 
         header {
-            background-color: #007bff;
+            background-color: var(--main-green); 
             color: white;
             padding: 20px;
             text-align: center;
+            position: relative; 
         }
 
+        header h1 {
+            margin: 0;
+        }
+
+        /* 戻るボタンのスタイル */
+        .header-link {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            color: white;
+            text-decoration: none;
+            font-size: 1em;
+            padding: 8px 15px;
+            border: 1px solid white;
+            border-radius: 4px;
+            background-color: var(--dark-green);
+            transition: background-color 0.2s;
+        }
+        .header-link:hover {
+            background-color: #005a2d;
+        }
+        
         .container {
             display: flex;
             max-width: 1200px;
@@ -66,24 +97,25 @@
         .view-toggle button {
             padding: 8px 15px;
             margin-left: 5px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--main-green);
             background-color: #fff;
+            color: var(--main-green);
             cursor: pointer;
             border-radius: 4px;
         }
 
         .view-toggle button.active {
-            background-color: #007bff;
+            background-color: var(--main-green); 
             color: white;
-            border-color: #007bff;
         }
 
         /* テンプレートリスト */
         #template-list {
             list-style: none;
             padding: 0;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* グリッド表示のデフォルト */
+            /* グリッド表示のデフォルト */
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
             gap: 20px;
         }
 
@@ -99,7 +131,7 @@
             margin-bottom: 10px;
             padding: 15px;
             background-color: white;
-            border-left: 5px solid #007bff;
+            border-left: 5px solid var(--main-green); 
             border-radius: 4px;
         }
 
@@ -121,12 +153,12 @@
         .template-title {
             font-size: 1.2em;
             margin-bottom: 5px;
-            color: #007bff;
+            color: var(--main-green); 
         }
 
         .template-category {
             display: inline-block;
-            background-color: #e9ecef;
+            background-color: var(--light-grey);
             padding: 3px 8px;
             border-radius: 3px;
             font-size: 0.85em;
@@ -135,7 +167,7 @@
 
         /* プレビューエリア */
         #preview-modal {
-            display: none; /* 初期状態では非表示 */
+            display: none; 
             position: fixed;
             z-index: 1000;
             left: 0;
@@ -171,7 +203,7 @@
             min-height: 200px;
             max-height: 60vh;
             overflow-y: auto;
-            white-space: pre-wrap; /* テキストファイル対応 */
+            white-space: pre-wrap; 
             background-color: #fff;
         }
 
@@ -181,10 +213,15 @@
             background-color: #f8f9fa;
             border-radius: 4px;
         }
+        
+        #download-link {
+            color: var(--dark-green);
+        }
     </style>
 </head>
 <body>
     <header>
+        <a href="../JREtop.html" class="header-link">← 戻る</a>
         <h1>TempTxt - 文書テンプレート共有システム</h1>
     </header>
 
@@ -205,12 +242,12 @@
             </select>
         </div>
 
-        <div class="main-content">
+        <div class="main-content" id="main-content-area">
             <div class="controls">
                 <span>テンプレート一覧</span>
                 <div class="view-toggle">
-                    <button id="view-list-btn">リスト</button>
-                    <button id="view-grid-btn" class="active">グリッド</button>
+                    <button id="view-list-btn" class="active">リスト</button>
+                    <button id="view-grid-btn">グリッド</button>
                 </div>
             </div>
             
@@ -235,10 +272,10 @@
     </div>
 
     <script>
-        /* ==================== JavaScript (機能定義) ==================== */
+        /* ==================== JavaScript (機能定義) - プレビュー対応拡張 ==================== */
         const TEMPLATES_JSON_PATH = 'files/templates.json';
         const templateListElement = document.getElementById('template-list');
-        const mainContent = document.querySelector('.main-content');
+        const mainContent = document.getElementById('main-content-area');
         const searchInput = document.getElementById('search-input');
         const categoryFilter = document.getElementById('category-filter');
         const sortSelect = document.getElementById('sort-select');
@@ -259,10 +296,10 @@
                 allTemplates = await response.json();
                 document.getElementById('loading-message').style.display = 'none';
 
-                // カテゴリフィルターの初期化
                 populateCategoryFilter(allTemplates);
                 
-                // 初回表示
+                // 初期表示はリストビュー
+                mainContent.classList.add('list-view');
                 renderTemplates(allTemplates);
             } catch (error) {
                 console.error('エラー:', error);
@@ -283,7 +320,7 @@
 
         // テンプレートリストの描画
         function renderTemplates(templates) {
-            templateListElement.innerHTML = ''; // リストをクリア
+            templateListElement.innerHTML = ''; 
             
             if (templates.length === 0) {
                 templateListElement.innerHTML = '<p>該当するテンプレートは見つかりませんでした。</p>';
@@ -304,7 +341,6 @@
                     </div>
                 `;
                 
-                // プレビュー機能の追加
                 listItem.addEventListener('click', () => showPreview(template));
                 templateListElement.appendChild(listItem);
             });
@@ -314,7 +350,6 @@
         function filterAndSortTemplates() {
             let filtered = allTemplates;
             
-            // 1. 検索フィルタ
             const searchTerm = searchInput.value.toLowerCase();
             if (searchTerm) {
                 filtered = filtered.filter(t => 
@@ -323,19 +358,16 @@
                 );
             }
 
-            // 2. カテゴリフィルタ
             const selectedCategory = categoryFilter.value;
             if (selectedCategory) {
                 filtered = filtered.filter(t => t.category === selectedCategory);
             }
 
-            // 3. ソート
             const sortKey = sortSelect.value;
             filtered.sort((a, b) => {
                 if (sortKey === 'title-asc') {
                     return a.title.localeCompare(b.title);
                 } else if (sortKey === 'date-desc') {
-                    // 日付文字列を比較（新しい順）
                     return b.date.localeCompare(a.date);
                 }
                 return 0;
@@ -344,7 +376,7 @@
             renderTemplates(filtered);
         }
 
-        // プレビューの表示
+        // プレビューの表示 (複数ファイル形式に対応)
         async function showPreview(template) {
             const previewTitle = document.getElementById('preview-title');
             const previewDescText = document.getElementById('preview-desc-text');
@@ -355,31 +387,43 @@
             previewTitle.textContent = template.title;
             previewDescText.textContent = template.description;
             previewFilenameText.textContent = template.filename;
-            downloadLink.href = 'files/' + template.filename;
+            const filePath = 'files/' + template.filename;
+            downloadLink.href = filePath;
             
-            previewContent.textContent = '内容を読み込み中...';
-            
-            try {
-                const filePath = 'files/' + template.filename;
-                const response = await fetch(filePath);
-                if (!response.ok) {
-                    throw new Error('ファイルが見つかりません。');
-                }
-                const content = await response.text();
-                
-                if (template.type === 'HTML') {
-                    // HTML形式の場合は、iframeなどで表示するとセキュリティやスタイル崩れの問題があるため、
-                    // ここではシンプルなテキストとして表示するか、`innerHML`で表示するかを選択できます。
-                    // 崩れを避けるため、ここではプレーンテキストとして表示します。
-                    previewContent.textContent = content; 
-                    // HTMLとして表示したい場合は: previewContent.innerHTML = content;
-                } else {
-                    previewContent.textContent = content; // TEXT形式
-                }
+            // 以前のコンテンツをクリア
+            previewContent.innerHTML = '内容を読み込み中...';
+            previewContent.style.whiteSpace = 'pre-wrap'; // TEXT/HTML用をデフォルトに
 
-            } catch (error) {
-                previewContent.textContent = `プレビューエラー: テンプレートファイル (${template.filename}) の読み込みに失敗しました。`;
-                console.error('プレビュー読み込みエラー:', error);
+            const type = template.type.toUpperCase();
+
+            if (type === 'HTML' || type === 'TEXT') {
+                try {
+                    const response = await fetch(filePath);
+                    const content = await response.text();
+                    // HTML/TEXTはプレーンテキストとして表示
+                    previewContent.textContent = content; 
+                } catch (error) {
+                    previewContent.textContent = `プレビューエラー: ファイルの読み込みに失敗しました。`;
+                    console.error('プレビュー読み込みエラー:', error);
+                }
+            } else if (type === 'PDF') {
+                // PDFはiframeで埋め込み表示を試みる
+                previewContent.innerHTML = `<iframe src="${filePath}" style="width:100%; height:55vh;" frameborder="0">PDFファイル。ブラウザの機能で表示されます。</iframe>`;
+                previewContent.style.whiteSpace = 'normal';
+            } else if (['PNG', 'JPG', 'JPEG', 'GIF'].includes(type)) {
+                // 画像はimgタグで表示
+                previewContent.innerHTML = `<img src="${filePath}" style="max-width:100%; height:auto; display:block; margin:auto;">`;
+                previewContent.style.whiteSpace = 'normal';
+            } else if (['DOCX', 'XLSX', 'PPTX'].includes(type)) {
+                // Office系ファイルはブラウザでの直接プレビューが難しいため、メッセージ表示
+                previewContent.innerHTML = `
+                    <p style="color: #d9534f; font-weight: bold;">このファイル形式 (${type}) はブラウザで直接プレビューできません。</p>
+                    <p>テンプレートをダウンロードするか、上記の「ファイルを開く/ダウンロード」リンクをクリックして、対応アプリケーションで開いてください。</p>
+                `;
+                previewContent.style.whiteSpace = 'normal';
+            } else {
+                previewContent.textContent = `不明なファイル形式 (${type}) です。ダウンロードしてご確認ください。`;
+                previewContent.style.whiteSpace = 'normal';
             }
 
             previewModal.style.display = 'block';
@@ -416,9 +460,6 @@
 
         // ページロード時に実行
         loadTemplates();
-
-        // 初期の表示形式をグリッドに設定
-        mainContent.classList.remove('list-view');
     </script>
 </body>
 </html>
