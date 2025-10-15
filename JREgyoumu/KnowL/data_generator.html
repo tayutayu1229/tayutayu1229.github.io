@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KnowL Data Generator</title>
+    <style>
+        /* =========================================================================
+           CSS Style
+           ========================================================================= */
+        :root {
+            --color-primary: #005A32; /* JR深緑 */
+            --color-accent: #f39c12; /* オレンジ */
+            --color-bg: #f4f8f7;
+            --color-card-bg: #ffffff;
+            --color-border: #bdc3c7;
+            --color-error: #e74c3c;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-bg);
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+
+        #container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: var(--color-card-bg);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--color-primary);
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            margin: 0;
+            color: var(--color-primary);
+            font-size: 1.8em;
+        }
+
+        #back-button {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 8px 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        #back-button:hover {
+            background-color: var(--color-primary);
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            margin: 6px 0 0;
+            padding: 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--color-primary);
+            outline: none;
+        }
+
+        button#generateBtn {
+            background-color: var(--color-accent);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 25px;
+            font-size: 1.1em;
+            transition: background-color 0.2s;
+        }
+
+        button#generateBtn:hover {
+            background-color: #e67e22;
+        }
+
+        h2 {
+            margin-top: 30px;
+            color: var(--color-primary);
+        }
+
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #ddd;
+        }
+        
+        button#copyBtn {
+            background-color: #2ecc71;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+
+        .error-message {
+            color: var(--color-error);
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <header>
+            <h1>KnowL 記事データ生成ツール</h1>
+            <a id="back-button" href="KnowL.html">← KnowLへ戻る</a>
+        </header>
+
+        <div id="error-message" class="error-message" style="display:none;"></div>
+
+        <label>記事ID (必須)：</label>
+        <input id="id" placeholder="例：article4">
+        
+        <label>タイトル (必須)：</label>
+        <input id="title" placeholder="例：JSON生成ツールの使い方">
+        
+        <label>カテゴリ (必須)：</label>
+        <input id="category" placeholder="例：システム管理">
+        
+        <label>タグ（カンマ区切り）：</label>
+        <input id="tags" placeholder="例：ツール, JSON, 自動化">
+        
+        <label>本文 (必須)：</label>
+        <textarea id="content" rows="6" placeholder="HTML可。説明文を入力"></textarea>
+        
+        <label>関連記事ID（カンマ区切り）：</label>
+        <input id="related" placeholder="例：article1, article3">
+        
+        <label>参照リンク（形式：表示名:id, 表示名:id）：</label>
+        <input id="reference" placeholder="例：設定ガイド:article1, PWA導入:article3">
+        
+        <button id="generateBtn" onclick="generate()">JSON生成</button>
+        
+        <h2>生成結果：</h2>
+        <pre id="output">JSONを生成するとここに表示されます。</pre>
+        <button id="copyBtn" style="display:none;">📋 コピー</button>
+    </div>
+
+    <script>
+        function generate() {
+            const id = document.getElementById("id").value.trim();
+            const title = document.getElementById("title").value.trim();
+            const category = document.getElementById("category").value.trim();
+            const content = document.getElementById("content").value.trim();
+            const tags = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t);
+            const related = document.getElementById("related").value.split(",").map(r => r.trim()).filter(r => r);
+            const referenceInput = document.getElementById("reference").value.trim();
+            const errorMessage = document.getElementById("error-message");
+            const output = document.getElementById("output");
+            const copyBtn = document.getElementById("copyBtn");
+            
+            errorMessage.style.display = "none";
+            
+            // 必須項目のバリデーション
+            if (!id || !title || !category || !content) {
+                errorMessage.textContent = "⚠️ 記事ID、タイトル、カテゴリ、本文は必須項目です。";
+                errorMessage.style.display = "block";
+                output.textContent = "JSONを生成するには、必須項目をすべて入力してください。";
+                copyBtn.style.display = "none";
+                return;
+            }
+
+            // reference: "表示名:id" の形式をオブジェクトに変換
+            const reference = {};
+            if (referenceInput) {
+                referenceInput.split(",").forEach(pair => {
+                    const parts = pair.split(":").map(s => s.trim());
+                    if (parts.length === 2 && parts[0] && parts[1]) {
+                        reference[parts[0]] = parts[1];
+                    }
+                });
+            }
+
+            // ISO形式の現在時刻
+            const updated_at = new Date().toISOString();
+
+            // 記事オブジェクトの生成
+            const article = {
+                id,
+                title,
+                category,
+                tags: tags.length ? tags : undefined,
+                content,
+                related: related.length ? related : undefined,
+                reference: Object.keys(reference).length ? reference : undefined,
+                updated_at
+            };
+            
+            // JSONテキストの生成と表示
+            const jsonText = JSON.stringify(article, null, 2);
+            output.textContent = jsonText;
+
+            // コピーボタンの表示と機能設定
+            copyBtn.style.display = "inline-block";
+            copyBtn.textContent = "📋 コピー";
+            copyBtn.onclick = () => {
+                // navigator.clipboard.writeTextが使えない環境を考慮し、textarea経由のコピーも可能
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(jsonText);
+                } else {
+                    const tempElement = document.createElement('textarea');
+                    tempElement.value = jsonText;
+                    document.body.appendChild(tempElement);
+                    tempElement.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tempElement);
+                }
+                
+                copyBtn.textContent = "✅ コピー済み！";
+                setTimeout(() => copyBtn.textContent = "📋 コピー", 2000);
+            };
+        }
+    </script>
+</body>
+</html>
