@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>KnowL Data Generator</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
+    input, textarea, select { width: 100%; margin: 6px 0; padding: 6px; }
+    button { margin-top: 10px; padding: 10px 20px; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>KnowL 記事データ生成ツール</h1>
+
+  <label>記事ID：</label>
+  <input id="id" placeholder="例：article4">
+
+  <label>タイトル：</label>
+  <input id="title" placeholder="例：JSON生成ツールの使い方">
+
+  <label>カテゴリ：</label>
+  <input id="category" placeholder="例：システム管理">
+
+  <label>タグ（カンマ区切り）：</label>
+  <input id="tags" placeholder="例：ツール, JSON, 自動化">
+
+  <label>本文：</label>
+  <textarea id="content" rows="6" placeholder="HTML可。説明文を入力"></textarea>
+
+  <label>関連記事ID（カンマ区切り）：</label>
+  <input id="related" placeholder="例：article1, article3">
+
+  <label>参照リンク（形式：表示名:id, 表示名:id）：</label>
+  <input id="reference" placeholder="例：設定ガイド:article1, PWA導入:article3">
+
+  <button onclick="generate()">JSON生成</button>
+
+  <h2>生成結果：</h2>
+  <pre id="output"></pre>
+  <button id="copyBtn" style="display:none;">📋 コピー</button>
+
+  <script>
+    function generate() {
+      const id = document.getElementById("id").value.trim();
+      const title = document.getElementById("title").value.trim();
+      const category = document.getElementById("category").value.trim();
+      const tags = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t);
+      const content = document.getElementById("content").value.trim();
+      const related = document.getElementById("related").value.split(",").map(r => r.trim()).filter(r => r);
+      const referenceInput = document.getElementById("reference").value.trim();
+
+      // reference: "表示名:id" の形式をオブジェクトに変換
+      const reference = {};
+      if (referenceInput) {
+        referenceInput.split(",").forEach(pair => {
+          const [key, value] = pair.split(":").map(s => s.trim());
+          if (key && value) reference[key] = value;
+        });
+      }
+
+      // ISO形式の現在時刻
+      const updated_at = new Date().toISOString();
+
+      const article = {
+        id, title, category, tags, content,
+        related: related.length ? related : undefined,
+        reference: Object.keys(reference).length ? reference : undefined,
+        updated_at
+      };
+
+      const jsonText = JSON.stringify(article, null, 2);
+      document.getElementById("output").textContent = jsonText;
+
+      const copyBtn = document.getElementById("copyBtn");
+      copyBtn.style.display = "inline-block";
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(jsonText);
+        copyBtn.textContent = "✅ コピー済み！";
+        setTimeout(() => copyBtn.textContent = "📋 コピー", 2000);
+      };
+    }
+  </script>
+</body>
+</html>
