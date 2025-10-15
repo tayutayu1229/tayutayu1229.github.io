@@ -5,33 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KnowL - ナレッジベース</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3498db">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#005A32">
 
     <style>
         /* =========================================================================
            CSS Style
            ========================================================================= */
         :root {
-            --color-primary: #3498db;
+            /* Default variables (JR Green theme) */
+            --color-primary: #005A32; /* JR深緑 */
+            --color-primary-light: #008000;
             --color-text: #2c3e50;
-            --color-bg: #ecf0f1;
+            --color-bg: #f4f8f7; /* 明るい背景 */
             --color-card-bg: #ffffff;
             --color-border: #bdc3c7;
         }
 
-        /* Light Theme (Default) */
-        .theme-light {
-            --color-primary: #3498db;
+        /* JR Green Theme */
+        .theme-jr-green {
+            --color-primary: #005A32;
+            --color-primary-light: #008000;
             --color-text: #2c3e50;
-            --color-bg: #ecf0f1;
+            --color-bg: #f4f8f7;
             --color-card-bg: #ffffff;
             --color-border: #bdc3c7;
         }
 
         /* Dark Theme */
         .theme-dark {
-            --color-primary: #9b59b6;
+            --color-primary: #90ee90; /* Dark mode primary (明るい緑) */
+            --color-primary-light: #70b370;
             --color-text: #ecf0f1;
             --color-bg: #2c3e50;
             --color-card-bg: #34495e;
@@ -51,10 +54,38 @@
             background-color: var(--color-primary);
             color: white;
             padding: 15px 20px;
-            text-align: center;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
+        header h1 {
+            margin: 0;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        /* 戻るボタンのスタイル */
+        #back-button {
+            background: none;
+            border: 1px solid white;
+            color: white;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            line-height: 1;
+        }
+
+        #back-button:hover {
+            background-color: var(--color-primary-light);
+            border-color: var(--color-primary-light);
+        }
+
+        /* 以下、前回のCSSと同じ（必要に応じて色を変更） */
         #main-container {
             display: flex;
             max-width: 1200px;
@@ -62,7 +93,6 @@
             padding: 0 10px;
         }
 
-        /* Sidebar (Filter/Config) */
         #sidebar {
             flex: 0 0 250px;
             padding: 15px;
@@ -73,13 +103,11 @@
             height: fit-content;
         }
 
-        /* Main Content */
         #article-list {
             flex-grow: 1;
-            min-width: 0; /* Flexbox fix */
+            min-width: 0;
         }
 
-        /* Responsive Design */
         @media (max-width: 768px) {
             #main-container {
                 flex-direction: column;
@@ -91,10 +119,13 @@
                 margin-right: 0;
                 margin-bottom: 20px;
             }
+            header h1 {
+                text-align: left;
+                margin-left: 10px;
+            }
         }
 
-        /* Search & Filter Controls */
-        #search-input, #category-filter, #sort-control {
+        #search-input, #category-filter, #sort-control, #theme-switcher {
             width: 100%;
             padding: 10px;
             margin-bottom: 15px;
@@ -105,7 +136,6 @@
             color: var(--color-text);
         }
 
-        /* Category Buttons */
         .category-buttons button {
             display: block;
             width: 100%;
@@ -125,7 +155,6 @@
             border-color: var(--color-primary);
         }
 
-        /* Article Card (Accordion) */
         .article-card {
             background-color: var(--color-card-bg);
             padding: 15px;
@@ -161,13 +190,12 @@
         }
 
         .article-card.open .article-content {
-            max-height: 1000px; /* Sufficiently large for smooth transition */
+            max-height: 1000px;
             padding-top: 15px;
             border-top: 1px dashed var(--color-border);
             margin-top: 10px;
         }
 
-        /* Reference Links */
         .reference-section, .related-section {
             margin-top: 15px;
             padding-top: 10px;
@@ -178,13 +206,17 @@
             color: var(--color-primary);
             text-decoration: none;
         }
-
+        .reference-section a:hover, .related-section a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
-<body class="theme-light">
+<body class="theme-jr-green">
 
     <header>
+        <a id="back-button" href="#" onclick="goBackToTop(event)">← 戻る</a>
         <h1>KnowL - ナレッジベース</h1>
+        <div style="width: 70px;"></div>
     </header>
 
     <div id="main-container">
@@ -201,7 +233,7 @@
             <h2>表示設定</h2>
             <label for="theme-switcher">テーマ:</label>
             <select id="theme-switcher">
-                <option value="light">ライト</option>
+                <option value="jr-green">JR深緑</option>
                 <option value="dark">ダーク</option>
             </select>
 
@@ -212,25 +244,11 @@
                 <option value="title-asc">タイトル順 (昇順)</option>
                 <option value="title-desc">タイトル順 (降順)</option>
             </select>
-        </aside>
+            </aside>
 
         <main id="article-list">
             </main>
     </div>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // Check for manifest.json and service-worker.js in the same directory for a full PWA setup.
-                // For this single-file solution, this is a placeholder.
-                // navigator.serviceWorker.register('service-worker.js').then(registration => {
-                //     console.log('SW registered: ', registration);
-                // }).catch(registrationError => {
-                //     console.log('SW registration failed: ', registrationError);
-                // });
-            });
-        }
-    </script>
 
     <script>
         /* =========================================================================
@@ -243,6 +261,7 @@
         const categoryFilterContainer = document.getElementById('category-filter');
         const themeSwitcher = document.getElementById('theme-switcher');
         const sortControl = document.getElementById('sort-control');
+        const backButton = document.getElementById('back-button');
         let currentCategory = 'all';
 
         /**
@@ -250,17 +269,14 @@
          */
         async function initialize() {
             try {
-                // 1. ConfigとDataの読み込み (本番ではFetch APIを使用)
-                // ローカルファイルのため、Fetch APIがCORSエラーを起こす可能性があるため、
-                // 実際にはサーバーに配置するか、ローカル環境でCORSを許可する必要があります。
-                // 便宜上、ここではJSONを直接取得する想定で実装します。
                 const [dataRes, configRes] = await Promise.all([
                     fetch('data.json').then(res => res.json()),
                     fetch('config.json').then(res => res.json())
                 ]);
 
-                articles = dataRes;
-                config = configRes;
+                // 記事データを取得 (data.jsonの構造変更に対応)
+                articles = dataRes.articles || [];
+                config = configRes.settings || {};
 
                 // 2. 設定適用
                 applyConfig();
@@ -283,7 +299,7 @@
          */
         function applyConfig() {
             // テーマ設定
-            const theme = config.default_theme || 'light';
+            const theme = config.default_theme || 'jr-green';
             document.body.className = `theme-${theme}`;
             themeSwitcher.value = theme;
 
@@ -291,13 +307,29 @@
             const sortKey = config.sort_by || 'updated_at';
             const sortDir = config.sort_direction || 'desc';
             sortControl.value = `${sortKey}-${sortDir}`;
+
+            // 戻るリンク設定
+            if (config.back_link_url) {
+                backButton.href = config.back_link_url;
+            }
         }
 
         /**
-         * カテゴリボタンを生成
+         * 「前に戻る」ボタンの処理
+         */
+        function goBackToTop(event) {
+            // config.jsonで設定されたURLへ遷移
+            window.location.href = backButton.href;
+            event.preventDefault(); // デフォルトの動作（#）をキャンセル
+        }
+
+        /**
+         * カテゴリボタンを生成 (前回のコードから変更なし)
          */
         function buildCategoryFilters() {
             const categories = new Set(articles.map(a => a.category));
+            categoryFilterContainer.innerHTML = ''; // クリア
+
             const allButton = document.createElement('button');
             allButton.textContent = '全て';
             allButton.dataset.category = 'all';
@@ -313,7 +345,7 @@
         }
 
         /**
-         * イベントリスナーの設定
+         * イベントリスナーの設定 (前回のコードから変更なし)
          */
         function setupEventListeners() {
             // 検索
@@ -339,17 +371,15 @@
         }
 
         /**
-         * 記事のフィルタリング、並び替え、レンダリングを実行する
+         * 記事のフィルタリング、並び替え、レンダリングを実行する (関連記事表示制御を追加)
          */
         function renderArticles() {
             let filteredArticles = [...articles];
 
-            // 1. カテゴリ絞り込み
+            // 1. フィルタリングと検索 (前回のコードから変更なし)
             if (currentCategory !== 'all') {
                 filteredArticles = filteredArticles.filter(a => a.category === currentCategory);
             }
-
-            // 2. 検索フィルタリング (タイトル・タグ・本文の部分一致)
             const searchTerm = searchInput.value.toLowerCase().trim();
             if (searchTerm) {
                 filteredArticles = filteredArticles.filter(a =>
@@ -359,7 +389,7 @@
                 );
             }
 
-            // 3. 並び替え (更新日順がデフォルト)
+            // 2. 並び替え (前回のコードから変更なし)
             const [sortKey, sortDir] = sortControl.value.split('-');
             filteredArticles.sort((a, b) => {
                 const aValue = a[sortKey];
@@ -369,27 +399,27 @@
                 if (aValue > bValue) comparison = 1;
                 else if (aValue < bValue) comparison = -1;
 
-                return sortDir === 'asc' ? comparison : comparison * -1; // descの場合は逆順
+                return sortDir === 'asc' ? comparison : comparison * -1;
             });
 
-            // 4. HTMLレンダリング
-            articleList.innerHTML = ''; // リストをクリア
+            // 3. HTMLレンダリング
+            articleList.innerHTML = '';
             if (filteredArticles.length === 0) {
                 articleList.innerHTML = '<p>該当する記事が見つかりませんでした。</p>';
                 return;
             }
 
+            const enableRelated = config.enable_related_links !== false; // config設定を反映
+
             filteredArticles.forEach(article => {
                 const articleCard = document.createElement('div');
                 articleCard.className = 'article-card';
-                articleCard.id = article.id; // サイト内リンク用
+                articleCard.id = article.id;
 
-                // 更新日時を整形
                 const updateDate = new Date(article.updated_at).toLocaleDateString('ja-JP', {
                     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
                 });
 
-                // 記事本文のレンダリング
                 let contentHTML = `
                     <div class="article-body">
                         ${article.content.replace(/\n/g, '<br>')}
@@ -399,7 +429,7 @@
                 // 参考 (サイト内リンク)
                 if (article.reference) {
                     const refLinks = Object.entries(article.reference).map(([text, id]) =>
-                        `<a href="${id}" onclick="event.stopPropagation(); scrollToArticle('${id.substring(1)}')">${text}</a>`
+                        `<a href="#${id}" onclick="event.stopPropagation(); scrollToArticle('${id}')">${text}</a>`
                     ).join('、');
                     contentHTML += `
                         <div class="reference-section">
@@ -408,8 +438,8 @@
                     `;
                 }
 
-                // 関連記事リンク
-                if (article.related && article.related.length > 0) {
+                // 関連記事リンク (config設定をチェック)
+                if (enableRelated && article.related && article.related.length > 0) {
                     const relatedLinks = article.related.map(relatedId => {
                         const relatedArticle = articles.find(a => a.id === relatedId);
                         return relatedArticle ? `<a href="#${relatedId}" onclick="event.stopPropagation(); scrollToArticle('${relatedId}')">${relatedArticle.title}</a>` : '';
@@ -442,7 +472,7 @@
                 articleList.appendChild(articleCard);
             });
 
-            // URLハッシュに基づく記事の自動展開
+            // URLハッシュに基づく記事の自動展開 (前回のコードから変更なし)
             if (window.location.hash) {
                 const targetId = window.location.hash.substring(1);
                 scrollToArticle(targetId);
@@ -450,13 +480,12 @@
         }
 
         /**
-         * アコーディオンの開閉処理
+         * アコーディオンの開閉処理 (前回のコードから変更なし)
          */
         function toggleAccordion(card) {
             card.classList.toggle('open');
             const content = card.querySelector('.article-content');
             if (card.classList.contains('open')) {
-                // max-heightを実際の高さに設定してスムーズな展開を可能にする
                 content.style.maxHeight = content.scrollHeight + "px";
             } else {
                 content.style.maxHeight = "0";
@@ -464,7 +493,7 @@
         }
 
         /**
-         * 特定の記事にスクロールし、展開する
+         * 特定の記事にスクロールし、展開する (前回のコードから変更なし)
          */
         function scrollToArticle(id) {
             const targetArticle = document.getElementById(id);
@@ -472,7 +501,6 @@
                 if (!targetArticle.classList.contains('open')) {
                     toggleAccordion(targetArticle);
                 }
-                // スムーズスクロール
                 targetArticle.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
