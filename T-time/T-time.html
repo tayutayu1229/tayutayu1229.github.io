@@ -1,318 +1,360 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>列車別ダイヤモニタ</title>
-  <style>
-    body {
-      font-family: "MS PGothic", sans-serif;
-      font-weight: bold;
-      background-color: #ffffff;
-      color: #000000;
-      margin: 0;
-      padding: 0;
-    }
+  <meta charset="UTF-8" />
+  <title>列車別ダイヤモニタ</title>
+  <style>
+    body {
+      font-family: "MS PGothic", sans-serif;
+      font-weight: bold;
+      background-color: #ffffff;
+      color: #000000;
+      margin: 0;
+      padding: 0;
+    }
 
-    header {
-      background-color: #01977a;
-      color: white;
-      padding: 10px;
-      text-align: center;
-    }
+    header {
+      background-color: #01977a;
+      color: white;
+      padding: 10px;
+      text-align: center;
+    }
 
-    .container {
-      margin: 20px;
-    }
+    .container {
+      margin: 20px;
+    }
 
-    .selection-header {
-      background-color: #01977a;
-      color: white;
-      padding: 8px 12px;
-      display: inline-block;
-      margin-bottom: 10px;
-      border-radius: 5px;
-    }
+    .selection-header {
+      background-color: #01977a;
+      color: white;
+      padding: 8px 12px;
+      display: inline-block;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
 
-    .selection {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 15px;
-    }
+    .selection {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
 
-    .selection label {
-      margin-right: 8px;
-    }
+    .selection label {
+      margin-right: 8px;
+    }
 
-    .selection select,
-    .selection input {
-      padding: 5px;
-    }
+    .selection select,
+    .selection input {
+      padding: 5px;
+    }
 
-    .selection-group {
-      display: flex;
-      align-items: center;
-    }
+    .selection-group {
+      display: flex;
+      align-items: center;
+    }
 
-    .hidden {
-      display: none;
-    }
+    .hidden {
+      display: none;
+    }
 
-    table {
-      width: 80%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
+    table {
+      width: 80%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
 
-    table, th, td {
-      border: 1px solid #01977a;
-    }
+    table, th, td {
+      border: 1px solid #01977a;
+    }
 
-    th, td {
-      padding: 6px;
-      line-height: 1.2;
-    }
-  
-    th {
-      background-color: #01977a;
-      color: white;
-      padding: 10px;
-      text-align: left;
-    }
+    th, td {
+      padding: 6px;
+      line-height: 1.2;
+    }
+  
+    th {
+      background-color: #01977a;
+      color: white;
+      padding: 10px;
+      text-align: left;
+    }
 
-    td {
-      padding: 10px;
-      color: #000;
-      background-color: #ffffff;
-    }
+    td {
+      padding: 10px;
+      color: #000;
+      background-color: #ffffff;
+    }
 
-    .back-button,
-    .display-button {
-      margin-top: 20px;
-      display: inline-block;
-      padding: 10px 20px;
-      background-color: #01977a;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-    }
+    .back-button,
+    .display-button {
+      margin-top: 20px;
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #01977a;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
 
-    .back-button:hover,
-    .display-button:hover {
-      background-color: #017a63;
-    }
+    .back-button:hover,
+    .display-button:hover {
+      background-color: #017a63;
+    }
 
-    #error-log {
-      background-color: #ffcccc;
-      color: #990000;
-      padding: 10px;
-      margin: 10px 0;
-      border: 1px solid #990000;
-      display: none;
-    }
-  </style>
+    #error-log {
+      background-color: #ffcccc;
+      color: #990000;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #990000;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <header>
-    <h1>列車別ダイヤモニタ</h1>
-  </header>
-  <div class="container">
-    <a href="../toppage.html" class="back-button">前のページに戻る</a>
-    <a href="alltrain.html">登録列車一覧を見る</a>
+  <header>
+    <h1>列車別ダイヤモニタ</h1>
+  </header>
+  <div class="container">
+    <a href="../toppage.html" class="back-button">前のページに戻る</a>
+    <a href="alltrain.html">登録列車一覧を見る</a>
 
-    <div id="error-log"></div>
+    <div id="error-log"></div>
 
-    
-    <div class="selection">
-      <div class="selection-header">表示内容選択</div>
-      <div class="selection-group">
-        <label for="line">線区:</label>
-        <select id="line">
-        <option value="">すべて</option>
-      </select>
-      </div>
-      <div class="selection-group hidden" id="date-selector-container">
-      <label for="select-date">施行日:</label>
-      <select id="select-date"></select>
-      </div>
-      <div class="selection-group">
-        <label for="train-number">列車番号:</label>
-        <select id="crown">
-          <option value="">すべて</option>
-        </select>
-        <input type="text" id="train-number" pattern="^[0-9].*" placeholder="例: 123M">
-      </div>
-      <button class="display-button" id="display-button">表示</button>
-    </div>
+    
+    <div class="selection">
+      <div class="selection-header">表示内容選択</div>
+      
+            <div class="selection-group">
+        <label for="company-select">会社名:</label>
+        <select id="company-select" onchange="updateLineSelect()">
+          <option value="">すべて</option>
+        </select>
+      </div>
+      
+            <div class="selection-group">
+        <label for="line">線区:</label>
+        <select id="line">
+          <option value="">すべて</option>
+        </select>
+      </div>
+      
+      <div class="selection-group hidden" id="date-selector-container">
+      <label for="select-date">施行日:</label>
+      <select id="select-date"></select>
+      </div>
+      <div class="selection-group">
+        <label for="train-number">列車番号:</label>
+        <select id="crown">
+          <option value="">すべて</option>
+        </select>
+        <input type="text" id="train-number" pattern="^[0-9].*" placeholder="例: 123M">
+      </div>
+      <button class="display-button" id="display-button">表示</button>
+    </div>
 
-    
-    <div id="train-info" style="margin-top: 10px; display: none;">
-      <p>■<span id="info-line"></span>　施行日: <span id="info-date"></span></p>
-      <p>運転区間: <span id="operation-section"></span>　列車番号：<span id="train-id"></span></p>
-      <table style="max-width: 500px;">
-        <tbody>
-          <tr><td>平日/土休日</td><td id="info-daytype"></td></tr>
-          <tr><td>速度種別</td><td id="info-speed"></td></tr>
-          <tr><td>列車名</td><td id="info-name"></td></tr>
-        </tbody>
-      </table>
-    </div>
+    
+    <div id="train-info" style="margin-top: 10px; display: none;">
+      <p>■<span id="info-line"></span>　施行日: <span id="info-date"></span></p>
+      <p>運転区間: <span id="operation-section"></span>　列車番号：<span id="train-id"></span></p>
+      <table style="max-width: 500px;">
+        <tbody>
+          <tr><td>平日/土休日</td><td id="info-daytype"></td></tr>
+          <tr><td>速度種別</td><td id="info-speed"></td></tr>
+          <tr><td>列車名</td><td id="info-name"></td></tr>
+        </tbody>
+      </table>
+    </div>
 
-    <table style="width: 100%;">
-      <thead>
-        <tr>
-          <th style="width: 50px;">列車種別</th>
-          <th style="width: 100px;">駅名</th>
-          <th style="width: 100px;">着時刻</th>
-          <th style="width: 100px;">発時刻</th>
-          <th style="width: 50px;">番線</th>
-        </tr>
-      </thead>
-      <tbody id="timetable"></tbody>
-    </table>
-  </div>
+    <table style="width: 100%;">
+      <thead>
+        <tr>
+          <th style="width: 50px;">列車種別</th>
+          <th style="width: 100px;">駅名</th>
+          <th style="width: 100px;">着時刻</th>
+          <th style="width: 100px;">発時刻</th>
+          <th style="width: 50px;">番線</th>
+        </tr>
+      </thead>
+      <tbody id="timetable"></tbody>
+    </table>
+  </div>
 
-  <script>
-    let timetableData = [];
-    let currentMatches = [];
+  <script>
+    let timetableData = [];
+    let currentMatches = [];
 
-    async function loadTimetableData() {
-      try {
-        const res = await fetch("timetables.json");
-        if (!res.ok) {
-          throw new Error(`JSONファイルの読み込みに失敗しました (${res.status} ${res.statusText})`);
-        }
-        timetableData = await res.json();
-        if (!Array.isArray(timetableData) || timetableData.length === 0) {
-          throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
-        }
-
-        const lines = [...new Set(timetableData.map(t => t.line))];
-        const lineSelect = document.getElementById("line");
-        lines.forEach(l => {
-          const opt = document.createElement("option");
-          opt.value = l;
-          opt.textContent = l;
-          lineSelect.appendChild(opt);
-        });
-
-        const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
-        const crownSelect = document.getElementById("crown");
-        crownSelect.innerHTML = `<option value="">すべて</option>`;
-        crowns.forEach(c => {
-          const opt = document.createElement("option");
-          opt.value = c;
-          opt.textContent = c;
-          crownSelect.appendChild(opt);
-        });
-      } catch (e) {
-        document.getElementById("error-log").textContent = "エラー: " + e.message;
-        document.getElementById("error-log").style.display = "block";
-        document.getElementById("display-button").disabled = true;
-        document.getElementById("train-number").disabled = true;
-        document.getElementById("line").disabled = true;
-        document.getElementById("crown").disabled = true;
-      }
-    }
-
-    function displayTrain(train) {
-      document.getElementById("train-info").style.display = "block";
-      document.getElementById("info-line").textContent = train.line;
-      document.getElementById("info-date").textContent = train.startDate;
-      document.getElementById("train-id").textContent = train.trainNumber;
-      document.getElementById("operation-section").textContent = train.origin + "〜" + train.destination;
-      document.getElementById("info-daytype").textContent = train.dayType;
-      document.getElementById("info-speed").textContent = train.speed;
-      document.getElementById("info-name").textContent = train.name;
-
-      const tbody = document.getElementById("timetable");
-      tbody.innerHTML = "";
-      train.stops.forEach((stop, index) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${index === 0 ? train.type : ""}</td>
-          <td>${stop.station}</td>
-          <td>${stop.arrival || "…"}</td>
-          <td>${stop.departure || "…"}</td>
-          <td>${stop.trackN || ""}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-    
-    async function searchTrain() {
-      const number = document.getElementById("train-number").value.trim();
-      const line = document.getElementById("line").value;
-      const crown = document.getElementById("crown").value;
-
-      const trainNumberInput = document.getElementById("train-number");
-      if (number !== "" && !trainNumberInput.checkValidity()) {
-        document.getElementById("error-log").textContent = "列車番号は数字から始めてください。";
-        document.getElementById("error-log").style.display = "block";
-        document.getElementById("train-info").style.display = "none";
-        document.getElementById("timetable").innerHTML = "";
-        document.getElementById("date-selector-container").classList.add("hidden");
-        return;
-      }
-
-      if (number !== "" && crown !== "" && number.includes(crown)) {
-        document.getElementById("error-log").textContent = "列車番号に種別冠が含まれているため、検索できません。";
-        document.getElementById("error-log").style.display = "block";
-        document.getElementById("train-info").style.display = "none";
-        document.getElementById("timetable").innerHTML = "";
-        document.getElementById("date-selector-container").classList.add("hidden");
-        return;
-      }
-      
-      currentMatches = timetableData.filter(t => {
-        const normalizedTrainNumber = t.trainNumber.replace(/^[^0-9]+/, '');
-        return normalizedTrainNumber === number && 
-               (line === "" || t.line === line) &&
-               (crown === "" || t.crown === crown);
-      });
-
-      if (currentMatches.length === 0) {
-        document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
-        document.getElementById("error-log").style.display = "block";
-        document.getElementById("train-info").style.display = "none";
-        document.getElementById("timetable").innerHTML = "";
-        document.getElementById("date-selector-container").classList.add("hidden");
-        return;
-      }
-
-      document.getElementById("error-log").style.display = "none";
-
-      if (currentMatches.length === 1) {
-        document.getElementById("date-selector-container").classList.add("hidden");
-        displayTrain(currentMatches[0]);
-      } else {
-        const dateSelect = document.getElementById("select-date");
-        const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
-        document.getElementById("date-selector-container").classList.remove("hidden");
-        displayTrain(currentMatches[0]);
-      }
+    // 会社名とそれに紐づく路線名のマッピング (二段階選択用)
+    const companyLineMap = {
+        "JR東日本": ["東海道本線", "山手線", "中央線"],
+        "JR西日本": ["東海道・山陽本線", "大阪環状線"],
+        "小田急電鉄": ["小田急線", "江ノ島線"],
+        "東京メトロ": ["丸ノ内線", "東西線"],
+        // timetables.jsonのデータに合わせて、会社名と路線名を設定してください
     };
 
-    document.getElementById("display-button").addEventListener("click", searchTrain);
+    function updateLineSelect() {
+        const companySelect = document.getElementById('company-select');
+        const lineSelect = document.getElementById('line');
+        const selectedCompany = companySelect.value;
 
-    document.getElementById("train-number").addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        searchTrain();
-      }
-    });
-      
-    document.getElementById("select-date").addEventListener("change", function () {
-      const selected = currentMatches.find(m => m.startDate === this.value);
-      if (selected) displayTrain(selected);
-    });
+        // 路線名セレクトボックスを初期化
+        lineSelect.innerHTML = '<option value="">すべて</option>';
 
-      
-    loadTimetableData();
-    
-  </script>
+        if (selectedCompany && companyLineMap[selectedCompany]) {
+            const lines = companyLineMap[selectedCompany];
+            lines.forEach(line => {
+                const opt = document.createElement("option");
+                opt.value = line;
+                opt.textContent = line;
+                lineSelect.appendChild(opt);
+            });
+        }
+    }
+
+
+    async function loadTimetableData() {
+      try {
+        const res = await fetch("timetables.json");
+        if (!res.ok) {
+          throw new Error(`JSONファイルの読み込みに失敗しました (${res.status} ${res.statusText})`);
+        }
+        timetableData = await res.json();
+        if (!Array.isArray(timetableData) || timetableData.length === 0) {
+          throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
+        }
+        
+        // 会社名セレクトボックスを生成 (既存の線区の生成部分を置き換え)
+        const companies = Object.keys(companyLineMap);
+        const companySelect = document.getElementById("company-select");
+        companies.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c;
+            opt.textContent = c;
+            companySelect.appendChild(opt);
+        });
+        // load後、路線セレクトボックスを更新しておく
+        updateLineSelect();
+
+
+        const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
+        const crownSelect = document.getElementById("crown");
+        crownSelect.innerHTML = `<option value="">すべて</option>`;
+        crowns.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c;
+          opt.textContent = c;
+          crownSelect.appendChild(opt);
+        });
+      } catch (e) {
+        document.getElementById("error-log").textContent = "エラー: " + e.message;
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("display-button").disabled = true;
+        document.getElementById("train-number").disabled = true;
+        document.getElementById("line").disabled = true;
+        document.getElementById("crown").disabled = true;
+      }
+    }
+
+    function displayTrain(train) {
+      document.getElementById("train-info").style.display = "block";
+      document.getElementById("info-line").textContent = train.line;
+      document.getElementById("info-date").textContent = train.startDate;
+      document.getElementById("train-id").textContent = train.trainNumber;
+      document.getElementById("operation-section").textContent = train.origin + "〜" + train.destination;
+      document.getElementById("info-daytype").textContent = train.dayType;
+      document.getElementById("info-speed").textContent = train.speed;
+      document.getElementById("info-name").textContent = train.name;
+
+      const tbody = document.getElementById("timetable");
+      tbody.innerHTML = "";
+      train.stops.forEach((stop, index) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${index === 0 ? train.type : ""}</td>
+          <td>${stop.station}</td>
+          <td>${stop.arrival || "…"}</td>
+          <td>${stop.departure || "…"}</td>
+          <td>${stop.trackN || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+    
+    async function searchTrain() {
+      const number = document.getElementById("train-number").value.trim();
+      const line = document.getElementById("line").value; // ここは変更なし
+      const crown = document.getElementById("crown").value;
+
+      const trainNumberInput = document.getElementById("train-number");
+      if (number !== "" && !trainNumberInput.checkValidity()) {
+        document.getElementById("error-log").textContent = "列車番号は数字から始めてください。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
+      if (number !== "" && crown !== "" && number.includes(crown)) {
+        document.getElementById("error-log").textContent = "列車番号に種別冠が含まれているため、検索できません。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+      
+      currentMatches = timetableData.filter(t => {
+        const normalizedTrainNumber = t.trainNumber.replace(/^[^0-9]+/, '');
+        return normalizedTrainNumber === number && 
+               (line === "" || t.line === line) &&
+               (crown === "" || t.crown === crown);
+      });
+
+      if (currentMatches.length === 0) {
+        document.getElementById("error-log").textContent = "列車が見つかりませんでした。";
+        document.getElementById("error-log").style.display = "block";
+        document.getElementById("train-info").style.display = "none";
+        document.getElementById("timetable").innerHTML = "";
+        document.getElementById("date-selector-container").classList.add("hidden");
+        return;
+      }
+
+      document.getElementById("error-log").style.display = "none";
+
+      if (currentMatches.length === 1) {
+        document.getElementById("date-selector-container").classList.add("hidden");
+        displayTrain(currentMatches[0]);
+      } else {
+        const dateSelect = document.getElementById("select-date");
+        const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
+        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        document.getElementById("date-selector-container").classList.remove("hidden");
+        displayTrain(currentMatches[0]);
+      }
+    };
+
+    document.getElementById("display-button").addEventListener("click", searchTrain);
+
+    document.getElementById("train-number").addEventListener("keypress", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchTrain();
+      }
+    });
+      
+    document.getElementById("select-date").addEventListener("change", function () {
+      const selected = currentMatches.find(m => m.startDate === this.value);
+      if (selected) displayTrain(selected);
+    });
+
+      
+    loadTimetableData();
+    
+  </script>
 </body>
 </html>
