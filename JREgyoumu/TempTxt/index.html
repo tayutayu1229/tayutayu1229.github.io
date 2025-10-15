@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TempTxt - 文書テンプレート共有システム</title>
+    <style>
+        /* ==================== CSS (スタイル定義) ==================== */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f9;
+            color: #333;
+        }
+
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        /* サイドバー (検索・フィルタ) */
+        .sidebar {
+            width: 280px;
+            padding: 15px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+            border-radius: 5px;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        input[type="text"], select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* メインコンテンツ (リスト表示) */
+        .main-content {
+            flex-grow: 1;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.03);
+        }
+
+        .view-toggle button {
+            padding: 8px 15px;
+            margin-left: 5px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .view-toggle button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        /* テンプレートリスト */
+        #template-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* グリッド表示のデフォルト */
+            gap: 20px;
+        }
+
+        /* リスト表示切り替え用CSS */
+        .list-view #template-list {
+            display: block;
+        }
+
+        .list-view .template-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 15px;
+            background-color: white;
+            border-left: 5px solid #007bff;
+            border-radius: 4px;
+        }
+
+        /* グリッド/カード表示の共通スタイル */
+        .template-item {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .template-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .template-title {
+            font-size: 1.2em;
+            margin-bottom: 5px;
+            color: #007bff;
+        }
+
+        .template-category {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+
+        /* プレビューエリア */
+        #preview-modal {
+            display: none; /* 初期状態では非表示 */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .preview-content {
+            border: 1px dashed #ccc;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 60vh;
+            overflow-y: auto;
+            white-space: pre-wrap; /* テキストファイル対応 */
+            background-color: #fff;
+        }
+
+        .preview-description {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>TempTxt - 文書テンプレート共有システム</h1>
+    </header>
+
+    <div class="container">
+        <div class="sidebar">
+            <h3>検索・フィルタ</h3>
+            <input type="text" id="search-input" placeholder="キーワードで検索...">
+
+            <h4>カテゴリ</h4>
+            <select id="category-filter">
+                <option value="">すべて</option>
+                </select>
+
+            <h4>ソート</h4>
+            <select id="sort-select">
+                <option value="title-asc">タイトル (昇順)</option>
+                <option value="date-desc">最終更新日 (新しい順)</option>
+            </select>
+        </div>
+
+        <div class="main-content">
+            <div class="controls">
+                <span>テンプレート一覧</span>
+                <div class="view-toggle">
+                    <button id="view-list-btn">リスト</button>
+                    <button id="view-grid-btn" class="active">グリッド</button>
+                </div>
+            </div>
+            
+            <ul id="template-list">
+                <p id="loading-message">テンプレートデータを読み込み中...</p>
+            </ul>
+        </div>
+    </div>
+
+    <div id="preview-modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 id="preview-title"></h2>
+            <div class="preview-description">
+                <p><strong>使い方説明:</strong> <span id="preview-desc-text"></span></p>
+                <p><strong>ファイル名:</strong> <span id="preview-filename-text"></span></p>
+            </div>
+            <h3>プレビュー内容</h3>
+            <div id="preview-content" class="preview-content">内容を読み込み中...</div>
+            <a id="download-link" href="#" target="_blank" style="display: inline-block; margin-top: 15px;">ファイルを開く/ダウンロード</a>
+        </div>
+    </div>
+
+    <script>
+        /* ==================== JavaScript (機能定義) ==================== */
+        const TEMPLATES_JSON_PATH = 'files/templates.json';
+        const templateListElement = document.getElementById('template-list');
+        const mainContent = document.querySelector('.main-content');
+        const searchInput = document.getElementById('search-input');
+        const categoryFilter = document.getElementById('category-filter');
+        const sortSelect = document.getElementById('sort-select');
+        const viewListBtn = document.getElementById('view-list-btn');
+        const viewGridBtn = document.getElementById('view-grid-btn');
+        const previewModal = document.getElementById('preview-modal');
+        const closeModalBtn = document.querySelector('.close-btn');
+
+        let allTemplates = [];
+
+        // データの読み込み
+        async function loadTemplates() {
+            try {
+                const response = await fetch(TEMPLATES_JSON_PATH);
+                if (!response.ok) {
+                    throw new Error('テンプレートデータの読み込みに失敗しました。');
+                }
+                allTemplates = await response.json();
+                document.getElementById('loading-message').style.display = 'none';
+
+                // カテゴリフィルターの初期化
+                populateCategoryFilter(allTemplates);
+                
+                // 初回表示
+                renderTemplates(allTemplates);
+            } catch (error) {
+                console.error('エラー:', error);
+                templateListElement.innerHTML = `<p style="color: red;">エラー: テンプレートリストの読み込みに失敗しました (${error.message})</p>`;
+            }
+        }
+
+        // カテゴリフィルターにオプションを追加
+        function populateCategoryFilter(templates) {
+            const categories = [...new Set(templates.map(t => t.category))].sort();
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        // テンプレートリストの描画
+        function renderTemplates(templates) {
+            templateListElement.innerHTML = ''; // リストをクリア
+            
+            if (templates.length === 0) {
+                templateListElement.innerHTML = '<p>該当するテンプレートは見つかりませんでした。</p>';
+                return;
+            }
+
+            templates.forEach(template => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('template-item');
+                listItem.dataset.filename = template.filename;
+                
+                listItem.innerHTML = `
+                    <div class="template-info">
+                        <div class="template-title">${template.title}</div>
+                        <p>${template.description}</p>
+                        <span class="template-category">${template.category}</span>
+                        <small> (${template.type} / 更新日: ${template.date})</small>
+                    </div>
+                `;
+                
+                // プレビュー機能の追加
+                listItem.addEventListener('click', () => showPreview(template));
+                templateListElement.appendChild(listItem);
+            });
+        }
+
+        // フィルタリングとソートの適用
+        function filterAndSortTemplates() {
+            let filtered = allTemplates;
+            
+            // 1. 検索フィルタ
+            const searchTerm = searchInput.value.toLowerCase();
+            if (searchTerm) {
+                filtered = filtered.filter(t => 
+                    t.title.toLowerCase().includes(searchTerm) || 
+                    t.description.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            // 2. カテゴリフィルタ
+            const selectedCategory = categoryFilter.value;
+            if (selectedCategory) {
+                filtered = filtered.filter(t => t.category === selectedCategory);
+            }
+
+            // 3. ソート
+            const sortKey = sortSelect.value;
+            filtered.sort((a, b) => {
+                if (sortKey === 'title-asc') {
+                    return a.title.localeCompare(b.title);
+                } else if (sortKey === 'date-desc') {
+                    // 日付文字列を比較（新しい順）
+                    return b.date.localeCompare(a.date);
+                }
+                return 0;
+            });
+
+            renderTemplates(filtered);
+        }
+
+        // プレビューの表示
+        async function showPreview(template) {
+            const previewTitle = document.getElementById('preview-title');
+            const previewDescText = document.getElementById('preview-desc-text');
+            const previewFilenameText = document.getElementById('preview-filename-text');
+            const previewContent = document.getElementById('preview-content');
+            const downloadLink = document.getElementById('download-link');
+            
+            previewTitle.textContent = template.title;
+            previewDescText.textContent = template.description;
+            previewFilenameText.textContent = template.filename;
+            downloadLink.href = 'files/' + template.filename;
+            
+            previewContent.textContent = '内容を読み込み中...';
+            
+            try {
+                const filePath = 'files/' + template.filename;
+                const response = await fetch(filePath);
+                if (!response.ok) {
+                    throw new Error('ファイルが見つかりません。');
+                }
+                const content = await response.text();
+                
+                if (template.type === 'HTML') {
+                    // HTML形式の場合は、iframeなどで表示するとセキュリティやスタイル崩れの問題があるため、
+                    // ここではシンプルなテキストとして表示するか、`innerHML`で表示するかを選択できます。
+                    // 崩れを避けるため、ここではプレーンテキストとして表示します。
+                    previewContent.textContent = content; 
+                    // HTMLとして表示したい場合は: previewContent.innerHTML = content;
+                } else {
+                    previewContent.textContent = content; // TEXT形式
+                }
+
+            } catch (error) {
+                previewContent.textContent = `プレビューエラー: テンプレートファイル (${template.filename}) の読み込みに失敗しました。`;
+                console.error('プレビュー読み込みエラー:', error);
+            }
+
+            previewModal.style.display = 'block';
+        }
+
+        // イベントリスナーの設定
+        searchInput.addEventListener('input', filterAndSortTemplates);
+        categoryFilter.addEventListener('change', filterAndSortTemplates);
+        sortSelect.addEventListener('change', filterAndSortTemplates);
+
+        // 表示形式変更
+        viewListBtn.addEventListener('click', () => {
+            mainContent.classList.add('list-view');
+            viewListBtn.classList.add('active');
+            viewGridBtn.classList.remove('active');
+        });
+
+        viewGridBtn.addEventListener('click', () => {
+            mainContent.classList.remove('list-view');
+            viewGridBtn.classList.add('active');
+            viewListBtn.classList.remove('active');
+        });
+
+        // モーダルの閉じる操作
+        closeModalBtn.addEventListener('click', () => {
+            previewModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target == previewModal) {
+                previewModal.style.display = 'none';
+            }
+        });
+
+        // ページロード時に実行
+        loadTemplates();
+
+        // 初期の表示形式をグリッドに設定
+        mainContent.classList.remove('list-view');
+    </script>
+</body>
+</html>
