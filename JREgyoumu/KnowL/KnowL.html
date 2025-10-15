@@ -33,13 +33,24 @@
 
         /* Dark Theme */
         .theme-dark {
-            --color-primary: #90ee90; /* Dark mode primary (明るい緑) */
+            --color-primary: #90ee90;
             --color-primary-light: #70b370;
             --color-text: #ecf0f1;
             --color-bg: #2c3e50;
             --color-card-bg: #34495e;
             --color-border: #7f8c8d;
         }
+        
+        /* Light Theme */
+        .theme-light {
+            --color-primary: #3498db;
+            --color-primary-light: #5dade2;
+            --color-text: #2c3e50;
+            --color-bg: #ecf0f1;
+            --color-card-bg: #ffffff;
+            --color-border: #bdc3c7;
+        }
+
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -78,14 +89,39 @@
             text-decoration: none;
             transition: background-color 0.2s;
             line-height: 1;
+            flex-shrink: 0; /* 縮小防止 */
         }
-
         #back-button:hover {
             background-color: var(--color-primary-light);
             border-color: var(--color-primary-light);
         }
 
-        /* 以下、前回のCSSと同じ（必要に応じて色を変更） */
+        /* 記事データ生成ツールボタン */
+        #generator-button {
+            background-color: #f39c12; /* アクセントカラー */
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            margin-left: 10px;
+            flex-shrink: 0; /* 縮小防止 */
+        }
+
+        #generator-button:hover {
+            background-color: #e67e22;
+        }
+
+        #header-controls {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* 以下、前回のCSSと同じ */
         #main-container {
             display: flex;
             max-width: 1200px;
@@ -119,9 +155,26 @@
                 margin-right: 0;
                 margin-bottom: 20px;
             }
+            header {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
             header h1 {
-                text-align: left;
-                margin-left: 10px;
+                text-align: center;
+                width: 100%;
+                order: -1;
+                margin-bottom: 10px;
+            }
+            #header-controls {
+                width: 100%;
+                justify-content: space-between;
+                margin-top: 5px;
+            }
+            #back-button {
+                margin-left: 0;
+            }
+            #generator-button {
+                margin-right: 0;
             }
         }
 
@@ -214,9 +267,12 @@
 <body class="theme-jr-green">
 
     <header>
-        <a id="back-button" href="#" onclick="goBackToTop(event)">← 戻る</a>
+        <div id="header-controls">
+            <a id="back-button" href="#" onclick="goBackToTop(event)">← 戻る</a>
+            <a id="generator-button" href="data_generator.html" title="新しい記事のJSONデータを作成するツール">記事データ生成ツール</a>
+        </div>
         <h1>KnowL - ナレッジベース</h1>
-        <div style="width: 70px;"></div>
+        <div style="width: 200px; flex-shrink: 0;"></div> 
     </header>
 
     <div id="main-container">
@@ -234,6 +290,7 @@
             <label for="theme-switcher">テーマ:</label>
             <select id="theme-switcher">
                 <option value="jr-green">JR深緑</option>
+                <option value="light">ライト</option>
                 <option value="dark">ダーク</option>
             </select>
 
@@ -244,7 +301,7 @@
                 <option value="title-asc">タイトル順 (昇順)</option>
                 <option value="title-desc">タイトル順 (降順)</option>
             </select>
-            </aside>
+        </aside>
 
         <main id="article-list">
             </main>
@@ -264,9 +321,6 @@
         const backButton = document.getElementById('back-button');
         let currentCategory = 'all';
 
-        /**
-         * データを取得し、初期設定を適用する
-         */
         async function initialize() {
             try {
                 const [dataRes, configRes] = await Promise.all([
@@ -274,18 +328,12 @@
                     fetch('config.json').then(res => res.json())
                 ]);
 
-                // 記事データを取得 (data.jsonの構造変更に対応)
                 articles = dataRes.articles || [];
                 config = configRes.settings || {};
 
-                // 2. 設定適用
                 applyConfig();
-
-                // 3. UI構築
                 buildCategoryFilters();
                 renderArticles();
-
-                // 4. イベントリスナー設定
                 setupEventListeners();
 
             } catch (error) {
@@ -294,41 +342,28 @@
             }
         }
 
-        /**
-         * config.jsonの設定を適用
-         */
         function applyConfig() {
-            // テーマ設定
             const theme = config.default_theme || 'jr-green';
             document.body.className = `theme-${theme}`;
             themeSwitcher.value = theme;
 
-            // 並び替え設定
             const sortKey = config.sort_by || 'updated_at';
             const sortDir = config.sort_direction || 'desc';
             sortControl.value = `${sortKey}-${sortDir}`;
 
-            // 戻るリンク設定
             if (config.back_link_url) {
                 backButton.href = config.back_link_url;
             }
         }
 
-        /**
-         * 「前に戻る」ボタンの処理
-         */
         function goBackToTop(event) {
-            // config.jsonで設定されたURLへ遷移
             window.location.href = backButton.href;
-            event.preventDefault(); // デフォルトの動作（#）をキャンセル
+            event.preventDefault();
         }
 
-        /**
-         * カテゴリボタンを生成 (前回のコードから変更なし)
-         */
         function buildCategoryFilters() {
             const categories = new Set(articles.map(a => a.category));
-            categoryFilterContainer.innerHTML = ''; // クリア
+            categoryFilterContainer.innerHTML = '';
 
             const allButton = document.createElement('button');
             allButton.textContent = '全て';
@@ -344,14 +379,9 @@
             });
         }
 
-        /**
-         * イベントリスナーの設定 (前回のコードから変更なし)
-         */
         function setupEventListeners() {
-            // 検索
             searchInput.addEventListener('input', renderArticles);
 
-            // カテゴリ絞り込み
             categoryFilterContainer.addEventListener('click', (e) => {
                 if (e.target.tagName === 'BUTTON') {
                     document.querySelectorAll('#category-filter button').forEach(btn => btn.classList.remove('active'));
@@ -361,22 +391,16 @@
                 }
             });
 
-            // テーマ切り替え
             themeSwitcher.addEventListener('change', (e) => {
                 document.body.className = `theme-${e.target.value}`;
             });
 
-            // 並び替え
             sortControl.addEventListener('change', renderArticles);
         }
 
-        /**
-         * 記事のフィルタリング、並び替え、レンダリングを実行する (関連記事表示制御を追加)
-         */
         function renderArticles() {
             let filteredArticles = [...articles];
 
-            // 1. フィルタリングと検索 (前回のコードから変更なし)
             if (currentCategory !== 'all') {
                 filteredArticles = filteredArticles.filter(a => a.category === currentCategory);
             }
@@ -389,7 +413,6 @@
                 );
             }
 
-            // 2. 並び替え (前回のコードから変更なし)
             const [sortKey, sortDir] = sortControl.value.split('-');
             filteredArticles.sort((a, b) => {
                 const aValue = a[sortKey];
@@ -402,14 +425,13 @@
                 return sortDir === 'asc' ? comparison : comparison * -1;
             });
 
-            // 3. HTMLレンダリング
             articleList.innerHTML = '';
             if (filteredArticles.length === 0) {
                 articleList.innerHTML = '<p>該当する記事が見つかりませんでした。</p>';
                 return;
             }
 
-            const enableRelated = config.enable_related_links !== false; // config設定を反映
+            const enableRelated = config.enable_related_links !== false;
 
             filteredArticles.forEach(article => {
                 const articleCard = document.createElement('div');
@@ -438,7 +460,7 @@
                     `;
                 }
 
-                // 関連記事リンク (config設定をチェック)
+                // 関連記事リンク
                 if (enableRelated && article.related && article.related.length > 0) {
                     const relatedLinks = article.related.map(relatedId => {
                         const relatedArticle = articles.find(a => a.id === relatedId);
@@ -472,16 +494,12 @@
                 articleList.appendChild(articleCard);
             });
 
-            // URLハッシュに基づく記事の自動展開 (前回のコードから変更なし)
             if (window.location.hash) {
                 const targetId = window.location.hash.substring(1);
                 scrollToArticle(targetId);
             }
         }
 
-        /**
-         * アコーディオンの開閉処理 (前回のコードから変更なし)
-         */
         function toggleAccordion(card) {
             card.classList.toggle('open');
             const content = card.querySelector('.article-content');
@@ -492,9 +510,6 @@
             }
         }
 
-        /**
-         * 特定の記事にスクロールし、展開する (前回のコードから変更なし)
-         */
         function scrollToArticle(id) {
             const targetArticle = document.getElementById(id);
             if (targetArticle) {
@@ -505,7 +520,6 @@
             }
         }
 
-        // 初期化処理の実行
         initialize();
     </script>
 </body>
