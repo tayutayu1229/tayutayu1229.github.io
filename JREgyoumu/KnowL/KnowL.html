@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KnowL - ナレッジベース</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3498db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <style>
+        /* =========================================================================
+           CSS Style
+           ========================================================================= */
+        :root {
+            --color-primary: #3498db;
+            --color-text: #2c3e50;
+            --color-bg: #ecf0f1;
+            --color-card-bg: #ffffff;
+            --color-border: #bdc3c7;
+        }
+
+        /* Light Theme (Default) */
+        .theme-light {
+            --color-primary: #3498db;
+            --color-text: #2c3e50;
+            --color-bg: #ecf0f1;
+            --color-card-bg: #ffffff;
+            --color-border: #bdc3c7;
+        }
+
+        /* Dark Theme */
+        .theme-dark {
+            --color-primary: #9b59b6;
+            --color-text: #ecf0f1;
+            --color-bg: #2c3e50;
+            --color-card-bg: #34495e;
+            --color-border: #7f8c8d;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        header {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #main-container {
+            display: flex;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 10px;
+        }
+
+        /* Sidebar (Filter/Config) */
+        #sidebar {
+            flex: 0 0 250px;
+            padding: 15px;
+            margin-right: 20px;
+            background-color: var(--color-card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            height: fit-content;
+        }
+
+        /* Main Content */
+        #article-list {
+            flex-grow: 1;
+            min-width: 0; /* Flexbox fix */
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #main-container {
+                flex-direction: column;
+                margin-top: 10px;
+            }
+            #sidebar {
+                flex: none;
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Search & Filter Controls */
+        #search-input, #category-filter, #sort-control {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--color-border);
+            border-radius: 5px;
+            box-sizing: border-box;
+            background-color: var(--color-card-bg);
+            color: var(--color-text);
+        }
+
+        /* Category Buttons */
+        .category-buttons button {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 5px;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            color: var(--color-text);
+        }
+
+        .category-buttons button.active, .category-buttons button:hover {
+            background-color: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+
+        /* Article Card (Accordion) */
+        .article-card {
+            background-color: var(--color-card-bg);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid var(--color-primary);
+        }
+
+        .article-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .article-header h3 {
+            margin: 0;
+            color: var(--color-primary);
+        }
+
+        .article-meta {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .article-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding-top: 0;
+        }
+
+        .article-card.open .article-content {
+            max-height: 1000px; /* Sufficiently large for smooth transition */
+            padding-top: 15px;
+            border-top: 1px dashed var(--color-border);
+            margin-top: 10px;
+        }
+
+        /* Reference Links */
+        .reference-section, .related-section {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--color-border);
+            font-size: 0.9em;
+        }
+        .reference-section a, .related-section a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+    </style>
+</head>
+<body class="theme-light">
+
+    <header>
+        <h1>KnowL - ナレッジベース</h1>
+    </header>
+
+    <div id="main-container">
+        <aside id="sidebar">
+            <h2>検索・絞り込み</h2>
+            <input type="text" id="search-input" placeholder="タイトル, タグ, 本文を検索...">
+
+            <h3>カテゴリ絞り込み</h3>
+            <div id="category-filter" class="category-buttons">
+                </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 20px 0;">
+
+            <h2>表示設定</h2>
+            <label for="theme-switcher">テーマ:</label>
+            <select id="theme-switcher">
+                <option value="light">ライト</option>
+                <option value="dark">ダーク</option>
+            </select>
+
+            <label for="sort-control" style="display: block; margin-top: 10px;">並び替え:</label>
+            <select id="sort-control">
+                <option value="updated_at-desc">更新日順 (新しい順)</option>
+                <option value="updated_at-asc">更新日順 (古い順)</option>
+                <option value="title-asc">タイトル順 (昇順)</option>
+                <option value="title-desc">タイトル順 (降順)</option>
+            </select>
+        </aside>
+
+        <main id="article-list">
+            </main>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // Check for manifest.json and service-worker.js in the same directory for a full PWA setup.
+                // For this single-file solution, this is a placeholder.
+                // navigator.serviceWorker.register('service-worker.js').then(registration => {
+                //     console.log('SW registered: ', registration);
+                // }).catch(registrationError => {
+                //     console.log('SW registration failed: ', registrationError);
+                // });
+            });
+        }
+    </script>
+
+    <script>
+        /* =========================================================================
+           JavaScript Logic
+           ========================================================================= */
+        let articles = [];
+        let config = {};
+        const articleList = document.getElementById('article-list');
+        const searchInput = document.getElementById('search-input');
+        const categoryFilterContainer = document.getElementById('category-filter');
+        const themeSwitcher = document.getElementById('theme-switcher');
+        const sortControl = document.getElementById('sort-control');
+        let currentCategory = 'all';
+
+        /**
+         * データを取得し、初期設定を適用する
+         */
+        async function initialize() {
+            try {
+                // 1. ConfigとDataの読み込み (本番ではFetch APIを使用)
+                // ローカルファイルのため、Fetch APIがCORSエラーを起こす可能性があるため、
+                // 実際にはサーバーに配置するか、ローカル環境でCORSを許可する必要があります。
+                // 便宜上、ここではJSONを直接取得する想定で実装します。
+                const [dataRes, configRes] = await Promise.all([
+                    fetch('data.json').then(res => res.json()),
+                    fetch('config.json').then(res => res.json())
+                ]);
+
+                articles = dataRes;
+                config = configRes;
+
+                // 2. 設定適用
+                applyConfig();
+
+                // 3. UI構築
+                buildCategoryFilters();
+                renderArticles();
+
+                // 4. イベントリスナー設定
+                setupEventListeners();
+
+            } catch (error) {
+                console.error('データのロード中にエラーが発生しました:', error);
+                articleList.innerHTML = '<p style="color: red;">データ (data.json/config.json) のロードに失敗しました。ファイルが所定の場所に存在するか確認してください。</p>';
+            }
+        }
+
+        /**
+         * config.jsonの設定を適用
+         */
+        function applyConfig() {
+            // テーマ設定
+            const theme = config.default_theme || 'light';
+            document.body.className = `theme-${theme}`;
+            themeSwitcher.value = theme;
+
+            // 並び替え設定
+            const sortKey = config.sort_by || 'updated_at';
+            const sortDir = config.sort_direction || 'desc';
+            sortControl.value = `${sortKey}-${sortDir}`;
+        }
+
+        /**
+         * カテゴリボタンを生成
+         */
+        function buildCategoryFilters() {
+            const categories = new Set(articles.map(a => a.category));
+            const allButton = document.createElement('button');
+            allButton.textContent = '全て';
+            allButton.dataset.category = 'all';
+            allButton.classList.add('active');
+            categoryFilterContainer.appendChild(allButton);
+
+            categories.forEach(cat => {
+                const button = document.createElement('button');
+                button.textContent = cat;
+                button.dataset.category = cat;
+                categoryFilterContainer.appendChild(button);
+            });
+        }
+
+        /**
+         * イベントリスナーの設定
+         */
+        function setupEventListeners() {
+            // 検索
+            searchInput.addEventListener('input', renderArticles);
+
+            // カテゴリ絞り込み
+            categoryFilterContainer.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    document.querySelectorAll('#category-filter button').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentCategory = e.target.dataset.category;
+                    renderArticles();
+                }
+            });
+
+            // テーマ切り替え
+            themeSwitcher.addEventListener('change', (e) => {
+                document.body.className = `theme-${e.target.value}`;
+            });
+
+            // 並び替え
+            sortControl.addEventListener('change', renderArticles);
+        }
+
+        /**
+         * 記事のフィルタリング、並び替え、レンダリングを実行する
+         */
+        function renderArticles() {
+            let filteredArticles = [...articles];
+
+            // 1. カテゴリ絞り込み
+            if (currentCategory !== 'all') {
+                filteredArticles = filteredArticles.filter(a => a.category === currentCategory);
+            }
+
+            // 2. 検索フィルタリング (タイトル・タグ・本文の部分一致)
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            if (searchTerm) {
+                filteredArticles = filteredArticles.filter(a =>
+                    a.title.toLowerCase().includes(searchTerm) ||
+                    a.content.toLowerCase().includes(searchTerm) ||
+                    (a.tags && a.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
+                );
+            }
+
+            // 3. 並び替え (更新日順がデフォルト)
+            const [sortKey, sortDir] = sortControl.value.split('-');
+            filteredArticles.sort((a, b) => {
+                const aValue = a[sortKey];
+                const bValue = b[sortKey];
+
+                let comparison = 0;
+                if (aValue > bValue) comparison = 1;
+                else if (aValue < bValue) comparison = -1;
+
+                return sortDir === 'asc' ? comparison : comparison * -1; // descの場合は逆順
+            });
+
+            // 4. HTMLレンダリング
+            articleList.innerHTML = ''; // リストをクリア
+            if (filteredArticles.length === 0) {
+                articleList.innerHTML = '<p>該当する記事が見つかりませんでした。</p>';
+                return;
+            }
+
+            filteredArticles.forEach(article => {
+                const articleCard = document.createElement('div');
+                articleCard.className = 'article-card';
+                articleCard.id = article.id; // サイト内リンク用
+
+                // 更新日時を整形
+                const updateDate = new Date(article.updated_at).toLocaleDateString('ja-JP', {
+                    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                });
+
+                // 記事本文のレンダリング
+                let contentHTML = `
+                    <div class="article-body">
+                        ${article.content.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+
+                // 参考 (サイト内リンク)
+                if (article.reference) {
+                    const refLinks = Object.entries(article.reference).map(([text, id]) =>
+                        `<a href="${id}" onclick="event.stopPropagation(); scrollToArticle('${id.substring(1)}')">${text}</a>`
+                    ).join('、');
+                    contentHTML += `
+                        <div class="reference-section">
+                            <strong>参考:</strong> ${refLinks}
+                        </div>
+                    `;
+                }
+
+                // 関連記事リンク
+                if (article.related && article.related.length > 0) {
+                    const relatedLinks = article.related.map(relatedId => {
+                        const relatedArticle = articles.find(a => a.id === relatedId);
+                        return relatedArticle ? `<a href="#${relatedId}" onclick="event.stopPropagation(); scrollToArticle('${relatedId}')">${relatedArticle.title}</a>` : '';
+                    }).filter(Boolean).join('、');
+
+                    if (relatedLinks) {
+                        contentHTML += `
+                            <div class="related-section">
+                                <strong>関連記事:</strong> ${relatedLinks}
+                            </div>
+                        `;
+                    }
+                }
+
+                articleCard.innerHTML = `
+                    <div class="article-header" onclick="toggleAccordion(this.parentNode)">
+                        <div style="flex-grow: 1;">
+                            <h3>${article.title}</h3>
+                            <div class="article-meta">
+                                <span>カテゴリ: ${article.category}</span> |
+                                <span>更新: ${updateDate}</span>
+                            </div>
+                        </div>
+                        <span>[${articleCard.classList.contains('open') ? '▲' : '▼'}]</span>
+                    </div>
+                    <div class="article-content" id="content-${article.id}">
+                        ${contentHTML}
+                    </div>
+                `;
+                articleList.appendChild(articleCard);
+            });
+
+            // URLハッシュに基づく記事の自動展開
+            if (window.location.hash) {
+                const targetId = window.location.hash.substring(1);
+                scrollToArticle(targetId);
+            }
+        }
+
+        /**
+         * アコーディオンの開閉処理
+         */
+        function toggleAccordion(card) {
+            card.classList.toggle('open');
+            const content = card.querySelector('.article-content');
+            if (card.classList.contains('open')) {
+                // max-heightを実際の高さに設定してスムーズな展開を可能にする
+                content.style.maxHeight = content.scrollHeight + "px";
+            } else {
+                content.style.maxHeight = "0";
+            }
+        }
+
+        /**
+         * 特定の記事にスクロールし、展開する
+         */
+        function scrollToArticle(id) {
+            const targetArticle = document.getElementById(id);
+            if (targetArticle) {
+                if (!targetArticle.classList.contains('open')) {
+                    toggleAccordion(targetArticle);
+                }
+                // スムーズスクロール
+                targetArticle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // 初期化処理の実行
+        initialize();
+    </script>
+</body>
+</html>
