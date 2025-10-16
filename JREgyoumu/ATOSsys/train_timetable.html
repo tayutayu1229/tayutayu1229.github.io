@@ -15,18 +15,19 @@
             font-size: 16px;
         }
         
-        /* A4サイズに合わせた表示領域 (幅約210mm) */
+        /* 【修正点】A4縦サイズに再調整 (幅約210mm) */
         .page-container {
             width: 210mm; 
             margin: 20px auto; 
             background-color: #ffffff;
-            border: 1px solid #ccc; /* 枠線は薄く */
+            border: 1px solid #ccc; 
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             padding: 10px;
+            box-sizing: border-box;
         }
 
         .timetable-container {
-            width: 100%; /* A4幅内に収める */
+            width: 100%; 
             margin: 0;
             background-color: #ffffff;
             border: 2px solid #000000;
@@ -70,18 +71,19 @@
 
         .info-table th, .info-table td, .main-table th, .main-table td {
             border: 1px solid #000000;
-            padding: 3px 5px;
+            padding: 2px 4px; /* 縦パディングを縮小 */
             vertical-align: middle;
-            height: 24px;
+            height: 20px; /* 【修正点】セルの高さを縮小 */
+            min-height: 20px;
             box-sizing: border-box;
             font-size: 16px;
-            text-align: center !important; /* 全てのデータセルを中央揃え */
+            text-align: center !important; 
         }
         
-        /* --- 情報テーブルのスタイル --- */
+        /* 情報テーブルのスタイル */
         .info-table th {
             background-color: #AFCBEB; 
-            width: 18%; /* A4幅に合わせて調整 */
+            width: 18%; 
         }
         .info-table td {
             text-align: left;
@@ -91,17 +93,15 @@
         .main-table thead th {
             background-color: #AFCBEB; 
             font-weight: normal;
-            height: 48px; 
+            height: 40px; /* ヘッダーの高さを縮小 */
+            min-height: 40px;
         }
-        
-        /* **【線区名セルの再修正】** 縦中央配置と横T字罫線の安定化 */
+
+        /* **【線区名セルの再修正と縦幅調整】** */
         .main-table .line-name {
-            width: 13%; /* 幅を調整 */
+            width: 12%; /* 幅を調整 */
             vertical-align: middle !important; 
             padding: 0;
-            /* Flexboxを使用して内容を強制的に縦中央に配置し、
-               rowspanされたセルの罫線を安定させる */
-            display: table-cell; /* table-cellに戻し、以下のCSSで制御 */
         }
         .main-table .line-name span {
             display: block;
@@ -109,29 +109,33 @@
             display: flex;
             align-items: center; /* 縦中央 */
             justify-content: center; /* 横中央 */
-            padding: 3px 5px;
+            padding: 2px 4px; /* 縦パディングを縮小 */
         }
         
-        .main-table .station-name {
-            width: 18%; /* 幅を調整 */
-        }
+        /* **【修正点】全ての列幅をA4縦に収まるように再調整** (合計100%) */
+        .main-table .line-name { width: 15%; } 
+        .main-table .station-name { width: 20%; } 
+        .main-table .time-col-combined { width: 15%; } /* 着時刻 */
+        .main-table .time-col-combined:nth-of-type(4) { width: 15%; } /* 発時刻 */
+        .main-table .track-col-track { width: 10%; } /* 着発線 */
+        .main-table .article-col { width: 25%; text-align: left !important; } /* 記事 */
         
         .main-table .time-col-combined {
-            width: 15%; /* 幅を調整 (hh:mm:ss) */
             font-weight: bold;
         }
         
         .main-table .track-col-track {
-            width: 10%; /* 幅を調整 */
             font-size: 16px; 
             vertical-align: middle !important; /* 縦方向中央 */
         }
 
-        .main-table .article-col {
-             width: 30%; /* 「記事」欄に大きな幅を割く */
-             text-align: left !important; /* 記事は左揃えが自然 */
+        /* 特殊文字のスタイル調整 */
+        .special-time {
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1;
         }
-
+        
         /* --------------------
            出力ボタンのスタイル (A4表示範囲外)
            -------------------- */
@@ -233,7 +237,8 @@
                         <th class="time-col-combined">着時刻</th>
                         <th class="time-col-combined">発時刻</th>
                         <th class="track-col-track">着発線</th>
-                        <th class="article-col">記事</th> </tr>
+                        <th class="article-col">記事</th>
+                    </tr>
                 </thead>
                 <tbody>
                     </tbody>
@@ -248,12 +253,11 @@
             if (!time || time === '―') return '...';
             if (time === '||' || time === '...' || time === '=') return time;
             
-            // hh:mm:ss 形式に整形（データが mm:ss や hh:mm の場合も想定し補完）
             const parts = time.split(':');
             if (parts.length === 3) {
                 return time;
             } else if (parts.length === 2) {
-                 return `${time}:00`; // hh:mm の場合、:00 を補完
+                 return `${time}:00`; 
             }
             return time;
         };
@@ -353,6 +357,7 @@
                         const lineCell = row.insertCell();
                         lineCell.className = 'line-name';
                         lineCell.rowSpan = rowSpan;
+                        // spanで囲むことで、flexでの縦中央配置を安定化
                         lineCell.innerHTML = `<span>${currentLine || '...'}</span>`;
                     }
 
@@ -379,7 +384,6 @@
                     // 記事セル (データは仮)
                     const articleCell = row.insertCell();
                     articleCell.className = 'article-col';
-                    // 記事データがあれば表示、なければ空欄
                     articleCell.textContent = stop.article || ''; 
                 }
                 i = j;
@@ -397,23 +401,55 @@
                 const header = ["線区", "駅", "着時刻", "発時刻", "着発線", "記事"];
                 csvContent += header.join(",") + "\n";
                 
-                // データ行
+                // データ行 (線区の rowspan を考慮)
                 const rows = document.querySelectorAll("#main-timetable tbody tr");
-                rows.forEach(row => {
+                let lineNameCache = {}; // 線区名をキャッシュするためのオブジェクト
+                
+                rows.forEach((row, rowIndex) => {
                     const rowData = [];
                     const cells = row.querySelectorAll("td");
                     
-                    // 線区名はrowspanされているため、最初の行でのみ取得
-                    if (cells.length === 6) { // 線区名を含む行
-                        rowData.push(cells[0].textContent.trim().replace(/,/g, '、'));
+                    // 線区名セルは常に最初のセル
+                    const lineCell = row.querySelector('.line-name');
+
+                    if (lineCell && lineCell.rowSpan > 1) {
+                        // 新しい線区名が出現した場合、キャッシュ
+                        const lineName = lineCell.textContent.trim().replace(/,/g, '、');
+                        lineNameCache[rowIndex] = { name: lineName, span: lineCell.rowSpan };
+                        rowData.push(lineName);
+                        
+                        // 駅〜記事
                         rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[3].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[4].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[5].textContent.trim().replace(/,/g, '、'));
-                    } else if (cells.length === 5) { // 線区名を含まない行
-                         // 線区名を空欄として扱う
-                        rowData.push(""); 
+                    } else if (lineCell) {
+                         // 線区名が出現するがrowspanがない場合（1行のみの線区）
+                        rowData.push(lineCell.textContent.trim().replace(/,/g, '、'));
+                        
+                        // 駅〜記事
+                        rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
+                        rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
+                        rowData.push(cells[3].textContent.trim().replace(/,/g, '、'));
+                        rowData.push(cells[4].textContent.trim().replace(/,/g, '、'));
+                        rowData.push(cells[5].textContent.trim().replace(/,/g, '、'));
+                    } else {
+                        // 線区名を含まない行（rowspan中の行）は、キャッシュから線区名を取得
+                        let currentLine = "";
+                        let spanStart = -1;
+                        
+                        // キャッシュを走査して、現在の行がどのrowspan範囲内にあるかチェック
+                        Object.keys(lineNameCache).forEach(startIdx => {
+                             const start = parseInt(startIdx);
+                             if (rowIndex > start && rowIndex < start + lineNameCache[startIdx].span) {
+                                currentLine = lineNameCache[startIdx].name;
+                             }
+                        });
+                        
+                        rowData.push(currentLine);
+                        
+                        // 駅〜記事（最初のセルから）
                         rowData.push(cells[0].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
                         rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
