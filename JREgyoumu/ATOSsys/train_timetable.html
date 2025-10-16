@@ -83,22 +83,13 @@
         /* --- 情報テーブルのスタイル --- */
         .info-table th {
             background-color: #AFCBEB; 
-            width: 18%; /* 列車番号の項目名セル幅 */
+            /* 【修正点】<th>の幅を線区の幅（22%）に合わせる */
+            width: 22%; 
             text-align: center;
         }
         /* 情報テーブルの内容を左寄せ */
         .info-table td {
             text-align: left !important;
-        }
-
-        /* **【修正点】列車番号セルの横幅（項目名含む）を線区セルの横幅と合わせる** */
-        .train-number-row th, 
-        .train-number-row td {
-            /* 線区の幅(18%)と時刻表全体の幅(82%)を合わせて再計算
-               時刻表の線区幅は 20% (合計100%中の比率) */
-            width: calc(18% + 82%); /* 100% */
-            /* 列車番号の行全体を線区列の幅に近づけるため、項目名セルを調整 */
-            width: 120px; /* 線区の幅（約15%）と合わせるため仮に固定値 */
         }
         
         /* --- メイン時刻表のスタイル --- */
@@ -111,42 +102,36 @@
         }
         
         /* **【修正点】メイン時刻表のセル幅を再配分 (合計100%)** */
-        /* 線区, 駅, 着時刻, 発時刻 の4項目を均等に近づける */
+        /* 線区, 駅, 着時刻, 発時刻, 着発線 */
+        /* 目標: 線区(22%), 駅(22%), 着発線(5文字程度), 着時刻/発時刻を広げる */
         .main-table .line-name { 
-            width: 20%; 
-            /* 【修正点】線区名セル幅に合わせるための調整 */
+            width: 22%; /* 線区: 22% */
         } 
         .main-table .station-name { 
-            width: 20%; 
-        } 
-        .main-table .time-col-combined { 
-            width: 15%; /* 着時刻, 発時刻は同幅 */
-        } 
-        .main-table .time-col-combined:nth-of-type(4) { 
-            width: 15%; /* 着時刻, 発時刻は同幅 */
+            width: 22%; /* 駅: 22% */
         } 
         .main-table .track-col-track { 
-            width: 10%; /* 着発線 */
+            width: 10%; /* 【修正点】着発線: 10% (漢字4文字程度) */
+        }
+        /* 残り 100% - 22% - 22% - 10% = 46% を着時刻と発時刻で均等に分ける */
+        .main-table .time-col-combined { 
+            width: 23%; /* 着時刻: 23% */
         } 
-        /* 合計: 20% + 20% + 15% + 15% + 10% = 80%? -> 残りの20%はHTMLとCSSの調整でカバー */
-        /* 以下の比率で調整: 線区(25), 駅(25), 着(18), 発(18), 着発線(14) 合計100%*/
-        .main-table .line-name { width: 22%; } 
-        .main-table .station-name { width: 22%; } 
-        .main-table .time-col-combined { width: 17%; } 
-        .main-table .time-col-combined:nth-of-type(4) { width: 17%; } 
-        .main-table .track-col-track { width: 22%; } /* 線区の幅を合わせるため着発線を広めにする */
+        .main-table .time-col-combined:nth-of-type(4) { 
+            width: 23%; /* 発時刻: 23% */
+        } 
 
         /* 時刻表のデータセルのデフォルト配置を中央に設定 */
         .main-table td {
             text-align: center !important; 
         }
 
-        /* 【修正点】駅名セル（データ）のみ左寄せ */
+        /* 駅名セル（データ）のみ左寄せ */
         .main-table .station-name {
             text-align: left !important;
         }
 
-        /* 【修正点】駅名タイトル（ヘッダー）は中央寄せ */
+        /* 駅名タイトル（ヘッダー）は中央寄せ */
         .main-table thead .station-name {
              text-align: center !important;
         }
@@ -171,7 +156,6 @@
         .main-table .track-col-track {
             vertical-align: middle !important; 
         }
-
         
         /* --------------------
            出力ボタンのスタイル (A4表示範囲外)
@@ -241,8 +225,8 @@
             
             <table class="info-table" id="info-table">
                 <tbody>
-                    <tr class="train-number-row">
-                        <th style="width: 120px;">列車番号</th>
+                    <tr>
+                        <th>列車番号</th>
                         <td id="train-number-val" colspan="4">...</td>
                     </tr>
                     <tr>
@@ -277,10 +261,11 @@
                 <thead>
                     <tr>
                         <th class="line-name">線区</th>
-                        <th class="station-name">駅</th> <th class="time-col-combined">着時刻</th>
+                        <th class="station-name">駅</th>
+                        <th class="time-col-combined">着時刻</th>
                         <th class="time-col-combined">発時刻</th>
                         <th class="track-col-track">着発線</th>
-                        </tr>
+                    </tr>
                 </thead>
                 <tbody>
                     </tbody>
@@ -421,8 +406,6 @@
                     const trackCell = row.insertCell();
                     trackCell.className = 'track-col-track';
                     trackCell.textContent = stop.trackN || '...';
-                    
-                    // 記事セルは削除
                 }
                 i = j;
             }
