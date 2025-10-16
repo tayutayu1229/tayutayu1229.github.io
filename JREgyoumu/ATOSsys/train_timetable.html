@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>【列車時刻表】</title>
     <style>
-        /* CSS (デザインは前回の修正を維持) */
+        /* CSS */
         body {
             font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
             background-color: #f0f0f0;
@@ -64,51 +64,53 @@
             padding: 3px 5px;
             vertical-align: middle;
             height: 20px;
+            box-sizing: border-box; /* セルの高さを正確に扱う */
         }
         /* --- 情報テーブルのスタイル --- */
         .info-table th {
-            background-color: #e0e0e0;
+            /* 【修正点】背景色を水色系に変更 */
+            background-color: #AFCBEB; 
             width: 120px;
             text-align: center;
         }
         
         /* --- メイン時刻表のスタイル --- */
         .main-table thead th {
-            background-color: #e0e0e0;
+            /* 【修正点】背景色を水色系に変更 */
+            background-color: #AFCBEB; 
             text-align: center;
             vertical-align: middle;
             font-weight: normal;
         }
         
+        /* 線区名セル (縦結合を含む) */
         .main-table .line-name {
             width: 100px;
             text-align: center;
-            /* 【修正点1】線区名セルは上から開始し、縦幅いっぱいに文字を中央表示 */
-            vertical-align: top !important; 
-            padding-top: 50%; /* 文字を縦方向の50%の位置に配置 */
-            transform: translateY(-50%); /* 自身の高さの半分だけ上にずらして中央に */
-            height: auto; /* 高さは内容に依存させる（rowspanが適用されるため） */
-            position: relative; /* transformを適用可能にする */
+            vertical-align: middle !important; 
+            
+            /* 【修正点】flexを使用して縦方向の中央配置を実現 */
+            display: flex;
+            align-items: center; /* 縦方向中央 */
+            justify-content: center; /* 横方向中央 */
+            height: 100%; /* セル内のコンテンツを高さ全体に広げる */
+            padding: 0; /* paddingをリセットしてheightの制御をしやすくする */
         }
-        
-        /* 線区名セルの内側テキストの中央寄せ調整 */
-        .line-name > span {
-            display: block;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 90%;
-            height: auto;
+
+        /* 線区名テキストがpaddingなしでセル全体に広がるように */
+        .main-table .line-name > span {
+            padding: 3px 5px; /* 元のpaddingをテキスト自体に適用 */
         }
         
         .main-table .station-name {
             width: 120px;
         }
+        
+        /* 時刻表示と着発線を統合したスタイル */
         .main-table .time-cell-wrapper {
             display: flex;
             justify-content: center;
-            align-items: flex-end;
+            align-items: flex-end; /* 下揃え */
             width: 100%;
             height: 100%;
             box-sizing: border-box;
@@ -125,6 +127,8 @@
             margin-left: 2px;
             line-height: 1;
         }
+        
+        /* 特殊な表示 ("||", "=", "...") */
         .time-cell-wrapper .special-time {
             font-size: 14px;
             text-align: center;
@@ -132,6 +136,7 @@
             line-height: 1;
             padding-bottom: 2px;
         }
+        
         .main-table .time-col {
             width: 100px;
             text-align: center;
@@ -235,7 +240,7 @@
                 return;
             }
 
-            // 列車基本情報の表示（省略）
+            // 列車基本情報の表示
             const targetTrainData = allTrainData[0];
             let trainType = targetTrainData.type || '';
             if (trainType === "選択なし") { trainType = ""; }
@@ -255,6 +260,7 @@
             let allStops = [];
             let previousStationName = null;
 
+            // 駅の重複排除ロジック
             allTrainData.forEach((segment, segmentIndex) => {
                 segment.stops.forEach((stop, stopIndex) => {
                     const isDuplicate = (segmentIndex > 0 && stopIndex === 0 && stop.station === previousStationName);
@@ -277,9 +283,7 @@
                 const currentSegmentIndex = allStops[i].segmentIndex;
                 let j = i;
                 
-                // 同じ線区が続く限り、jを進める
-                // ただし、**セグメントの継ぎ目の駅は、次のセグメントに属する線区が縦結合の対象**になるため、
-                // 駅のデータは重複排除済みだが、線区が変わるまでを数える。
+                // 同じ線区が続く限り、jを進める (セグメントの区切りも考慮)
                 while (j < allStops.length && allStops[j].line === currentLine && allStops[j].segmentIndex === currentSegmentIndex) {
                     j++;
                 }
