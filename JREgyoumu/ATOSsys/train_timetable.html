@@ -15,7 +15,7 @@
             font-size: 16px;
         }
         
-        /* 【修正点】A4縦サイズに固定 (幅210mm) */
+        /* A4縦サイズに固定 (幅210mm) */
         .page-container {
             width: 210mm; 
             margin: 20px auto; 
@@ -35,10 +35,10 @@
             box-sizing: border-box;
         }
 
-        /* 【修正点】タイトルを中央寄せ */
+        /* 【修正点】タイトルを左寄せ */
         h2 {
             font-size: 20px;
-            text-align: center; 
+            text-align: left; 
             margin: 0;
             padding: 5px 0 5px 5px;
             border-bottom: 1px solid #000000;
@@ -86,7 +86,7 @@
             width: 18%; 
             text-align: center;
         }
-        /* 【修正点】情報テーブルの内容を左寄せ */
+        /* 情報テーブルの内容を左寄せ */
         .info-table td {
             text-align: left !important;
         }
@@ -107,12 +107,12 @@
         .main-table .track-col-track { width: 10%; } /* 着発線 */
         .main-table .article-col { width: 25%; } /* 記事 */
         
-        /* 【修正点】時刻表のデータセルのデフォルト配置を中央に設定 */
+        /* 時刻表のデータセルのデフォルト配置を中央に設定 */
         .main-table td {
             text-align: center !important; 
         }
 
-        /* 【修正点】駅名セルのみ左寄せ */
+        /* 駅名セルのみ左寄せ */
         .main-table .station-name {
             text-align: left !important;
         }
@@ -121,7 +121,7 @@
         .main-table .line-name {
             vertical-align: middle !important; 
             padding: 0;
-            text-align: center !important; /* 中央を維持 */
+            text-align: center !important; 
         }
         .main-table .line-name span {
             display: block;
@@ -141,43 +141,8 @@
         .main-table .article-col {
              text-align: left !important;
         }
-
-        /* 特殊文字のスタイル調整 */
-        .special-time {
-            font-size: 16px;
-            font-weight: bold;
-            line-height: 1;
-        }
         
-        /* --------------------
-           出力ボタンのスタイル (A4表示範囲外)
-           -------------------- */
-        .output-buttons {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 10px;
-            background-color: #fff;
-            border: 1px solid #000;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-        }
-        .output-buttons button {
-            padding: 8px 15px;
-            background-color: #AFCBEB;
-            border: 1px solid #000;
-            cursor: pointer;
-            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
-            font-size: 16px;
-        }
-        .output-buttons button:hover {
-            background-color: #8faacd;
-        }
-        
-        /* 【修正点】印刷時の設定 */
+        /* 印刷時の設定 */
         @media print {
             .output-buttons {
                 display: none;
@@ -186,13 +151,12 @@
                 border: none;
                 box-shadow: none;
                 margin: 0;
-                width: 100%; /* 印刷媒体の幅全体を使用 */
+                width: 100%; 
             }
-            /* 【修正点】背景色と罫線の強制印刷 */
             .info-table th, .main-table thead th {
                 background-color: #AFCBEB !important;
-                -webkit-print-color-adjust: exact; /* Chrome, Safari */
-                color-adjust: exact;               /* Firefox */
+                -webkit-print-color-adjust: exact; 
+                color-adjust: exact;               
             }
         }
     </style>
@@ -210,8 +174,7 @@
                 <div class="left-info">1 / 1</div>
                 <div class="right-info">
                     作成日時：<span id="created-date"></span><br>
-                    出力箇所：東京総合指令室
-                </div>
+                    出力箇所：**東京総合指令室** </div>
             </div>
 
             <h2>【列車時刻表】</h2>
@@ -410,64 +373,45 @@
             }
             
             // **********************************
-            // 出力ボタンの機能実装
+            // 出力ボタンの機能実装 (Excelレイアウト対応)
             // **********************************
             
             // Excel出力 (簡易CSV出力として実装)
             document.getElementById('export-excel-btn').addEventListener('click', () => {
                 let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Japanese
                 
-                // ヘッダー行
+                // CSVヘッダーとして、情報テーブルの項目名とデータを追加
+                const infoTable = document.getElementById('info-table');
+                const infoRows = infoTable.querySelectorAll("tr");
+                
+                infoRows.forEach(row => {
+                    const th = row.querySelector("th");
+                    const td = row.querySelector("td");
+                    if (th && td) {
+                        const header = th.textContent.trim().replace(/,/g, '、');
+                        const data = td.textContent.trim().replace(/,/g, '、');
+                        csvContent += `${header},${data}\n`;
+                    }
+                });
+                csvContent += "\n"; // 空行で区切り
+
+                // 時刻表ヘッダー
                 const header = ["線区", "駅", "着時刻", "発時刻", "着発線", "記事"];
                 csvContent += header.join(",") + "\n";
                 
-                // データ行 (線区の rowspan を考慮)
-                const rows = document.querySelectorAll("#main-timetable tbody tr");
-                let lineNameCache = {}; 
-                
-                rows.forEach((row, rowIndex) => {
-                    const rowData = [];
-                    const cells = row.querySelectorAll("td");
-                    
-                    const lineCell = row.querySelector('.line-name');
-
-                    if (lineCell && lineCell.rowSpan > 1) { 
-                        const lineName = lineCell.textContent.trim().replace(/,/g, '、');
-                        lineNameCache[rowIndex] = { name: lineName, span: lineCell.rowSpan };
-                        rowData.push(lineName);
-                        
-                        rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[3].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[4].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[5].textContent.trim().replace(/,/g, '、'));
-                    } else if (lineCell) { 
-                        rowData.push(lineCell.textContent.trim().replace(/,/g, '、'));
-                        
-                        rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[3].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[4].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[5].textContent.trim().replace(/,/g, '、'));
-                    } else {
-                        let currentLine = "";
-                        
-                        Object.keys(lineNameCache).forEach(startIdx => {
-                             const start = parseInt(startIdx);
-                             if (rowIndex > start && rowIndex < start + lineNameCache[startIdx].span) {
-                                currentLine = lineNameCache[startIdx].name;
-                             }
-                        });
-                        
-                        rowData.push(currentLine);
-                        
-                        rowData.push(cells[0].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[1].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[2].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[3].textContent.trim().replace(/,/g, '、'));
-                        rowData.push(cells[4].textContent.trim().replace(/,/g, '、'));
-                    }
-                    csvContent += rowData.join(",") + "\n";
+                // データ行 (線区の rowspan を考慮し、線区名を繰り返す)
+                allStops.forEach(stop => {
+                    const rowData = [
+                        stop.line || '...',
+                        stop.station || '...',
+                        formatTime(stop.arrival),
+                        formatTime(stop.departure),
+                        stop.trackN || '...',
+                        stop.article || ''
+                    ];
+                    // CSV出力ではカンマを全角に置換
+                    const sanitizedRowData = rowData.map(item => item.trim().replace(/,/g, '、'));
+                    csvContent += sanitizedRowData.join(",") + "\n";
                 });
                 
                 const encodedUri = encodeURI(csvContent);
