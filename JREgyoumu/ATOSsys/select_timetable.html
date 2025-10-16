@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>【列車選択画面】</title>
+    <title>【列車時刻表選択画面】</title>
     <style>
-        /* CSS (変更なし) */
+        /* CSS */
         body {
             font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
             background-color: #f0f0f0;
@@ -31,6 +31,38 @@
             border-bottom: 2px solid #000000;
             padding-bottom: 5px;
             margin-bottom: 15px;
+        }
+
+        /* 検索フォームのスタイル */
+        .search-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+
+        .search-form label {
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .search-form input[type="text"] {
+            padding: 5px;
+            border: 1px solid #000000;
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+        }
+
+        .search-form button {
+            padding: 5px 15px;
+            background-color: #e0e0e0;
+            border: 1px solid #000000;
+            cursor: pointer;
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+        }
+        .search-form button:hover {
+            background-color: #d0d0d0;
         }
 
         .select-table {
@@ -64,6 +96,17 @@
     <div class="container">
         <h2>【列車時刻表 選択】</h2>
         
+        <div class="search-form">
+            <label for="search-date">施行日：</label>
+            <input type="text" id="search-date" placeholder="例: 2025/03/15">
+            
+            <label for="search-number">列車番号：</label>
+            <input type="text" id="search-number" placeholder="例: 回3174M">
+            
+            <button id="search-button">検索</button>
+            <button id="reset-button">リセット</button>
+        </div>
+
         <table class="select-table" id="timetable-list">
             <thead>
                 <tr>
@@ -81,8 +124,14 @@
     <script>
         // JavaScript
         document.addEventListener('DOMContentLoaded', () => {
-            const JSON_PATH = '../../T-time/timetables.json'; 
+            const JSON_PATH = '../T-time/timetables.json'; 
             const listBody = document.querySelector('#timetable-list tbody');
+            const searchDateInput = document.getElementById('search-date');
+            const searchNumberInput = document.getElementById('search-number');
+            const searchButton = document.getElementById('search-button');
+            const resetButton = document.getElementById('reset-button');
+            
+            let cachedAllData = []; // 読み込んだ全データを保持するキャッシュ
 
             // fetchでJSON_PATHからデータを取得する関数
             const loadTimetables = async () => {
@@ -91,21 +140,26 @@
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status} - JSONファイルの読み込みに失敗しました。パスを確認してください。`);
                     }
-                    return await response.json();
+                    // データをキャッシュに保存
+                    cachedAllData = await response.json();
+                    renderTimetableList(cachedAllData);
                 } catch (error) {
                     console.error('Error fetching the timetable data:', error);
                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">データの読み込みに失敗しました。JSONファイルが存在するか、パスが正しいか確認してください。</td></tr>';
-                    return [];
+                    cachedAllData = [];
                 }
             };
-
+            
+            // フィルタリングとグルーピングを行い、テーブルを描画する関数
             const renderTimetableList = (data) => {
-                if (data.length === 0 && listBody.innerHTML === '') {
-                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">読み込んだJSONファイルにデータがありません。</td></tr>';
+                listBody.innerHTML = ''; // テーブルをクリア
+
+                if (data.length === 0) {
+                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">該当するデータがありません。</td></tr>';
                      return;
                 }
                 
-                // 列車を一意に識別するためのキーでデータをグループ化
+                // 列車を一意に識別するためのキー（施行日-列車番号-始発駅-終着駅）でデータをグループ化
                 const groupedTrains = data.reduce((acc, train) => {
                     const key = `${train.startDate}-${train.trainNumber}-${train.origin}-${train.destination}`;
                     if (!acc[key]) {
@@ -123,7 +177,7 @@
                     const row = listBody.insertRow();
                     row.insertCell().textContent = representativeTrain.startDate || '―';
                     
-                    // 【訂正箇所】列車種別: crownなし、typeのみ。 "選択なし" なら空白
+                    // 列車種別: crownなし、typeのみ。"選択なし"なら空白
                     let trainType = representativeTrain.type || '';
                     if (trainType === "選択なし") {
                         trainType = "";
@@ -142,8 +196,46 @@
                     });
                 });
             };
+            
+            // 検索実行関数
+            const applySearchFilter = () => {
+                const dateFilter = searchDateInput.value.trim().toLowerCase();
+                const numberFilter = searchNumberInput.value.trim().toLowerCase();
+                
+                // キャッシュされた全データに対してフィルタを適用
+                const filteredData = cachedAllData.filter(train => {
+                    let dateMatch = true;
+                    let numberMatch = true;
+                    
+                    // 施行日の絞り込み
+                    if (dateFilter) {
+                        dateMatch = (train.startDate && train.startDate.toLowerCase().includes(dateFilter));
+                    }
+                    
+                    // 列車番号の絞り込み
+                    if (numberFilter) {
+                        numberMatch = (train.trainNumber && train.trainNumber.toLowerCase().includes(numberFilter));
+                    }
+                    
+                    // 両方の条件に一致する場合にtrue
+                    return dateMatch && numberMatch;
+                });
+                
+                renderTimetableList(filteredData);
+            };
 
-            loadTimetables().then(renderTimetableList);
+            // イベントリスナーの設定
+            searchButton.addEventListener('click', applySearchFilter);
+            
+            // リセットボタンの機能
+            resetButton.addEventListener('click', () => {
+                searchDateInput.value = '';
+                searchNumberInput.value = '';
+                renderTimetableList(cachedAllData); // 全データを再描画
+            });
+
+            // 初期データのロード
+            loadTimetables();
         });
     </script>
 </body>
