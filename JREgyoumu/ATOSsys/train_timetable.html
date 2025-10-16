@@ -35,7 +35,7 @@
             box-sizing: border-box;
         }
 
-        /* 【修正点】タイトル文字サイズを大きくし、左寄せ */
+        /* タイトル */
         h2 {
             font-size: 24px; 
             text-align: left; 
@@ -83,12 +83,22 @@
         /* --- 情報テーブルのスタイル --- */
         .info-table th {
             background-color: #AFCBEB; 
-            width: 18%; 
+            width: 18%; /* 列車番号の項目名セル幅 */
             text-align: center;
         }
         /* 情報テーブルの内容を左寄せ */
         .info-table td {
             text-align: left !important;
+        }
+
+        /* **【修正点】列車番号セルの横幅（項目名含む）を線区セルの横幅と合わせる** */
+        .train-number-row th, 
+        .train-number-row td {
+            /* 線区の幅(18%)と時刻表全体の幅(82%)を合わせて再計算
+               時刻表の線区幅は 20% (合計100%中の比率) */
+            width: calc(18% + 82%); /* 100% */
+            /* 列車番号の行全体を線区列の幅に近づけるため、項目名セルを調整 */
+            width: 120px; /* 線区の幅（約15%）と合わせるため仮に固定値 */
         }
         
         /* --- メイン時刻表のスタイル --- */
@@ -100,22 +110,47 @@
             text-align: center;
         }
         
-        /* メイン時刻表のセル幅（合計100%）*/
-        .main-table .line-name { width: 15%; } 
-        .main-table .station-name { width: 20%; } 
-        .main-table .time-col-combined { width: 15%; } /* 着時刻, 発時刻 */
-        .main-table .track-col-track { width: 10%; } /* 着発線 */
-        .main-table .article-col { width: 25%; } /* 記事 */
-        
+        /* **【修正点】メイン時刻表のセル幅を再配分 (合計100%)** */
+        /* 線区, 駅, 着時刻, 発時刻 の4項目を均等に近づける */
+        .main-table .line-name { 
+            width: 20%; 
+            /* 【修正点】線区名セル幅に合わせるための調整 */
+        } 
+        .main-table .station-name { 
+            width: 20%; 
+        } 
+        .main-table .time-col-combined { 
+            width: 15%; /* 着時刻, 発時刻は同幅 */
+        } 
+        .main-table .time-col-combined:nth-of-type(4) { 
+            width: 15%; /* 着時刻, 発時刻は同幅 */
+        } 
+        .main-table .track-col-track { 
+            width: 10%; /* 着発線 */
+        } 
+        /* 合計: 20% + 20% + 15% + 15% + 10% = 80%? -> 残りの20%はHTMLとCSSの調整でカバー */
+        /* 以下の比率で調整: 線区(25), 駅(25), 着(18), 発(18), 着発線(14) 合計100%*/
+        .main-table .line-name { width: 22%; } 
+        .main-table .station-name { width: 22%; } 
+        .main-table .time-col-combined { width: 17%; } 
+        .main-table .time-col-combined:nth-of-type(4) { width: 17%; } 
+        .main-table .track-col-track { width: 22%; } /* 線区の幅を合わせるため着発線を広めにする */
+
         /* 時刻表のデータセルのデフォルト配置を中央に設定 */
         .main-table td {
             text-align: center !important; 
         }
 
-        /* 駅名セルのみ左寄せ */
+        /* 【修正点】駅名セル（データ）のみ左寄せ */
         .main-table .station-name {
             text-align: left !important;
         }
+
+        /* 【修正点】駅名タイトル（ヘッダー）は中央寄せ */
+        .main-table thead .station-name {
+             text-align: center !important;
+        }
+
 
         /* 線区名セルの縦中央配置と横T字罫線の安定化 */
         .main-table .line-name {
@@ -137,16 +172,12 @@
             vertical-align: middle !important; 
         }
 
-        /* 記事セル: 左寄せ */
-        .main-table .article-col {
-             text-align: left !important;
-        }
         
         /* --------------------
-           【修正点】出力ボタンのスタイル (A4表示範囲外)
+           出力ボタンのスタイル (A4表示範囲外)
            -------------------- */
         .output-buttons {
-            position: fixed; /* 画面に対して固定 */
+            position: fixed; 
             top: 20px;
             right: 20px;
             display: flex;
@@ -210,33 +241,33 @@
             
             <table class="info-table" id="info-table">
                 <tbody>
-                    <tr>
+                    <tr class="train-number-row">
                         <th style="width: 120px;">列車番号</th>
-                        <td id="train-number-val" colspan="5">...</td>
+                        <td id="train-number-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>列車種別</th>
-                        <td id="type-val" colspan="5">...</td>
+                        <td id="type-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>速度種別</th>
-                        <td id="speed-val" colspan="5">...</td>
+                        <td id="speed-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>列車名</th>
-                        <td id="name-val" colspan="5">...</td>
+                        <td id="name-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>始発〜終着</th>
-                        <td id="route-val" colspan="5">...</td>
+                        <td id="route-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>旅客案内区間</th>
-                        <td id="travel-section-val" colspan="5">...</td>
+                        <td id="travel-section-val" colspan="4">...</td>
                     </tr>
                     <tr>
                         <th>始発駅日付</th>
-                        <td id="start-date-val" colspan="5">...</td>
+                        <td id="start-date-val" colspan="4">...</td>
                     </tr>
                 </tbody>
             </table>
@@ -246,12 +277,10 @@
                 <thead>
                     <tr>
                         <th class="line-name">線区</th>
-                        <th class="station-name">駅</th>
-                        <th class="time-col-combined">着時刻</th>
+                        <th class="station-name">駅</th> <th class="time-col-combined">着時刻</th>
                         <th class="time-col-combined">発時刻</th>
                         <th class="track-col-track">着発線</th>
-                        <th class="article-col">記事</th>
-                    </tr>
+                        </tr>
                 </thead>
                 <tbody>
                     </tbody>
@@ -292,7 +321,7 @@
             document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
 
             if (!selectedDataString) {
-                timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
+                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
                 return;
             }
 
@@ -300,12 +329,12 @@
             try {
                 allTrainData = JSON.parse(selectedDataString);
             } catch (e) {
-                timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
+                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
                 return;
             }
 
             if (allTrainData.length === 0) {
-                 timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
+                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
                 return;
             }
 
@@ -393,10 +422,7 @@
                     trackCell.className = 'track-col-track';
                     trackCell.textContent = stop.trackN || '...';
                     
-                    // 記事セル (データは仮)
-                    const articleCell = row.insertCell();
-                    articleCell.className = 'article-col';
-                    articleCell.textContent = stop.article || ''; 
+                    // 記事セルは削除
                 }
                 i = j;
             }
@@ -417,10 +443,7 @@
                     const th = row.querySelector("th");
                     const td = row.querySelector("td");
                     if (th && td) {
-                        // 【修正点】「始発日付」を「始発駅日付」に修正
-                        let header = th.textContent.trim().replace(/,/g, '、');
-                        if (header === '始発日付') header = '始発駅日付'; 
-                        
+                        const header = th.textContent.trim().replace(/,/g, '、');
                         const data = td.textContent.trim().replace(/,/g, '、');
                         csvContent += `${header},${data}\n`;
                     }
@@ -428,7 +451,7 @@
                 csvContent += "\n"; // 空行で区切り
 
                 // 時刻表ヘッダー
-                const header = ["線区", "駅", "着時刻", "発時刻", "着発線", "記事"];
+                const header = ["線区", "駅", "着時刻", "発時刻", "着発線"];
                 csvContent += header.join(",") + "\n";
                 
                 // データ行 (線区の rowspan を考慮し、線区名を繰り返す)
@@ -438,8 +461,7 @@
                         stop.station || '...',
                         formatTime(stop.arrival),
                         formatTime(stop.departure),
-                        stop.trackN || '...',
-                        stop.article || ''
+                        stop.trackN || '...'
                     ];
                     // CSV出力ではカンマを全角に置換
                     const sanitizedRowData = rowData.map(item => item.trim().replace(/,/g, '、'));
