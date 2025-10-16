@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【列車時刻表】</title>
+    <style>
+        /* CSS (変更なし) */
+        body {
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif; /* MSPゴシック指定 */
+            background-color: #f0f0f0; /* システム的な背景色 */
+            color: #000000;
+            margin: 20px;
+            padding: 0;
+            font-size: 14px;
+        }
+
+        .timetable-container {
+            width: fit-content;
+            margin: 0 auto;
+            background-color: #ffffff; /* 白色の書類・システム画面 */
+            border: 1px solid #000000; /* 枠線 */
+            padding: 10px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 18px;
+            text-align: left;
+            margin: 0 0 10px 0;
+            padding-left: 5px;
+            border-bottom: 1px solid #000000;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between; /* 作成日時と出力箇所を両端に配置 */
+            font-size: 12px;
+            margin-bottom: 5px;
+            padding: 0 5px;
+        }
+        .header-info div {
+            text-align: right;
+        }
+
+
+        .info-table, .main-table {
+            width: 100%;
+            border-collapse: collapse; /* Excelのような罫線 */
+            table-layout: fixed;
+        }
+
+        .info-table th, .info-table td, .main-table th, .main-table td {
+            border: 1px solid #000000;
+            padding: 3px 5px;
+            text-align: left;
+            height: 20px;
+            vertical-align: middle;
+        }
+
+        .info-table th {
+            background-color: #e0e0e0; /* ヘッダーの背景色を少し暗く */
+            width: 120px;
+            text-align: center;
+        }
+        
+        /* メイン時刻表のヘッダー */
+        .main-table thead th {
+            background-color: #e0e0e0;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .main-table .line-name {
+            width: 100px;
+            text-align: center;
+        }
+        .main-table .station-name {
+            width: 120px;
+        }
+        .main-table .time-col {
+            width: 90px; /* 秒表示のため幅を広げる */
+            text-align: center !important;
+        }
+        .main-table .track-col {
+            width: 60px; /* 着発線 */
+            text-align: center;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="timetable-container">
+        <div class="header-info">
+            <div>1 / 1</div>
+            <div>
+                作成日時：<span id="created-date"></span><br>
+                出力箇所：東海道貨物指令
+            </div>
+        </div>
+
+        <h2>【列車時刻表】</h2>
+        
+        <table class="info-table" id="info-table">
+            <thead>
+                <tr>
+                    <th style="width: 120px;">列車番号</th>
+                    <td id="train-number-val" colspan="3">―</td>
+                </tr>
+                <tr>
+                    <th>列車種別</th>
+                    <td id="type-val">―</td>
+                    <th>速度種別</th>
+                    <td id="speed-val">―</td>
+                </tr>
+                <tr>
+                    <th>列車名</th>
+                    <td id="name-val" colspan="3">―</td>
+                </tr>
+                <tr>
+                    <th>始発〜終着</th>
+                    <td id="route-val" colspan="3">―</td>
+                </tr>
+                <tr>
+                    <th>旅客案内区間</th>
+                    <td id="travel-section-val" colspan="3">―</td>
+                </tr>
+                <tr>
+                    <th>始発日付</th>
+                    <td id="start-date-val" colspan="3">―</td>
+                </tr>
+            </thead>
+        </table>
+        
+        <br>
+        
+        <table class="main-table" id="main-timetable">
+            <thead>
+                <tr>
+                    <th class="line-name">線区</th>
+                    <th class="station-name">駅</th>
+                    <th class="time-col">着時刻</th>
+                    <th class="time-col">発時刻</th>
+                    <th class="track-col">着発線</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+
+    </div>
+
+    <script>
+        // JavaScript
+        document.addEventListener('DOMContentLoaded', () => {
+            const timetableBody = document.querySelector('#main-timetable tbody');
+            const selectedDataString = sessionStorage.getItem('selectedTrainData');
+
+            // 作成日時: 読み込んだ日時を自動で入れる
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
+
+
+            // **********************************
+            // データ取得とチェック
+            // **********************************
+            if (!selectedDataString) {
+                // セッションストレージにデータがない場合 (一覧画面を経由していない)
+                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
+                return;
+            }
+
+            let allTrainData;
+            try {
+                allTrainData = JSON.parse(selectedDataString);
+            } catch (e) {
+                // JSON解析失敗
+                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
+                return;
+            }
+
+            if (allTrainData.length === 0) {
+                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
+                return;
+            }
+
+            // **********************************
+            // 列車基本情報の表示（最初のレコードを代表として使用）
+            // **********************************
+            const targetTrainData = allTrainData[0];
+            
+            document.getElementById('train-number-val').textContent = targetTrainData.trainNumber || '―';
+            document.getElementById('type-val').textContent = `${targetTrainData.crown || ''} ${targetTrainData.type || '―'}`;
+            document.getElementById('speed-val').textContent = targetTrainData.speed || '―';
+            document.getElementById('name-val').textContent = targetTrainData.name || '―';
+            document.getElementById('route-val').textContent = `${targetTrainData.origin || '―'} 〜 ${targetTrainData.destination || '―'}`;
+            document.getElementById('travel-section-val').textContent = `${targetTrainData.origin || '―'} 〜 ${targetTrainData.destination || '―'}`; 
+            document.getElementById('start-date-val').textContent = targetTrainData.startDate || '―';
+
+
+            // **********************************
+            // 時刻表の詳細表示と線区の縦結合処理
+            // **********************************
+            
+            // 全ての停留所データを結合し、線区情報を付与
+            let allStops = [];
+            allTrainData.forEach(segment => {
+                segment.stops.forEach(stop => {
+                    allStops.push({
+                        line: segment.line, // 線区名
+                        ...stop
+                    });
+                });
+            });
+
+            // 線区の縦結合のための処理
+            let i = 0;
+            while (i < allStops.length) {
+                const currentLine = allStops[i].line;
+                let j = i;
+                // 現在の線区と同じ線区が続く限り、jを進める
+                while (j < allStops.length && allStops[j].line === currentLine) {
+                    j++;
+                }
+                const rowSpan = j - i; // 縦結合する行数
+
+                for (let k = i; k < j; k++) {
+                    const stop = allStops[k];
+                    const row = timetableBody.insertRow();
+                    
+                    // 線区名セル
+                    if (k === i) {
+                        // 線区の最初の行でのみセルを作成し、rowspanを設定
+                        const lineCell = row.insertCell();
+                        lineCell.className = 'line-name';
+                        lineCell.textContent = currentLine || '―';
+                        lineCell.rowSpan = rowSpan;
+                        lineCell.style.verticalAlign = 'top'; // セル内で上揃えに
+                    }
+
+                    // 駅名
+                    row.insertCell().textContent = stop.station || '―';
+                    
+                    // 着時刻
+                    const arrivalCell = row.insertCell();
+                    arrivalCell.className = 'time-col';
+                    // 秒まで表示
+                    arrivalCell.textContent = stop.arrival === "||" ? "||" : (stop.arrival === "=" ? "" : (stop.arrival || '―'));
+                    
+                    // 発時刻
+                    const departureCell = row.insertCell();
+                    departureCell.className = 'time-col';
+                    // 秒まで表示
+                    departureCell.textContent = stop.departure === "=" ? "=" : (stop.departure === "||" ? "||" : (stop.departure || '―'));
+                    
+                    // 着発線
+                    const trackCell = row.insertCell();
+                    trackCell.className = 'track-col';
+                    trackCell.textContent = stop.trackN || '―';
+                }
+                i = j; // 次の線区の開始位置へ
+            }
+        });
+    </script>
+</body>
+</html>
