@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【列車選択画面】</title>
+    <style>
+        /* CSS */
+        body {
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+            background-color: #f0f0f0;
+            color: #000000;
+            margin: 20px;
+            padding: 0;
+            font-size: 14px;
+        }
+
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #000000;
+            padding: 15px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 18px;
+            text-align: center;
+            margin-top: 0;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        .select-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .select-table th, .select-table td {
+            border: 1px solid #000000;
+            padding: 5px;
+            text-align: left;
+        }
+
+        .select-table th {
+            background-color: #e0e0e0;
+            text-align: center;
+        }
+
+        .select-table tbody tr {
+            cursor: pointer;
+        }
+
+        .select-table tbody tr:hover {
+            background-color: #f0f8ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>【列車時刻表 選択】</h2>
+        
+        <table class="select-table" id="timetable-list">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">施行日</th>
+                    <th style="width: 10%;">列車種別</th>
+                    <th style="width: 15%;">列車番号</th>
+                    <th style="width: 50%;">区間（始発〜終着）</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // JavaScript
+        document.addEventListener('DOMContentLoaded', () => {
+            // 元データ（timetables.json）への相対パス
+            const JSON_PATH = '../T-time/timetables.json'; 
+            const listBody = document.querySelector('#timetable-list tbody');
+
+            // fetchでJSON_PATHからデータを取得する関数を有効化
+            const loadTimetables = async () => {
+                try {
+                    // 相対パス '../T-time/timetables.json' からデータを取得
+                    const response = await fetch(JSON_PATH);
+                    if (!response.ok) {
+                        // 404などのエラーの場合
+                        throw new Error(`HTTP error! status: ${response.status} - JSONファイルの読み込みに失敗しました。パスを確認してください。`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error fetching the timetable data:', error);
+                    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">データの読み込みに失敗しました。JSONファイルが存在するか、パスが正しいか確認してください。</td></tr>';
+                    // 失敗した場合は空の配列を返す
+                    return [];
+                }
+            };
+
+            const renderTimetableList = (data) => {
+                if (data.length === 0 && listBody.innerHTML === '') {
+                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">読み込んだJSONファイルにデータがありません。</td></tr>';
+                     return;
+                }
+                
+                // 列車を一意に識別するためのキー（施行日-列車番号-始発駅-終着駅）でデータをグループ化
+                const groupedTrains = data.reduce((acc, train) => {
+                    // train.startDate, train.trainNumber, train.origin, train.destination は必須項目として前提
+                    const key = `${train.startDate}-${train.trainNumber}-${train.origin}-${train.destination}`;
+                    if (!acc[key]) {
+                        acc[key] = [];
+                    }
+                    acc[key].push(train);
+                    return acc;
+                }, {});
+
+                // グループ化されたデータを一覧表に表示
+                Object.keys(groupedTrains).forEach(key => {
+                    const trainGroup = groupedTrains[key];
+                    const representativeTrain = trainGroup[0]; // グループの最初の要素を代表として表示に使用
+
+                    const row = listBody.insertRow();
+                    row.insertCell().textContent = representativeTrain.startDate || '―';
+                    
+                    // 種別を結合して表示
+                    row.insertCell().textContent = `${representativeTrain.crown || ''}${representativeTrain.type || ''}` || '―';
+                    
+                    row.insertCell().textContent = representativeTrain.trainNumber || '―';
+                    
+                    // 区間（始発〜終着）
+                    row.insertCell().textContent = `${representativeTrain.origin || '―'} 〜 ${representativeTrain.destination || '―'}`;
+
+                    // クリックイベントで詳細画面へ遷移
+                    row.addEventListener('click', () => {
+                        // 選択された列車の全セグメントデータ (trainGroup) をSession Storageに保存
+                        sessionStorage.setItem('selectedTrainData', JSON.stringify(trainGroup));
+                        
+                        // 詳細画面へ遷移
+                        window.location.href = 'train_timetable.html';
+                    });
+                });
+            };
+
+            // データのロードと表示
+            loadTimetables().then(renderTimetableList);
+        });
+    </script>
+</body>
+</html>
