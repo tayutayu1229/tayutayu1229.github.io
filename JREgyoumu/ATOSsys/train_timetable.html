@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>【列車時刻表】</title>
     <style>
-        /* CSS (変更なし) */
+        /* CSS */
         body {
             font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif; /* MSPゴシック指定 */
             background-color: #f0f0f0; /* システム的な背景色 */
@@ -34,7 +34,7 @@
 
         .header-info {
             display: flex;
-            justify-content: space-between; /* 作成日時と出力箇所を両端に配置 */
+            justify-content: space-between;
             font-size: 12px;
             margin-bottom: 5px;
             padding: 0 5px;
@@ -74,16 +74,18 @@
         .main-table .line-name {
             width: 100px;
             text-align: center;
+            /* 【訂正箇所】縦方向中央揃え */
+            vertical-align: middle !important; 
         }
         .main-table .station-name {
             width: 120px;
         }
         .main-table .time-col {
-            width: 90px; /* 秒表示のため幅を広げる */
+            width: 90px;
             text-align: center !important;
         }
         .main-table .track-col {
-            width: 60px; /* 着発線 */
+            width: 60px;
             text-align: center;
         }
         
@@ -166,12 +168,7 @@
             const minutes = String(now.getMinutes()).padStart(2, '0');
             document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
 
-
-            // **********************************
-            // データ取得とチェック
-            // **********************************
             if (!selectedDataString) {
-                // セッションストレージにデータがない場合 (一覧画面を経由していない)
                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
                 return;
             }
@@ -180,7 +177,6 @@
             try {
                 allTrainData = JSON.parse(selectedDataString);
             } catch (e) {
-                // JSON解析失敗
                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
                 return;
             }
@@ -191,12 +187,18 @@
             }
 
             // **********************************
-            // 列車基本情報の表示（最初のレコードを代表として使用）
+            // 列車基本情報の表示
             // **********************************
             const targetTrainData = allTrainData[0];
             
+            // 【訂正箇所】列車種別: crownなし、typeのみ。 "選択なし" なら空白
+            let trainType = targetTrainData.type || '';
+            if (trainType === "選択なし") {
+                trainType = "";
+            }
+
             document.getElementById('train-number-val').textContent = targetTrainData.trainNumber || '―';
-            document.getElementById('type-val').textContent = `${targetTrainData.crown || ''} ${targetTrainData.type || '―'}`;
+            document.getElementById('type-val').textContent = trainType || '―';
             document.getElementById('speed-val').textContent = targetTrainData.speed || '―';
             document.getElementById('name-val').textContent = targetTrainData.name || '―';
             document.getElementById('route-val').textContent = `${targetTrainData.origin || '―'} 〜 ${targetTrainData.destination || '―'}`;
@@ -208,7 +210,6 @@
             // 時刻表の詳細表示と線区の縦結合処理
             // **********************************
             
-            // 全ての停留所データを結合し、線区情報を付与
             let allStops = [];
             allTrainData.forEach(segment => {
                 segment.stops.forEach(stop => {
@@ -219,16 +220,14 @@
                 });
             });
 
-            // 線区の縦結合のための処理
             let i = 0;
             while (i < allStops.length) {
                 const currentLine = allStops[i].line;
                 let j = i;
-                // 現在の線区と同じ線区が続く限り、jを進める
                 while (j < allStops.length && allStops[j].line === currentLine) {
                     j++;
                 }
-                const rowSpan = j - i; // 縦結合する行数
+                const rowSpan = j - i;
 
                 for (let k = i; k < j; k++) {
                     const stop = allStops[k];
@@ -236,12 +235,11 @@
                     
                     // 線区名セル
                     if (k === i) {
-                        // 線区の最初の行でのみセルを作成し、rowspanを設定
                         const lineCell = row.insertCell();
                         lineCell.className = 'line-name';
                         lineCell.textContent = currentLine || '―';
                         lineCell.rowSpan = rowSpan;
-                        lineCell.style.verticalAlign = 'top'; // セル内で上揃えに
+                        // line-nameクラスのCSSで縦方向中央揃えを定義済み
                     }
 
                     // 駅名
@@ -250,13 +248,11 @@
                     // 着時刻
                     const arrivalCell = row.insertCell();
                     arrivalCell.className = 'time-col';
-                    // 秒まで表示
                     arrivalCell.textContent = stop.arrival === "||" ? "||" : (stop.arrival === "=" ? "" : (stop.arrival || '―'));
                     
                     // 発時刻
                     const departureCell = row.insertCell();
                     departureCell.className = 'time-col';
-                    // 秒まで表示
                     departureCell.textContent = stop.departure === "=" ? "=" : (stop.departure === "||" ? "||" : (stop.departure || '―'));
                     
                     // 着発線
@@ -264,7 +260,7 @@
                     trackCell.className = 'track-col';
                     trackCell.textContent = stop.trackN || '―';
                 }
-                i = j; // 次の線区の開始位置へ
+                i = j;
             }
         });
     </script>
