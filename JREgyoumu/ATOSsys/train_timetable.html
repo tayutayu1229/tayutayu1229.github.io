@@ -17,7 +17,7 @@
 
         .timetable-container {
             width: fit-content;
-            min-width: 750px; /* 最小幅を少し広げる */
+            min-width: 750px;
             margin: 0 auto;
             background-color: #ffffff;
             border: 2px solid #000000;
@@ -26,7 +26,7 @@
         }
 
         h2 {
-            font-size: 20px; /* 少し大きく */
+            font-size: 20px;
             text-align: left;
             margin: 0;
             padding: 5px 0 5px 5px;
@@ -37,14 +37,13 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            font-size: 14px; /* 少し大きく */
+            font-size: 14px;
             margin-bottom: 5px;
             padding: 0 5px;
         }
-        /* 【修正点】ヘッダー情報の枠線を削除 */
         .header-top .left-info,
         .header-top .right-info {
-            border: none; 
+            border: none;
             padding: 2px 5px;
             background-color: transparent;
         }
@@ -64,9 +63,9 @@
             border: 1px solid #000000;
             padding: 3px 5px;
             vertical-align: middle;
-            height: 24px; /* セルの高さを少し増やす */
+            height: 24px;
             box-sizing: border-box;
-            font-size: 16px; /* 文字サイズを統一 */
+            font-size: 16px;
         }
         
         /* --- 情報テーブルのスタイル --- */
@@ -87,58 +86,74 @@
             font-weight: normal;
         }
         
-        /* 線区名セル (縦結合を含む) */
+        /* **【線区名セルの配置再修正】** 画像のように横罫線と重ならない中央配置 */
         .main-table .line-name {
             width: 100px;
             text-align: center;
+            /* 縦方向の配置を中央に設定 */
             vertical-align: middle !important; 
+            padding: 0;
+        }
+        /* セル内のテキストをラッパーで囲み、セル全体の高さに対して中央配置 */
+        .main-table .line-name span {
+            display: block;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 5px;
         }
         
         .main-table .station-name {
             width: 120px;
         }
         
-        /* 時刻表示セル */
+        /* 時刻表示セル (時刻のみ) */
         .main-table .time-col {
-            width: 100px;
+            width: 80px; /* 幅を調整 */
             text-align: center;
-            font-weight: bold; /* 時刻を目立たせる */
+            font-weight: bold;
             padding-top: 5px;
             padding-bottom: 0;
         }
         
         /* 着発線表示セル */
         .main-table .track-col-display {
-            width: 100px;
+            width: 80px; /* 幅を時刻と揃える */
             text-align: center;
-            font-size: 12px; /* 着発線は小さく */
-            height: 18px; /* 高さを小さく */
+            font-size: 12px;
+            height: 18px;
             padding-top: 0;
             padding-bottom: 5px;
             vertical-align: top;
+            border-top: none; /* 時刻行と一体に見えるように上罫線を削除 */
+        }
+
+        .main-table .track-col-track {
+            width: 80px; /* 着発線セルの幅 */
+            text-align: center;
+            font-size: 14px;
+            height: 42px; /* 時刻と着発線セルの合計の高さ */
+            vertical-align: top;
+            padding-top: 5px;
+            padding-bottom: 5px;
         }
         
-        /* 罫線調整: 着発線セルは罫線を薄くするか、上/下罫線を消す（ここでは上罫線を消すことで、時刻と着発線が一体に見えるようにする） */
-        .main-table .track-col-display {
-            border-top: none; 
+        /* 時刻表のヘッダー：着発線列を削除し、時刻を結合 */
+        .main-table thead th:nth-child(3),
+        .main-table thead th:nth-child(4),
+        .main-table thead th:nth-child(5) {
+            width: 100px;
         }
-        /* ただし、時刻表のヘッダー直後の最初の着発線行は罫線が必要なので例外処理 */
-        .main-table tbody tr:first-child + tr .track-col-display {
-             /* 実際には、時刻行と着発線行が交互に続くため、CSSでの制御は複雑。
-                HTML構造で時刻と着発線を別々の<tr>に配置することで、見やすくする。 */
-        }
-        
-        /* 特殊文字のスタイル調整 */
+
+        /* --------------------
+           特殊文字のスタイル調整 
+           -------------------- */
         .special-time {
             font-size: 16px;
             font-weight: bold;
             display: block;
             line-height: 1;
-        }
-        
-        /* 元々の着発線列は非表示を継続 */
-        .main-table .track-col {
-            display: none;
         }
     </style>
 </head>
@@ -159,32 +174,31 @@
             <tbody>
                 <tr>
                     <th style="width: 120px;">列車番号</th>
-                    <td id="train-number-val" colspan="3">―</td>
+                    <td id="train-number-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>列車種別</th>
-                    <td id="type-val">―</td>
-                    <td colspan="2" rowspan="2" id="name-val-combined">―</td> 
+                    <td id="type-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>速度種別</th>
-                    <td id="speed-val">―</td>
+                    <td id="speed-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>列車名</th>
-                    <td id="name-val" colspan="3">―</td>
+                    <td id="name-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>始発〜終着</th>
-                    <td id="route-val" colspan="3">―</td>
+                    <td id="route-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>旅客案内区間</th>
-                    <td id="travel-section-val" colspan="3">―</td>
+                    <td id="travel-section-val" colspan="4">―</td>
                 </tr>
                 <tr>
                     <th>始発日付</th>
-                    <td id="start-date-val" colspan="3">―</td>
+                    <td id="start-date-val" colspan="4">―</td>
                 </tr>
             </tbody>
         </table>
@@ -197,10 +211,13 @@
                     <th class="station-name" rowspan="2">駅</th>
                     <th class="time-col" colspan="2">着時刻</th>
                     <th class="time-col" colspan="2">発時刻</th>
+                    <th class="track-col-track" rowspan="2">着発線</th>
                 </tr>
                 <tr>
-                    <th class="track-col-display">番線/着発線</th>
-                    <th class="track-col-display">番線/着発線</th>
+                    <th class="track-col-display">時</th>
+                    <th class="track-col-display">分</th>
+                    <th class="track-col-display">時</th>
+                    <th class="track-col-display">分</th>
                 </tr>
             </thead>
             <tbody>
@@ -210,6 +227,22 @@
     </div>
 
     <script>
+        // 時刻を 時と分に分割するヘルパー関数
+        const formatTime = (time) => {
+            if (!time || time === '―') return { hour: '', minute: '' };
+            if (time === '||' || time === '...' || time === '=') return { hour: time, minute: '' };
+            
+            const parts = time.split(':');
+            if (parts.length === 3) {
+                // MM:SS形式 (画像は分秒だが、データが時分秒の場合を考慮)
+                return { hour: parts[0], minute: `${parts[1]}:${parts[2]}` };
+            } else if (parts.length === 2) {
+                // MM:SS形式
+                return { hour: parts[0], minute: parts[1] };
+            }
+            return { hour: time, minute: '' };
+        };
+
         // JavaScript
         document.addEventListener('DOMContentLoaded', () => {
             const timetableBody = document.querySelector('#main-timetable tbody');
@@ -225,7 +258,7 @@
             document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
 
             if (!selectedDataString) {
-                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
+                timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
                 return;
             }
 
@@ -233,28 +266,27 @@
             try {
                 allTrainData = JSON.parse(selectedDataString);
             } catch (e) {
-                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
+                timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
                 return;
             }
 
             if (allTrainData.length === 0) {
-                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
+                 timetableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
                 return;
             }
 
             // 列車基本情報の表示
             const targetTrainData = allTrainData[0];
-            let trainType = targetTrainData.type || '';
+            let trainType = targetTrainData.type || '...'; // データなしは...
             if (trainType === "選択なし") { trainType = ""; }
 
-            document.getElementById('train-number-val').textContent = targetTrainData.trainNumber || '―';
-            document.getElementById('type-val').textContent = trainType || '―';
-            document.getElementById('speed-val').textContent = targetTrainData.speed || '―';
-            // 速度種別と列車種別を分けたため、列車名の行を分ける
-            document.getElementById('name-val').textContent = targetTrainData.name || '―';
-            document.getElementById('route-val').textContent = `${targetTrainData.origin || '―'} 〜 ${targetTrainData.destination || '―'}`;
-            document.getElementById('travel-section-val').textContent = `${targetTrainData.origin || '―'} 〜 ${targetTrainData.destination || '―'}`; 
-            document.getElementById('start-date-val').textContent = targetTrainData.startDate || '―';
+            document.getElementById('train-number-val').textContent = targetTrainData.trainNumber || '...';
+            document.getElementById('type-val').textContent = trainType || '...';
+            document.getElementById('speed-val').textContent = targetTrainData.speed || '...';
+            document.getElementById('name-val').textContent = targetTrainData.name || '...';
+            document.getElementById('route-val').textContent = `${targetTrainData.origin || '...'} 〜 ${targetTrainData.destination || '...'}`;
+            document.getElementById('travel-section-val').textContent = `${targetTrainData.origin || '...'} 〜 ${targetTrainData.destination || '...'}`; 
+            document.getElementById('start-date-val').textContent = targetTrainData.startDate || '...';
 
 
             // **********************************
@@ -264,10 +296,9 @@
             let allStops = [];
             let previousStationName = null;
 
-            // 駅の重複排除ロジック (前回の修正を維持)
+            // 駅の重複排除ロジック
             allTrainData.forEach((segment, segmentIndex) => {
                 segment.stops.forEach((stop, stopIndex) => {
-                    // セグメントの継ぎ目で駅が重複しているかチェック
                     const isDuplicate = (segmentIndex > 0 && stopIndex === 0 && stop.station === previousStationName);
 
                     if (!isDuplicate) {
@@ -294,7 +325,6 @@
                 }
 
                 const segmentLength = j - i; 
-                // 各駅で時刻行と着発線行の2行を使用するため、rowSpanは segmentLength * 2
                 const lineRowSpan = segmentLength * 2; 
 
                 for (let k = i; k < j; k++) {
@@ -308,56 +338,60 @@
                         const lineCell = timeRow.insertCell();
                         lineCell.className = 'line-name';
                         lineCell.rowSpan = lineRowSpan;
-                        // line-name CSSで縦方向中央揃えを実現
-                        lineCell.textContent = currentLine || '―';
+                        lineCell.innerHTML = `<span>${currentLine || '...'}</span>`;
                     }
 
                     // 駅名セル (2行結合)
                     const stationCell = timeRow.insertCell();
                     stationCell.className = 'station-name';
                     stationCell.rowSpan = 2; // 時刻行と着発線行を結合
-                    stationCell.textContent = stop.station || '―';
+                    stationCell.textContent = stop.station || '...';
                     
-                    // 着時刻セル (時刻のみ)
-                    const arrivalTimeCell = timeRow.insertCell();
-                    arrivalTimeCell.className = 'time-col';
-                    arrivalTimeCell.textContent = (stop.arrival === "||" || stop.arrival === "...") ? stop.arrival : (stop.arrival === "=" ? "" : stop.arrival || '―');
-                    
-                    // 着発線（着）セル (時刻行側は空)
-                    timeRow.insertCell().className = 'time-col';
+                    // 時刻を分割
+                    const arr = formatTime(stop.arrival || '...');
+                    const dep = formatTime(stop.departure || '...');
 
-                    // 発時刻セル (時刻のみ)
-                    const departureTimeCell = timeRow.insertCell();
-                    departureTimeCell.className = 'time-col';
-                    departureTimeCell.textContent = (stop.departure === "||" || stop.departure === "...") ? stop.departure : (stop.departure === "=" ? "=" : stop.departure || '―');
+                    // 着時刻 (時)
+                    const arrHourCell = timeRow.insertCell();
+                    arrHourCell.className = 'time-col';
+                    arrHourCell.textContent = arr.hour;
                     
-                    // 着発線（発）セル (時刻行側は空)
-                    timeRow.insertCell().className = 'time-col';
+                    // 着時刻 (分/秒)
+                    const arrMinuteCell = timeRow.insertCell();
+                    arrMinuteCell.className = 'time-col';
+                    arrMinuteCell.textContent = arr.minute;
+
+                    // 発時刻 (時)
+                    const depHourCell = timeRow.insertCell();
+                    depHourCell.className = 'time-col';
+                    depHourCell.textContent = dep.hour;
+                    
+                    // 発時刻 (分/秒)
+                    const depMinuteCell = timeRow.insertCell();
+                    depMinuteCell.className = 'time-col';
+                    depMinuteCell.textContent = dep.minute;
+                    
+                    // 着発線セル (2行結合)
+                    const trackCell = timeRow.insertCell();
+                    trackCell.className = 'track-col-track';
+                    trackCell.rowSpan = 2;
+                    // 着発線情報
+                    trackCell.textContent = stop.trackN || '...';
 
 
                     // --- 2. 着発線行 (<tr>) の作成 ---
                     const trackRow = timetableBody.insertRow();
                     
-                    // 着発線（着）セル
-                    const arrivalTrackCell = trackRow.insertCell();
-                    arrivalTrackCell.className = 'track-col-display';
-                    // 時刻が非停車または終着でなければ着発線を表示
-                    if (stop.arrival !== "||" && stop.arrival !== "..." && stop.arrival !== "=") {
-                       arrivalTrackCell.textContent = stop.trackN || '―';
-                    }
+                    // 着時刻 (時) の着発線（行は空）
+                    trackRow.insertCell().className = 'track-col-display';
                     
-                    // 時刻行側の着発線セル (未使用)
+                    // 着時刻 (分) の着発線（行は空）
                     trackRow.insertCell().className = 'track-col-display';
 
-                    // 着発線（発）セル
-                    const departureTrackCell = trackRow.insertCell();
-                    departureTrackCell.className = 'track-col-display';
-                    // 時刻が非停車または始発でなければ着発線を表示
-                     if (stop.departure !== "||" && stop.departure !== "..." && stop.departure !== "=") {
-                        departureTrackCell.textContent = stop.trackN || '―';
-                    }
-                    
-                    // 時刻行側の着発線セル (未使用)
+                    // 発時刻 (時) の着発線（行は空）
+                    trackRow.insertCell().className = 'track-col-display';
+
+                    // 発時刻 (分) の着発線（行は空）
                     trackRow.insertCell().className = 'track-col-display';
                 }
                 i = j;
