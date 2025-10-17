@@ -6,59 +6,96 @@
     <title>HASS - 保守安全統合システム</title>
     
     <style>
+        /* レイアウトと基本スタイル */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', 'Meiryo UI', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f7f6;
+            background-color: #f0f2f5; /* 背景を明るく */
             color: #333;
         }
+        
+        /* ヘッダー */
         header {
-            background-color: #004d99; /* JR-like blue */
+            background-color: #004d99; /* JR Blue */
             color: white;
-            padding: 15px 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
         header h1 {
             margin: 0;
-            font-size: 1.8em;
+            font-size: 1.4em; /* タイトルを小さく */
+            font-weight: 500;
         }
-        #navigation {
+
+        /* メインコンテナ (Flexboxで左右に分割) */
+        #container {
             display: flex;
-            background-color: #e9ecef;
-            border-bottom: 1px solid #dee2e6;
+            min-height: calc(100vh - 46px); /* 画面の高さ - ヘッダーの高さ */
         }
-        #navigation button {
-            background: none;
-            border: none;
-            padding: 15px 25px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: background-color 0.3s, color 0.3s;
-            flex-grow: 1;
-            text-align: center;
-            border-right: 1px solid #dee2e6;
+        
+        /* 左メニュー (2/10 = 20%) */
+        #sidebar {
+            width: 20%;
+            min-width: 200px;
+            background-color: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            padding: 15px 0;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
         }
-        #navigation button:last-child {
-            border-right: none;
-        }
-        #navigation button:hover {
-            background-color: #cfd8dc;
-        }
-        #navigation button.active {
-            background-color: white;
-            color: #004d99;
-            border-top: 3px solid #004d99;
-            margin-top: -3px;
-        }
-        #main-content {
+        
+        /* 右コンテンツ (8/10 = 80%) */
+        #content-area {
+            width: 80%;
             padding: 20px;
+            overflow-y: auto;
         }
+
+        /* メニューボタン */
+        .menu-button {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            text-align: left;
+            font-size: 1em;
+            color: #333;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+            box-sizing: border-box;
+        }
+        .menu-button:hover {
+            background-color: #e6f0ff; /* ホバー色 */
+        }
+        .menu-button.active {
+            background-color: #004d99;
+            color: white;
+            border-left: 5px solid #ffcc00; /* 強調色 */
+            padding-left: 15px;
+        }
+
+        /* 使い方メモ */
+        #usage-note {
+            margin-top: 30px;
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+            color: #555;
+            font-size: 0.85em;
+        }
+        #usage-note h3 {
+            margin-top: 0;
+            font-size: 1em;
+            color: #004d99;
+        }
+
+        /* コンテンツ内の要素 */
         h2 {
             color: #004d99;
             border-bottom: 2px solid #004d99;
             padding-bottom: 5px;
             margin-top: 0;
+            font-size: 1.5em;
         }
         #search-area {
             display: flex;
@@ -74,7 +111,7 @@
         }
         #search-area button {
             padding: 10px 20px;
-            background-color: #28a745; /* Green for search */
+            background-color: #28a745; 
             color: white;
             border: none;
             border-radius: 4px;
@@ -94,23 +131,27 @@
             border-collapse: collapse;
             background-color: white;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+            font-size: 0.9em;
         }
         th, td {
-            padding: 12px 15px;
+            padding: 10px 15px; /* パディングを少し小さく */
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #eee;
         }
         th {
-            background-color: #004d99;
+            background-color: #0066cc; /* ヘッダーの青を濃く */
             color: white;
-            font-weight: bold;
+            font-weight: 600;
             position: sticky;
             top: 0;
         }
-        tr:hover {
-            background-color: #f1f1f1;
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
         }
-        .loading {
+        tr:hover {
+            background-color: #f1f8ff;
+        }
+        .loading, .error {
             text-align: center;
             padding: 50px;
             font-size: 1.2em;
@@ -118,8 +159,6 @@
         }
         .error {
             color: red;
-            text-align: center;
-            padding: 20px;
         }
     </style>
 
@@ -129,45 +168,70 @@
         <h1 id="site-title">HASS - 保守安全統合システム</h1>
     </header>
     
-    <div id="navigation">
-        <button id="nav-records" onclick="loadData('records')" class="active">保守記録</button>
-        <button id="nav-plans" onclick="loadData('plans')">保守計画</button>
-        <button id="nav-safety" onclick="loadData('safety')">安全記録・事故例</button>
-        <button id="nav-manuals" onclick="loadData('manuals')">マニュアル</button>
-    </div>
-
-    <div id="main-content">
-        <h2 id="data-title">保守記録</h2>
+    <div id="container">
         
-        <div id="search-area">
-            <input type="text" id="search-input" placeholder="キーワード検索 (例: 線路, 摩耗, T01-001)">
-            <button onclick="performSearch()">検索</button>
+        <div id="sidebar">
+            <nav id="navigation">
+                <button class="menu-button active" data-type="plans">保守計画一覧</button>
+                <button class="menu-button" data-type="records">保守記録一覧</button>
+                <button class="menu-button" data-type="safety">安全管理・事故事象例</button>
+                <button class="menu-button" data-type="manuals">マニュアル</button>
+                <button class="menu-button" data-type="settings">設定</button>
+            </nav>
+            
+            <div id="usage-note">
+                <h3>システムの使い方メモ</h3>
+                <p>・各一覧画面で、上部の検索窓にキーワードを入力してデータを絞り込めます。</p>
+                <p>・データの読み込みはブラウザ内で行われます。表示が遅い場合は時間を置いてください。</p>
+                <p>・「マニュアル」はPDFへのリンクとして動作します。</p>
+            </div>
         </div>
 
-        <div id="data-table-container">
-            <div class="loading">システムデータを読み込み中です...</div>
+        <div id="content-area">
+            <h2 id="data-title">保守計画一覧</h2>
+            
+            <div id="search-area">
+                <input type="text" id="search-input" placeholder="キーワード検索 (例: 線路, 山本, P20251020)">
+                <button onclick="performSearch()">検索</button>
+            </div>
+
+            <div id="data-table-container">
+                <div class="loading">システムデータを読み込み中です...</div>
+            </div>
         </div>
+        
     </div>
 
     <script>
-        // アプリケーションの状態とデータを保持するオブジェクト
         const app = {
             config: {},
             data: {},
-            currentDataType: 'records' // 初期表示データ
+            currentDataType: 'plans', // 初期表示を保守計画一覧に変更
+            headerMap: {
+                'plans': { planId: "計画ID", schedule_date: "予定日", section: "区間", equipment: "設備種別", task: "作業内容", leader: "責任者", status: "状態" },
+                'records': { id: "記録ID", date: "日付", equipment_id: "設備ID", equipment_type: "種別", location: "場所", description: "概要", engineer: "担当者", status: "状態" },
+                'safety': { id: "記録ID", date: "発生日", category: "分類", details: "詳細", measures: "対策" },
+                'manuals': { id: "資料ID", title: "タイトル", version: "版", category: "分類", file_path: "ファイルパス" },
+                'settings': {} // 設定画面などテーブル表示しないもの用
+            },
+            titleMap: {
+                'plans': '保守計画一覧', 
+                'records': '保守記録一覧', 
+                'safety': '安全管理・事故事象例',
+                'manuals': 'マニュアル',
+                'settings': 'システム設定'
+            }
         };
 
         // 1. 全てのJSONファイルを読み込む関数
         async function initializeSystem() {
             try {
-                // config.json の読み込み
                 const configResponse = await fetch('config/config.json');
                 if (!configResponse.ok) throw new Error("config.jsonの読み込みに失敗");
                 app.config = await configResponse.json();
                 
                 document.getElementById('site-title').textContent = app.config.site_title;
 
-                // データJSONの読み込み (Promise.allで並列処理)
                 const dataPaths = app.config.data_paths;
                 const dataPromises = Object.keys(dataPaths).map(key => 
                     fetch(dataPaths[key])
@@ -183,9 +247,7 @@
                     app.data[res.key] = res.data;
                 });
 
-                console.log("全データ読み込み完了", app.data);
-                
-                // 初期表示を実行
+                // 初期表示を実行（初期値は'plans'）
                 loadData(app.currentDataType); 
 
             } catch (error) {
@@ -198,8 +260,20 @@
         // 2. データをテーブル表示する関数
         function renderTable(data, containerId = 'data-table-container') {
             const container = document.getElementById(containerId);
-            container.innerHTML = ''; // 既存のテーブルをクリア
+            container.innerHTML = ''; 
             
+            // 設定画面など、データテーブル表示が不要な場合の処理
+            if (app.currentDataType === 'settings') {
+                container.innerHTML = `
+                    <h3>設定機能（仮）</h3>
+                    <p>この画面は設定マスタデータ管理やユーザー権限管理などに利用します。</p>
+                    <h4>マスタデータ例:</h4>
+                    <p>設備種別: ${app.config.master_data.equipment_types.join(', ')}</p>
+                    <p>優先度レベル: ${app.config.master_data.priority_levels.join(', ')}</p>
+                `;
+                return;
+            }
+
             if (!data || data.length === 0) {
                 container.innerHTML = "<p>該当するデータはありません。</p>";
                 return;
@@ -207,24 +281,15 @@
 
             // テーブル生成処理
             const table = document.createElement('table');
-            
-            // ヘッダー行の生成（最初の要素のキーを使用）
             const headers = Object.keys(data[0]);
             const thead = table.createTHead();
             const hRow = thead.insertRow();
-            
-            // 日本語表示用のカスタムヘッダーマップ (データタイプごとに定義を拡張可能)
-            const headerMap = {
-                'records': { id: "ID", date: "日付", equipment_id: "設備ID", equipment_type: "種別", location: "場所", description: "概要", engineer: "担当者", status: "状態" },
-                'plans': { id: "計画ID", schedule_date: "予定日", equipment_id: "設備ID", task_description: "作業内容", priority: "優先度", status: "状態" },
-                'safety': { id: "記録ID", date: "発生日", category: "分類", details: "詳細", measures: "対策" },
-                'manuals': { id: "資料ID", title: "タイトル", version: "版", category: "分類", file_path: "ファイル" }
-            };
-            const currentHeaderMap = headerMap[app.currentDataType] || {};
+            const currentHeaderMap = app.headerMap[app.currentDataType] || {};
 
+            // ヘッダー行の生成（日本語に変換）
             headers.forEach(headerKey => {
                 const th = document.createElement('th');
-                th.textContent = currentHeaderMap[headerKey] || headerKey; // 日本語名またはキー名
+                th.textContent = currentHeaderMap[headerKey] || headerKey;
                 hRow.appendChild(th);
             });
             
@@ -241,8 +306,8 @@
                     if (headerKey === 'file_path' && content) {
                         const link = document.createElement('a');
                         link.href = content;
-                        link.textContent = "ファイルを見る";
-                        link.target = "_blank"; // 新しいタブで開く
+                        link.textContent = "ファイルを開く";
+                        link.target = "_blank"; 
                         cell.appendChild(link);
                     } else {
                         cell.textContent = content;
@@ -258,21 +323,20 @@
             app.currentDataType = type;
             
             // 画面タイトル更新
-            const titleMap = {
-                'records': '保守記録', 
-                'plans': '保守計画', 
-                'safety': '安全記録・事故例',
-                'manuals': 'マニュアル'
-            };
-            document.getElementById('data-title').textContent = titleMap[type];
+            document.getElementById('data-title').textContent = app.titleMap[type] || 'データ表示';
 
             // ナビゲーションボタンのactive状態更新
-            document.querySelectorAll('#navigation button').forEach(btn => {
+            document.querySelectorAll('.menu-button').forEach(btn => {
                 btn.classList.remove('active');
+                if (btn.getAttribute('data-type') === type) {
+                    btn.classList.add('active');
+                }
             });
-            document.getElementById(`nav-${type}`).classList.add('active');
             
-            // テーブル表示
+            // 検索バーの表示/非表示を切り替え (settingsなどでは非表示)
+            document.getElementById('search-area').style.display = (type === 'settings') ? 'none' : 'flex';
+            
+            // テーブル表示（データがない場合は空配列を渡す）
             renderTable(app.data[type] || [], 'data-table-container');
         }
 
@@ -281,25 +345,34 @@
             const keyword = document.getElementById('search-input').value.toLowerCase().trim();
             const currentData = app.data[app.currentDataType];
 
+            if (!currentData) return;
+
             if (!keyword) {
-                // キーワードがない場合は全件表示
                 renderTable(currentData, 'data-table-container');
                 return;
             }
 
-            // フィルタリング処理: すべての列を対象にキーワードを含むかチェック
+            // フィルタリング処理
             const filteredData = currentData.filter(item => {
                 return Object.values(item).some(value => {
-                    // 値がnullやundefinedでないことを確認し、文字列化してチェック
                     return String(value).toLowerCase().includes(keyword);
                 });
             });
 
             renderTable(filteredData, 'data-table-container');
         }
-
-        // 起動処理
-        document.addEventListener('DOMContentLoaded', initializeSystem); 
+        
+        // 5. イベントリスナーをメニューボタンに設定
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeSystem();
+            
+            document.querySelectorAll('.menu-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const type = event.target.getAttribute('data-type');
+                    loadData(type);
+                });
+            });
+        });
     </script>
 </body>
 </html>
