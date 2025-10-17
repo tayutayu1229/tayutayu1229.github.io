@@ -1,393 +1,305 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HASS — 保守安全統合システム</title>
-  <style>
-    :root{--accent:#0a66c2;--bg:#f6f8fb;--card:#ffffff;--muted:#666}
-    *{box-sizing:border-box;font-family: "Noto Sans JP",system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    body{margin:0;background:var(--bg);color:#111}
-    header{background:linear-gradient(90deg,#0a66c2,#1466a8);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px}
-    header h1{font-size:18px;margin:0}
-    header p{margin:0;opacity:.9;font-size:13px}
-    .container{display:flex;gap:18px;padding:18px}
-    nav{width:260px}
-    .card{background:var(--card);border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(16,24,40,.06)}
-    .menu{display:flex;flex-direction:column;gap:6px}
-    .menu button{background:transparent;border:0;padding:10px;border-radius:8px;text-align:left;cursor:pointer}
-    .menu button.active{background:#eef6ff;color:var(--accent);font-weight:600}
-    main{flex:1}
-    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-    .toolbar input[type=search]{flex:1;padding:8px;border-radius:8px;border:1px solid #ddd}
-    .toolbar button{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:8px;border-bottom:1px solid #eee;font-size:13px}
-    th{background:#fbfdff;text-align:left}
-    .small{font-size:12px;color:var(--muted)}
-    .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#f1f6fb;color:var(--accent);font-weight:600;font-size:12px}
-    .flex{display:flex;gap:8px;align-items:center}
-    .modal{position:fixed;inset:0;background:rgba(2,6,23,.45);display:none;align-items:center;justify-content:center;padding:20px}
-    .modal.show{display:flex}
-    .modal .panel{width:860px;max-width:100%;background:var(--card);border-radius:10px;padding:16px}
-    label{display:block;margin-top:8px;font-size:13px}
-    input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #ddd;margin-top:6px}
-    footer{padding:12px 18px;font-size:13px;color:var(--muted)}
-    .actions button{padding:6px 10px;border-radius:8px;border:0;cursor:pointer}
-    .btn-ghost{background:transparent;border:1px solid #ddd}
-    .danger{background:#ff4d4f;color:#fff}
-    .success{background:#16a34a;color:#fff}
-    .muted{color:var(--muted)}
-    .split{display:flex;gap:12px}
-    @media(max-width:880px){nav{display:none}.container{padding:12px}}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HASS - 保守安全統合システム</title>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        header {
+            background-color: #004d99; /* JR-like blue */
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+        #navigation {
+            display: flex;
+            background-color: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+        }
+        #navigation button {
+            background: none;
+            border: none;
+            padding: 15px 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s, color 0.3s;
+            flex-grow: 1;
+            text-align: center;
+            border-right: 1px solid #dee2e6;
+        }
+        #navigation button:last-child {
+            border-right: none;
+        }
+        #navigation button:hover {
+            background-color: #cfd8dc;
+        }
+        #navigation button.active {
+            background-color: white;
+            color: #004d99;
+            border-top: 3px solid #004d99;
+            margin-top: -3px;
+        }
+        #main-content {
+            padding: 20px;
+        }
+        h2 {
+            color: #004d99;
+            border-bottom: 2px solid #004d99;
+            padding-bottom: 5px;
+            margin-top: 0;
+        }
+        #search-area {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+        #search-input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            flex-grow: 1;
+            font-size: 1em;
+        }
+        #search-area button {
+            padding: 10px 20px;
+            background-color: #28a745; /* Green for search */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #search-area button:hover {
+            background-color: #218838;
+        }
+        
+        /* Table Styling */
+        #data-table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #004d99;
+            color: white;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #004d99;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+
 </head>
 <body>
-  <header>
-    <div style="display:flex;flex-direction:column">
-      <h1>HASS — 保守安全統合システム</h1>
-      <p class="small">HASS = <strong>H</strong>oshu &amp; <strong>A</strong>nzen <strong>S</strong>ystem <strong>S</strong>uite</p>
+    <header>
+        <h1 id="site-title">HASS - 保守安全統合システム</h1>
+    </header>
+    
+    <div id="navigation">
+        <button id="nav-records" onclick="loadData('records')" class="active">保守記録</button>
+        <button id="nav-plans" onclick="loadData('plans')">保守計画</button>
+        <button id="nav-safety" onclick="loadData('safety')">安全記録・事故例</button>
+        <button id="nav-manuals" onclick="loadData('manuals')">マニュアル</button>
     </div>
-    <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
-      <span class="tag">現場モード</span>
-      <button id="exportBtn" class="btn-ghost">エクスポート(JSON)</button>
-      <button id="importBtn" class="btn-ghost">インポート(JSON)</button>
+
+    <div id="main-content">
+        <h2 id="data-title">保守記録</h2>
+        
+        <div id="search-area">
+            <input type="text" id="search-input" placeholder="キーワード検索 (例: 線路, 摩耗, T01-001)">
+            <button onclick="performSearch()">検索</button>
+        </div>
+
+        <div id="data-table-container">
+            <div class="loading">システムデータを読み込み中です...</div>
+        </div>
     </div>
-  </header>
 
-  <div class="container">
-    <nav>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <strong>メニュー</strong>
-          <span class="small">データはLocalStorageに保存</span>
-        </div>
-        <div class="menu" id="menu">
-          <button data-tab="records" class="active">保守記録一覧</button>
-          <button data-tab="plans">保守計画</button>
-          <button data-tab="safety">安全管理</button>
-          <button data-tab="incidents">事故・トラブル例</button>
-          <button data-tab="manuals">マニュアル</button>
-          <button data-tab="analytics">運行・保守分析</button>
-          <button data-tab="settings">設定</button>
-        </div>
-      </div>
-    </nav>
+    <script>
+        // アプリケーションの状態とデータを保持するオブジェクト
+        const app = {
+            config: {},
+            data: {},
+            currentDataType: 'records' // 初期表示データ
+        };
 
-    <main>
-      <div class="card">
-        <div class="toolbar">
-          <input id="search" type="search" placeholder="検索: 駅名・設備・担当者・日付など" />
-          <select id="filterType">
-            <option value="all">全て</option>
-            <option value="線路">線路</option>
-            <option value="信号">信号</option>
-            <option value="架線">架線</option>
-            <option value="ホーム">ホーム</option>
-            <option value="その他">その他</option>
-          </select>
-          <button id="addBtn">新規作成</button>
-        </div>
+        // 1. 全てのJSONファイルを読み込む関数
+        async function initializeSystem() {
+            try {
+                // config.json の読み込み
+                const configResponse = await fetch('config/config.json');
+                if (!configResponse.ok) throw new Error("config.jsonの読み込みに失敗");
+                app.config = await configResponse.json();
+                
+                document.getElementById('site-title').textContent = app.config.site_title;
 
-        <div id="contentArea">
-          <!-- テーブルはJSで差し替え -->
-        </div>
+                // データJSONの読み込み (Promise.allで並列処理)
+                const dataPaths = app.config.data_paths;
+                const dataPromises = Object.keys(dataPaths).map(key => 
+                    fetch(dataPaths[key])
+                        .then(res => {
+                            if (!res.ok) throw new Error(`${dataPaths[key]}の読み込みに失敗`);
+                            return res.json();
+                        })
+                        .then(data => ({ key, data }))
+                );
 
-      </div>
+                const results = await Promise.all(dataPromises);
+                results.forEach(res => {
+                    app.data[res.key] = res.data;
+                });
 
-      <div style="height:12px"></div>
+                console.log("全データ読み込み完了", app.data);
+                
+                // 初期表示を実行
+                loadData(app.currentDataType); 
 
-      <div class="card">
-        <strong>使い方メモ</strong>
-        <ul class="small" style="margin-top:8px">
-          <li>画面右上のエクスポートでJSONを保存できます。</li>
-          <li>インポートは保存済みJSONを投入して既存データにマージできます。</li>
-          <li>検索・フィルタで現場のレコードを素早く抽出できます。</li>
-        </ul>
-      </div>
+            } catch (error) {
+                console.error("システム初期化エラー:", error);
+                document.getElementById('data-table-container').innerHTML = 
+                    `<div class="error">システムデータの読み込みに失敗しました。ファイルパスと権限を確認してください。<br>エラー: ${error.message}</div>`;
+            }
+        }
 
-    </main>
-  </div>
+        // 2. データをテーブル表示する関数
+        function renderTable(data, containerId = 'data-table-container') {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // 既存のテーブルをクリア
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = "<p>該当するデータはありません。</p>";
+                return;
+            }
 
-  <footer>
-    HASS — 保守安全統合システム | ローカル試作版 • UIはカスタマイズ可能
-  </footer>
+            // テーブル生成処理
+            const table = document.createElement('table');
+            
+            // ヘッダー行の生成（最初の要素のキーを使用）
+            const headers = Object.keys(data[0]);
+            const thead = table.createTHead();
+            const hRow = thead.insertRow();
+            
+            // 日本語表示用のカスタムヘッダーマップ (データタイプごとに定義を拡張可能)
+            const headerMap = {
+                'records': { id: "ID", date: "日付", equipment_id: "設備ID", equipment_type: "種別", location: "場所", description: "概要", engineer: "担当者", status: "状態" },
+                'plans': { id: "計画ID", schedule_date: "予定日", equipment_id: "設備ID", task_description: "作業内容", priority: "優先度", status: "状態" },
+                'safety': { id: "記録ID", date: "発生日", category: "分類", details: "詳細", measures: "対策" },
+                'manuals': { id: "資料ID", title: "タイトル", version: "版", category: "分類", file_path: "ファイル" }
+            };
+            const currentHeaderMap = headerMap[app.currentDataType] || {};
 
-  <!-- モーダル -->
-  <div id="modal" class="modal" role="dialog" aria-hidden="true">
-    <div class="panel">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong id="modalTitle">新規レコード</strong>
-        <div class="actions"><button id="closeModal" class="btn-ghost">閉じる</button></div>
-      </div>
+            headers.forEach(headerKey => {
+                const th = document.createElement('th');
+                th.textContent = currentHeaderMap[headerKey] || headerKey; // 日本語名またはキー名
+                hRow.appendChild(th);
+            });
+            
+            // データ行の生成
+            const tbody = table.createTBody();
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                headers.forEach(headerKey => {
+                    const cell = row.insertCell();
+                    
+                    let content = item[headerKey];
+                    
+                    // file_path の場合はリンク化
+                    if (headerKey === 'file_path' && content) {
+                        const link = document.createElement('a');
+                        link.href = content;
+                        link.textContent = "ファイルを見る";
+                        link.target = "_blank"; // 新しいタブで開く
+                        cell.appendChild(link);
+                    } else {
+                        cell.textContent = content;
+                    }
+                });
+            });
 
-      <form id="recordForm">
-        <div class="split">
-          <div style="flex:1">
-            <label>カテゴリ</label>
-            <select id="field_category" required>
-              <option value="保守記録">保守記録</option>
-              <option value="保守計画">保守計画</option>
-              <option value="安全記録">安全記録</option>
-              <option value="事故例">事故例</option>
-              <option value="マニュアル">マニュアル</option>
-            </select>
+            container.appendChild(table);
+        }
 
-            <label>設備種別</label>
-            <select id="field_equipment">
-              <option>線路</option>
-              <option>信号</option>
-              <option>架線</option>
-              <option>ホーム</option>
-              <option>その他</option>
-            </select>
+        // 3. データ切り替え (ナビゲーション)
+        function loadData(type) {
+            app.currentDataType = type;
+            
+            // 画面タイトル更新
+            const titleMap = {
+                'records': '保守記録', 
+                'plans': '保守計画', 
+                'safety': '安全記録・事故例',
+                'manuals': 'マニュアル'
+            };
+            document.getElementById('data-title').textContent = titleMap[type];
 
-            <label>設備名／箇所</label>
-            <input id="field_location" placeholder="例: ○○駅 2番線 柱A" />
+            // ナビゲーションボタンのactive状態更新
+            document.querySelectorAll('#navigation button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`nav-${type}`).classList.add('active');
+            
+            // テーブル表示
+            renderTable(app.data[type] || [], 'data-table-container');
+        }
 
-            <label>担当者</label>
-            <input id="field_staff" placeholder="氏名（部署）" />
+        // 4. 検索機能
+        function performSearch() {
+            const keyword = document.getElementById('search-input').value.toLowerCase().trim();
+            const currentData = app.data[app.currentDataType];
 
-            <label>日付</label>
-            <input id="field_date" type="date" />
+            if (!keyword) {
+                // キーワードがない場合は全件表示
+                renderTable(currentData, 'data-table-container');
+                return;
+            }
 
-          </div>
-          <div style="flex:1">
-            <label>タイトル</label>
-            <input id="field_title" placeholder="簡潔なタイトル" />
+            // フィルタリング処理: すべての列を対象にキーワードを含むかチェック
+            const filteredData = currentData.filter(item => {
+                return Object.values(item).some(value => {
+                    // 値がnullやundefinedでないことを確認し、文字列化してチェック
+                    return String(value).toLowerCase().includes(keyword);
+                });
+            });
 
-            <label>概要</label>
-            <input id="field_summary" placeholder="要約（数行）」 />
+            renderTable(filteredData, 'data-table-container');
+        }
 
-            <label>詳細（手順・所見・交換部品等）</label>
-            <textarea id="field_detail" rows="6" placeholder="詳細を記入"></textarea>
-
-            <label>ファイル添付URL（任意）</label>
-            <input id="field_file" placeholder="ファイルパスまたは添付URL" />
-
-          </div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-          <button type="button" id="saveBtn" class="success">保存</button>
-          <button type="button" id="deleteBtn" class="danger" style="display:none">削除</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <input id="fileInput" type="file" accept="application/json" style="display:none" />
-
-  <script>
-    // シンプルなクライアントサイド保守管理システム（LocalStorageベース）
-    const STORAGE_KEY = 'hass_records_v1'
-    const modal = document.getElementById('modal')
-    const contentArea = document.getElementById('contentArea')
-    const menu = document.getElementById('menu')
-    const addBtn = document.getElementById('addBtn')
-    const exportBtn = document.getElementById('exportBtn')
-    const importBtn = document.getElementById('importBtn')
-    const fileInput = document.getElementById('fileInput')
-
-    let records = load()
-    let currentTab = 'records'
-    let editingId = null
-
-    // 初期サンプル
-    if(records.length===0){
-      records = sampleData()
-      save()
-    }
-
-    render()
-
-    // メニュー切替
-    menu.addEventListener('click', e=>{
-      if(e.target.dataset.tab){
-        [...menu.querySelectorAll('button')].forEach(b=>b.classList.remove('active'))
-        e.target.classList.add('active')
-        currentTab = e.target.dataset.tab
-        render()
-      }
-    })
-
-    // 検索・フィルタ
-    document.getElementById('search').addEventListener('input', render)
-    document.getElementById('filterType').addEventListener('change', render)
-
-    addBtn.addEventListener('click', ()=>openModal())
-    document.getElementById('closeModal').addEventListener('click', closeModal)
-    document.getElementById('saveBtn').addEventListener('click', saveRecord)
-    document.getElementById('deleteBtn').addEventListener('click', deleteRecord)
-    exportBtn.addEventListener('click', exportJSON)
-    importBtn.addEventListener('click', ()=>fileInput.click())
-
-    fileInput.addEventListener('change', e=>{
-      const f = e.target.files[0]
-      if(!f) return
-      const reader = new FileReader()
-      reader.onload = ()=>{
-        try{
-          const imported = JSON.parse(reader.result)
-          if(!Array.isArray(imported)) throw new Error('Invalid format')
-          // マージ
-          records = records.concat(imported.map(r=>({...r,id:generateId()})))
-          save(); render();
-          alert('インポート完了')
-        }catch(err){alert('JSONを読み取れませんでした: '+err.message)}
-      }
-      reader.readAsText(f,'utf-8')
-    })
-
-    function openModal(rec){
-      modal.classList.add('show')
-      modal.setAttribute('aria-hidden','false')
-      document.getElementById('modalTitle').textContent = rec ? 'レコード編集' : '新規レコード'
-      document.getElementById('deleteBtn').style.display = rec ? 'inline-block' : 'none'
-      editingId = rec ? rec.id : null
-      // フィールド埋め
-      ['category','equipment','location','staff','date','title','summary','detail','file'].forEach(k=>{
-        const el = document.getElementById('field_'+k)
-        if(!el) return
-        el.value = rec ? (rec[k]||'') : ''
-      })
-    }
-
-    function closeModal(){
-      modal.classList.remove('show')
-      modal.setAttribute('aria-hidden','true')
-      editingId = null
-      document.getElementById('recordForm').reset()
-    }
-
-    function saveRecord(){
-      const rec = collectForm()
-      if(!rec.title || !rec.date){alert('タイトルと日付は必須です');return}
-      if(editingId){
-        const idx = records.findIndex(r=>r.id===editingId)
-        records[idx] = {...records[idx],...rec}
-      }else{
-        records.unshift({...rec,id:generateId(),createdAt:new Date().toISOString()})
-      }
-      save(); render(); closeModal();
-    }
-
-    function deleteRecord(){
-      if(!editingId) return
-      if(!confirm('本当に削除しますか？')) return
-      records = records.filter(r=>r.id!==editingId)
-      save(); render(); closeModal();
-    }
-
-    function collectForm(){
-      return {
-        category: document.getElementById('field_category').value,
-        equipment: document.getElementById('field_equipment').value,
-        location: document.getElementById('field_location').value,
-        staff: document.getElementById('field_staff').value,
-        date: document.getElementById('field_date').value,
-        title: document.getElementById('field_title').value,
-        summary: document.getElementById('field_summary').value,
-        detail: document.getElementById('field_detail').value,
-        file: document.getElementById('field_file').value
-      }
-    }
-
-    function render(){
-      const q = document.getElementById('search').value.trim().toLowerCase()
-      const filter = document.getElementById('filterType').value
-      const list = records.filter(r=>{
-        if(currentTab==='records' && r.category!=='保守記録') return false
-        if(currentTab==='plans' && r.category!=='保守計画') return false
-        if(currentTab==='safety' && r.category!=='安全記録') return false
-        if(currentTab==='incidents' && r.category!=='事故例') return false
-        if(currentTab==='manuals' && r.category!=='マニュアル') return false
-        // search
-        const hay = (r.title+' '+r.summary+' '+r.detail+' '+r.location+' '+r.staff+' '+r.equipment+' '+r.date).toLowerCase()
-        if(q && !hay.includes(q)) return false
-        if(filter!=='all' && r.equipment!==filter) return false
-        return true
-      })
-
-      if(currentTab==='analytics'){
-        renderAnalytics(); return
-      }
-
-      // テーブル
-      if(list.length===0){
-        contentArea.innerHTML = '<p class="small muted">該当するデータがありません。</p>'
-        return
-      }
-      let html = '<table><thead><tr><th>日付</th><th>カテゴリ</th><th>設備</th><th>設備名/箇所</th><th>タイトル</th><th>担当</th><th></th></tr></thead><tbody>'
-      for(const r of list){
-        html += `<tr data-id="${r.id}"><td class="small">${r.date||''}</td><td class="small">${r.category}</td><td class="small">${r.equipment}</td><td>${escape(r.location)}</td><td>${escape(r.title)}</td><td class="small">${escape(r.staff)}</td><td><button data-action="view">表示</button></td></tr>`
-      }
-      html += '</tbody></table>'
-      contentArea.innerHTML = html
-
-      contentArea.querySelectorAll('button[data-action=view]').forEach(b=>{
-        b.addEventListener('click', e=>{
-          const id = e.target.closest('tr').dataset.id
-          const rec = records.find(r=>r.id===id)
-          openModal(rec)
-          // populate modal with rec
-          ['category','equipment','location','staff','date','title','summary','detail','file'].forEach(k=>{
-            const el = document.getElementById('field_'+k)
-            if(!el) return
-            el.value = rec[k]||''
-          })
-        })
-      })
-    }
-
-    function renderAnalytics(){
-      // 簡易分析: カテゴリ別・設備別件数
-      const counts = records.reduce((acc,r)=>{
-        acc.byCategory[r.category] = (acc.byCategory[r.category]||0)+1
-        acc.byEquipment[r.equipment] = (acc.byEquipment[r.equipment]||0)+1
-        return acc
-      },{byCategory:{},byEquipment:{}})
-      let html = '<div style="display:flex;gap:18px;flex-wrap:wrap">'
-      html += `<div style="flex:1;min-width:260px"><strong>カテゴリ別件数</strong><ul>`
-      for(const k in counts.byCategory) html += `<li>${k}: ${counts.byCategory[k]}件</li>`
-      html += '</ul></div>'
-      html += `<div style="flex:1;min-width:260px"><strong>設備種別別件数</strong><ul>`
-      for(const k in counts.byEquipment) html += `<li>${k}: ${counts.byEquipment[k]}件</li>`
-      html += '</ul></div></div>'
-      contentArea.innerHTML = html
-    }
-
-    function save(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
-    }
-    function load(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY)
-        return raw ? JSON.parse(raw) : []
-      }catch(e){return []}
-    }
-
-    function generateId(){return 'r_'+Math.random().toString(36).slice(2,10)}
-    function escape(s){if(!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-
-    function exportJSON(){
-      const blob = new Blob([JSON.stringify(records,null,2)],{type:'application/json'})
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url; a.download = 'hass_records_'+new Date().toISOString().slice(0,10)+'.json'
-      a.click(); URL.revokeObjectURL(url)
-    }
-
-    function sampleData(){
-      return [
-        {id:generateId(),category:'保守記録',equipment:'線路',location:'○○駅 1番線',staff:'田中(保守)',date:'2025-10-10',title:'レール亀裂点検',summary:'レールに小さな亀裂を発見。応急処置実施',detail:'亀裂箇所をモルタルで仮固定。後日交換手配。部品番号: RL-2025-01',file:''},
-        {id:generateId(),category:'保守計画',equipment:'信号',location:'△△信号場',staff:'保守課',date:'2025-11-05',title:'信号器更新計画',summary:'老朽化した信号器の更新スケジュール',detail:'既存機器の型式調査→調達→切替作業（夜間）',file:''},
-        {id:generateId(),category:'安全記録',equipment:'架線',location:'□□区間',staff:'安全管理',date:'2025-09-20',title:'安全巡回実施',summary:'巡回で絶縁不良は確認されず',detail:'写真を添付。次回は3ヶ月後に実施',file:''},
-        {id:generateId(),category:'事故例',equipment:'ホーム',location:'◇◇駅',staff:'報告',date:'2025-08-01',title:'ホームでの転倒事案',summary:'高齢客が滑って転倒。軽傷',detail:'滑り止め改善を検討。清掃頻度の見直し',file:''},
-        {id:generateId(),category:'マニュアル',equipment:'その他',location:'全社',staff:'教育部',date:'2025-01-01',title:'保守作業安全マニュアル',summary:'保守員向け安全手順書',detail:'着用必須の保護具、手順フロー図(PDF参照)',file:'https://intranet.example/manuals/safety.pdf'}
-      ]
-    }
-
-  </script>
+        // 起動処理
+        document.addEventListener('DOMContentLoaded', initializeSystem); 
+    </script>
 </body>
 </html>
