@@ -11,7 +11,7 @@
             font-family: 'Segoe UI', 'Meiryo UI', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f2f5; /* 背景を明るく */
+            background-color: #f0f2f5; 
             color: #333;
         }
         
@@ -24,14 +24,14 @@
         }
         header h1 {
             margin: 0;
-            font-size: 1.4em; /* タイトルを小さく */
+            font-size: 1.4em; 
             font-weight: 500;
         }
 
         /* メインコンテナ (Flexboxで左右に分割) */
         #container {
             display: flex;
-            min-height: calc(100vh - 46px); /* 画面の高さ - ヘッダーの高さ */
+            min-height: calc(100vh - 46px); 
         }
         
         /* 左メニュー (2/10 = 20%) */
@@ -66,12 +66,12 @@
             box-sizing: border-box;
         }
         .menu-button:hover {
-            background-color: #e6f0ff; /* ホバー色 */
+            background-color: #e6f0ff; 
         }
         .menu-button.active {
             background-color: #004d99;
             color: white;
-            border-left: 5px solid #ffcc00; /* 強調色 */
+            border-left: 5px solid #ffcc00; 
             padding-left: 15px;
         }
 
@@ -134,22 +134,34 @@
             font-size: 0.9em;
         }
         th, td {
-            padding: 10px 15px; /* パディングを少し小さく */
+            padding: 10px 15px; 
             text-align: left;
             border-bottom: 1px solid #eee;
         }
         th {
-            background-color: #0066cc; /* ヘッダーの青を濃く */
+            background-color: #0066cc; 
             color: white;
             font-weight: 600;
             position: sticky;
             top: 0;
+            cursor: pointer; /* ソート機能を示す */
         }
+        th:after {
+            /* ソートインジケータ */
+            content: '';
+            float: right;
+            margin-left: 8px;
+            opacity: 0.7;
+        }
+        th.sort-asc:after { content: '▲'; }
+        th.sort-desc:after { content: '▼'; }
+
         tr:nth-child(even) {
             background-color: #f9f9f9;
         }
         tr:hover {
             background-color: #f1f8ff;
+            cursor: pointer; /* 行クリック可能を示す */
         }
         .loading, .error {
             text-align: center;
@@ -159,6 +171,64 @@
         }
         .error {
             color: red;
+        }
+        
+        /* --------------------------------- */
+        /* Modal (ポップアップ)     */
+        /* --------------------------------- */
+        #modal-overlay {
+            display: none; /* 初期状態は非表示 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #modal-content {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 700px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #modal-content h3 {
+            margin-top: 0;
+            color: #004d99;
+            border-bottom: 2px solid #ffcc00;
+            padding-bottom: 5px;
+            font-size: 1.4em;
+        }
+        #modal-details p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        #modal-details strong {
+            display: inline-block;
+            width: 120px; /* ラベル幅を固定 */
+            color: #555;
+            font-weight: normal;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 2em;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+        .close-button:hover {
+            color: #333;
         }
     </style>
 
@@ -176,14 +246,14 @@
                 <button class="menu-button" data-type="records">保守記録一覧</button>
                 <button class="menu-button" data-type="safety">安全管理・事故事象例</button>
                 <button class="menu-button" data-type="manuals">マニュアル</button>
-                <button class="menu-button" data-type="settings">設定</button>
+                <button class="menu-button" data-type="settings">システム設定</button>
             </nav>
             
             <div id="usage-note">
                 <h3>システムの使い方メモ</h3>
                 <p>・各一覧画面で、上部の検索窓にキーワードを入力してデータを絞り込めます。</p>
-                <p>・データの読み込みはブラウザ内で行われます。表示が遅い場合は時間を置いてください。</p>
-                <p>・「マニュアル」はPDFへのリンクとして動作します。</p>
+                <p>・テーブルの**ヘッダー**を押すと、その列でデータを**並べ替え**できます。</p>
+                <p>・テーブルの**内容（行）**を押すと、**詳細情報**が表示されます。</p>
             </div>
         </div>
 
@@ -202,17 +272,27 @@
         
     </div>
 
+    <div id="modal-overlay" onclick="closeModal()">
+        <div id="modal-content" onclick="event.stopPropagation()">
+            <button class="close-button" onclick="closeModal()">&times;</button>
+            <h3 id="modal-title">詳細情報</h3>
+            <div id="modal-details">
+                </div>
+        </div>
+    </div>
+
     <script>
         const app = {
             config: {},
             data: {},
-            currentDataType: 'plans', // 初期表示を保守計画一覧に変更
+            currentDataType: 'plans', 
+            sort: { key: '', order: 'asc' }, // 並べ替えの状態を保持
             headerMap: {
                 'plans': { planId: "計画ID", schedule_date: "予定日", section: "区間", equipment: "設備種別", task: "作業内容", leader: "責任者", status: "状態" },
                 'records': { id: "記録ID", date: "日付", equipment_id: "設備ID", equipment_type: "種別", location: "場所", description: "概要", engineer: "担当者", status: "状態" },
                 'safety': { id: "記録ID", date: "発生日", category: "分類", details: "詳細", measures: "対策" },
                 'manuals': { id: "資料ID", title: "タイトル", version: "版", category: "分類", file_path: "ファイルパス" },
-                'settings': {} // 設定画面などテーブル表示しないもの用
+                'settings': {}
             },
             titleMap: {
                 'plans': '保守計画一覧', 
@@ -223,9 +303,10 @@
             }
         };
 
-        // 1. 全てのJSONファイルを読み込む関数
+        // 1. システム初期化
         async function initializeSystem() {
             try {
+                // ... (config.jsonとデータJSONの読み込みロジックは省略 - 変更なし)
                 const configResponse = await fetch('config/config.json');
                 if (!configResponse.ok) throw new Error("config.jsonの読み込みに失敗");
                 app.config = await configResponse.json();
@@ -247,7 +328,6 @@
                     app.data[res.key] = res.data;
                 });
 
-                // 初期表示を実行（初期値は'plans'）
                 loadData(app.currentDataType); 
 
             } catch (error) {
@@ -262,8 +342,8 @@
             const container = document.getElementById(containerId);
             container.innerHTML = ''; 
             
-            // 設定画面など、データテーブル表示が不要な場合の処理
             if (app.currentDataType === 'settings') {
+                // ... (設定画面の表示ロジックは省略 - 変更なし)
                 container.innerHTML = `
                     <h3>設定機能（仮）</h3>
                     <p>この画面は設定マスタデータ管理やユーザー権限管理などに利用します。</p>
@@ -279,35 +359,57 @@
                 return;
             }
 
-            // テーブル生成処理
+            // 現在のデータに対して並べ替えを実行
+            const sortedData = [...data];
+            if (app.sort.key) {
+                sortedData.sort((a, b) => {
+                    const valA = String(a[app.sort.key] || "").toLowerCase();
+                    const valB = String(b[app.sort.key] || "").toLowerCase();
+                    if (valA < valB) return app.sort.order === 'asc' ? -1 : 1;
+                    if (valA > valB) return app.sort.order === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
             const table = document.createElement('table');
-            const headers = Object.keys(data[0]);
+            const headers = Object.keys(sortedData[0]);
             const thead = table.createTHead();
             const hRow = thead.insertRow();
             const currentHeaderMap = app.headerMap[app.currentDataType] || {};
 
-            // ヘッダー行の生成（日本語に変換）
+            // ヘッダー行の生成（クリックイベントとソートインジケータを追加）
             headers.forEach(headerKey => {
                 const th = document.createElement('th');
                 th.textContent = currentHeaderMap[headerKey] || headerKey;
+                th.setAttribute('data-key', headerKey);
+                th.addEventListener('click', () => sortTable(headerKey));
+                
+                // 現在のソート状態をクラスで表示
+                if (headerKey === app.sort.key) {
+                    th.classList.add(`sort-${app.sort.order}`);
+                }
+                
                 hRow.appendChild(th);
             });
             
-            // データ行の生成
+            // データ行の生成（クリックイベントを追加）
             const tbody = table.createTBody();
-            data.forEach(item => {
+            sortedData.forEach(item => {
                 const row = tbody.insertRow();
+                // 行クリックで詳細表示
+                row.addEventListener('click', () => showDetailModal(item));
+
                 headers.forEach(headerKey => {
                     const cell = row.insertCell();
-                    
                     let content = item[headerKey];
                     
-                    // file_path の場合はリンク化
                     if (headerKey === 'file_path' && content) {
                         const link = document.createElement('a');
                         link.href = content;
                         link.textContent = "ファイルを開く";
                         link.target = "_blank"; 
+                        // イベント伝播停止: リンククリック時にモーダルが表示されないようにする
+                        link.addEventListener('click', (e) => e.stopPropagation()); 
                         cell.appendChild(link);
                     } else {
                         cell.textContent = content;
@@ -321,22 +423,18 @@
         // 3. データ切り替え (ナビゲーション)
         function loadData(type) {
             app.currentDataType = type;
+            app.sort = { key: '', order: 'asc' }; // データ切り替え時にソート状態をリセット
             
-            // 画面タイトル更新
+            // ... (タイトル、メニューボタン、検索バーの更新ロジックは省略 - 変更なし)
             document.getElementById('data-title').textContent = app.titleMap[type] || 'データ表示';
-
-            // ナビゲーションボタンのactive状態更新
             document.querySelectorAll('.menu-button').forEach(btn => {
                 btn.classList.remove('active');
                 if (btn.getAttribute('data-type') === type) {
                     btn.classList.add('active');
                 }
             });
-            
-            // 検索バーの表示/非表示を切り替え (settingsなどでは非表示)
             document.getElementById('search-area').style.display = (type === 'settings') ? 'none' : 'flex';
-            
-            // テーブル表示（データがない場合は空配列を渡す）
+
             renderTable(app.data[type] || [], 'data-table-container');
         }
 
@@ -344,25 +442,71 @@
         function performSearch() {
             const keyword = document.getElementById('search-input').value.toLowerCase().trim();
             const currentData = app.data[app.currentDataType];
-
             if (!currentData) return;
 
-            if (!keyword) {
-                renderTable(currentData, 'data-table-container');
-                return;
-            }
+            const filteredData = currentData.filter(item => 
+                Object.values(item).some(value => String(value).toLowerCase().includes(keyword))
+            );
 
-            // フィルタリング処理
-            const filteredData = currentData.filter(item => {
-                return Object.values(item).some(value => {
-                    return String(value).toLowerCase().includes(keyword);
-                });
-            });
-
+            // 検索結果に対してレンダリング (ソートはrenderTable内で適用される)
             renderTable(filteredData, 'data-table-container');
         }
-        
-        // 5. イベントリスナーをメニューボタンに設定
+
+        // 5. 並べ替え機能
+        function sortTable(headerKey) {
+            if (app.sort.key === headerKey) {
+                // 同じキーがクリックされたら、順序を反転
+                app.sort.order = app.sort.order === 'asc' ? 'desc' : 'asc';
+            } else {
+                // 別のキーがクリックされたら、そのキーで昇順に設定
+                app.sort.key = headerKey;
+                app.sort.order = 'asc';
+            }
+
+            // 検索結果が適用されている場合は、検索後のデータで再レンダリングを行う
+            performSearch(); 
+        }
+
+        // 6. 詳細モーダル表示機能 (新規機能)
+        function showDetailModal(item) {
+            const modalTitle = document.getElementById('modal-title');
+            const modalDetails = document.getElementById('modal-details');
+            const overlay = document.getElementById('modal-overlay');
+            const currentHeaderMap = app.headerMap[app.currentDataType] || {};
+            
+            modalDetails.innerHTML = '';
+            
+            // タイトルを設定
+            modalTitle.textContent = `${app.titleMap[app.currentDataType]} 詳細`;
+
+            // 詳細データの生成
+            for (const key in item) {
+                if (item.hasOwnProperty(key)) {
+                    const label = currentHeaderMap[key] || key;
+                    let value = item[key];
+
+                    const p = document.createElement('p');
+                    
+                    // file_path の場合はリンクとして表示
+                    if (key === 'file_path' && value) {
+                        p.innerHTML = `<strong>${label}:</strong> <a href="${value}" target="_blank" onclick="event.stopPropagation()">ファイルを開く</a>`;
+                    } else {
+                        // valueが長い場合は整形を検討するが、ここではシンプルに表示
+                        p.innerHTML = `<strong>${label}:</strong> ${value}`;
+                    }
+                    modalDetails.appendChild(p);
+                }
+            }
+
+            overlay.style.display = 'flex'; // モーダルを表示
+        }
+
+        // 7. モーダルを閉じる機能
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        // 起動処理
         document.addEventListener('DOMContentLoaded', () => {
             initializeSystem();
             
