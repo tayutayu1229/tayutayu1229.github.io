@@ -9,67 +9,156 @@
     textarea { width: 100%; height: 200px; }
     input, select, button { margin: 5px; padding: 5px; }
     label { display: inline-block; margin: 5px 0; }
+    .error { color: red; font-weight: bold; margin-left: 10px; }
+    .stop-buttons button { margin: 0 2px; }
+    /* 順番移動ボタンのスタイル */
+    .move-btn { 
+        padding: 2px 5px; 
+        font-size: 10px;
+        line-height: 1;
+        cursor: pointer;
+    }
   </style>
 </head>
 <body>
-    ○時刻表データ作成ツール
-<h2>列車基本情報</h2>
-<label>列車番号: <input id="trainNumber" type="text"></label>
-<label>種別: <input id="type" type="text"></label>
-<label>平日/土休日: 
-  <select id="dayType">
-    <option value="平日">平日</option>
-    <option value="土休日">土休日</option>
-  </select>
-</label>
-<label>始発駅発日: <input id="startDate" type="date"></label><br>
-<label>始発駅: <input id="origin" type="text"></label>
-<label>終着駅: <input id="destination" type="text"></label>
-<label>路線名: <input id="line" type="text"></label>
-<label>速度種別: <input id="speed" type="text"></label>
-<label>列車名: <input id="name" type="text"></label>
+    <h1>○時刻表データ作成ツール</h1>
+    <p>モバイルATOSに準ずる時刻表データを作成します。</p>
 
-<h2>停車駅の追加</h2>
-<table>
+<h2>列車基本情報</h2>
+<form id="trainInfoForm">
+  <label>列車番号: <input id="trainNumber" type="text" onchange="updateJSON()"></label>
+  <label>種別: <input id="type" type="text" onchange="updateJSON()"></label>
+  <label>平日/土休日: 
+    <select id="dayType" onchange="updateJSON()">
+      <option value="平日">平日</option>
+      <option value="土休日">土休日</option>
+    </select>
+  </label>
+  <label>始発駅発日: <input id="startDate" type="date" onchange="updateJSON()"></label><br>
+  <label>始発駅: <input id="origin" type="text" onchange="updateJSON()"></label>
+  <label>終着駅: <input id="destination" type="text" onchange="updateJSON()"></label>
+  <label>路線名: <input id="line" type="text" onchange="updateJSON()"></label>
+  <label>速度種別: <input id="speed" type="text" onchange="updateJSON()"></label>
+  <label>列車名: <input id="name" type="text" onchange="updateJSON()"></label>
+</form>
+<hr>
+
+<h2>停車駅の編集と追加</h2>
+<table style="width: 100%;">
   <thead>
-    <tr><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr>
+    <tr><th>順</th><th>駅名</th><th>着</th><th>発</th><th>番線</th><th>操作</th></tr>
   </thead>
-  <tbody id="stopsTable"></tbody>
+  <tbody id="stopsTable">
+    </tbody>
 </table>
 
-<label>駅名: <input id="station" type="text"></label>
-<label>着: <input id="arrival" type="text" placeholder="hh:mm:ss"></label>
-<label>発(通): <input id="departure" type="text" placeholder="hh:mm:ss"></label>
-<label>番線: <input id="trackN" type="text"></label>
-<button onclick="addStop()">追加</button>
+<div id="addStopForm">
+  <label>駅名: <input id="station" type="text" maxlength="5" placeholder="例: 大　宮"></label>
+  <label>着: <input id="arrival" type="text" placeholder="hh:mm:ss"></label>
+  <label>発(通): <input id="departure" type="text" placeholder="hh:mm:ss"></label>
+  <label>番線: <input id="trackN" type="text" placeholder="例: １０番"></label>
+  <button onclick="addStop()">追加</button>
+  <span id="validationError" class="error"></span>
+</div>
+<hr>
 
 <h2>出力JSON</h2>
 <textarea id="jsonOutput" readonly></textarea>
 <button onclick="copyJson()">📋 コピー</button>
 
 <br><br>
-<label>【書き方】</label><br>
-<label>・駅名が２文字の場合は"大　宮"のように全角スペース１つを開けて入力すること</label><br>
-<label>・駅名は４文字まで。</label><br>
-<label>・着発番線では、数字は全角で入力。10番線の場合は"１０番"のように入力すること</label><br>
-<label>・モバイルATOSに準ずる</label>
+<h3>【書き方（モバイルATOS準拠）】</h3>
+<ul>
+  <li>駅名が２文字の場合は **全角スペース１つ** を開けて入力してください（例: "大　宮"）。</li>
+  <li>駅名は**４文字まで**です（スペースを含む）。</li>
+  <li>着発番線では、数字は**全角**で入力してください（例: 10番線の場合は"１０番"）。</li>
+  <li>**始発駅の着時刻**、**終着駅の発時刻**はブランクにしてください。</li>
+</ul>
 
 <script>
   const stops = [];
+
+  // 時刻形式 hh:mm:ss のバリデーション
+  function isValidTime(timeStr) {
+    if (!timeStr) return true;
+    const timeRegex = /^([0-9]{2}):([0-5][0-9]):([0-5][0-9])$/;
+    const isValid = timeRegex.test(timeStr);
+    if (!isValid) return false;
+    // 24時間を超える時刻 (例: 25:30:00) も許可するため、時・分・秒の範囲のみチェック
+    return true; 
+  }
+
+  // 文字列時刻を秒数に変換（翌日以降も考慮）
+  function timeToSeconds(timeStr) {
+    if (!timeStr || !isValidTime(timeStr)) return -1;
+    const [h, m, s] = timeStr.split(':').map(Number);
+    return h * 3600 + m * 60 + s;
+  }
 
   function addStop() {
     const station = document.getElementById("station");
     const arrival = document.getElementById("arrival");
     const departure = document.getElementById("departure");
     const trackN = document.getElementById("trackN");
+    const errorSpan = document.getElementById("validationError");
+    errorSpan.textContent = "";
 
-    if (!station.value) return;
+    if (!station.value.trim()) {
+      errorSpan.textContent = "駅名を入力してください。";
+      station.focus();
+      return;
+    }
+    
+    // 時刻のバリデーション
+    if (arrival.value && !isValidTime(arrival.value)) {
+      errorSpan.textContent = "着時刻がhh:mm:ss形式ではありません。";
+      arrival.focus();
+      return;
+    }
+    if (departure.value && !isValidTime(departure.value)) {
+      errorSpan.textContent = "発時刻がhh:mm:ss形式ではありません。";
+      departure.focus();
+      return;
+    }
+
+    // 着時刻と発時刻の順序チェック
+    if (arrival.value && departure.value) {
+      const arrSec = timeToSeconds(arrival.value);
+      const depSec = timeToSeconds(departure.value);
+      if (arrSec !== -1 && depSec !== -1 && arrSec > depSec) {
+        errorSpan.textContent = "発時刻は着時刻より後にしてください。";
+        departure.focus();
+        return;
+      }
+    }
+    
+    // 停車駅間の順序チェック (前の駅の発時刻より後の時刻か)
+    if (stops.length > 0) {
+      const lastStop = stops[stops.length - 1];
+      const lastDepSec = timeToSeconds(lastStop.departure || lastStop.arrival); // 発時刻がない場合は着時刻を代用
+      
+      const newArrSec = timeToSeconds(arrival.value);
+      const newDepSec = timeToSeconds(departure.value);
+      
+      if (lastDepSec !== -1) { // 前の駅の発時刻が有効な場合
+          if (newArrSec !== -1 && newArrSec < lastDepSec) {
+            errorSpan.textContent = "着時刻が前の駅の発時刻より早いです。";
+            arrival.focus();
+            return;
+          }
+          if (newDepSec !== -1 && newDepSec < lastDepSec) {
+            errorSpan.textContent = "発時刻が前の駅の発時刻より早いです。";
+            departure.focus();
+            return;
+          }
+      }
+    }
 
     stops.push({
-      station: station.value,
-      arrival: arrival.value,
-      departure: departure.value,
-      trackN: trackN.value
+      station: station.value.trim(),
+      arrival: arrival.value.trim(),
+      departure: departure.value.trim(),
+      trackN: trackN.value.trim()
     });
 
     station.value = "";
@@ -82,19 +171,15 @@
     station.focus();
   }
 
-  function updateTable() {
-    const tbody = document.getElementById("stopsTable");
-    tbody.innerHTML = "";
-    stops.forEach((stop, i) => {
-      const row = `<tr>
-        <td>${stop.station}</td>
-        <td>${stop.arrival}</td>
-        <td>${stop.departure}</td>
-        <td>${stop.trackN}</td>
-        <td><button onclick="removeStop(${i})">削除</button></td>
-      </tr>`;
-      tbody.insertAdjacentHTML("beforeend", row);
-    });
+  // 停車駅の順番を入れ替える
+  function moveStop(index, direction) {
+    if (direction === 'up' && index > 0) {
+      [stops[index], stops[index - 1]] = [stops[index - 1], stops[index]];
+    } else if (direction === 'down' && index < stops.length - 1) {
+      [stops[index], stops[index + 1]] = [stops[index + 1], stops[index]];
+    }
+    updateTable();
+    updateJSON();
   }
 
   function removeStop(index) {
@@ -103,6 +188,27 @@
     updateJSON();
   }
 
+  function updateTable() {
+    const tbody = document.getElementById("stopsTable");
+    tbody.innerHTML = "";
+    stops.forEach((stop, i) => {
+      const row = `<tr>
+        <td>${i + 1}</td>
+        <td>${stop.station}</td>
+        <td>${stop.arrival}</td>
+        <td>${stop.departure}</td>
+        <td>${stop.trackN}</td>
+        <td class="stop-buttons">
+          <button class="move-btn" onclick="moveStop(${i}, 'up')">▲ 上へ</button>
+          <button class="move-btn" onclick="moveStop(${i}, 'down')">▼ 下へ</button>
+          <button onclick="removeStop(${i})">削除</button>
+        </td>
+      </tr>`;
+      tbody.insertAdjacentHTML("beforeend", row);
+    });
+  }
+
+  // 列車基本情報の変更時もリアルタイムでJSONを更新するため、元の updateJSON 関数を使用
   function updateJSON() {
     const output = {
       trainNumber: document.getElementById("trainNumber").value,
@@ -114,15 +220,24 @@
       speed: document.getElementById("speed").value,
       name: document.getElementById("name").value,
       line: document.getElementById("line").value,
-      stops
+      stops // 自動処理を行わない、そのままのデータをJSONに出力
     };
     document.getElementById("jsonOutput").value = JSON.stringify(output, null, 2);
   }
 
   function copyJson() {
-    navigator.clipboard.writeText(document.getElementById("jsonOutput").value);
-    alert("コピーしました！");
+    const jsonText = document.getElementById("jsonOutput").value;
+    if (jsonText) {
+      navigator.clipboard.writeText(jsonText)
+        .then(() => alert("コピーしました！"))
+        .catch(err => console.error('コピー失敗:', err));
+    } else {
+      alert("JSONが空です。");
+    }
   }
+
+  // 初期ロード時にJSONを生成しておく
+  document.addEventListener('DOMContentLoaded', updateJSON);
 </script>
 </body>
 </html>
