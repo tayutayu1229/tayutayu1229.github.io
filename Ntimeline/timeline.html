@@ -406,7 +406,7 @@
 </head>
 <body>
 
-    <h1>実施列車運転計画表 <div id="time-display">
+    <h1>実施列車運転計画表<div id="time-display">
             <span id="current-time"></span>
             <span id="output-datetime"></span>
         </div>
@@ -822,8 +822,8 @@
 
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
-         * V3.3-R2: 運用番号の重複を許可するため、キーを operation_id_startDate に変更。
-         * V3.3-R3: 日付検索のロジックを修正し、施行日未設定の運用も表示されるようにする。
+         * V3.3-R4: 日付未設定の運用を日付フィルタ時も常に表示するようロジックを強化。
+         * V3.3-R4: 区間一致ロジックを追加。
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -873,6 +873,21 @@
                     relevantTimetableEntries.forEach(([key, timeTableGroup]) => {
                         const startDate = key.split('_')[1] === 'NULL' ? null : key.split('_')[1];
                         
+                        // V3.3-R4: 【区間一致ロジックの追加】
+                        // 運行のルート（区間）が時刻表データの始発駅または終着駅名を含んでいるかを確認する暫定ロジック
+                        const isRouteMatch = timeTableGroup.some(tt => {
+                             const ttOrigin = cleanValue(tt.origin);
+                             const ttDestination = cleanValue(tt.destination);
+                             const opRouteStr = opRoutes.join(' ');
+                             
+                             // 運用ルート文字列が時刻表の始発または終着を含んでいるかチェック
+                             if (!opRouteStr) return false;
+                             return opRouteStr.includes(ttOrigin) || opRouteStr.includes(ttDestination);
+                        });
+
+                        if (!isRouteMatch) return;
+
+
                         const integratedTimetable = getIntegratedTimetable(trainNumber, startDate, timeTableGroup);
                         
                         if (!integratedTimetable) return; 
@@ -887,7 +902,7 @@
                             }
                         }
                         
-                        // 運行表示判定ロジック (V3.3-R3: 修正)
+                        // 運行表示判定ロジック (V3.3-R4: 強化)
                         let shouldDisplay = false;
                         const isNoDate = !formattedStartDate; // 施行日がない運用
                         
@@ -899,8 +914,7 @@
                             const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate); // 固定表示日
                             const isSelectedDate = (formattedStartDate === formattedCurrentDate); // 選択日付と一致
                             
-                            // 施行日がない、固定表示日である、または選択日付と一致する場合に表示
-                            // 【修正ポイント】isNoDateも常に表示判定に含める
+                            // 【修正ポイント】isNoDateの運用は日付選択されていても常に表示する
                             shouldDisplay = isNoDate || isSpecificDate || isSelectedDate;
                         }
 
@@ -953,12 +967,10 @@
                     const hasRuns = runs.length > 0;
                     
                     // V3.3-R3: 日付選択されている場合に、その日付の運行がない施行日の運用は表示しないようにする
-                    if (isDateSelected && runs.length === 0) {
-                         const isNoDate = !labelStartDate;
-                         const isSelectedDate = (labelStartDate === formattedCurrentDate);
-
-                         // 日付が未設定の行は、たとえ運行がなくても表示を維持する (運用番号と区所ラベルは必要)
-                         if (!isNoDate) return; 
+                    // V3.3-R4: 日付未設定の行 (isNoDate=true) は、運行がなくても表示を維持する
+                    const isNoDate = !labelStartDate;
+                    if (isDateSelected && runs.length === 0 && !isNoDate) {
+                         return; 
                     }
                     
                     // V3.3-R2: 運用ラベルキーを operationId と startDate で一意に設定
@@ -998,7 +1010,7 @@
                     opData.displayBlocks = blocksByDay; 
                 });
 
-                // V3.3-R3: 運行がなく、日付も未設定で、日付が選択されていない場合（全運用表示時）のみ追加
+                // V3.3-R4: 運行がなく、日付も未設定で、日付が選択されていない場合（全運用表示時）のみ追加
                 if (!foundMatchingRunForDate && !isDateSelected) { 
                      const uniqueOpLabelKey = `${originalId}_COMMON`;
                      if (!scheduleData.has(uniqueOpLabelKey)) {
