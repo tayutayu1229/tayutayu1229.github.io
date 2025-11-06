@@ -20,7 +20,7 @@
         * ---------------------------------------------------------------- */
         body {
             /* 美咲フォントを適用 */
-            font-family: 'Misaki Gothic', 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace; 
+            font-family: 'MisakiGothic', 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace; 
             background-color: #191970; /* 変更: 淡い青 */
             color: #c0c0c0;
             margin: 0;
@@ -717,9 +717,9 @@
                     const allSegments = [...combinedRuns, ...unUsed].sort((a, b) => {
                         const getFirstTime = (segment) => {
                             const stopDep = segment.stops.find(s => timeToMinutes(s.departure) !== null);
-                            if (stopDep) return timeToMinutes(stopDep.departure);
+                            if (stopDep) return timeToMinutes(s.departure);
                             const stopArr = segment.stops.find(s => timeToMinutes(s.arrival) !== null);
-                            if (stopArr) return timeToMinutes(stopArr.arrival);
+                            if (stopArr) return timeToMinutes(s.arrival);
                             return 3000; 
                         };
                         return getFirstTime(a) - getFirstTime(b);
@@ -798,8 +798,7 @@
 
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
-         * V3.0: 日跨ぎ分割ロジックを追加
-         * V3.1: 停車駅重複チェックを追加
+         * V3.1: 停車駅重複チェックを追加し、エラー回避のための安全チェックを強化
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -830,6 +829,12 @@
 
                 runsByTrainNumber.forEach((opRuns, trainNumber) => {
                     
+                    // --- 🚅 エラー回避のための安全チェックを強化 🚅 ---
+                    if (opRuns.length === 0) return; 
+                    const firstOpRun = opRuns[0];
+                    if (!firstOpRun) return; // 念のため null/undefined チェック
+                    // ------------------------------------
+
                     const opRoutes = opRuns.map(r => cleanValue(r.route)).filter(r => r); // 運用側の全routeを取得
                     if (opRoutes.length === 0) return; // route設定がない場合はスキップ
 
@@ -843,7 +848,7 @@
                         
                         if (!integratedTimetable) return; 
                         
-                        // --- 🚅 より厳密な停車駅重複チェック 🚅 ---
+                        // --- 🚅 より厳密な停車駅重複チェック (V3.1) 🚅 ---
                         
                         // 1. 時刻表内の全駅名を取得
                         const ttAllStations = integratedTimetable.segments.flatMap(segment => 
