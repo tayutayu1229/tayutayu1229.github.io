@@ -3,172 +3,248 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車運用タイムライン (レガシー表示)</title>
+    <title>列車運用タイムライン (機能強化版)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. レガシーシステム風CSS
         * ---------------------------------------------------------------- */
         body {
-            /* 見やすさを考慮せず、レガシーシステムのフォントと色を設定 */
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
-            background-color: #000080; /* 古いシステムのウィンドウカラー */
-            color: #c0c0c0; /* 薄いグレーのテキスト */
+            background-color: #000080;
+            color: #c0c0c0;
             margin: 0;
             padding: 15px;
             font-size: 14px;
+            min-width: 1000px; /* 横長を想定 */
         }
 
         h1 {
-            color: #ffff00; /* 黄色のタイトル */
+            color: #ffff00;
             text-align: center;
             border-bottom: 2px solid #c0c0c0;
             padding-bottom: 5px;
-            margin-bottom: 20px;
-        }
-
-        /* 外部データ読み込みのエラー表示 */
-        #error-message {
-            color: #ff0000;
-            background-color: #333;
-            padding: 10px;
-            text-align: center;
             margin-bottom: 15px;
-            border: 1px dashed #ff0000;
-            display: none;
         }
 
-        /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリアのコンテナ
-        * ---------------------------------------------------------------- */
-        #schedule-container {
-            /* 横スクロール可能にする (列車軸) */
-            overflow-x: auto;
-            overflow-y: hidden;
-            border: 2px solid #c0c0c0;
+        #controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
             background-color: #000000;
-            height: calc(100vh - 80px); /* 縦画面いっぱいを使う */
+            padding: 10px;
+            border: 1px solid #c0c0c0;
+            justify-content: center;
         }
 
-        /* スケジュール表の本体 (グリッドコンテナ) */
-        #schedule-table {
-            display: grid;
-            /* 1列目: 時刻ラベル、2列目以降: 列車ごとに1列 */
-            grid-template-columns: 40px repeat(var(--train-count), 100px);
-            /* 縦軸: 24時間 x 6 = 144行 (1行=10分) */
-            grid-template-rows: repeat(144, 1fr);
-            min-height: 100%;
-        }
-
-        /* ----------------------------------------------------------------
-        * 3. 時系列ラベル (縦軸)
-        * ---------------------------------------------------------------- */
-        .time-label {
-            grid-column: 1;
-            /* 1時間 (6行) ごとに結合 */
-            grid-row: span 6;
-            border-right: 1px solid #333333; /* 1時間ごとの縦線 */
-            border-bottom: 1px solid #333333; /* 1時間ごとの横線 */
-            text-align: right;
-            padding-right: 3px;
-            padding-top: 1px;
-            font-size: 0.8em;
-            background-color: #111111;
-            position: sticky;
-            left: 0;
-            z-index: 5;
+        #controls label, #controls input, #controls button {
+            color: #c0c0c0;
+            background-color: #000000;
+            border: 1px solid #c0c0c0;
+            padding: 3px 5px;
+            font-family: inherit;
         }
         
-        /* 10分ごとの横線 (グリッドの境界線で表現) */
-        .time-label-dummy {
-            grid-column: 1;
-            border-right: 1px solid #333333;
-            border-bottom: 1px dotted #333333; /* 10分ごとの点線 */
-            display: none; /* 0時以外の行は非表示 */
+        #controls button:hover {
+            background-color: #333333;
+            cursor: pointer;
         }
 
         /* ----------------------------------------------------------------
-        * 4. 運行ブロック (列車軸)
+        * 2. タイムライン表示エリア (横軸: 時刻、縦軸: 運用)
         * ---------------------------------------------------------------- */
-        .train-column-header {
-            grid-row: 1 / span 144; /* 全行を占有 */
-            border-right: 1px solid #333333;
-            position: relative;
-            /* 列車ヘッダーのためのスペース確保 */
-            padding-top: 30px; 
+        #schedule-container {
+            overflow: auto; /* 全方向スクロール可能 */
+            height: calc(100vh - 120px); 
+            border: 2px solid #c0c0c0;
+            background-color: #000000;
         }
 
-        .train-header-text {
-            position: absolute;
-            top: 5px;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            font-weight: bold;
-            color: #ffffff;
-            background-color: #000080;
+        #schedule-table {
+            display: grid;
+            /* 1列目: 運用番号 (固定幅), 2列目以降: 24時間 x 60分 = 1440グリッド */
+            grid-template-columns: 100px repeat(1440, 1fr);
+            min-width: 3000px; /* 横軸の最低幅を広げ、視認性を担保 */
+            border-collapse: collapse;
+        }
+
+        /* 時刻表示行 (ヘッダー) */
+        .header-row {
+            display: contents;
+        }
+        
+        .header-row > div {
+            border-bottom: 1px solid #333333;
+        }
+
+        /* 時刻のセル (1時間ごと) */
+        .time-header-cell {
+            grid-column: span 60; 
+            text-align: left;
+            padding: 5px 0 5px 5px;
+            border-right: 1px solid #333333;
+            box-sizing: border-box;
+            font-size: 0.9em;
+            background-color: #111111;
+            position: sticky;
+            top: 0;
             z-index: 10;
         }
 
-        .train-block {
-            position: absolute;
-            width: 90%;
-            left: 5%;
-            border: 1px solid #c0c0c0;
-            box-sizing: border-box;
-            cursor: pointer;
-            text-align: center;
-            font-size: 0.75em;
-            line-height: 1.2;
-            padding: 2px 0;
-            z-index: 8;
+        /* 運用ごとの行 */
+        .operation-row {
+            display: contents;
+            height: 40px; /* 行の高さ */
+        }
+
+        /* 運用番号のセル (縦軸ラベル) */
+        .operation-label {
+            grid-column: 1 / 2;
+            padding: 8px 5px;
+            border-bottom: 1px dotted #333333;
+            background-color: #222222;
+            font-weight: bold;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            white-space: nowrap;
         }
         
-        /* ステータスごとの色の定義 */
-        /* 背景色, 文字色, 枠線色 */
-        .status-計画中 { background-color: #0000ff; color: #ffffff; border-color: #ffffff; } /* 基本の青 */
-        .status-実施済み { background-color: #008000; color: #ffffff; border-color: #ffffff; } /* 緑 */
-        .status-実施中 { background-color: #ff0000; color: #ffffff; border-color: #ffffff; } /* 赤 */
-        .status-取り下げ { background-color: #808080; color: #000000; border-color: #000000; } /* グレー */
-
-        /* ----------------------------------------------------------------
-        * 5. ステータス選択メニュー
-        * ---------------------------------------------------------------- */
-        .status-menu {
-            position: fixed;
-            background-color: #c0c0c0;
-            border: 2px outset #ffffff;
-            padding: 3px;
-            z-index: 20;
-            display: none;
-            flex-direction: column;
-            font-family: 'ＭＳ ゴシック', 'MS Gothic', monospace;
-            color: #000000;
+        /* 運行ブロックのコンテナ */
+        .train-run-container {
+            grid-column: 2 / 1442; 
+            position: relative;
+            height: 40px;
+            border-bottom: 1px dotted #333333;
         }
 
-        .status-menu button {
+        /* 運行ブロック (横軸の時系列表示) */
+        .train-block {
+            position: absolute;
+            height: 30px;
+            top: 5px;
+            border: 1px solid #c0c0c0;
+            cursor: pointer;
+            font-size: 0.75em;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0 5px;
+            white-space: nowrap;
+            transition: all 0.1s;
+        }
+
+        .train-block:hover {
+            z-index: 10;
+            transform: scale(1.02);
+        }
+
+        /* ハイライト */
+        .highlight {
+            border: 3px solid #ffff00 !important;
+            box-shadow: 0 0 10px #ffff00;
+            background-color: #4b0082 !important; /* インディゴ */
+        }
+
+        /* ステータスごとの色の定義 */
+        .status-計画中 { background-color: #0000ff; color: #ffffff; } 
+        .status-実施済み { background-color: #008000; color: #ffffff; }
+        .status-実施中 { background-color: #ff0000; color: #ffffff; } 
+        .status-取り下げ { background-color: #808080; color: #000000; } 
+
+        /* ----------------------------------------------------------------
+        * 3. 詳細モーダル (古いウィンドウ風)
+        * ---------------------------------------------------------------- */
+        #modal-overlay {
+            display: none; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); 
+            z-index: 50;
+        }
+        
+        #detail-modal {
             background-color: #c0c0c0;
             color: #000000;
-            border: 1px outset #ffffff;
-            margin: 1px 0;
-            padding: 5px 10px;
-            text-align: left;
-            cursor: pointer;
+            border: 3px outset #ffffff;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 450px;
+            box-shadow: 8px 8px 0 #000000;
             font-family: inherit;
         }
 
-        .status-menu button:hover {
+        .modal-header {
             background-color: #000080;
             color: #ffffff;
+            padding: 5px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+
+        .modal-header button {
+            background-color: #c0c0c0;
+            color: #000000;
+            border: 2px outset #ffffff;
+            padding: 1px 6px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-content {
+            padding: 15px;
+            line-height: 1.5;
+        }
+        
+        .modal-content dt {
+            font-weight: bold;
+            color: #000080;
+            margin-top: 5px;
+        }
+        
+        .modal-content dd {
+            margin-left: 10px;
+            border-bottom: 1px dotted #808080;
+        }
+        
+        .modal-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .modal-content th, .modal-content td {
+            border: 1px solid #808080;
+            padding: 3px;
+            text-align: left;
+        }
+
     </style>
 </head>
 <body>
 
-    <h1>[T-time] 列車運用計画システム V1.2</h1>
+    <h1>[T-time] 列車運行管理システム V2.0</h1>
 
-    <div id="error-message"></div>
+    <div id="controls">
+        <label for="date-selector">表示日付:</label>
+        <input type="date" id="date-selector">
+        
+        <label for="search-train-number">列車番号検索:</label>
+        <input type="text" id="search-train-number" placeholder="例: 8764">
+        <button id="search-button">検 索</button>
+        <button id="clear-search">解除</button>
+    </div>
 
-    <div id="schedule-container">
+    <div id="schedule-container" onscroll="syncScroll()">
         <div id="schedule-table">
             </div>
     </div>
@@ -179,6 +255,22 @@
         <button data-status="取り下げ">取 り 下 げ</button>
         <button data-status="計画中">計 画 中</button>
     </div>
+    
+    <div id="modal-overlay">
+        <div id="detail-modal">
+            <div class="modal-header">
+                <span>列車運行詳細情報</span>
+                <button id="close-modal">X</button>
+            </div>
+            <div class="modal-content">
+                <dl id="block-details">
+                    </dl>
+                <div id="timetable-details">
+                    </div>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         // ----------------------------------------------------------------
@@ -186,76 +278,62 @@
         // ----------------------------------------------------------------
         const TIMETABLES_URL = '/T-time/timetables.json';
         const DATA_URL = '/unnyou/data.json';
-        const MIN_IN_DAY = 1440; // 24時間 × 60分
-        const ROWS_IN_DAY = 144; // 24時間 × 6 (10分刻み)
-        const MIN_PER_ROW = 10;  // 1行あたりの分数
-
+        const MIN_IN_DAY = 1440; 
+        
         const scheduleTable = document.getElementById('schedule-table');
         const statusMenu = document.getElementById('status-menu');
-        const errorMessage = document.getElementById('error-message');
+        const dateSelector = document.getElementById('date-selector');
+        const searchInput = document.getElementById('search-train-number');
+        const searchButton = document.getElementById('search-button');
+        const clearSearchButton = document.getElementById('clear-search');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const blockDetails = document.getElementById('block-details');
+        const timetableDetails = document.getElementById('timetable-details');
+        
         let currentBlock = null; 
+        let globalTimetables = [];
+        let globalData = [];
 
         // ----------------------------------------------------------------
-        // 2. ユーティリティ関数
+        // 2. ユーティリティ関数とデータ処理
         // ----------------------------------------------------------------
 
-        /**
-         * 時刻文字列から分単位のオフセットを計算する
-         * @param {string} timeStr - "HH:MM:SS" 形式の時刻文字列
-         * @returns {number} 0時0分からの分単位のオフセット
-         */
         function timeToMinutes(timeStr) {
             if (!timeStr || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…") return null;
             const parts = timeStr.split(':');
             if (parts.length < 2) return null;
             const hours = parseInt(parts[0], 10);
             const minutes = parseInt(parts[1], 10);
+            // 24時以降の表現を考慮しない（0〜23時台のみ）
             return hours * 60 + minutes;
         }
-        
-        /**
-         * エラーメッセージの表示
-         */
-        function displayError(message) {
-            errorMessage.textContent = 'ERROR: ' + message;
-            errorMessage.style.display = 'block';
-            console.error(message);
-        }
 
-        // ----------------------------------------------------------------
-        // 3. データ処理と統合
-        // ----------------------------------------------------------------
-
-        /**
-         * 外部JSONファイルを読み込む
-         * @param {string} url - JSONファイルのパス
-         * @returns {Promise<Object>} JSONデータ
-         */
         async function fetchJson(url) {
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTPエラー: ${response.status} (${url})`);
-                }
-                return await response.json();
-            } catch (e) {
-                throw new Error(`ファイル読み込みエラー (${url}): ${e.message}`);
-            }
+            // エラーハンドリングは省略（initializeで一括処理）
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status} (${url})`);
+            return await response.json();
         }
 
         /**
-         * 時刻表データと運用データを結合し、表示用のデータ構造を生成
+         * 運行ブロックのデータを整形する
          */
         function createScheduleData(timetables, data) {
-            const scheduleData = [];
-            const allTrainNumbers = new Set();
+            const scheduleData = new Map(); // Key: operation_number, Value: [blocks]
 
             data.forEach(operation => {
+                const operationNumber = operation.operation_number;
+                if (!scheduleData.has(operationNumber)) {
+                    scheduleData.set(operationNumber, {
+                        operation_number: operationNumber,
+                        division: operation.division,
+                        vehicles: operation.vehicles,
+                        runs: []
+                    });
+                }
+
                 operation.train_runs.forEach(run => {
                     const trainNumber = run.train_number;
-                    allTrainNumbers.add(trainNumber);
-
-                    // 時刻表データから対応する列車を検索
                     const timetable = timetables.find(t => t.trainNumber === trainNumber);
                     
                     if (timetable) {
@@ -263,204 +341,278 @@
                         let startTime = null;
                         let endTime = null;
 
-                        // 始発駅の出発時刻
                         const startStop = stops.find(s => timeToMinutes(s.departure) !== null);
-                        if (startStop) {
-                            startTime = timeToMinutes(startStop.departure);
-                        }
+                        if (startStop) startTime = timeToMinutes(startStop.departure);
 
-                        // 終着駅の到着時刻
                         const endStop = [...stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
-                        if (endStop) {
-                            endTime = timeToMinutes(endStop.arrival);
-                        }
-
-                        // 運行時間と時刻が有効な場合のみ追加（0時〜24時の範囲内）
+                        if (endStop) endTime = timeToMinutes(endStop.arrival);
+                        
+                        // 運行時間が有効かつ24時間以内に収まる場合
                         if (startTime !== null && endTime !== null && endTime > startTime) {
-                             // グリッド行の計算
-                            const startRow = Math.floor(startTime / MIN_PER_ROW) + 1; // +1はヘッダー分
-                            const endRow = Math.ceil(endTime / MIN_PER_ROW) + 1;
-
-                            scheduleData.push({
+                            scheduleData.get(operationNumber).runs.push({
                                 trainNumber: trainNumber,
                                 type: timetable.type,
-                                route: run.route || `${timetable.origin}〜${timetable.destination}`,
+                                route: run.route,
                                 startTime: startTime, 
                                 endTime: endTime,     
-                                startRow: startRow,
-                                endRow: endRow,
                                 status: run.status || "計画中", 
                                 operationId: operation.id, 
-                                runIndex: operation.train_runs.indexOf(run)
+                                runIndex: operation.train_runs.indexOf(run),
+                                timetable: timetable // 詳細表示用に時刻表データを保持
                             });
                         }
                     }
                 });
             });
 
-            // 列車番号でソート (横軸の並び順)
-            const sortedTrainNumbers = Array.from(allTrainNumbers).sort();
-
-            // 列車番号をキーにしたマップを作成
-            const organizedData = new Map();
-            sortedTrainNumbers.forEach(tn => organizedData.set(tn, []));
-            scheduleData.forEach(item => organizedData.get(item.trainNumber).push(item));
-            
-            return { organizedData, sortedTrainNumbers };
+            // 運用番号でソート
+            return Array.from(scheduleData.values()).sort((a, b) => a.operation_number.localeCompare(b.operation_number));
         }
 
-
         // ----------------------------------------------------------------
-        // 4. UIのレンダリング
+        // 3. UIレンダリング
         // ----------------------------------------------------------------
 
         /**
-         * 時刻ラベル（縦軸）を生成
+         * 時刻ヘッダー（横軸）を生成
          */
-        function renderTimeLabels() {
+        function renderTimeHeader() {
+            const headerRow = document.createElement('div');
+            headerRow.classList.add('header-row');
+            headerRow.style.gridRow = '1';
+
+            // 1列目: 運用番号のラベルは空
+            const emptyLabel = document.createElement('div');
+            emptyLabel.classList.add('operation-label');
+            emptyLabel.style.borderBottom = 'none';
+            headerRow.appendChild(emptyLabel);
+
+            // 0時から24時までの時刻セル
             for (let h = 0; h <= 23; h++) {
                 const hourCell = document.createElement('div');
-                hourCell.classList.add('time-label');
+                hourCell.classList.add('time-header-cell');
                 hourCell.textContent = String(h); // 0, 1, 2... の形式
-                
-                // 1時間 (6行) 分の高さ
-                hourCell.style.gridRow = `${(h * 6) + 1} / span 6`;
-                scheduleTable.appendChild(hourCell);
+                headerRow.appendChild(hourCell);
             }
             
-            // 10分ごとの横線 (グリッドの境界線で表現)
-            for (let r = 1; r <= ROWS_IN_DAY; r++) {
-                 // 1時間ごとの行 (r=1, 7, 13, ...) 以外に点線を入れる
-                if ((r - 1) % 6 !== 0) {
-                    const dummyCell = document.createElement('div');
-                    dummyCell.classList.add('time-label-dummy');
-                    dummyCell.style.gridRow = String(r);
-                    // 実際にはCSSのdotted borderで表現するので、DOM要素は少なくする
-                }
-            }
+            // 24時（最後のグリッド）
+             const hourCell = document.createElement('div');
+                hourCell.classList.add('time-header-cell');
+                hourCell.textContent = '24';
+                hourCell.style.gridColumn = 'span 60'; // 60分
+                headerRow.appendChild(hourCell);
+                
+            scheduleTable.appendChild(headerRow);
         }
-
+        
         /**
          * スケジュール本体をレンダリング
-         * @param {Map} organizedData - 列車番号で整理された運行ブロックデータ
-         * @param {Array} sortedTrainNumbers - ソートされた列車番号の配列
          */
-        function renderSchedule({ organizedData, sortedTrainNumbers }) {
-            // 時刻ラベル以外の既存要素を削除
+        function renderSchedule(data) {
+            // ヘッダー以外の既存の行を削除
             scheduleTable.innerHTML = '';
-            renderTimeLabels();
+            renderTimeHeader();
 
-            // 列車列の数を設定
-            scheduleTable.style.setProperty('--train-count', sortedTrainNumbers.length);
-            
-            // 列車ごとのカラムを生成
-            sortedTrainNumbers.forEach((trainNumber, colIndex) => {
-                const colNum = colIndex + 2; // 1列目は時刻ラベルなので2から開始
+            let rowIndex = 2; 
 
-                // 列車カラムの親要素 (縦線やブロックのコンテナ)
-                const trainColumn = document.createElement('div');
-                trainColumn.classList.add('train-column-header');
-                trainColumn.style.gridColumn = String(colNum);
-                
-                // 列車番号ヘッダー
-                const headerText = document.createElement('div');
-                headerText.classList.add('train-header-text');
-                headerText.textContent = trainNumber;
-                trainColumn.appendChild(headerText);
+            data.forEach(operation => {
+                // 運用行コンテナ
+                const operationRow = document.createElement('div');
+                operationRow.classList.add('operation-row');
+                operationRow.style.gridRow = String(rowIndex);
+                operationRow.id = `op-row-${operation.operation_number}`; // 検索時のターゲット
 
+                // 運用番号ラベル
+                const operationLabel = document.createElement('div');
+                operationLabel.classList.add('operation-label');
+                operationLabel.textContent = operation.operation_number;
+                operationLabel.title = `区: ${operation.division}, 車: ${operation.vehicles}`;
+                operationRow.appendChild(operationLabel);
+
+                // 運行ブロックの親コンテナ
+                const runContainer = document.createElement('div');
+                runContainer.classList.add('train-run-container');
+                operationRow.appendChild(runContainer);
 
                 // 運行ブロックを生成
-                const items = organizedData.get(trainNumber) || [];
-                items.forEach(item => {
+                operation.runs.forEach(item => {
+                    const startMin = item.startTime;
+                    const endMin = item.endTime;
+
                     const block = document.createElement('div');
                     block.classList.add('train-block', `status-${item.status}`);
-                    block.textContent = item.route;
-                    block.dataset.trainNumber = item.trainNumber;
-                    block.dataset.operationId = item.operationId;
-                    block.dataset.runIndex = item.runIndex;
-                    block.dataset.currentStatus = item.status;
-                    block.title = `${item.trainNumber} (${item.type})\n${item.route}\n開始: ${Math.floor(item.startTime/60)}:${(item.startTime%60).toString().padStart(2, '0')} - 終了: ${Math.floor(item.endTime/60)}:${(item.endTime%60).toString().padStart(2, '0')}`;
-
-                    // absolute位置を計算 (縦軸方向)
-                    // 1行あたりの高さ (CSSで計算される) を使わず、コンテナ全体の高さに対するパーセンテージで設定
-                    const totalMin = MIN_IN_DAY;
-                    const startPercent = (item.startTime / totalMin) * 100;
-                    const heightPercent = ((item.endTime - item.startTime) / totalMin) * 100;
+                    block.textContent = `${item.trainNumber} (${item.type})`;
                     
-                    block.style.top = `${startPercent}%`;
-                    block.style.height = `${heightPercent}%`;
+                    // データ属性を付与
+                    Object.keys(item).forEach(key => {
+                        if (key !== 'timetable') { // 時刻表は重いので除外
+                            block.dataset[key] = typeof item[key] === 'object' ? JSON.stringify(item[key]) : item[key];
+                        }
+                    });
                     
-                    // ブロックの最小高さを確保（短すぎる運行の場合の視認性向上）
-                    if (heightPercent < 0.5) { 
-                        block.style.minHeight = '6px';
-                    }
+                    // 位置と幅の計算
+                    const totalMinutes = MIN_IN_DAY;
+                    const left = (startMin / totalMinutes) * 100; 
+                    const width = ((endMin - startMin) / totalMinutes) * 100; 
 
-                    block.addEventListener('click', (e) => openStatusMenu(e, block));
-                    trainColumn.appendChild(block);
+                    block.style.left = `${left}%`;
+                    block.style.width = `${width}%`;
+                    
+                    block.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // ステータス変更メニューを表示
+                        openStatusMenu(e, block);
+                        // 詳細モーダルも表示
+                        openDetailModal(item.trainNumber, operation.operation_number);
+                    });
+                    runContainer.appendChild(block);
                 });
 
-                scheduleTable.appendChild(trainColumn);
+                // スケジュールテーブルに追加
+                scheduleTable.appendChild(operationLabel);
+                scheduleTable.appendChild(runContainer);
+
+                rowIndex++;
             });
         }
 
-        /**
-         * ステータス変更メニューを表示
-         */
-        function openStatusMenu(e, block) {
-            e.stopPropagation(); 
-            currentBlock = block;
+        // ----------------------------------------------------------------
+        // 4. 機能（ステータス変更、詳細、検索）
+        // ----------------------------------------------------------------
 
-            // メニューの位置を設定
-            statusMenu.style.left = `${e.clientX}px`;
-            statusMenu.style.top = `${e.clientY}px`;
-            statusMenu.style.display = 'flex';
-        }
-
-        /**
-         * ステータスを変更し、UIを更新
-         */
         function changeStatus(newStatus) {
+            // ... ステータス変更ロジック（前回の回答と同じ） ...
             if (!currentBlock) return;
 
             const oldStatus = currentBlock.dataset.currentStatus;
             
-            // UIの更新
             currentBlock.classList.remove(`status-${oldStatus}`);
             currentBlock.classList.add(`status-${newStatus}`);
             currentBlock.dataset.currentStatus = newStatus;
             currentBlock.title = currentBlock.title.replace(oldStatus, newStatus);
             
-            // レガシーシステム風に、ステータス変更後のフィードバックをコンソールに出力
-            console.log(`[STATUS CHANGE] Train: ${currentBlock.dataset.trainNumber}, ID: ${currentBlock.dataset.operationId} - ${oldStatus} -> ${newStatus}`);
+            console.log(`[STATUS CHANGE] Op: ${currentBlock.dataset.operationNumber}, Train: ${currentBlock.dataset.trainNumber} - ${oldStatus} -> ${newStatus}`);
 
             statusMenu.style.display = 'none';
             currentBlock = null;
         }
+        
+        function openStatusMenu(e, block) {
+            e.stopPropagation(); 
+            currentBlock = block;
+            statusMenu.style.left = `${e.clientX}px`;
+            statusMenu.style.top = `${e.clientY}px`;
+            statusMenu.style.display = 'flex';
+        }
+        
+        /**
+         * 詳細モーダルを開く
+         */
+        function openDetailModal(trainNumber, operationNumber) {
+            const operation = globalData.find(op => op.operation_number === operationNumber);
+            const run = operation?.train_runs.find(r => r.train_number === trainNumber);
+            const timetable = globalTimetables.find(t => t.trainNumber === trainNumber);
+            
+            if (!run || !timetable || !operation) {
+                alert('ERROR: 詳細データが見つかりません。');
+                return;
+            }
+
+            // 運用情報
+            let detailHtml = `
+                <dt>運用番号</dt><dd>${operation.operation_number}</dd>
+                <dt>区・車</dt><dd>${operation.division} / ${operation.vehicles}</dd>
+                <dt>列車番号</dt><dd>${trainNumber}</dd>
+                <dt>列車種別</dt><dd>${timetable.type}</dd>
+                <dt>運行区間</dt><dd>${run.route}</dd>
+                <dt>ステータス</dt><dd>${run.status || '計画中'}</dd>
+            `;
+            blockDetails.innerHTML = detailHtml;
+            
+            // 時刻表情報
+            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発時刻</th><th>番線</th></tr>';
+            timetable.stops.forEach(stop => {
+                 tableHtml += `<tr>
+                    <td>${stop.station}</td>
+                    <td>${stop.arrival.trim() || '--'}</td>
+                    <td>${stop.departure.trim() || '--'}</td>
+                    <td>${stop.trackN || '不明'}</td>
+                </tr>`;
+            });
+            tableHtml += '</table>';
+            timetableDetails.innerHTML = tableHtml;
+
+            modalOverlay.style.display = 'block';
+        }
+
+        /**
+         * 列車番号を検索してハイライト＆スクロール
+         */
+        function searchTrain() {
+            const searchTerm = searchInput.value.trim();
+            if (!searchTerm) return;
+            
+            // 既存のハイライトを解除
+            document.querySelectorAll('.train-block.highlight').forEach(b => b.classList.remove('highlight'));
+            
+            // 該当するブロックを検索
+            const targetBlock = document.querySelector(`.train-block[data-train-number="${searchTerm}"]`);
+            if (targetBlock) {
+                targetBlock.classList.add('highlight');
+                
+                // 運用行（縦軸）へのスクロール
+                const opRow = document.getElementById(`op-row-${targetBlock.dataset.operationNumber}`);
+                if (opRow) {
+                     opRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+
+                // 時刻（横軸）へのスクロール（ブロックを画面中央に）
+                const container = document.getElementById('schedule-container');
+                const blockLeft = targetBlock.offsetLeft;
+                const containerWidth = container.clientWidth;
+                const blockWidth = targetBlock.offsetWidth;
+                
+                container.scrollLeft = blockLeft - (containerWidth / 2) + (blockWidth / 2);
+
+            } else {
+                alert(`列車番号 "${searchTerm}" の運行は現在表示されていません。`);
+            }
+        }
+        
+        function clearSearch() {
+            document.querySelectorAll('.train-block.highlight').forEach(b => b.classList.remove('highlight'));
+            searchInput.value = '';
+        }
+
 
         // ----------------------------------------------------------------
         // 5. 初期化とイベントリスナー
         // ----------------------------------------------------------------
 
-        /**
-         * アプリケーションのメイン初期化
-         */
         async function initialize() {
             try {
-                // データの並列読み込み
-                const [timetables, data] = await Promise.all([
+                // データの並列読み込みと保存
+                [globalTimetables, globalData] = await Promise.all([
                     fetchJson(TIMETABLES_URL),
                     fetchJson(DATA_URL)
                 ]);
 
-                const scheduleData = createScheduleData(timetables, data);
+                // 日付セレクタの初期値設定
+                const today = new Date().toISOString().split('T')[0];
+                dateSelector.value = today;
+
+                // 初期描画
+                const scheduleData = createScheduleData(globalTimetables, globalData);
                 renderSchedule(scheduleData);
                 
             } catch (error) {
-                displayError(`データ読み込み中に致命的なエラーが発生しました。パスを確認してください。: ${error.message}`);
+                alert(`FATAL ERROR: データ読み込み中にエラーが発生しました。パスを確認してください。: ${error.message}`);
             }
         }
 
-        // ステータスメニューのボタンにイベントリスナーを設定
+        // --- イベントリスナー設定 ---
+        
+        // ステータス変更メニューのボタン
         document.querySelectorAll('#status-menu button').forEach(button => {
             button.addEventListener('click', (e) => {
                 const newStatus = e.target.dataset.status;
@@ -475,8 +627,35 @@
                 currentBlock = null;
             }
         });
+        
+        // 詳細モーダルの閉じるボタンとオーバーレイ
+        document.getElementById('close-modal').addEventListener('click', () => {
+            modalOverlay.style.display = 'none';
+        });
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target.id === 'modal-overlay') {
+                modalOverlay.style.display = 'none';
+            }
+        });
+        
+        // 日付変更 (今回はダミーで再描画のみ。日付フィルタリングは未実装)
+        dateSelector.addEventListener('change', () => {
+            // **注:** ご提示のJSONデータには日付情報がないため、
+            // 実際の日付による絞り込みは実装できません。ここでは再描画のみ実行します。
+            const scheduleData = createScheduleData(globalTimetables, globalData);
+            renderSchedule(scheduleData);
+            clearSearch();
+            console.log(`[DATE CHANGE] ${dateSelector.value} のデータを再描画しました。`);
+        });
 
-        // アプリケーションを起動
+        // 検索機能
+        searchButton.addEventListener('click', searchTrain);
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') searchTrain();
+        });
+        clearSearchButton.addEventListener('click', clearSearch);
+
+
         initialize();
 
     </script>
