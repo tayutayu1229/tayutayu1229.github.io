@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (表示統一＆統合最終確認版 V19)</title>
+    <title>実施列車運転スケジュール (時刻表統合ロジック強化版 V20)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -353,7 +353,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 実施列車運転スケジュール V1.9
+    <h1>[T-time] 実施列車運転スケジュール V2.0
         <span id="output-datetime"></span>
     </h1> 
 
@@ -455,7 +455,8 @@
         // ----------------------------------------------------------------
 
         function timeToMinutes(timeStr) {
-            if (!timeStr || timeStr.trim() === "" || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…") return null;
+            // Null, 空白、またはマーカー文字の場合はnullを返す
+            if (!timeStr || timeStr.trim() === "" || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…" || timeStr.trim() === "=") return null;
             const parts = timeStr.split(':');
             if (parts.length < 2) return null;
             const hours = parseInt(parts[0], 10);
@@ -512,7 +513,6 @@
         function preprocessTimetables(timetables) {
             const map = new Map();
             timetables.forEach(t => {
-                // startDateがない場合は 'NULL' をキーの一部とする
                 const dateKey = t.startDate || 'NULL';
                 const key = `${t.trainNumber}_${dateKey}`;
                 
@@ -525,7 +525,7 @@
         }
         
         /**
-         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する
+         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V20強化)
          */
         function getIntegratedTimetable(trainNumber, startDate, allTimetables) {
             
@@ -533,41 +533,52 @@
             const matchingTimetables = allTimetables; 
 
             if (matchingTimetables.length === 0) return null;
-
-            // 始発駅を見つけるロジック:
-            const allDestinations = new Set(matchingTimetables.map(t => trim(t.destination)));
-            let currentRun = matchingTimetables.find(t => !allDestinations.has(trim(t.origin)));
             
-            if (!currentRun) {
-                // どの終着駅とも一致しない始発駅がない場合、始発時刻が最も早いものをスタート
-                matchingTimetables.sort((a, b) => {
-                    const timeA = timeToMinutes(a.stops.find(s => timeToMinutes(s.departure) !== null)?.departure || '25:00:00');
-                    const timeB = timeToMinutes(b.stops.find(s => timeToMinutes(s.departure) !== null)?.departure || '25:00:00');
-                    return timeA - timeB;
-                });
-                if (matchingTimetables.length > 0) {
-                     currentRun = matchingTimetables[0];
-                } else {
-                     return null;
-                }
-            }
-
             const usedTimetables = new Set();
-            usedTimetables.add(currentRun);
-            const combinedRuns = [currentRun];
+            const combinedRuns = [];
 
-            // 連続する時刻表を探して結合
-            while (currentRun) {
+            // 1. 統合の始点（一番早い発時刻を持つセグメント）を見つける
+            let earliestRun = null;
+            let earliestDepartureTime = 3000; // 24時間以上の大きな値で初期化
+
+            matchingTimetables.forEach(t => {
+                const firstStop = t.stops.find(s => timeToMinutes(s.departure) !== null);
+                if (firstStop) {
+                    const departureTime = timeToMinutes(firstStop.departure);
+                    if (departureTime !== null && departureTime < earliestDepartureTime) {
+                        earliestDepartureTime = departureTime;
+                        earliestRun = t;
+                    }
+                }
+            });
+
+            if (!earliestRun) {
+                 // 発時刻を持つストップがない場合、最初の到着時刻を持つものを試す
+                 matchingTimetables.forEach(t => {
+                    const firstStop = t.stops.find(s => timeToMinutes(s.arrival) !== null);
+                    if (firstStop) {
+                         const arrivalTime = timeToMinutes(firstStop.arrival);
+                         if (arrivalTime !== null && arrivalTime < earliestDepartureTime) {
+                            earliestDepartureTime = arrivalTime;
+                            earliestRun = t;
+                        }
+                    }
+                 });
+                 if (!earliestRun) return null; // 始点が見つからない
+            }
+            
+            let currentRun = earliestRun;
+            usedTimetables.add(currentRun);
+            combinedRuns.push(currentRun);
+            
+            // 2. 連続する時刻表を探して結合
+            while (combinedRuns.length < matchingTimetables.length) {
                 const nextOrigin = trim(currentRun.destination);
                 let nextRun = null;
                 
                 // 次の運行を見つける: 次の運行の始発駅が現在の運行の終着駅と一致し、かつまだ使用されていないもの
                 for (const t of matchingTimetables) {
                     if (!usedTimetables.has(t) && trim(t.origin) === nextOrigin) {
-                        
-                        // 接続駅での時刻が一致しているかを確認する（オプション：今回は厳密にしない）
-                        // if (currentRun.stops.slice(-1)[0].arrival === nextRun.stops[0].departure)
-                        
                         nextRun = t;
                         break;
                     }
@@ -578,15 +589,12 @@
                     combinedRuns.push(nextRun);
                     currentRun = nextRun; 
                 } else {
-                    currentRun = null; 
+                    // 途中で途切れた場合
+                    break; 
                 }
             }
             
-            // 統合した時刻表が元のデータセットのすべてを使用しているかチェック（デバッグ用）
-            // if (combinedRuns.length !== matchingTimetables.length) {
-            //     console.warn(`WARN: Train ${trainNumber} on ${startDate} could only partially integrate (${combinedRuns.length}/${matchingTimetables.length}).`);
-            // }
-            
+            // 3. 最終的な統合データを作成
             if (combinedRuns.length === 0) return null;
 
             const firstRun = combinedRuns[0];
@@ -604,6 +612,7 @@
             if (endStop) endTime = timeToMinutes(endStop.arrival);
             
             if (startTime === null || endTime === null) {
+                 // 始発または終着時刻が特定できない場合はタイムライン表示は不可
                  return null;
             }
 
@@ -616,7 +625,7 @@
                 startTime: startTime,
                 endTime: endTime,
                 status: null,
-                segments: combinedRuns, 
+                segments: combinedRuns, // 時系列で統合された運行セグメント
             };
         }
 
@@ -811,12 +820,23 @@
                 
                 segment.stops.forEach((stop, stopIndex) => {
                     // 2つ目以降の区間では、最初の駅（前区間の終着駅）はスキップ
-                    if (!isFirstSegment && stopIndex === 0) return; 
+                    if (!isFirstSegment && stopIndex === 0 && index > 0) {
+                        // 接続駅は重複表示を避けるが、到着時刻のみ表示するロジックも検討可能
+                        // 今回は、前の区間の終着駅と次の区間の始発駅が一致する場合、後者の始発駅の行をスキップ
+                        return;
+                    } 
 
-                    // V19修正: null, --, 不明の場合は空白にする
-                    const arrival = stop.arrival.trim() === '…'|| stop.arrival.trim() === '||' ? '' : stop.arrival.trim();
-                    const departure = stop.departure.trim() === '…'|| stop.departure.trim() === '||' ? '' : stop.departure.trim();
-                    const trackN = stop.trackN && stop.trackN.trim() !== '不明' ? stop.trackN : '';
+                    // V20修正: null, 空文字列, 特殊記号の場合は空白にする
+                    const normalizeValue = (val) => {
+                        if (!val) return '';
+                        const trimmed = val.trim();
+                        if (trimmed === '…' || trimmed === '||' || trimmed === '=' || trimmed === '不明' || trimmed === 'null') return '';
+                        return trimmed;
+                    };
+
+                    const arrival = normalizeValue(stop.arrival);
+                    const departure = normalizeValue(stop.departure);
+                    const trackN = normalizeValue(stop.trackN);
                     
                     tableHtml += `<tr>
                         <td>${stop.station}</td>
@@ -834,7 +854,7 @@
         }
         
         /**
-         * 運用ラベルクリック時の運用全体表示 (V19修正)
+         * 運用ラベルクリック時の運用全体表示 (V19/V20修正)
          */
         function openOperationDetails(operationNumber, division) {
             const originalOperation = globalData.find(op => op.operation_number === operationNumber && op.division === division);
@@ -1126,7 +1146,7 @@
         
         // グローバルスコープに関数を公開
         window.openDetailModal = openDetailModal;
-        window.openOperationDetails = openOperationDetails; // V19で追加
+        window.openOperationDetails = openOperationDetails; 
 
         dateSelector.addEventListener('change', updateSchedule);
         divisionSelector.addEventListener('change', () => {
