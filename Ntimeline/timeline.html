@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車運用タイムライン (CSS復元版 V9)</title>
+    <title>運転実施スケジュール V1.5</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. ベースCSS (淡い色を維持しつつ、レガシー感強調)
+        * 1. ベースCSS (V9から変更なし)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
-            /* 背景色を濃い青に戻し、文字色を明るい灰色に */
             background-color: #000080; 
             color: #c0c0c0;
             margin: 0;
@@ -26,7 +25,7 @@
         h1 {
             color: #ffff00;
             text-align: center;
-            border-bottom: 2px solid #c0c0c0; /* 境界線を明るい灰色に */
+            border-bottom: 2px solid #c0c0c0;
             padding-bottom: 5px;
             margin-bottom: 15px;
             flex-shrink: 0;
@@ -38,7 +37,7 @@
             bottom: 5px;
             right: 0;
             font-size: 0.75em;
-            color: #888888; /* 暗めの灰色に */
+            color: #888888;
         }
 
         /* 制御パネル */
@@ -47,7 +46,6 @@
             flex-wrap: wrap;
             gap: 10px 15px;
             margin-bottom: 15px;
-            /* 背景色を黒に戻す */
             background-color: #000000;
             padding: 10px;
             border: 1px solid #c0c0c0;
@@ -69,7 +67,6 @@
         }
         
         #controls select option {
-            /* ドロップダウンの背景色を本体の色に戻す */
             background-color: #000080; 
         }
 
@@ -85,7 +82,7 @@
         }
 
         /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリア (**最重要修正ポイント**)
+        * 2. タイムライン表示エリア (V9から変更なし)
         * ---------------------------------------------------------------- */
         #schedule-container {
             overflow: auto; 
@@ -96,9 +93,8 @@
 
         #schedule-table {
             display: grid;
-            /* 修正: 時刻が左にまとまってしまう問題に対処するため、最小幅を大きく設定 */
             grid-template-columns: 100px repeat(1440, 1fr); 
-            min-width: 4000px; /* 最小幅をさらに増やし、時刻の分散を保証 */
+            min-width: 4000px; 
             border-collapse: collapse;
         }
 
@@ -107,10 +103,10 @@
             grid-column: span 60; 
             text-align: left;
             padding: 5px 0 5px 5px;
-            border-right: 1px solid #333333; /* 縦線 */
+            border-right: 1px solid #333333;
             box-sizing: border-box;
             font-size: 0.9em;
-            background-color: #111111; /* 背景を濃く */
+            background-color: #111111;
             position: sticky;
             top: 0;
             z-index: 10;
@@ -142,15 +138,13 @@
             border-bottom: 1px dotted #333333;
         }
 
-        /* 運行ブロックのCSS復元 */
+        /* 運行ブロックのCSS */
         .train-block {
             position: absolute;
             height: 30px;
             top: 5px;
-            /* 修正: ブロックの境界線を明るい色に復元 */
             border: 1px solid #c0c0c0;
             cursor: pointer;
-            /* 修正: フォントサイズを戻し、paddingを広げる */
             font-size: 0.75em; 
             color: white;
             display: flex;
@@ -160,23 +154,23 @@
             padding: 0 5px;
             white-space: nowrap;
             transition: all 0.1s;
-            box-sizing: border-box; /* paddingを含めて幅計算 */
+            box-sizing: border-box;
         }
 
         .highlight {
             border: 3px solid #ffff00 !important;
             box-shadow: 0 0 10px #ffff00;
-            background-color: #4b0082 !important; /* 濃い紫色に戻す */
+            background-color: #4b0082 !important;
         }
 
-        /* ステータスごとの色の定義 (色が消えていた問題の確認) */
+        /* ステータスごとの色の定義 */
         .status-計画中 { background-color: #0000ff; color: #ffffff; } 
         .status-実施済み { background-color: #008000; color: #ffffff; }
         .status-実施中 { background-color: #ff0000; color: #ffffff; } 
         .status-取り下げ { background-color: #808080; color: #000000; } 
 
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (ボーダー/色/縦横対応の確認)
+        * 3. 詳細モーダル (V9から変更なし)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -185,7 +179,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5); /* 透明度を初期設定に戻す */
+            background: rgba(0, 0, 0, 0.5);
             z-index: 50;
             overflow-y: auto;
         }
@@ -193,13 +187,12 @@
         #detail-modal {
             background-color: #c0c0c0;
             color: #000000;
-            /* 修正: ボーダー（枠）を強調するためにoutsetを維持 */
             border: 3px outset #ffffff; 
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%; /* 初期値に戻す */
+            width: 80%;
             max-width: 900px;
             box-shadow: 8px 8px 0 #000000;
             font-family: inherit;
@@ -221,14 +214,13 @@
         .modal-timetable {
             overflow-y: auto;
             max-height: 400px; 
-            /* 修正: テーブル全体の枠線を設定 */
             border: 1px solid #808080;
         }
 
         .modal-header {
             background-color: #000080; 
             color: #ffffff;
-            padding: 5px; /* paddingを明確に設定 */
+            padding: 5px;
             font-weight: bold;
         }
 
@@ -238,7 +230,6 @@
             margin-top: 5px;
         }
         
-        /* テーブルの枠線の復元 */
         .modal-timetable th, .modal-timetable td {
             border: 1px solid #808080;
             padding: 3px;
@@ -247,31 +238,19 @@
             color: #000000;
         }
 
-        /* 縦画面（モバイル等）での表示調整は維持 */
+        /* 縦画面対応 */
         @media (max-width: 800px) {
-            .modal-content { 
-                flex-direction: column; 
-            }
-            .modal-timetable {
-                min-width: unset;
-                max-height: 300px;
-            }
-            #detail-modal { 
-                width: 95%; /* 縦画面で広く使う */
-                top: 20px;
-                transform: translate(-50%, 0); 
-                position: absolute; 
-            }
-            #modal-overlay {
-                overflow-y: auto;
-            }
+            .modal-content { flex-direction: column; }
+            .modal-timetable { min-width: unset; max-height: 300px; }
+            #detail-modal { width: 95%; top: 20px; transform: translate(-50%, 0); position: absolute; }
+            #modal-overlay { overflow-y: auto; }
         }
 
     </style>
 </head>
 <body>
 
-    <h1>[T-time] 列車運行管理システム V9.0
+    <h1>[T-time] 運転実施スケジュール V1.5
         <span id="output-datetime"></span>
     </h1> 
 
@@ -343,15 +322,18 @@
         let globalData = [];
         let currentScheduleData = [];
         let selectedDate = null;
+        let today = new Date(); // 現在日付を保持
 
+        // 常に表示する日付は、特定の日付指定（例: ダイヤ改正日）として維持
         const ALWAYS_VISIBLE_DATES = [
             '2025/03/15',
             '2026/03/14'
         ];
 
         // ----------------------------------------------------------------
-        // 2. ユーティリティ関数とデータ処理 
+        // 2. ユーティリティ関数とデータ処理
         // ----------------------------------------------------------------
+
         function timeToMinutes(timeStr) {
             if (!timeStr || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…") return null;
             const parts = timeStr.split(':');
@@ -375,10 +357,15 @@
             return new Date(parts[0], parts[1] - 1, parts[2]);
         }
         
+        /**
+         * 修正: 現在日付を基準にステータスを判断する
+         */
         function getAutoStatus(startDateStr, currentDate) {
+            // currentDateには、表示日付セレクタの値または初期値（現在日付）が入る
             if (!startDateStr || !currentDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
+            // 時刻を無視し、日付のみで比較するためのタイムスタンプを取得
             const currentDayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
             const startDayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
             
@@ -397,94 +384,66 @@
             return await response.json();
         }
 
-        function createScheduleData(timetables, data, currentDate, divisionFilter) {
-            const scheduleData = new Map();
-            const divisions = new Set();
-            const timetablesMap = new Map(timetables.map(t => [t.trainNumber, t]));
-
-            data.forEach(op => divisions.add(op.division));
-            updateDivisionSelector(divisions);
+        /**
+         * 修正: 運転区間が一致する時刻表を優先して表示するロジックを追加
+         */
+        function openDetailModal(trainNumber, operationNumber, division, runIndex) {
+            const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
+            const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
             
-            const formattedCurrentDate = currentDate ? formatDate(currentDate) : null;
+            if (!run || !run.timetable) {
+                alert('ERROR: 詳細データが見つかりません。');
+                return;
+            }
+            
+            // 該当ブロックの運行区間
+            const currentRoute = run.route; 
+            
+            // --- 時刻表の絞り込みロジック ---
+            let displayTimetable = run.timetable;
+            const allTimetablesForTrain = globalTimetables.filter(t => t.trainNumber === trainNumber);
 
-            data.forEach(operation => {
-                if (divisionFilter && operation.division !== divisionFilter) return;
+            // 1. 運行ブロックの運行区間とほぼ一致する時刻表を探す
+            const matchingTimetable = allTimetablesForTrain.find(t => t.route === currentRoute);
 
-                const fullOpLabel = `${operation.operation_number} (${operation.division})`;
-                const opRuns = [];
-
-                operation.train_runs.forEach((run, runIndex) => {
-                    const trainNumber = run.train_number;
-                    const timetable = timetablesMap.get(trainNumber);
-
-                    if (!timetable) return;
-                    
-                    const startDateStr = timetable.startDate;
-                    const formattedStartDate = startDateStr ? formatDate(parseJsonDate(startDateStr)) : null;
-
-                    let shouldDisplay = false;
-                    
-                    if (!formattedCurrentDate) {
-                        shouldDisplay = true;
-                    } else {
-                        const isNoDate = !startDateStr;
-                        const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate);
-                        const isSelectedDate = (formattedStartDate === formattedCurrentDate);
-                        
-                        shouldDisplay = isNoDate || isSpecificDate || isSelectedDate;
-                    }
-
-                    if (!shouldDisplay) return;
-
-                    const stops = timetable.stops;
-                    let startTime = null;
-                    let endTime = null;
-
-                    const startStop = stops.find(s => timeToMinutes(s.departure) !== null);
-                    if (startStop) startTime = timeToMinutes(startStop.departure);
-
-                    const endStop = [...stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
-                    if (endStop) endTime = timeToMinutes(endStop.arrival);
-                    
-                    if (startTime === null || endTime === null || endTime <= startTime) {
-                        return;
-                    }
-                    
-                    let status = run.status || getAutoStatus(startDateStr, currentDate);
-                    
-                    opRuns.push({
-                        trainNumber: trainNumber,
-                        type: timetable.type,
-                        route: run.route,
-                        startTime: startTime, 
-                        endTime: endTime,     
-                        status: status, 
-                        operationId: operation.id, 
-                        operationNumber: operation.operation_number,
-                        division: operation.division,
-                        runIndex: runIndex,
-                        timetable: timetable 
-                    });
-                });
-
-                if (opRuns.length > 0) {
-                     if (!scheduleData.has(fullOpLabel)) {
-                        scheduleData.set(fullOpLabel, {
-                            operation_number: operation.operation_number,
-                            division: operation.division,
-                            vehicles: operation.vehicles,
-                            runs: []
-                        });
-                    }
-                    scheduleData.get(fullOpLabel).runs.push(...opRuns);
-                }
+            if (matchingTimetable) {
+                displayTimetable = matchingTimetable;
+            } else if (allTimetablesForTrain.length > 1) {
+                // 2. 一致するものがない場合、該当ブロックの時刻表を使用しつつアラート
+                console.warn(`Warning: 列車番号 ${trainNumber} の時刻表が複数ありますが、運行区間 "${currentRoute}" に完全一致する時刻表が見つかりませんでした。`);
+            }
+            // -----------------------------
+            
+            let detailHtml = `
+                <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
+                <dt>形式</dt><dd>${operation.vehicles}</dd>
+                <dt>列車番号</dt><dd>${trainNumber}</dd>
+                <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
+                <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
+                <dt>運転区間</dt><dd>${run.route}</dd> 
+                <dt>ステータス</dt><dd>${run.status}</dd>
+            `;
+            document.getElementById('block-details').innerHTML = detailHtml;
+            
+            // 時刻表情報
+            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
+            displayTimetable.stops.forEach(stop => {
+                 tableHtml += `<tr>
+                    <td>${stop.station}</td>
+                    <td>${stop.arrival.trim() || '--'}</td>
+                    <td>${stop.departure.trim() || '--'}</td>
+                    <td>${stop.trackN || '不明'}</td>
+                </tr>`;
             });
+            tableHtml += '</table>';
+            document.getElementById('timetable-details').innerHTML = tableHtml;
 
-            return Array.from(scheduleData.values()).sort((a, b) => a.operation_number.localeCompare(b.operation_number));
+            modalOverlay.style.display = 'block';
         }
 
+
         // ----------------------------------------------------------------
-        // 3. UIレンダリング 
+        // 3. UIレンダリング (変更なし)
         // ----------------------------------------------------------------
         function updateDivisionSelector(divisions) {
             divisionSelector.innerHTML = '<option value="">全ての区所</option>';
@@ -581,46 +540,8 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（詳細、検索、全画面）
+        // 4. 機能（検索、全画面） (変更なし)
         // ----------------------------------------------------------------
-
-        function openDetailModal(trainNumber, operationNumber, division, runIndex) {
-            const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
-            const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
-            
-            if (!run || !run.timetable) {
-                alert('ERROR: 詳細データが見つかりません。');
-                return;
-            }
-            
-            const timetable = run.timetable;
-
-            let detailHtml = `
-                <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
-                <dt>形式</dt><dd>${operation.vehicles}</dd>
-                <dt>列車番号</dt><dd>${trainNumber}</dd>
-                <dt>列車種別</dt><dd>${timetable.type}</dd>
-                <dt>施行日</dt><dd>${timetable.startDate || '未設定'}</dd>
-                <dt>運転区間</dt><dd>${run.route}</dd> 
-                <dt>ステータス</dt><dd>${run.status}</dd>
-            `;
-            document.getElementById('block-details').innerHTML = detailHtml;
-            
-            // 時刻表情報
-            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
-            timetable.stops.forEach(stop => {
-                 tableHtml += `<tr>
-                    <td>${stop.station}</td>
-                    <td>${stop.arrival.trim() || '--'}</td>
-                    <td>${stop.departure.trim() || '--'}</td>
-                    <td>${stop.trackN || '不明'}</td>
-                </tr>`;
-            });
-            tableHtml += '</table>';
-            document.getElementById('timetable-details').innerHTML = tableHtml;
-
-            modalOverlay.style.display = 'block';
-        }
 
         function searchTrain() {
             const searchTerm = searchInput.value.trim();
@@ -655,7 +576,8 @@
 
         function updateSchedule() {
             const dateValue = dateSelector.value;
-            selectedDate = dateValue ? new Date(dateValue) : null;
+            // 修正: 表示日付が未選択の場合は、現在日付 (today) を使用してステータスを判断する
+            selectedDate = dateValue ? new Date(dateValue) : today; 
 
             const divisionFilter = divisionSelector.value;
             
@@ -691,6 +613,7 @@
 
         async function initialize() {
             updateOutputDatetime();
+            today = new Date(); // 初期化時に今日の日付を確定
             
             try {
                 [globalTimetables, globalData] = await Promise.all([
@@ -698,7 +621,8 @@
                     fetchJson(DATA_URL)
                 ]);
 
-                dateSelector.value = '';
+                // 初期表示時は日付セレクタを空のまま、今日の日付を基準に表示
+                dateSelector.value = ''; 
                 
                 updateSchedule();
                 
