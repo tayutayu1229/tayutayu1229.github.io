@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (時刻表統合ロジック強化版 V20)</title>
+    <title>実施列車運転スケジュール (時系列統合/表示形式最終強化版 V21)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -316,6 +316,24 @@
              border-top: 3px solid #ffffff;
         }
         
+        /* V21: 時刻列幅固定 */
+        .modal-timetable table {
+            table-layout: fixed;
+            width: 100%; 
+        }
+        .modal-timetable table col.time-col {
+            width: 70px; /* 時刻の幅を固定 */
+        }
+        .modal-timetable table col.track-col {
+             width: 50px; /* 番線の幅を固定 */
+        }
+        .modal-timetable table th:nth-child(2),
+        .modal-timetable table td:nth-child(2),
+        .modal-timetable table th:nth-child(3),
+        .modal-timetable table td:nth-child(3) {
+            text-align: center; /* 時刻を中央寄せ */
+        }
+
         /* 運用詳細情報 (V18/V19修正) */
         #all-runs-container dt {
              font-weight: bold;
@@ -353,7 +371,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 実施列車運転スケジュール V2.0
+    <h1>[T-time] 実施列車運転スケジュール V2.1
         <span id="output-datetime"></span>
     </h1> 
 
@@ -449,6 +467,10 @@
             '2025/03/15',
             '2026/03/14'
         ];
+        
+        // 時刻データと見なされる特殊記号
+        const TIME_MARKERS = ['||', '=', '…'];
+
 
         // ----------------------------------------------------------------
         // 2. ユーティリティ関数とデータ処理
@@ -456,7 +478,7 @@
 
         function timeToMinutes(timeStr) {
             // Null, 空白、またはマーカー文字の場合はnullを返す
-            if (!timeStr || timeStr.trim() === "" || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…" || timeStr.trim() === "=") return null;
+            if (!timeStr || timeStr.trim() === "" || TIME_MARKERS.includes(timeStr.trim())) return null;
             const parts = timeStr.split(':');
             if (parts.length < 2) return null;
             const hours = parseInt(parts[0], 10);
@@ -465,7 +487,7 @@
         }
         
         function formatMinutesToTime(minutes) {
-             if (minutes === null) return ''; // nullは空白
+             if (minutes === null) return ''; 
              const h = Math.floor(minutes / 60);
              const m = minutes % 60;
              return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -525,7 +547,7 @@
         }
         
         /**
-         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V20強化)
+         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V21: 全セグメントを網羅的に統合)
          */
         function getIntegratedTimetable(trainNumber, startDate, allTimetables) {
             
@@ -534,49 +556,44 @@
 
             if (matchingTimetables.length === 0) return null;
             
-            const usedTimetables = new Set();
-            const combinedRuns = [];
-
             // 1. 統合の始点（一番早い発時刻を持つセグメント）を見つける
-            let earliestRun = null;
+            let currentRun = null;
             let earliestDepartureTime = 3000; // 24時間以上の大きな値で初期化
-
+            
+            // 全ての運行セグメントについて、最初に出発または到着する時刻を計算
             matchingTimetables.forEach(t => {
-                const firstStop = t.stops.find(s => timeToMinutes(s.departure) !== null);
-                if (firstStop) {
-                    const departureTime = timeToMinutes(firstStop.departure);
-                    if (departureTime !== null && departureTime < earliestDepartureTime) {
-                        earliestDepartureTime = departureTime;
-                        earliestRun = t;
-                    }
+                let firstTime = 3000;
+                // 最初の発時刻を優先
+                const startStopDep = t.stops.find(s => timeToMinutes(s.departure) !== null);
+                if (startStopDep) {
+                    firstTime = timeToMinutes(startStopDep.departure);
+                } else {
+                    // 発時刻がなければ着時刻
+                    const startStopArr = t.stops.find(s => timeToMinutes(s.arrival) !== null);
+                    if (startStopArr) firstTime = timeToMinutes(startStopArr.arrival);
+                }
+                
+                if (firstTime !== 3000 && firstTime < earliestDepartureTime) {
+                    earliestDepartureTime = firstTime;
+                    currentRun = t;
                 }
             });
 
-            if (!earliestRun) {
-                 // 発時刻を持つストップがない場合、最初の到着時刻を持つものを試す
-                 matchingTimetables.forEach(t => {
-                    const firstStop = t.stops.find(s => timeToMinutes(s.arrival) !== null);
-                    if (firstStop) {
-                         const arrivalTime = timeToMinutes(firstStop.arrival);
-                         if (arrivalTime !== null && arrivalTime < earliestDepartureTime) {
-                            earliestDepartureTime = arrivalTime;
-                            earliestRun = t;
-                        }
-                    }
-                 });
-                 if (!earliestRun) return null; // 始点が見つからない
-            }
-            
-            let currentRun = earliestRun;
+            if (!currentRun) return null; // 始点が見つからない
+
+            const usedTimetables = new Set();
+            const combinedRuns = [currentRun];
             usedTimetables.add(currentRun);
-            combinedRuns.push(currentRun);
             
-            // 2. 連続する時刻表を探して結合
-            while (combinedRuns.length < matchingTimetables.length) {
-                const nextOrigin = trim(currentRun.destination);
+            let attempts = 0; 
+            const maxSegments = matchingTimetables.length;
+
+            // 2. 前方向 (終点方向) への連続する時刻表を探して結合
+            while (combinedRuns.length < maxSegments && attempts < maxSegments * 2) {
+                const lastRun = combinedRuns[combinedRuns.length - 1];
+                const nextOrigin = trim(lastRun.destination);
                 let nextRun = null;
                 
-                // 次の運行を見つける: 次の運行の始発駅が現在の運行の終着駅と一致し、かつまだ使用されていないもの
                 for (const t of matchingTimetables) {
                     if (!usedTimetables.has(t) && trim(t.origin) === nextOrigin) {
                         nextRun = t;
@@ -587,41 +604,78 @@
                 if (nextRun) {
                     usedTimetables.add(nextRun);
                     combinedRuns.push(nextRun);
-                    currentRun = nextRun; 
                 } else {
-                    // 途中で途切れた場合
-                    break; 
+                    break; // 連続が途切れた
                 }
+                attempts++;
             }
             
-            // 3. 最終的な統合データを作成
+            // 3. 後ろ方向 (始点方向) への連続する時刻表を探して結合（始点が途中にある場合）
+            attempts = 0;
+            while (combinedRuns.length < maxSegments && attempts < maxSegments * 2) {
+                const firstRun = combinedRuns[0];
+                const previousDestination = trim(firstRun.origin);
+                let previousRun = null;
+                
+                for (const t of matchingTimetables) {
+                    if (!usedTimetables.has(t) && trim(t.destination) === previousDestination) {
+                        previousRun = t;
+                        break;
+                    }
+                }
+                
+                if (previousRun) {
+                    usedTimetables.add(previousRun);
+                    combinedRuns.unshift(previousRun); // 配列の先頭に追加
+                } else {
+                    break; // 連続が途切れた
+                }
+                attempts++;
+            }
+            
+            // 最終チェック: 統合された運行が元のデータセットのすべてを使用しているか確認
+            if (combinedRuns.length !== matchingTimetables.length) {
+                // すべてのセグメントを結合できなかった場合、時系列が崩れている可能性がある
+                // 例外処理として、統合できなかったものを強制的に時間順で追加し、全件表示を優先する
+                const unUsed = matchingTimetables.filter(t => !usedTimetables.has(t));
+                
+                if (unUsed.length > 0) {
+                    // 未使用のセグメントを始発時刻でソートして結合済みのリストに追加
+                    const allSegments = [...combinedRuns, ...unUsed].sort((a, b) => {
+                        const timeA = timeToMinutes(a.stops.find(s => timeToMinutes(s.departure) !== null)?.departure || '25:00:00');
+                        const timeB = timeToMinutes(b.stops.find(s => timeToMinutes(s.departure) !== null)?.departure || '25:00:00');
+                        return timeA - timeB;
+                    });
+                    combinedRuns.length = 0; // 配列をクリア
+                    combinedRuns.push(...allSegments); // 全セグメントを時間順で追加
+                }
+            }
+
+
             if (combinedRuns.length === 0) return null;
 
-            const firstRun = combinedRuns[0];
-            const lastRun = combinedRuns[combinedRuns.length - 1];
+            const finalFirstRun = combinedRuns[0];
+            const finalLastRun = combinedRuns[combinedRuns.length - 1];
             
-            // 時刻の計算
+            // 運行時間計算 (タイムライン表示用)
             let startTime = null;
-            // 最初の運行の最初の発時刻を探す
-            const startStop = firstRun.stops.find(s => timeToMinutes(s.departure) !== null);
+            const startStop = finalFirstRun.stops.find(s => timeToMinutes(s.departure) !== null);
             if (startStop) startTime = timeToMinutes(startStop.departure);
             
             let endTime = null;
-            // 最後の運行の最後の着時刻を探す
-            const endStop = [...lastRun.stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
+            const endStop = [...finalLastRun.stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
             if (endStop) endTime = timeToMinutes(endStop.arrival);
             
             if (startTime === null || endTime === null) {
-                 // 始発または終着時刻が特定できない場合はタイムライン表示は不可
                  return null;
             }
 
             return {
                 trainNumber: trainNumber,
-                type: firstRun.type,
+                type: finalFirstRun.type,
                 startDate: startDate, 
-                origin: trim(firstRun.origin), 
-                destination: trim(lastRun.destination), 
+                origin: trim(finalFirstRun.origin), 
+                destination: trim(finalLastRun.destination), 
                 startTime: startTime,
                 endTime: endTime,
                 status: null,
@@ -807,42 +861,52 @@
             document.getElementById('block-details').innerHTML = detailHtml;
             
             // 時刻表情報: 統合された全区間の時刻表を線区ごとに分けて表示
-            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
+            let tableHtml = `
+                <h3>停車駅・時刻表</h3>
+                <table>
+                    <colgroup>
+                        <col>
+                        <col class="time-col">
+                        <col class="time-col">
+                        <col class="track-col">
+                    </colgroup>
+                    <tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>
+            `;
             
+            const trim = (s) => s ? s.trim() : '';
+
             displayTimetable.segments.forEach((segment, index) => {
                 const isFirstSegment = index === 0;
                 
                 // 区間ヘッダー（線区情報を含む）
-                const line = segment.line && segment.line.trim() !== '' ? segment.line : '';
+                const line = trim(segment.line) || '';
                 tableHtml += `<tr><td colspan="4" class="segment-header">
-                    線区: ${line} (${segment.origin}〜${segment.destination})
+                    線区: ${line} (${trim(segment.origin)}〜${trim(segment.destination)})
                 </td></tr>`;
                 
                 segment.stops.forEach((stop, stopIndex) => {
-                    // 2つ目以降の区間では、最初の駅（前区間の終着駅）はスキップ
+                    // V21: 接続駅での重複行削除を再検討し、始発駅と終着駅の重複を避ける（基本は到着時刻のみ表示で十分）
+                    // 2つ目以降の区間では、最初の駅（前区間の終着駅）は基本的にスキップ
                     if (!isFirstSegment && stopIndex === 0 && index > 0) {
-                        // 接続駅は重複表示を避けるが、到着時刻のみ表示するロジックも検討可能
-                        // 今回は、前の区間の終着駅と次の区間の始発駅が一致する場合、後者の始発駅の行をスキップ
                         return;
                     } 
-
-                    // V20修正: null, 空文字列, 特殊記号の場合は空白にする
-                    const normalizeValue = (val) => {
-                        if (!val) return '';
-                        const trimmed = val.trim();
-                        if (trimmed === '…' || trimmed === '||' || trimmed === '=' || trimmed === '不明' || trimmed === 'null') return '';
-                        return trimmed;
-                    };
-
-                    const arrival = normalizeValue(stop.arrival);
-                    const departure = normalizeValue(stop.departure);
-                    const trackN = normalizeValue(stop.trackN);
+                    
+                    // V21修正: 列車データ内の特殊記号はそのまま表示、null/'不明'のみ空白に
+                    
+                    // 時刻データ（特殊記号もそのまま表示）
+                    const arrival = trim(stop.arrival) || '';
+                    const departure = trim(stop.departure) || '';
+                    
+                    // その他データ（null/'不明'は空白に）
+                    const stationName = trim(stop.station) || '';
+                    const trackN = trim(stop.trackN);
+                    const normalizedTrackN = (trackN === '不明' || trackN === 'null' || trackN === 'NULL') ? '' : trackN;
                     
                     tableHtml += `<tr>
-                        <td>${stop.station}</td>
+                        <td>${stationName}</td>
                         <td>${arrival}</td>
                         <td>${departure}</td>
-                        <td>${trackN}</td>
+                        <td>${normalizedTrackN}</td>
                     </tr>`;
                 });
             });
@@ -854,7 +918,7 @@
         }
         
         /**
-         * 運用ラベルクリック時の運用全体表示 (V19/V20修正)
+         * 運用ラベルクリック時の運用全体表示 (V19/V20/V21修正)
          */
         function openOperationDetails(operationNumber, division) {
             const originalOperation = globalData.find(op => op.operation_number === operationNumber && op.division === division);
