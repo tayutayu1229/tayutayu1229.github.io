@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転計画表 V1.6</title>
+    <title>実施列車運転計画表 V1.6 (V3.1反映)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 0. フォントの読み込みを削除し、標準フォントを使用
+        * 0. 標準フォントを使用 (ゲームフォント中止)
         * ---------------------------------------------------------------- */
         
         /* ----------------------------------------------------------------
@@ -14,7 +14,7 @@
         * ---------------------------------------------------------------- */
         body {
             /* 標準フォント（ゴシック体）を適用 */
-            font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace, 'Misaki Gothic','メイリオ', Meiryo, '游ゴシック', 'Yu Gothic';
+            font-family: 'メイリオ', Meiryo, '游ゴシック', 'Yu Gothic', 'ＭＳ ゴシック', 'MS Gothic', sans-serif; 
             background-color: #191970; /* 変更: 淡い青 */
             color: #c0c0c0;
             margin: 0;
@@ -503,9 +503,10 @@
         // 時刻表データを列車番号と施行日でマップ化し、ルックアップを高速化
         let timetablesMap = new Map();
 
+        // V3.1: 表示期限を2026/03/13までとする
         const ALWAYS_VISIBLE_DATES = [
             '2025/03/15',
-            '2026/03/14'
+            '2026/03/13' 
         ];
         
         // V3.0: 時刻データと見なされる特殊記号 (時間計算ではnull、表示ではそのまま)
@@ -569,29 +570,55 @@
         }
         
         /**
-         * V1.6: 施行日と表示日付を比較してステータスを決定する
+         * V3.1: 施行日と表示日付を比較してステータスを決定する
          * @param {string} startDateStr - JSON内の施行日 ('YYYY/MM/DD' 形式)
          * @param {Date | null} displayDate - '表示日付' セレクタで選択された日付
          * @returns {string} 決定されたステータス ('計画中', '実施中', '実施済み')
          */
         function getAutoStatus(startDateStr, displayDate) {
+            // 施行日が未設定または表示日付が未選択の場合は「計画中」のまま
             if (!startDateStr || !displayDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
             if (!startDate) return "計画中";
 
-            // 日付のみを比較するため、時刻をクリア
+            // 日付のみを比較するため、時刻をクリアし、ミリ秒で比較
             const displayDayStart = new Date(displayDate.getFullYear(), displayDate.getMonth(), displayDate.getDate()).getTime();
             const startDayStart = startDate.getTime();
             
-            // 📌 修正ロジックの確認：未来の日付は「計画中」
+            // 比較の基準日
+            const todayDayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+
+            // 1. 施行日が現在選択されている表示日付よりも未来の場合
             if (startDayStart > displayDayStart) {
                 return "計画中";
-            } else if (startDayStart < displayDayStart) {
+            } 
+            
+            // 2. 施行日が現在選択されている表示日付よりも過去の場合
+            if (startDayStart < displayDayStart) {
                 return "実施済み";
-            } else {
-                return "実施中";
+            } 
+            
+            // 3. 施行日が現在選択されている表示日付と一致する場合 (startDayStart === displayDayStart)
+            if (startDayStart === displayDayStart) {
+                // さらに、その日が今日のリアルタイムの日付と比較してどうかをチェック
+                
+                // 実行環境の日付が施行日よりも未来であれば、表示日付は過去のものとみなし「実施済み」
+                if (todayDayStart > startDayStart) {
+                     return "実施済み";
+                }
+                
+                // 実行環境の日付が施行日と一致する場合は「実施中」相当とする
+                if (todayDayStart === startDayStart) {
+                    return "実施中";
+                }
+                
+                // 実行環境の日付が施行日よりも未来の場合は「計画中」 (※これは論理的に発生しないはずだが保険)
+                return "計画中"; 
             }
+            
+            // それ以外はデフォルトで「計画中」
+            return "計画中";
         }
 
         async function fetchJson(url) {
@@ -712,7 +739,7 @@
                         const getFirstTime = (segment) => {
                             // 修正: 変数名を's'ではなく'stop'にする
                             const stopDep = segment.stops.find(stop => timeToMinutes(stop.departure) !== null);
-                            if (stopDep) return timeToMinutes(stopDep.departure);
+                            if (stopDep) return timeToMinutes(stop.departure);
                             const stopArr = segment.stops.find(stop => timeToMinutes(stop.arrival) !== null);
                             if (stopArr) return timeToMinutes(stopArr.arrival);
                             return 3000; 
@@ -731,7 +758,7 @@
             
             // 運行時間計算 (タイムライン表示用)
             let startTime = null;
-            // 修正: 変数名を's'ではなく'startStop'にする
+            // 修正: 's' is not defined エラー回避のため変数名を'startStop'に変更
             const startStop = finalFirstRun.stops.find(s => timeToMinutes(s.departure) !== null); 
             if (startStop) startTime = timeToMinutes(startStop.departure);
             
@@ -827,6 +854,12 @@
             const formattedCurrentDate = currentDate ? formatDate(currentDate) : null;
             const isDateSelected = !!dateSelector.value;
             
+            // V3.1: 表示期限を Dateオブジェクトで取得 (2026/03/13)
+            const maxDisplayDateStr = ALWAYS_VISIBLE_DATES[ALWAYS_VISIBLE_DATES.length - 1];
+            const maxDisplayDate = parseJsonDate(maxDisplayDateStr);
+            const maxDisplayDayStart = maxDisplayDate ? maxDisplayDate.getTime() : Infinity;
+
+
             data.forEach(operation => {
                 if (divisionFilter && operation.division !== divisionFilter) return;
                 
@@ -846,7 +879,7 @@
 
                 runsByTrainNumber.forEach((opRuns, trainNumber) => {
                     
-                    // --- 🚅 エラー回避のための安全チェックを強化 (firstOpRun is not defined 修正済み) 🚅 ---
+                    // --- 🚅 エラー回避のための安全チェックを強化 🚅 ---
                     if (opRuns.length === 0) return; 
                     const firstOpRun = opRuns[0];
                     if (!firstOpRun) return; 
@@ -865,8 +898,18 @@
                         
                         if (!integratedTimetable) return; 
                         
-                        // --- 🚅 より厳密な停車駅重複チェック (V3.1) 🚅 ---
+                        // --- 🚅 施行日によるフィルタリング (V3.1) 🚅 ---
+                        const formattedStartDate = cleanValue(startDate);
                         
+                        // 施行日が最大表示日より未来の場合はスキップ
+                        if (formattedStartDate) {
+                            const currentStartDate = parseJsonDate(formattedStartDate);
+                            if (currentStartDate && currentStartDate.getTime() > maxDisplayDayStart) {
+                                return; // スキップ
+                            }
+                        }
+                        
+                        // --- 🚅 より厳密な停車駅重複チェック (V3.1) 🚅 ---
                         // 1. 時刻表内の全駅名を取得
                         const ttAllStations = integratedTimetable.segments.flatMap(segment => 
                             segment.stops.map(s => cleanValue(s.station)).filter(s => s)
@@ -877,8 +920,6 @@
 
                         // 3. 含まれる駅のカウント
                         let matchedStationCount = 0;
-                        
-                        // 時刻表側の各駅が、運用側のroute文字列に一つでも含まれていればカウントアップ
                         ttAllStations.forEach(ttStation => {
                             if (combinedOpRoutes.includes(ttStation)) {
                                 matchedStationCount++;
@@ -887,12 +928,10 @@
 
                         // 4. 除外判定: 1駅も一致しない場合はスキップ
                         if (matchedStationCount === 0) {
-                             console.warn(`SKIP: ${trainNumber} (${startDate}) - 時刻表 (${ttAllStations.join(',')})の駅が、運用ルート (${combinedOpRoutes})と1駅も一致しないため除外。`);
+                             // console.warn(`SKIP: ${trainNumber} (${startDate}) - 時刻表 (${ttAllStations.join(',')})の駅が、運用ルート (${combinedOpRoutes})と1駅も一致しないため除外。`);
                              return; // 明らかに別路線のデータと判断し、破棄
                         }
                         // ------------------------------------
-
-                        const formattedStartDate = cleanValue(startDate);
 
                         let shouldDisplay = false;
                         if (!isDateSelected) { 
@@ -907,7 +946,7 @@
 
                         if (!shouldDisplay) return;
 
-                        // V1.6: ステータス判定ロジックを修正
+                        // V3.1: ステータス判定ロジックを修正
                         let status = cleanValue(firstOpRun.status);
                         if (isDateSelected && formattedStartDate) {
                              // 日付が選択され、施行日も設定されている場合のみ自動判定
