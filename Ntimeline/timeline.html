@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運転実施スケジュール V1.5</title>
+    <title>列車運用タイムライン (完全コード V10.1)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. ベースCSS (V9から変更なし)
+        * 1. ベースCSS (V9/V10で確定したレガシーシステム風CSS)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
@@ -82,7 +82,7 @@
         }
 
         /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリア (V9から変更なし)
+        * 2. タイムライン表示エリア 
         * ---------------------------------------------------------------- */
         #schedule-container {
             overflow: auto; 
@@ -170,7 +170,7 @@
         .status-取り下げ { background-color: #808080; color: #000000; } 
 
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (V9から変更なし)
+        * 3. 詳細モーダル 
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -250,7 +250,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 運転実施スケジュール V1.5
+    <h1>[T-time] 列車運行管理システム V10.1
         <span id="output-datetime"></span>
     </h1> 
 
@@ -302,6 +302,7 @@
         // ----------------------------------------------------------------
         // 1. 定数とDOM要素
         // ----------------------------------------------------------------
+        // ユーザー指定のパス
         const TIMETABLES_URL = '../T-time/timetables.json'; 
         const DATA_URL = '../unnyou/data.json'; 
         const MIN_IN_DAY = 1440; 
@@ -322,9 +323,8 @@
         let globalData = [];
         let currentScheduleData = [];
         let selectedDate = null;
-        let today = new Date(); // 現在日付を保持
+        let today = new Date(); 
 
-        // 常に表示する日付は、特定の日付指定（例: ダイヤ改正日）として維持
         const ALWAYS_VISIBLE_DATES = [
             '2025/03/15',
             '2026/03/14'
@@ -333,6 +333,7 @@
         // ----------------------------------------------------------------
         // 2. ユーティリティ関数とデータ処理
         // ----------------------------------------------------------------
+        // **★ createScheduleDataを含む全ての関数を呼び出し元より上に配置（修正済み）**
 
         function timeToMinutes(timeStr) {
             if (!timeStr || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…") return null;
@@ -357,15 +358,10 @@
             return new Date(parts[0], parts[1] - 1, parts[2]);
         }
         
-        /**
-         * 修正: 現在日付を基準にステータスを判断する
-         */
         function getAutoStatus(startDateStr, currentDate) {
-            // currentDateには、表示日付セレクタの値または初期値（現在日付）が入る
             if (!startDateStr || !currentDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
-            // 時刻を無視し、日付のみで比較するためのタイムスタンプを取得
             const currentDayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
             const startDayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
             
@@ -384,67 +380,97 @@
             return await response.json();
         }
 
-        /**
-         * 修正: 運転区間が一致する時刻表を優先して表示するロジックを追加
-         */
-        function openDetailModal(trainNumber, operationNumber, division, runIndex) {
-            const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
-            const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
-            
-            if (!run || !run.timetable) {
-                alert('ERROR: 詳細データが見つかりません。');
-                return;
-            }
-            
-            // 該当ブロックの運行区間
-            const currentRoute = run.route; 
-            
-            // --- 時刻表の絞り込みロジック ---
-            let displayTimetable = run.timetable;
-            const allTimetablesForTrain = globalTimetables.filter(t => t.trainNumber === trainNumber);
+        function createScheduleData(timetables, data, currentDate, divisionFilter) {
+            const scheduleData = new Map();
+            const divisions = new Set();
+            const timetablesMap = new Map(timetables.map(t => [t.trainNumber, t]));
 
-            // 1. 運行ブロックの運行区間とほぼ一致する時刻表を探す
-            const matchingTimetable = allTimetablesForTrain.find(t => t.route === currentRoute);
+            data.forEach(op => divisions.add(op.division));
+            updateDivisionSelector(divisions);
+            
+            const formattedCurrentDate = currentDate ? formatDate(currentDate) : null;
 
-            if (matchingTimetable) {
-                displayTimetable = matchingTimetable;
-            } else if (allTimetablesForTrain.length > 1) {
-                // 2. 一致するものがない場合、該当ブロックの時刻表を使用しつつアラート
-                console.warn(`Warning: 列車番号 ${trainNumber} の時刻表が複数ありますが、運行区間 "${currentRoute}" に完全一致する時刻表が見つかりませんでした。`);
-            }
-            // -----------------------------
-            
-            let detailHtml = `
-                <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
-                <dt>形式</dt><dd>${operation.vehicles}</dd>
-                <dt>列車番号</dt><dd>${trainNumber}</dd>
-                <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
-                <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
-                <dt>運転区間</dt><dd>${run.route}</dd> 
-                <dt>ステータス</dt><dd>${run.status}</dd>
-            `;
-            document.getElementById('block-details').innerHTML = detailHtml;
-            
-            // 時刻表情報
-            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
-            displayTimetable.stops.forEach(stop => {
-                 tableHtml += `<tr>
-                    <td>${stop.station}</td>
-                    <td>${stop.arrival.trim() || '--'}</td>
-                    <td>${stop.departure.trim() || '--'}</td>
-                    <td>${stop.trackN || '不明'}</td>
-                </tr>`;
+            data.forEach(operation => {
+                if (divisionFilter && operation.division !== divisionFilter) return;
+
+                const fullOpLabel = `${operation.operation_number} (${operation.division})`;
+                const opRuns = [];
+
+                operation.train_runs.forEach((run, runIndex) => {
+                    const trainNumber = run.train_number;
+                    const timetable = timetablesMap.get(trainNumber);
+
+                    if (!timetable) return;
+                    
+                    const startDateStr = timetable.startDate;
+                    const formattedStartDate = startDateStr ? formatDate(parseJsonDate(startDateStr)) : null;
+
+                    let shouldDisplay = false;
+                    
+                    if (!formattedCurrentDate) {
+                        shouldDisplay = true;
+                    } else {
+                        const isNoDate = !startDateStr;
+                        const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate);
+                        const isSelectedDate = (formattedStartDate === formattedCurrentDate);
+                        
+                        shouldDisplay = isNoDate || isSpecificDate || isSelectedDate;
+                    }
+
+                    if (!shouldDisplay) return;
+
+                    const stops = timetable.stops;
+                    let startTime = null;
+                    let endTime = null;
+
+                    const startStop = stops.find(s => timeToMinutes(s.departure) !== null);
+                    if (startStop) startTime = timeToMinutes(startStop.departure);
+
+                    const endStop = [...stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
+                    if (endStop) endTime = timeToMinutes(endStop.arrival);
+                    
+                    if (startTime === null || endTime === null || endTime <= startTime) {
+                        return;
+                    }
+                    
+                    let status = run.status || getAutoStatus(startDateStr, currentDate);
+                    
+                    opRuns.push({
+                        trainNumber: trainNumber,
+                        type: timetable.type,
+                        route: run.route,
+                        startTime: startTime, 
+                        endTime: endTime,     
+                        status: status, 
+                        operationId: operation.id, 
+                        operationNumber: operation.operation_number,
+                        division: operation.division,
+                        runIndex: runIndex,
+                        timetable: timetable 
+                    });
+                });
+
+                if (opRuns.length > 0) {
+                     if (!scheduleData.has(fullOpLabel)) {
+                        scheduleData.set(fullOpLabel, {
+                            operation_number: operation.operation_number,
+                            division: operation.division,
+                            vehicles: operation.vehicles,
+                            runs: []
+                        });
+                    }
+                    scheduleData.get(fullOpLabel).runs.push(...opRuns);
+                }
             });
-            tableHtml += '</table>';
-            document.getElementById('timetable-details').innerHTML = tableHtml;
 
-            modalOverlay.style.display = 'block';
+            return Array.from(scheduleData.values()).sort((a, b) => a.operation_number.localeCompare(b.operation_number));
         }
 
 
         // ----------------------------------------------------------------
-        // 3. UIレンダリング (変更なし)
+        // 3. UIレンダリング 
         // ----------------------------------------------------------------
+        
         function updateDivisionSelector(divisions) {
             divisionSelector.innerHTML = '<option value="">全ての区所</option>';
             const sortedDivisions = Array.from(divisions).sort();
@@ -540,8 +566,55 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（検索、全画面） (変更なし)
+        // 4. 機能（詳細、検索、全画面）
         // ----------------------------------------------------------------
+
+        function openDetailModal(trainNumber, operationNumber, division, runIndex) {
+            const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
+            const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
+            
+            if (!run || !run.timetable) {
+                alert('ERROR: 詳細データが見つかりません。');
+                return;
+            }
+            
+            const currentRoute = run.route; 
+            let displayTimetable = run.timetable;
+            const allTimetablesForTrain = globalTimetables.filter(t => t.trainNumber === trainNumber);
+
+            const matchingTimetable = allTimetablesForTrain.find(t => t.route === currentRoute);
+
+            if (matchingTimetable) {
+                displayTimetable = matchingTimetable;
+            } else if (allTimetablesForTrain.length > 1) {
+                console.warn(`Warning: 列車番号 ${trainNumber} の時刻表が複数ありますが、運転区間 "${currentRoute}" に完全一致する時刻表が見つかりませんでした。`);
+            }
+            
+            let detailHtml = `
+                <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
+                <dt>形式</dt><dd>${operation.vehicles}</dd>
+                <dt>列車番号</dt><dd>${trainNumber}</dd>
+                <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
+                <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
+                <dt>運転区間</dt><dd>${run.route}</dd> 
+                <dt>ステータス</dt><dd>${run.status}</dd>
+            `;
+            document.getElementById('block-details').innerHTML = detailHtml;
+            
+            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
+            displayTimetable.stops.forEach(stop => {
+                 tableHtml += `<tr>
+                    <td>${stop.station}</td>
+                    <td>${stop.arrival.trim() || '--'}</td>
+                    <td>${stop.departure.trim() || '--'}</td>
+                    <td>${stop.trackN || '不明'}</td>
+                </tr>`;
+            });
+            tableHtml += '</table>';
+            document.getElementById('timetable-details').innerHTML = tableHtml;
+
+            modalOverlay.style.display = 'block';
+        }
 
         function searchTrain() {
             const searchTerm = searchInput.value.trim();
@@ -576,11 +649,11 @@
 
         function updateSchedule() {
             const dateValue = dateSelector.value;
-            // 修正: 表示日付が未選択の場合は、現在日付 (today) を使用してステータスを判断する
             selectedDate = dateValue ? new Date(dateValue) : today; 
 
             const divisionFilter = divisionSelector.value;
             
+            // ★ createScheduleData がここで呼び出される
             const scheduleData = createScheduleData(globalTimetables, globalData, selectedDate, divisionFilter);
             renderSchedule(scheduleData);
             clearSearch();
@@ -613,7 +686,7 @@
 
         async function initialize() {
             updateOutputDatetime();
-            today = new Date(); // 初期化時に今日の日付を確定
+            today = new Date();
             
             try {
                 [globalTimetables, globalData] = await Promise.all([
@@ -621,9 +694,9 @@
                     fetchJson(DATA_URL)
                 ]);
 
-                // 初期表示時は日付セレクタを空のまま、今日の日付を基準に表示
                 dateSelector.value = ''; 
                 
+                // ★ 初期化時に updateSchedule を呼び出す
                 updateSchedule();
                 
             } catch (error) {
