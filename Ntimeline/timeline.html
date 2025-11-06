@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (V11)</title>
+    <title>実施列車運転スケジュール (V12)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. ベースCSS (変更なし)
+        * 1. ベースCSS
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
@@ -80,6 +80,21 @@
         #fullscreen-button:hover {
              background-color: #777777;
         }
+        
+        /* ズームコントローラーのスタイル */
+        #zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding-left: 20px;
+            border-left: 1px solid #444444;
+        }
+        #zoom-range {
+            width: 150px;
+        }
+        #zoom-value {
+            font-size: 0.8em;
+        }
 
         /* ----------------------------------------------------------------
         * 2. タイムライン表示エリア 
@@ -93,8 +108,9 @@
 
         #schedule-table {
             display: grid;
-            grid-template-columns: 100px repeat(1440, 1fr); 
-            min-width: 4000px; 
+            grid-template-columns: var(--op-label-width, 100px) repeat(1440, 1fr); 
+            /* 初期値は4000pxだが、JSで変更 */
+            min-width: var(--timeline-min-width, 4000px); 
             border-collapse: collapse;
         }
 
@@ -112,10 +128,10 @@
             z-index: 10;
         }
 
-        /* 運用ラベル */
+        /* 運用ラベル - 表示形式修正 */
         .operation-label {
             grid-column: 1 / 2;
-            padding: 8px 5px;
+            padding: 5px; /* 上下を狭く */
             border-bottom: 1px dotted #333333;
             background-color: #222222;
             font-weight: bold;
@@ -124,11 +140,19 @@
             z-index: 5;
             white-space: nowrap;
             font-size: 1.0em;
+            display: flex;
+            flex-direction: column; /* 運用番号と区所を縦に並べる */
+            justify-content: center;
+            line-height: 1.2;
         }
         
         .operation-label span.division {
             font-size: 0.8em;
             color: #888888;
+            font-weight: normal;
+        }
+        .operation-label span.number {
+            font-weight: bold;
         }
 
         .train-run-container {
@@ -138,7 +162,7 @@
             border-bottom: 1px dotted #333333;
         }
 
-        /* 運行ブロックのCSS */
+        /* 運行ブロックのCSS (変更なし) */
         .train-block {
             position: absolute;
             height: 30px;
@@ -163,14 +187,14 @@
             background-color: #4b0082 !important;
         }
 
-        /* ステータスごとの色の定義 */
+        /* ステータスごとの色の定義 (変更なし) */
         .status-計画中 { background-color: #0000ff; color: #ffffff; } 
         .status-実施済み { background-color: #008000; color: #ffffff; }
         .status-実施中 { background-color: #ff0000; color: #ffffff; } 
         .status-取り下げ { background-color: #808080; color: #000000; } 
 
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル 
+        * 3. 詳細モーダル (変更なし)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -269,6 +293,12 @@
         <button id="clear-search">解除</button>
         
         <button id="fullscreen-button">全画面表示</button>
+
+        <div id="zoom-controls">
+            <label>横軸ズーム:</label>
+            <input type="range" id="zoom-range" min="1000" max="10000" step="500" value="4000">
+            <span id="zoom-value">4000px</span>
+        </div>
     </div>
 
     <div id="schedule-container">
@@ -316,6 +346,8 @@
         const scheduleContainer = document.getElementById('schedule-container');
         const outputDatetimeSpan = document.getElementById('output-datetime');
         const fullscreenButton = document.getElementById('fullscreen-button');
+        const zoomRange = document.getElementById('zoom-range'); // 追加
+        const zoomValueSpan = document.getElementById('zoom-value'); // 追加
 
         let currentBlock = null; 
         let globalTimetables = [];
@@ -379,7 +411,7 @@
         }
 
         /**
-         * 修正: 同じ列車番号の運行を結合して表示するロジックを追加
+         * 修正: 日付未指定時は全運行を表示。列車番号が同じ運行を結合。
          */
         function createScheduleData(timetables, data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -390,13 +422,14 @@
             updateDivisionSelector(divisions);
             
             const formattedCurrentDate = currentDate ? formatDate(currentDate) : null;
+            
+            // 日付が未指定の場合、日付フィルタを完全に無効化するフラグ
+            const isDateUnspecified = !dateSelector.value; 
 
             data.forEach(operation => {
                 if (divisionFilter && operation.division !== divisionFilter) return;
 
                 const fullOpLabel = `${operation.operation_number} (${operation.division})`;
-                
-                // 運行リストを列車番号でグループ化
                 const trainRunsByNumber = new Map();
                 
                 operation.train_runs.forEach((run, runIndex) => {
@@ -409,9 +442,12 @@
                     const formattedStartDate = startDateStr ? formatDate(parseJsonDate(startDateStr)) : null;
 
                     let shouldDisplay = false;
-                    if (!formattedCurrentDate) {
+                    
+                    if (isDateUnspecified) {
+                        // 日付未指定時は全ての運行を表示
                         shouldDisplay = true;
                     } else {
+                        // 日付指定時は以前のロジックに従い、施行日や特定日かどうかで判断
                         const isNoDate = !startDateStr;
                         const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate);
                         const isSelectedDate = (formattedStartDate === formattedCurrentDate);
@@ -420,7 +456,6 @@
 
                     if (!shouldDisplay) return;
 
-                    // 運行区間を取得
                     const stops = timetable.stops;
                     const startStation = stops[0].station;
                     const endStation = stops[stops.length - 1].station;
@@ -438,7 +473,8 @@
                         return;
                     }
                     
-                    let status = run.status || getAutoStatus(startDateStr, currentDate);
+                    // 日付未指定時はステータス判定をスキップし '計画中' を維持、指定時は現在日付基準で判定
+                    let status = run.status || (isDateUnspecified ? "計画中" : getAutoStatus(startDateStr, currentDate));
                     
                     const runData = {
                         trainNumber: trainNumber,
@@ -465,7 +501,6 @@
                 // 列車番号ごとに統合処理を実行
                 const integratedRuns = [];
                 trainRunsByNumber.forEach(runs => {
-                    // ソート: 開始時刻が早い順
                     runs.sort((a, b) => a.startTime - b.startTime);
                     
                     if (runs.length === 0) return;
@@ -475,25 +510,20 @@
                     for (let i = 1; i < runs.length; i++) {
                         const nextRun = runs[i];
                         
-                        // 統合条件: 
-                        // 1. 列車番号が同じ
-                        // 2. 現在の統合運行の終着駅が、次の運行の始発駅と一致すること
+                        // 統合条件: 列車番号が同じ AND (現在の終着駅 == 次の始発駅)
                         if (currentIntegratedRun.trainNumber === nextRun.trainNumber &&
                             currentIntegratedRun.endStation === nextRun.startStation) 
                         {
-                            // 統合: 終了時刻と終着駅を更新
                             currentIntegratedRun.endTime = nextRun.endTime;
                             currentIntegratedRun.endStation = nextRun.endStation;
-                            currentIntegratedRun.route += ` → ${nextRun.endStation}`; // ルートを更新
+                            currentIntegratedRun.route += ` → ${nextRun.endStation}`; 
                             currentIntegratedRun.subRuns.push(nextRun);
-                            currentIntegratedRun.runIndex = nextRun.runIndex; // 最終ランのインデックスを保持
+                            currentIntegratedRun.runIndex = nextRun.runIndex; 
                         } else {
-                            // 統合が途切れた場合、現在の統合運行を保存し、次の運行を新たな統合運行として開始
                             integratedRuns.push(currentIntegratedRun);
                             currentIntegratedRun = { ...nextRun, subRuns: [nextRun] };
                         }
                     }
-                    // ループ終了後、最後の統合運行を保存
                     integratedRuns.push(currentIntegratedRun);
                 });
 
@@ -511,8 +541,7 @@
                 }
             });
 
-            // 修正: 初期読み込み時にソートなし (ソートをコメントアウト)
-            // return Array.from(scheduleData.values()).sort((a, b) => a.operation_number.localeCompare(b.operation_number));
+            // ソートなしで返す
             return Array.from(scheduleData.values());
         }
 
@@ -520,10 +549,9 @@
         function openDetailModal(trainNumber, operationNumber, division, runIndex) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
             
-            // 統合された運行ブロックを見つける
             const integratedRun = operation?.runs.find(r => 
                 r.trainNumber === trainNumber && 
-                r.subRuns.some(sr => sr.runIndex === runIndex) // runIndexがサブ運行に含まれるか確認
+                r.subRuns.some(sr => sr.runIndex === runIndex)
             );
 
             if (!integratedRun) {
@@ -532,14 +560,8 @@
             }
             
             const currentRoute = integratedRun.route; 
-            
-            // 時刻表の表示は、統合された運行の最初の列車番号（TrainNumber）を使って、
-            // 運転区間（Route）が一致する単一の時刻表を取得しようと試みる。
-            // 複数区間にまたがる場合、単純な時刻表表示は困難なため、ここでは統合された情報を使う。
-            
-            // 詳細表示のために、最初のサブ運行の情報を取得
             const firstRun = integratedRun.subRuns[0]; 
-            const displayTimetable = firstRun.timetable; // 時刻表データ自体は、最初の区間のものを利用
+            const displayTimetable = firstRun.timetable;
 
             let detailHtml = `
                 <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
@@ -552,21 +574,18 @@
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
-            // 時刻表情報: 統合された全区間の時刻表を結合して表示
             let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
             
             integratedRun.subRuns.forEach((subRun, index) => {
                 const isFirst = index === 0;
-                const isLast = index === integratedRun.subRuns.length - 1;
                 
                 if (!isFirst) {
-                    // 2つ目以降の区間は、ヘッダーとして列車番号と運行区間を追加
                     tableHtml += `<tr><td colspan="4" style="background-color: #000080; color: #ffffff; font-weight: bold;">列車番号: ${subRun.trainNumber} (区間: ${subRun.startStation} - ${subRun.endStation})</td></tr>`;
                 }
 
                 subRun.timetable.stops.forEach((stop, stopIndex) => {
-                    // 最初の運行の始発駅と、最後の運行の終着駅以外は、重複表示を避けるために発着時刻を調整
-                    if (!isFirst && stopIndex === 0) return; // 2区間目以降の始発駅は前の区間の終着駅なのでスキップ
+                    // 2区間目以降は、前の区間の終着駅と重複する最初の駅（始発駅）はスキップ
+                    if (!isFirst && stopIndex === 0) return; 
 
                     tableHtml += `<tr>
                         <td>${stop.station}</td>
@@ -634,7 +653,8 @@
             let rowIndex = 2; 
 
             data.forEach(operation => {
-                const opLabelContent = `${operation.operation_number} <span class="division">(${operation.division})</span>`;
+                // 修正: 運用ラベルを2行表示に
+                const opLabelContent = `<span class="number">${operation.operation_number}</span><span class="division">(${operation.division})</span>`;
 
                 const operationLabel = document.createElement('div');
                 operationLabel.classList.add('operation-label');
@@ -657,14 +677,12 @@
                     const block = document.createElement('div');
                     block.classList.add('train-block', `status-${item.status}`);
                     
-                    // 統合された運行の場合、列車番号と始発→終着駅を表示
                     const routeText = `${item.startStation}→${item.endStation}`;
                     block.textContent = `${item.trainNumber} (${routeText})`;
                     
                     block.dataset.trainNumber = item.trainNumber;
                     block.dataset.operationNumber = item.operationNumber;
                     block.dataset.division = item.division; 
-                    // runIndex は統合された運行の最後のサブ運行のインデックス
                     block.dataset.runIndex = item.runIndex; 
                     block.dataset.currentStatus = item.status;
                     
@@ -677,7 +695,6 @@
                     
                     block.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        // 統合前のいずれかの runIndex を渡す (ここでは最後のサブ運行の runIndex を使用)
                         openDetailModal(item.trainNumber, item.operationNumber, item.division, item.runIndex); 
                     });
                     runContainer.appendChild(block);
@@ -688,7 +705,7 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（検索、全画面）
+        // 4. 機能（検索、全画面、ズーム）
         // ----------------------------------------------------------------
 
         function searchTrain() {
@@ -724,7 +741,8 @@
 
         function updateSchedule() {
             const dateValue = dateSelector.value;
-            selectedDate = dateValue ? new Date(dateValue) : today; 
+            // 日付が未指定の場合は null を渡し、createScheduleData内で全表示ロジックを適用
+            selectedDate = dateValue ? new Date(dateValue) : null; 
 
             const divisionFilter = divisionSelector.value;
             
@@ -753,6 +771,14 @@
                 document.exitFullscreen();
             }
         }
+        
+        // ズーム機能の追加
+        function updateZoom() {
+            const zoomLevel = zoomRange.value;
+            scheduleTable.style.setProperty('--timeline-min-width', `${zoomLevel}px`);
+            zoomValueSpan.textContent = `${zoomLevel}px`;
+        }
+
 
         // ----------------------------------------------------------------
         // 5. 初期化とイベントリスナー
@@ -768,12 +794,18 @@
                     fetchJson(DATA_URL)
                 ]);
 
+                // 初期化時、日付セレクタを空にして全表示をデフォルトとする
                 dateSelector.value = ''; 
                 
                 updateSchedule();
+                updateZoom(); // ズーム初期化
                 
             } catch (error) {
-                alert(`FATAL ERROR: データ読み込み中にエラーが発生しました。パスを確認してください。: ${error.message}`);
+                // エラー発生時の処理を変更し、日付未指定時のロジックミスを修正
+                const errorMsg = error.message.includes('createScheduleData') 
+                    ? '致命的なエラー: プログラムの内部エラーが発生しました。' 
+                    : `致命的なエラー: データ読み込み中にエラーが発生しました。パスを確認してください。: ${error.message}`;
+                alert(errorMsg);
             }
         }
 
@@ -799,6 +831,9 @@
         clearSearchButton.addEventListener('click', clearSearch);
         
         fullscreenButton.addEventListener('click', toggleFullscreen);
+
+        // ズームイベントリスナーを追加
+        zoomRange.addEventListener('input', updateZoom);
 
         initialize();
 
