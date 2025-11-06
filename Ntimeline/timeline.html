@@ -3,18 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転計画表 V1.7</title>
-    <style>
+    <title>実施列車運転計画表 V1.7</title> <style>
         /* ----------------------------------------------------------------
         * 0. 標準フォントを使用 (ゲームフォント中止)
         * ---------------------------------------------------------------- */
-        
-        /* ----------------------------------------------------------------
-        * 1. ベースCSS 
-        * ---------------------------------------------------------------- */
         body {
-            /* 標準フォント（ゴシック体）を適用 */
-            font-family: 'ＭＳ ゴシック', 'メイリオ', Meiryo, '游ゴシック', 'Yu Gothic', 'MS Gothic', sans-serif; 
+            /* 変更: MSPゴシック優先のフォントリストを適用 */
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', 'ＭＳ ゴシック', 'MS Gothic', 'メイリオ', Meiryo, '游ゴシック', 'Yu Gothic', sans-serif; 
             background-color: #191970; /* 変更: 淡い青 */
             color: #c0c0c0;
             margin: 0;
@@ -26,7 +21,6 @@
             display: flex;
             flex-direction: column;
             line-height: 1.4; 
-            /* V3.2: 全体のフォントの太さを標準に戻す */
             font-weight: normal; 
         }
 
@@ -39,7 +33,7 @@
             flex-shrink: 0;
             position: relative;
             font-size: 1.5em; 
-            font-weight: normal; /* V3.2: h1の太字を解除 */
+            font-weight: normal; 
         }
         
         /* 時刻表示コンテナ */
@@ -53,7 +47,6 @@
         #current-time {
             font-size: 1.0em; /* 現在時刻 */
             color: #ffffff;
-            /* V3.2: 太字を解除 */
             font-weight: normal; 
             display: block;
         }
@@ -99,7 +92,6 @@
             background-color: #555555;
             border: 1px solid #c0c0c0;
             color: #ffffff;
-            /* V3.2: 太字を維持 */
             font-weight: bold; 
             padding: 3px 10px;
             font-size: inherit; 
@@ -160,7 +152,6 @@
             padding: 5px;
             border-bottom: 1px dotted #333333;
             background-color: #333333; 
-            /* V3.2: 太字を解除 */
             font-weight: normal; 
             position: sticky;
             left: 0;
@@ -284,7 +275,6 @@
             border: none;
             cursor: pointer;
             padding: 3px 8px;
-            /* V3.2: 太字を維持 */
             font-weight: bold; 
             position: absolute;
             right: 5px;
@@ -329,7 +319,6 @@
         .modal-op-runs-table th {
             background-color: #000080; 
             color: #ffffff;
-            /* V3.2: 太字を維持 */
             font-weight: bold; 
         }
         
@@ -341,13 +330,11 @@
             background-color: #000080; 
             color: #ffffff;
             padding: 5px;
-            /* V3.2: 太字を解除 */
             font-weight: normal; 
             position: relative;
         }
 
         .modal-info dt {
-            /* V3.2: 太字を解除 */
             font-weight: normal; 
             color: #000080; 
             margin-top: 5px;
@@ -384,7 +371,6 @@
 
         /* 運用詳細情報 */
         #all-runs-container dt {
-             /* V3.2: 太字を解除 */
              font-weight: normal; 
              color: #000080; 
              margin-right: 5px; 
@@ -837,6 +823,7 @@
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
          * V3.3-R2: 運用番号の重複を許可するため、キーを operation_id_startDate に変更。
+         * V3.3-R3: 日付検索のロジックを修正し、施行日未設定の運用も表示されるようにする。
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -900,18 +887,20 @@
                             }
                         }
                         
-                        // 運行表示判定ロジック
+                        // 運行表示判定ロジック (V3.3-R3: 修正)
                         let shouldDisplay = false;
+                        const isNoDate = !formattedStartDate; // 施行日がない運用
+                        
                         if (!isDateSelected) { 
                             // 日付未選択: 全て表示
                             shouldDisplay = true; 
                         } else { 
                             // 日付選択済み
-                            const isNoDate = !formattedStartDate; // 施行日がない運用
                             const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate); // 固定表示日
                             const isSelectedDate = (formattedStartDate === formattedCurrentDate); // 選択日付と一致
                             
                             // 施行日がない、固定表示日である、または選択日付と一致する場合に表示
+                            // 【修正ポイント】isNoDateも常に表示判定に含める
                             shouldDisplay = isNoDate || isSpecificDate || isSelectedDate;
                         }
 
@@ -963,7 +952,14 @@
                     
                     const hasRuns = runs.length > 0;
                     
-                    if (isDateSelected && !hasRuns) return; 
+                    // V3.3-R3: 日付選択されている場合に、その日付の運行がない施行日の運用は表示しないようにする
+                    if (isDateSelected && runs.length === 0) {
+                         const isNoDate = !labelStartDate;
+                         const isSelectedDate = (labelStartDate === formattedCurrentDate);
+
+                         // 日付が未設定の行は、たとえ運行がなくても表示を維持する (運用番号と区所ラベルは必要)
+                         if (!isNoDate) return; 
+                    }
                     
                     // V3.3-R2: 運用ラベルキーを operationId と startDate で一意に設定
                     const uniqueOpLabelKey = `${originalId}_${labelStartDate || 'COMMON'}`; 
@@ -1002,8 +998,8 @@
                     opData.displayBlocks = blocksByDay; 
                 });
 
+                // V3.3-R3: 運行がなく、日付も未設定で、日付が選択されていない場合（全運用表示時）のみ追加
                 if (!foundMatchingRunForDate && !isDateSelected) { 
-                     // V3.3-R2: ここでもIDベースのキーを使用
                      const uniqueOpLabelKey = `${originalId}_COMMON`;
                      if (!scheduleData.has(uniqueOpLabelKey)) {
                          scheduleData.set(uniqueOpLabelKey, {
@@ -1044,7 +1040,7 @@
         /**
          * 列車ブロッククリック時の詳細モーダル表示
          */
-        function openDetailModal(trainNumber, operationId, startDate) { // V3.3-R2: operationNumber, division ではなく operationId を受け取る
+        function openDetailModal(trainNumber, operationId, startDate) { // V3.3-R2: operationId を受け取る
             
             const operationBlock = currentScheduleData.find(op => 
                 op.id == operationId && // IDは文字列/数値混合の可能性があるため == を使用
@@ -1150,6 +1146,7 @@
             const allRunsList = document.getElementById('all-runs-list');
             
             // 運用詳細情報
+            // 変更: 後継運用 -> 後継承
             let htmlContent = `
                 <div class="op-details-line">
                     <dt>ID:</dt><dd>${cleanValue(originalOperation.id)}</dd>
@@ -1165,8 +1162,7 @@
                 <table class="modal-op-runs-table">
                 <tr>
                     <th>列車番号</th>
-                    <th>区間</th>
-                    <th>備考</th>
+                    <th>区間</th> <th>備考</th>
                 </tr>
             `;
 
