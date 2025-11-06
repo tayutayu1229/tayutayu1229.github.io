@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (表示形式/時刻表統合最終版 V22)</title>
+    <title>実施列車運転計画表 (最終調整版 V23)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -309,14 +309,16 @@
             color: #000000;
         }
         
+        /* V22: 区間ヘッダーは非表示にするため不要 (しかし、念のためCSSは残す) */
         .modal-timetable .segment-header {
+             /* display: none; */ /* JS側でTRを挿入しないようにするが、スタイルは残す */
              background-color: #000080; 
              color: #ffffff; 
              font-weight: bold; 
              border-top: 3px solid #ffffff;
         }
         
-        /* V22: 時刻列幅固定と駅名/番線幅調整 */
+        /* V23: 時刻列幅固定と駅名/番線幅調整 */
         .modal-timetable table {
             table-layout: fixed;
             width: 100%; 
@@ -325,10 +327,10 @@
             width: 30%; /* 駅名 */
         }
         .modal-timetable table col.time-col {
-            width: 20%; /* 着時刻/発時刻 */
+            width: 27.5%; /* 着時刻/発時刻 */
         }
         .modal-timetable table col.track-col {
-             width: 30%; /* 番線（広く） */
+             width: 15%; /* 番線（狭く） */
         }
         .modal-timetable table th:nth-child(2),
         .modal-timetable table td:nth-child(2),
@@ -374,7 +376,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 実施列車運転スケジュール V2.2
+    <h1>実施列車運転計画表 V2.3
         <span id="output-datetime"></span>
     </h1> 
 
@@ -550,7 +552,7 @@
         }
         
         /**
-         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V22: 全セグメントを網羅的に統合ロジック強化)
+         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V22ロジック維持)
          */
         function getIntegratedTimetable(trainNumber, startDate, allTimetables) {
             
@@ -559,14 +561,14 @@
 
             if (matchingTimetables.length === 0) return null;
             
-            // 1. 始点を見つける（一番早い発時刻または着時刻）
+            // 1. 始点を見つける
             let currentRun = null;
             let earliestTime = 3000; 
             
             matchingTimetables.forEach(t => {
                 // 最初の駅の着/発時刻
-                const firstStopArr = t.stops.find(s => timeToMinutes(s.arrival) !== null);
                 const firstStopDep = t.stops.find(s => timeToMinutes(s.departure) !== null);
+                const firstStopArr = t.stops.find(s => timeToMinutes(s.arrival) !== null);
                 
                 let time = 3000;
                 if (firstStopDep) time = timeToMinutes(firstStopDep.departure);
@@ -636,7 +638,6 @@
             if (combinedRuns.length !== matchingTimetables.length) {
                 const unUsed = matchingTimetables.filter(t => !usedTimetables.has(t));
                 if (unUsed.length > 0) {
-                    // 全セグメントを結合できない場合、統合されたリストと未使用リストを合わせて、最初の発時刻で時間順にソートする
                     const allSegments = [...combinedRuns, ...unUsed].sort((a, b) => {
                         const getFirstTime = (segment) => {
                             const stopDep = segment.stops.find(s => timeToMinutes(s.departure) !== null);
@@ -848,21 +849,23 @@
             modalContent.style.display = 'flex';
             allRunsContainer.style.display = 'none';
 
+            // V23: 項目名修正
             let detailHtml = `
                 <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
                 <dt>形式</dt><dd>${operation.vehicles}</dd>
                 <dt>列車番号</dt><dd>${trainNumber}</dd>
                 <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
                 <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
-                <dt>運転区間 (運用計画)</dt><dd>${integratedRun.route}</dd> 
-                <dt>実運行区間 (時刻表)</dt><dd>${displayTimetable.origin}〜${displayTimetable.destination}</dd>
-                <dt>ステータス</dt><dd>${integratedRun.status}</dd>
+                <dt>運転区間 (運用)</dt><dd>${integratedRun.route}</dd> 
+                <dt>運行区間 (運転時刻による)</dt><dd>${displayTimetable.origin}〜${displayTimetable.destination}</dd>
+                <dt>計画状況</dt><dd>${integratedRun.status}</dd>
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
             // 時刻表情報: 統合された全区間の時刻表を線区ごとに分けて表示
+            // V23: タイトル変更、線区ヘッダー削除
             let tableHtml = `
-                <h3>停車駅・時刻表</h3>
+                <h3>運転時刻</h3>
                 <table>
                     <colgroup>
                         <col class="station-col">
@@ -878,11 +881,12 @@
             
             displayTimetable.segments.forEach((segment, segmentIndex) => {
                 
-                // V22: 区間ヘッダーの「線区:」を削除
-                const line = trim(segment.line) || '';
+                // V23: 青色の線区区間ヘッダー行を完全に削除
+                /* const line = trim(segment.line) || '';
                 tableHtml += `<tr><td colspan="4" class="segment-header">
                     ${line} (${trim(segment.origin)}〜${trim(segment.destination)})
                 </td></tr>`;
+                */
                 
                 segment.stops.forEach((stop, stopIndex) => {
                     
