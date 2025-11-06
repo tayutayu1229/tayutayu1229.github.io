@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車運用タイムライン (最終調整版 V8)</title>
+    <title>列車運用タイムライン (CSS復元版 V9)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. レガシーシステム風CSS (初期デザインに近づけ、淡い色を維持)
+        * 1. ベースCSS (淡い色を維持しつつ、レガシー感強調)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
-            /* 背景色を少し濃くしてコントラストを改善 */
-            background-color: #2a2a7a; 
-            color: #e0e0e0;
+            /* 背景色を濃い青に戻し、文字色を明るい灰色に */
+            background-color: #000080; 
+            color: #c0c0c0;
             margin: 0;
             padding: 15px;
             font-size: 14px;
@@ -26,7 +26,7 @@
         h1 {
             color: #ffff00;
             text-align: center;
-            border-bottom: 2px solid #e0e0e0; 
+            border-bottom: 2px solid #c0c0c0; /* 境界線を明るい灰色に */
             padding-bottom: 5px;
             margin-bottom: 15px;
             flex-shrink: 0;
@@ -38,7 +38,7 @@
             bottom: 5px;
             right: 0;
             font-size: 0.75em;
-            color: #aaaaaa;
+            color: #888888; /* 暗めの灰色に */
         }
 
         /* 制御パネル */
@@ -47,42 +47,35 @@
             flex-wrap: wrap;
             gap: 10px 15px;
             margin-bottom: 15px;
-            background-color: #1a1a33;
+            /* 背景色を黒に戻す */
+            background-color: #000000;
             padding: 10px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid #c0c0c0;
             justify-content: flex-start;
             flex-shrink: 0;
         }
 
-        #controls label, #controls input, #controls select {
-            color: #e0e0e0;
-            background-color: #1a1a33;
-            border: 1px solid #e0e0e0;
-            padding: 3px 5px;
-            font-family: inherit;
-        }
-
-        #controls button {
-            color: #e0e0e0;
-            background-color: #1a1a33;
-            border: 1px solid #e0e0e0;
+        #controls label, #controls input, #controls select, #controls button {
+            color: #c0c0c0;
+            background-color: #000000;
+            border: 1px solid #c0c0c0;
             padding: 3px 5px;
             font-family: inherit;
         }
         
         #controls button:hover {
-            background-color: #444466;
+            background-color: #333333;
             cursor: pointer;
         }
         
         #controls select option {
-            background-color: #2a2a7a; 
+            /* ドロップダウンの背景色を本体の色に戻す */
+            background-color: #000080; 
         }
 
-        /* 全画面ボタンの追加CSS */
         #fullscreen-button {
             background-color: #555555;
-            border: 1px solid #e0e0e0;
+            border: 1px solid #c0c0c0;
             color: #ffffff;
             font-weight: bold;
             padding: 3px 10px;
@@ -92,59 +85,98 @@
         }
 
         /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリア (初期デザインの復元)
+        * 2. タイムライン表示エリア (**最重要修正ポイント**)
         * ---------------------------------------------------------------- */
         #schedule-container {
             overflow: auto; 
             flex-grow: 1;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #c0c0c0;
             background-color: #000000;
         }
 
         #schedule-table {
             display: grid;
+            /* 修正: 時刻が左にまとまってしまう問題に対処するため、最小幅を大きく設定 */
             grid-template-columns: 100px repeat(1440, 1fr); 
-            min-width: 3000px;
+            min-width: 4000px; /* 最小幅をさらに増やし、時刻の分散を保証 */
             border-collapse: collapse;
         }
 
+        /* 時刻ヘッダー */
         .time-header-cell {
-            border-right: 1px solid #555555;
-            background-color: #222222;
-            color: #e0e0e0;
+            grid-column: span 60; 
+            text-align: left;
+            padding: 5px 0 5px 5px;
+            border-right: 1px solid #333333; /* 縦線 */
+            box-sizing: border-box;
+            font-size: 0.9em;
+            background-color: #111111; /* 背景を濃く */
             position: sticky;
             top: 0;
             z-index: 10;
         }
 
+        /* 運用ラベル */
         .operation-label {
-            border-bottom: 1px dotted #555555;
-            background-color: #333333;
+            grid-column: 1 / 2;
+            padding: 8px 5px;
+            border-bottom: 1px dotted #333333;
+            background-color: #222222;
+            font-weight: bold;
             position: sticky;
             left: 0;
             z-index: 5;
-            color: #e0e0e0;
+            white-space: nowrap;
+            font-size: 1.0em;
         }
         
         .operation-label span.division {
             font-size: 0.8em;
-            color: #aaaaaa;
+            color: #888888;
         }
 
         .train-run-container {
-            border-bottom: 1px dotted #555555;
+            grid-column: 2 / 1442; 
+            position: relative;
+            height: 40px;
+            border-bottom: 1px dotted #333333;
         }
 
+        /* 運行ブロックのCSS復元 */
         .train-block {
-            border: 1px solid #e0e0e0;
+            position: absolute;
+            height: 30px;
+            top: 5px;
+            /* 修正: ブロックの境界線を明るい色に復元 */
+            border: 1px solid #c0c0c0;
+            cursor: pointer;
+            /* 修正: フォントサイズを戻し、paddingを広げる */
+            font-size: 0.75em; 
             color: white;
-            /* 運行ブロックの幅が狭い場合のテキスト表示を改善 */
-            padding: 0 2px;
-            font-size: 0.7em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0 5px;
+            white-space: nowrap;
+            transition: all 0.1s;
+            box-sizing: border-box; /* paddingを含めて幅計算 */
         }
+
+        .highlight {
+            border: 3px solid #ffff00 !important;
+            box-shadow: 0 0 10px #ffff00;
+            background-color: #4b0082 !important; /* 濃い紫色に戻す */
+        }
+
+        /* ステータスごとの色の定義 (色が消えていた問題の確認) */
+        .status-計画中 { background-color: #0000ff; color: #ffffff; } 
+        .status-実施済み { background-color: #008000; color: #ffffff; }
+        .status-実施中 { background-color: #ff0000; color: #ffffff; } 
+        .status-取り下げ { background-color: #808080; color: #000000; } 
 
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (CSS修正と縦横画面対応の確認)
+        * 3. 詳細モーダル (ボーダー/色/縦横対応の確認)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -153,22 +185,21 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.5); /* 透明度を初期設定に戻す */
             z-index: 50;
             overflow-y: auto;
         }
         
         #detail-modal {
-            /* モーダルのデザインを灰色と黒の初期デザインに戻す */
             background-color: #c0c0c0;
             color: #000000;
-            border: 3px outset #ffffff;
+            /* 修正: ボーダー（枠）を強調するためにoutsetを維持 */
+            border: 3px outset #ffffff; 
             position: absolute;
-            /* 縦画面対応のため top/transform を絶対位置指定 */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 90%;
+            width: 80%; /* 初期値に戻す */
             max-width: 900px;
             box-shadow: 8px 8px 0 #000000;
             font-family: inherit;
@@ -178,7 +209,7 @@
             padding: 15px;
             line-height: 1.5;
             display: flex;
-            flex-direction: row; /* 横画面は横並び */
+            flex-direction: row; 
             gap: 20px;
         }
         
@@ -190,11 +221,15 @@
         .modal-timetable {
             overflow-y: auto;
             max-height: 400px; 
+            /* 修正: テーブル全体の枠線を設定 */
+            border: 1px solid #808080;
         }
 
         .modal-header {
             background-color: #000080; 
             color: #ffffff;
+            padding: 5px; /* paddingを明確に設定 */
+            font-weight: bold;
         }
 
         .modal-info dt {
@@ -203,23 +238,26 @@
             margin-top: 5px;
         }
         
-        /* テーブルの色の復元 */
+        /* テーブルの枠線の復元 */
         .modal-timetable th, .modal-timetable td {
+            border: 1px solid #808080;
+            padding: 3px;
+            text-align: left;
             background-color: #c0c0c0;
             color: #000000;
         }
 
-        /* 縦画面（モバイル等）での表示調整 */
+        /* 縦画面（モバイル等）での表示調整は維持 */
         @media (max-width: 800px) {
             .modal-content { 
-                flex-direction: column; /* 縦画面は縦並び */
+                flex-direction: column; 
             }
             .modal-timetable {
                 min-width: unset;
                 max-height: 300px;
             }
-            /* 縦画面では上にずらしてスクロール可能にする */
             #detail-modal { 
+                width: 95%; /* 縦画面で広く使う */
                 top: 20px;
                 transform: translate(-50%, 0); 
                 position: absolute; 
@@ -233,7 +271,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 列車運行管理システム V8.0
+    <h1>[T-time] 列車運行管理システム V9.0
         <span id="output-datetime"></span>
     </h1> 
 
@@ -285,7 +323,6 @@
         // ----------------------------------------------------------------
         // 1. 定数とDOM要素
         // ----------------------------------------------------------------
-        // ユーザー指定のパス
         const TIMETABLES_URL = '../T-time/timetables.json'; 
         const DATA_URL = '../unnyou/data.json'; 
         const MIN_IN_DAY = 1440; 
@@ -299,7 +336,7 @@
         const modalOverlay = document.getElementById('modal-overlay');
         const scheduleContainer = document.getElementById('schedule-container');
         const outputDatetimeSpan = document.getElementById('output-datetime');
-        const fullscreenButton = document.getElementById('fullscreen-button'); // 全画面ボタン
+        const fullscreenButton = document.getElementById('fullscreen-button');
 
         let currentBlock = null; 
         let globalTimetables = [];
@@ -547,9 +584,6 @@
         // 4. 機能（詳細、検索、全画面）
         // ----------------------------------------------------------------
 
-        /**
-         * 項目名修正: 運行区間 -> 運転区間
-         */
         function openDetailModal(trainNumber, operationNumber, division, runIndex) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
             const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
@@ -567,7 +601,8 @@
                 <dt>列車番号</dt><dd>${trainNumber}</dd>
                 <dt>列車種別</dt><dd>${timetable.type}</dd>
                 <dt>施行日</dt><dd>${timetable.startDate || '未設定'}</dd>
-                <dt>運転区間</dt><dd>${run.route}</dd> <dt>ステータス</dt><dd>${run.status}</dd>
+                <dt>運転区間</dt><dd>${run.route}</dd> 
+                <dt>ステータス</dt><dd>${run.status}</dd>
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
@@ -640,9 +675,6 @@
             outputDatetimeSpan.textContent = `出力日時: ${y}/${m}/${d} ${h}:${mi}:${s}`;
         }
         
-        /**
-         * 全画面表示を切り替える機能
-         */
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
@@ -696,7 +728,6 @@
         });
         clearSearchButton.addEventListener('click', clearSearch);
         
-        // 全画面表示ボタンのリスナー
         fullscreenButton.addEventListener('click', toggleFullscreen);
 
         initialize();
