@@ -6,20 +6,32 @@
     <title>実施列車運転計画表 V1.6</title>
     <style>
         /* ----------------------------------------------------------------
+        * 0. 美咲フォントの読み込み
+        * ---------------------------------------------------------------- */
+        @font-face {
+            font-family: 'MisakiGothic';
+            src: url('../fonts/misaki_gothic.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        /* ----------------------------------------------------------------
         * 1. ベースCSS 
         * ---------------------------------------------------------------- */
         body {
-            font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
+            /* 美咲フォントを適用 */
+            font-family: 'Misaki Gothic', 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace; 
             background-color: #191970; /* 変更: 淡い青 */
             color: #c0c0c0;
             margin: 0;
             padding: 15px;
-            font-size: 14px;
+            font-size: 16px; /* 美咲フォントは小さいので少し大きくする */
             min-width: 320px;
             height: 100vh;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
+            line-height: 1.2; 
         }
 
         h1 {
@@ -30,6 +42,7 @@
             margin-bottom: 15px;
             flex-shrink: 0;
             position: relative;
+            font-size: 1.5em; /* 美咲フォントに合わせてサイズを調整 */
         }
         
         /* 時刻表示コンテナ */
@@ -72,6 +85,7 @@
             border: 1px solid #c0c0c0;
             padding: 3px 5px;
             font-family: inherit;
+            font-size: inherit; /* 美咲フォント適用 */
         }
         
         #controls button:hover {
@@ -89,6 +103,7 @@
             color: #ffffff;
             font-weight: bold;
             padding: 3px 10px;
+            font-size: inherit; /* 美咲フォント適用 */
         }
         #fullscreen-button:hover {
              background-color: #777777;
@@ -200,7 +215,7 @@
             top: 5px;
             border: 1px solid #c0c0c0;
             cursor: pointer;
-            font-size: 0.75em; 
+            font-size: 0.75em; /* 美咲フォントはこれくらいが適正 */
             color: white;
             display: flex;
             align-items: center;
@@ -260,6 +275,7 @@
             max-width: 900px;
             box-shadow: 8px 8px 0 #000000;
             font-family: inherit;
+            font-size: 14px; /* モーダル内は美咲フォントの大きさに合わせて調整 */
         }
         
         #close-modal {
@@ -272,6 +288,7 @@
             position: absolute;
             right: 5px;
             top: 5px;
+            font-size: inherit; /* 美咲フォント適用 */
         }
 
         .modal-content {
@@ -573,10 +590,11 @@
             const displayDayStart = new Date(displayDate.getFullYear(), displayDate.getMonth(), displayDate.getDate()).getTime();
             const startDayStart = startDate.getTime();
             
-            if (startDayStart < displayDayStart) {
-                return "実施済み";
-            } else if (startDayStart > displayDayStart) {
+            // 📌 修正ロジックの確認：未来の日付は「計画中」
+            if (startDayStart > displayDayStart) {
                 return "計画中";
+            } else if (startDayStart < displayDayStart) {
+                return "実施済み";
             } else {
                 return "実施中";
             }
@@ -781,6 +799,7 @@
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
          * V3.0: 日跨ぎ分割ロジックを追加
+         * V3.1: 停車駅重複チェックを追加
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -810,8 +829,10 @@
                 let foundMatchingRunForDate = false; 
 
                 runsByTrainNumber.forEach((opRuns, trainNumber) => {
-                    const firstOpRun = opRuns[0];
                     
+                    const opRoutes = opRuns.map(r => cleanValue(r.route)).filter(r => r); // 運用側の全routeを取得
+                    if (opRoutes.length === 0) return; // route設定がない場合はスキップ
+
                     const relevantTimetableEntries = Array.from(timetablesMap.entries())
                         .filter(([key, _]) => key.startsWith(`${trainNumber}_`));
                     
@@ -822,6 +843,33 @@
                         
                         if (!integratedTimetable) return; 
                         
+                        // --- 🚅 より厳密な停車駅重複チェック 🚅 ---
+                        
+                        // 1. 時刻表内の全駅名を取得
+                        const ttAllStations = integratedTimetable.segments.flatMap(segment => 
+                            segment.stops.map(s => cleanValue(s.station)).filter(s => s)
+                        );
+                        
+                        // 2. 運用側の全てのroute文字列を結合
+                        const combinedOpRoutes = opRoutes.join(' / '); 
+
+                        // 3. 含まれる駅のカウント
+                        let matchedStationCount = 0;
+                        
+                        // 時刻表側の各駅が、運用側のroute文字列に一つでも含まれていればカウントアップ
+                        ttAllStations.forEach(ttStation => {
+                            if (combinedOpRoutes.includes(ttStation)) {
+                                matchedStationCount++;
+                            }
+                        });
+
+                        // 4. 除外判定: 1駅も一致しない場合はスキップ
+                        if (matchedStationCount === 0) {
+                             console.warn(`SKIP: ${trainNumber} (${startDate}) - 時刻表 (${ttAllStations.join(',')})の駅が、運用ルート (${combinedOpRoutes})と1駅も一致しないため除外。`);
+                             return; // 明らかに別路線のデータと判断し、破棄
+                        }
+                        // ------------------------------------
+
                         const formattedStartDate = cleanValue(startDate);
 
                         let shouldDisplay = false;
