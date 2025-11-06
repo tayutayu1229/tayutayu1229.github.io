@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転計画表 V1.5</title>
+    <title>実施列車運転計画表 V1.6</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -553,21 +553,29 @@
             if (!dateStr) return null;
             const parts = cleanValue(dateStr).split('/');
             if (parts.length !== 3) return null;
+            // YYYY/MM/DD 形式でパース
             return new Date(parts[0], parts[1] - 1, parts[2]);
         }
         
-        function getAutoStatus(startDateStr, currentDate) {
-            if (!startDateStr || !currentDate) return "計画中";
+        /**
+         * V1.6: 施行日と表示日付を比較してステータスを決定する
+         * @param {string} startDateStr - JSON内の施行日 ('YYYY/MM/DD' 形式)
+         * @param {Date | null} displayDate - '表示日付' セレクタで選択された日付
+         * @returns {string} 決定されたステータス ('計画中', '実施中', '実施済み')
+         */
+        function getAutoStatus(startDateStr, displayDate) {
+            if (!startDateStr || !displayDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
             if (!startDate) return "計画中";
 
-            const currentDayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
-            const startDayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
+            // 日付のみを比較するため、時刻をクリア
+            const displayDayStart = new Date(displayDate.getFullYear(), displayDate.getMonth(), displayDate.getDate()).getTime();
+            const startDayStart = startDate.getTime();
             
-            if (startDayStart < currentDayStart) {
+            if (startDayStart < displayDayStart) {
                 return "実施済み";
-            } else if (startDayStart > currentDayStart) {
+            } else if (startDayStart > displayDayStart) {
                 return "計画中";
             } else {
                 return "実施中";
@@ -585,7 +593,7 @@
         }
         
         /**
-         * timetables.json を 列車番号_施行日 でマップ化する
+         * timetables.json を 列車番号と施行日でマップ化する
          */
         function preprocessTimetables(timetables) {
             const map = new Map();
@@ -829,7 +837,14 @@
 
                         if (!shouldDisplay) return;
 
-                        let status = cleanValue(firstOpRun.status) || (isDateSelected ? getAutoStatus(startDate, currentDate) : "計画中");
+                        // V1.6: ステータス判定ロジックを修正
+                        let status = cleanValue(firstOpRun.status);
+                        if (isDateSelected && formattedStartDate) {
+                             // 日付が選択され、施行日も設定されている場合のみ自動判定
+                             status = getAutoStatus(formattedStartDate, currentDate);
+                        } else if (!status) {
+                             status = "計画中";
+                        }
                         
                         const runData = {
                             trainNumber: trainNumber,
@@ -1351,11 +1366,13 @@
 
         function updateSchedule() {
             const dateValue = dateSelector.value;
+            // V1.6: selectedDateにはDateオブジェクトを保持
             selectedDate = dateValue ? new Date(dateValue) : null; 
 
             const divisionFilter = divisionSelector.value;
             
             // タイムライン描画用の統合データを作成
+            // V1.6: createScheduleDataにselectedDateを渡す
             const scheduleData = createScheduleData(globalData, selectedDate, divisionFilter);
             renderSchedule(scheduleData);
             clearSearch();
