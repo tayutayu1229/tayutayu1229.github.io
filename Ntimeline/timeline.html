@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車運用タイムライン (最終修正版 V7)</title>
+    <title>列車運用タイムライン (最終調整版 V8)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. レガシーシステム風CSS (淡い色に調整)
+        * 1. レガシーシステム風CSS (初期デザインに近づけ、淡い色を維持)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
-            /* 修正: 背景色を濃い青から淡い青 (#000080 -> #3a3a8a) に変更 */
-            background-color: #3a3a8a; 
-            /* 修正: 文字色を明るい灰色から少し暗い灰色 (#c0c0c0 -> #e0e0e0) に変更 */
+            /* 背景色を少し濃くしてコントラストを改善 */
+            background-color: #2a2a7a; 
             color: #e0e0e0;
             margin: 0;
             padding: 15px;
@@ -27,7 +26,7 @@
         h1 {
             color: #ffff00;
             text-align: center;
-            border-bottom: 2px solid #e0e0e0; /* 境界線の色も調整 */
+            border-bottom: 2px solid #e0e0e0; 
             padding-bottom: 5px;
             margin-bottom: 15px;
             flex-shrink: 0;
@@ -39,7 +38,7 @@
             bottom: 5px;
             right: 0;
             font-size: 0.75em;
-            color: #aaaaaa; /* 淡い色に調整 */
+            color: #aaaaaa;
         }
 
         /* 制御パネル */
@@ -48,7 +47,6 @@
             flex-wrap: wrap;
             gap: 10px 15px;
             margin-bottom: 15px;
-            /* 修正: コントロールパネルの背景色を黒から濃い青緑 (#1a1a33) へ */
             background-color: #1a1a33;
             padding: 10px;
             border: 1px solid #e0e0e0;
@@ -56,9 +54,16 @@
             flex-shrink: 0;
         }
 
-        #controls label, #controls input, #controls button, #controls select {
+        #controls label, #controls input, #controls select {
             color: #e0e0e0;
-            /* 修正: コントロールの背景色も調整 */
+            background-color: #1a1a33;
+            border: 1px solid #e0e0e0;
+            padding: 3px 5px;
+            font-family: inherit;
+        }
+
+        #controls button {
+            color: #e0e0e0;
             background-color: #1a1a33;
             border: 1px solid #e0e0e0;
             padding: 3px 5px;
@@ -66,17 +71,28 @@
         }
         
         #controls button:hover {
-            background-color: #444466; /* ホバー色も調整 */
+            background-color: #444466;
             cursor: pointer;
         }
         
         #controls select option {
-            /* 修正: ドロップダウンの背景色を調整 */
-            background-color: #3a3a8a;
+            background-color: #2a2a7a; 
+        }
+
+        /* 全画面ボタンの追加CSS */
+        #fullscreen-button {
+            background-color: #555555;
+            border: 1px solid #e0e0e0;
+            color: #ffffff;
+            font-weight: bold;
+            padding: 3px 10px;
+        }
+        #fullscreen-button:hover {
+             background-color: #777777;
         }
 
         /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリア (色調整)
+        * 2. タイムライン表示エリア (初期デザインの復元)
         * ---------------------------------------------------------------- */
         #schedule-container {
             overflow: auto; 
@@ -93,8 +109,8 @@
         }
 
         .time-header-cell {
-            border-right: 1px solid #555555; /* 境界線の色を調整 */
-            background-color: #222222; /* ヘッダーの背景色も調整 */
+            border-right: 1px solid #555555;
+            background-color: #222222;
             color: #e0e0e0;
             position: sticky;
             top: 0;
@@ -102,8 +118,8 @@
         }
 
         .operation-label {
-            border-bottom: 1px dotted #555555; /* 境界線の色を調整 */
-            background-color: #333333; /* ラベルの背景色も調整 */
+            border-bottom: 1px dotted #555555;
+            background-color: #333333;
             position: sticky;
             left: 0;
             z-index: 5;
@@ -111,7 +127,8 @@
         }
         
         .operation-label span.division {
-            color: #aaaaaa; /* 括弧内の色も調整 */
+            font-size: 0.8em;
+            color: #aaaaaa;
         }
 
         .train-run-container {
@@ -121,16 +138,13 @@
         .train-block {
             border: 1px solid #e0e0e0;
             color: white;
+            /* 運行ブロックの幅が狭い場合のテキスト表示を改善 */
+            padding: 0 2px;
+            font-size: 0.7em;
         }
 
-        .highlight {
-            border: 3px solid #ffff00 !important;
-            box-shadow: 0 0 10px #ffff00;
-            background-color: #6a0dad !important; /* 紫色を少し淡く */
-        }
-        
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (CSS修正)
+        * 3. 詳細モーダル (CSS修正と縦横画面対応の確認)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -139,17 +153,18 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7); /* 透明度を少し上げて強調 */
+            background: rgba(0, 0, 0, 0.7);
             z-index: 50;
             overflow-y: auto;
         }
         
         #detail-modal {
-            /* 修正: モーダルの背景と文字色を元のレガシーシステム風に戻す */
-            background-color: #c0c0c0; /* 明るい灰色 */
-            color: #000000; /* 黒 */
+            /* モーダルのデザインを灰色と黒の初期デザインに戻す */
+            background-color: #c0c0c0;
+            color: #000000;
             border: 3px outset #ffffff;
             position: absolute;
+            /* 縦画面対応のため top/transform を絶対位置指定 */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -159,61 +174,66 @@
             font-family: inherit;
         }
 
+        .modal-content {
+            padding: 15px;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: row; /* 横画面は横並び */
+            gap: 20px;
+        }
+        
+        .modal-info, .modal-timetable {
+            flex: 1; 
+            min-width: 300px;
+        }
+
+        .modal-timetable {
+            overflow-y: auto;
+            max-height: 400px; 
+        }
+
         .modal-header {
-            /* 修正: ヘッダーを濃い青に戻す */
             background-color: #000080; 
             color: #ffffff;
         }
 
-        .modal-header button {
-            /* 修正: ヘッダーボタンの色を灰色に戻す */
-            background-color: #c0c0c0;
-            color: #000000;
-            border: 2px outset #ffffff;
-            cursor: pointer;
-        }
-
         .modal-info dt {
-            /* 修正: 項目名を濃い青に戻す */
             font-weight: bold;
             color: #000080;
             margin-top: 5px;
         }
         
-        .modal-info dd {
-            margin-left: 10px;
-            border-bottom: 1px dotted #808080;
-        }
-        
-        .modal-timetable table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 0.9em;
-        }
-
+        /* テーブルの色の復元 */
         .modal-timetable th, .modal-timetable td {
-            border: 1px solid #808080;
-            padding: 3px;
-            text-align: left;
-            /* 修正: テーブル内の背景と文字色もデフォルトに戻す */
             background-color: #c0c0c0;
             color: #000000;
         }
-        
-        /* レスポンシブ対応はV6から変更なし */
+
+        /* 縦画面（モバイル等）での表示調整 */
         @media (max-width: 800px) {
-            .modal-content { flex-direction: column; }
-            .modal-timetable { min-width: unset; max-height: 300px; }
-            #detail-modal { top: 20px; transform: translate(-50%, 0); position: absolute; }
-            #modal-overlay { overflow-y: auto; }
+            .modal-content { 
+                flex-direction: column; /* 縦画面は縦並び */
+            }
+            .modal-timetable {
+                min-width: unset;
+                max-height: 300px;
+            }
+            /* 縦画面では上にずらしてスクロール可能にする */
+            #detail-modal { 
+                top: 20px;
+                transform: translate(-50%, 0); 
+                position: absolute; 
+            }
+            #modal-overlay {
+                overflow-y: auto;
+            }
         }
 
     </style>
 </head>
 <body>
 
-    <h1>[T-time] 列車運行管理システム V7.0
+    <h1>[T-time] 列車運行管理システム V8.0
         <span id="output-datetime"></span>
     </h1> 
 
@@ -230,6 +250,8 @@
         <input type="text" id="search-train-number" placeholder="例: 8764">
         <button id="search-button">検 索</button>
         <button id="clear-search">解除</button>
+        
+        <button id="fullscreen-button">全画面表示</button>
     </div>
 
     <div id="schedule-container">
@@ -263,7 +285,7 @@
         // ----------------------------------------------------------------
         // 1. 定数とDOM要素
         // ----------------------------------------------------------------
-        // 修正: ユーザー指定のパスに変更
+        // ユーザー指定のパス
         const TIMETABLES_URL = '../T-time/timetables.json'; 
         const DATA_URL = '../unnyou/data.json'; 
         const MIN_IN_DAY = 1440; 
@@ -277,6 +299,7 @@
         const modalOverlay = document.getElementById('modal-overlay');
         const scheduleContainer = document.getElementById('schedule-container');
         const outputDatetimeSpan = document.getElementById('output-datetime');
+        const fullscreenButton = document.getElementById('fullscreen-button'); // 全画面ボタン
 
         let currentBlock = null; 
         let globalTimetables = [];
@@ -290,9 +313,8 @@
         ];
 
         // ----------------------------------------------------------------
-        // 2. ユーティリティ関数とデータ処理 (V6から変更なし)
+        // 2. ユーティリティ関数とデータ処理 
         // ----------------------------------------------------------------
-
         function timeToMinutes(timeStr) {
             if (!timeStr || timeStr.trim() === " " || timeStr.trim() === "||" || timeStr.trim() === "…") return null;
             const parts = timeStr.split(':');
@@ -363,7 +385,6 @@
                     const startDateStr = timetable.startDate;
                     const formattedStartDate = startDateStr ? formatDate(parseJsonDate(startDateStr)) : null;
 
-                    // --- 日付表示条件のチェック ---
                     let shouldDisplay = false;
                     
                     if (!formattedCurrentDate) {
@@ -426,9 +447,8 @@
         }
 
         // ----------------------------------------------------------------
-        // 3. UIレンダリング (V6から変更なし)
+        // 3. UIレンダリング 
         // ----------------------------------------------------------------
-
         function updateDivisionSelector(divisions) {
             divisionSelector.innerHTML = '<option value="">全ての区所</option>';
             const sortedDivisions = Array.from(divisions).sort();
@@ -524,9 +544,12 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（詳細、検索） (V6から変更なし)
+        // 4. 機能（詳細、検索、全画面）
         // ----------------------------------------------------------------
 
+        /**
+         * 項目名修正: 運行区間 -> 運転区間
+         */
         function openDetailModal(trainNumber, operationNumber, division, runIndex) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
             const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
@@ -544,8 +567,7 @@
                 <dt>列車番号</dt><dd>${trainNumber}</dd>
                 <dt>列車種別</dt><dd>${timetable.type}</dd>
                 <dt>施行日</dt><dd>${timetable.startDate || '未設定'}</dd>
-                <dt>運行区間</dt><dd>${run.route}</dd>
-                <dt>ステータス</dt><dd>${run.status}</dd>
+                <dt>運転区間</dt><dd>${run.route}</dd> <dt>ステータス</dt><dd>${run.status}</dd>
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
@@ -617,9 +639,22 @@
             const s = String(now.getSeconds()).padStart(2, '0');
             outputDatetimeSpan.textContent = `出力日時: ${y}/${m}/${d} ${h}:${mi}:${s}`;
         }
+        
+        /**
+         * 全画面表示を切り替える機能
+         */
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`全画面表示を有効にできませんでした: ${err.message} (${err.name})`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
 
         // ----------------------------------------------------------------
-        // 5. 初期化とイベントリスナー (V6から変更なし)
+        // 5. 初期化とイベントリスナー
         // ----------------------------------------------------------------
 
         async function initialize() {
@@ -649,7 +684,6 @@
             }
         });
         
-        // 日付選択機能はそのまま維持（type="date"で選ぶ形）
         dateSelector.addEventListener('change', updateSchedule);
         divisionSelector.addEventListener('change', () => {
             divisionSelector.dataset.currentFilter = divisionSelector.value;
@@ -661,6 +695,9 @@
             if (e.key === 'Enter') searchTrain();
         });
         clearSearchButton.addEventListener('click', clearSearch);
+        
+        // 全画面表示ボタンのリスナー
+        fullscreenButton.addEventListener('click', toggleFullscreen);
 
         initialize();
 
