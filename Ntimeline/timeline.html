@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (運用詳細表示修正＆全運用表示強化版 V18)</title>
+    <title>実施列車運転スケジュール (表示統一＆統合最終確認版 V19)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -316,11 +316,12 @@
              border-top: 3px solid #ffffff;
         }
         
-        /* 運用詳細情報 (V18修正) */
+        /* 運用詳細情報 (V18/V19修正) */
         #all-runs-container dt {
              font-weight: bold;
              color: #000080;
              margin-right: 5px; 
+             display: inline;
         }
         #all-runs-container dd {
              margin-left: 0;
@@ -329,6 +330,14 @@
         }
         .op-details-line {
             line-height: 1.8;
+            border-bottom: 1px solid #808080;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .op-details-line:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
 
 
@@ -344,7 +353,7 @@
 </head>
 <body>
 
-    <h1>[T-time] 実施列車運転スケジュール V1.8
+    <h1>[T-time] 実施列車運転スケジュール V1.9
         <span id="output-datetime"></span>
     </h1> 
 
@@ -455,7 +464,7 @@
         }
         
         function formatMinutesToTime(minutes) {
-             if (minutes === null) return '--:--';
+             if (minutes === null) return ''; // nullは空白
              const h = Math.floor(minutes / 60);
              const m = minutes % 60;
              return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -555,6 +564,10 @@
                 // 次の運行を見つける: 次の運行の始発駅が現在の運行の終着駅と一致し、かつまだ使用されていないもの
                 for (const t of matchingTimetables) {
                     if (!usedTimetables.has(t) && trim(t.origin) === nextOrigin) {
+                        
+                        // 接続駅での時刻が一致しているかを確認する（オプション：今回は厳密にしない）
+                        // if (currentRun.stops.slice(-1)[0].arrival === nextRun.stops[0].departure)
+                        
                         nextRun = t;
                         break;
                     }
@@ -569,11 +582,10 @@
                 }
             }
             
-            // 統合した時刻表が元のデータセットのすべてを使用しているかチェック
-            if (combinedRuns.length !== matchingTimetables.length) {
-                // 部分的な統合しかできていない場合（例：時刻表が不連続）、警告を出しつつも続行またはスキップを検討
-                // 今回は、運用計画との整合性チェックで弾くことを期待し、ここで統合が完了したものとして扱う
-            }
+            // 統合した時刻表が元のデータセットのすべてを使用しているかチェック（デバッグ用）
+            // if (combinedRuns.length !== matchingTimetables.length) {
+            //     console.warn(`WARN: Train ${trainNumber} on ${startDate} could only partially integrate (${combinedRuns.length}/${matchingTimetables.length}).`);
+            // }
             
             if (combinedRuns.length === 0) return null;
 
@@ -582,10 +594,12 @@
             
             // 時刻の計算
             let startTime = null;
+            // 最初の運行の最初の発時刻を探す
             const startStop = firstRun.stops.find(s => timeToMinutes(s.departure) !== null);
             if (startStop) startTime = timeToMinutes(startStop.departure);
             
             let endTime = null;
+            // 最後の運行の最後の着時刻を探す
             const endStop = [...lastRun.stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
             if (endStop) endTime = timeToMinutes(endStop.arrival);
             
@@ -609,7 +623,6 @@
 
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
-         * V18: 日付未指定時は、時刻表のない運用も運用ラベルのみ表示する
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -626,7 +639,7 @@
 
                 const fullOpLabel = `${operation.operation_number} (${operation.division})`;
                 const integratedRunsForOp = [];
-                const processedRunKeys = new Set(); // 既に処理済みの (列車番号_施行日) の組み合わせを追跡
+                const processedRunKeys = new Set(); 
 
                 // 運用JSONの train_runs を 列車番号 でグループ化
                 const runsByTrainNumber = new Map();
@@ -659,8 +672,8 @@
                     const relevantTimetableEntries = Array.from(timetablesMap.entries())
                         .filter(([key, _]) => key.startsWith(`${trainNumber}_`));
                     
+                    // 時刻表エントリを施行日ごとにグループ化し、統合を試みる
                     relevantTimetableEntries.forEach(([key, timeTableGroup]) => {
-                        // key: "3093_2025/01/01" の場合、startDateは "2025/01/01" または "NULL"
                         const startDate = key.split('_')[1] === 'NULL' ? null : key.split('_')[1];
                         
                         // 既に統合処理済みの組み合わせかチェック
@@ -723,7 +736,7 @@
                 integratedRunsForOp.sort((a, b) => a.startTime - b.startTime);
 
                 if (isDateUnspecified) {
-                    // 運用ラベルは、時刻表が見つからなくても常に作成する (全運用表示)
+                    // 運用ラベルは、運行データが見つからなくても常に作成する (全運用表示)
                     if (!scheduleData.has(fullOpLabel)) {
                         scheduleData.set(fullOpLabel, {
                             operation_number: operation.operation_number,
@@ -754,7 +767,7 @@
 
 
         /**
-         * 列車ブロッククリック時の詳細モーダル表示 (V17と同じ)
+         * 列車ブロッククリック時の詳細モーダル表示
          */
         function openDetailModal(trainNumber, operationNumber, division) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
@@ -791,19 +804,25 @@
                 const isFirstSegment = index === 0;
                 
                 // 区間ヘッダー（線区情報を含む）
+                const line = segment.line && segment.line.trim() !== '' ? segment.line : '';
                 tableHtml += `<tr><td colspan="4" class="segment-header">
-                    線区: ${segment.line || '不明'} (${segment.origin}〜${segment.destination})
+                    線区: ${line} (${segment.origin}〜${segment.destination})
                 </td></tr>`;
                 
                 segment.stops.forEach((stop, stopIndex) => {
                     // 2つ目以降の区間では、最初の駅（前区間の終着駅）はスキップ
                     if (!isFirstSegment && stopIndex === 0) return; 
 
+                    // V19修正: null, --, 不明の場合は空白にする
+                    const arrival = stop.arrival.trim() === '…'|| stop.arrival.trim() === '||' ? '' : stop.arrival.trim();
+                    const departure = stop.departure.trim() === '…'|| stop.departure.trim() === '||' ? '' : stop.departure.trim();
+                    const trackN = stop.trackN && stop.trackN.trim() !== '不明' ? stop.trackN : '';
+                    
                     tableHtml += `<tr>
                         <td>${stop.station}</td>
-                        <td>${stop.arrival.trim() || '--'}</td>
-                        <td>${stop.departure.trim() || '--'}</td>
-                        <td>${stop.trackN || '不明'}</td>
+                        <td>${arrival}</td>
+                        <td>${departure}</td>
+                        <td>${trackN}</td>
                     </tr>`;
                 });
             });
@@ -815,7 +834,7 @@
         }
         
         /**
-         * 運用ラベルクリック時の運用全体表示 (V18修正)
+         * 運用ラベルクリック時の運用全体表示 (V19修正)
          */
         function openOperationDetails(operationNumber, division) {
             const originalOperation = globalData.find(op => op.operation_number === operationNumber && op.division === division);
@@ -845,7 +864,7 @@
                     <dt>後継運用:</dt><dd>${originalOperation.successor || 'なし'}</dd>
                 </div>
                 
-                <h4 style="color: #000080; border-top: 1px solid #808080; padding-top: 10px;">構成列車</h4>
+                <h4 style="color: #000080; border-top: 1px solid #808080; padding-top: 10px;">運用列車</h4>
                 <table class="modal-op-runs-table">
                 <tr>
                     <th>列車番号</th>
@@ -1107,6 +1126,7 @@
         
         // グローバルスコープに関数を公開
         window.openDetailModal = openDetailModal;
+        window.openOperationDetails = openOperationDetails; // V19で追加
 
         dateSelector.addEventListener('change', updateSchedule);
         divisionSelector.addEventListener('change', () => {
