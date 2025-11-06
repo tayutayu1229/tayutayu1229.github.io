@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転スケジュール (時刻表統合版 V13)</title>
+    <title>実施列車運転スケジュール (区間整合性チェック版 V14)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. ベースCSS (V12と変更なし)
+        * 1. ベースCSS (V13と変更なし)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
@@ -193,7 +193,7 @@
         .status-取り下げ { background-color: #808080; color: #000000; } 
 
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (変更なし)
+        * 3. 詳細モーダル (V13と変更なし)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -388,7 +388,6 @@
         }
         
         function getAutoStatus(startDateStr, currentDate) {
-            // ロジックはV12と同じ
             if (!startDateStr || !currentDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
@@ -411,44 +410,26 @@
         }
         
         /**
-         * 修正: 同じ列車番号の時刻表エントリを連続性に基づいて結合する
+         * 修正: 同じ列車番号の時刻表エントリを連続性に基づいて結合する (V13から変更なし)
          */
         function getIntegratedTimetable(trainNumber, allTimetables) {
             const matchingTimetables = allTimetables.filter(t => t.trainNumber === trainNumber);
             
             if (matchingTimetables.length === 0) return null;
 
-            // 1. 始発駅を基準に時刻表をグループ化
-            const timetablesByOrigin = new Map();
-            matchingTimetables.forEach(t => {
-                if (!timetablesByOrigin.has(t.origin)) {
-                    timetablesByOrigin.set(t.origin, []);
-                }
-                timetablesByOrigin.get(t.origin).push(t);
-            });
-
-            let combinedRuns = [];
-            
-            // 2. 始発駅を持つ時刻表を探す
-            // JSONの仕様上、同じtrainNumberで始発が異なる運行がある可能性があるため、
-            // 最初の時刻表（始発駅を持つもの）を特定する必要があるが、ここではシンプルに最初の要素をスタートとする。
-            // ※より厳密には、どの終着駅とも一致しない origin を持つものを最初の要素とすべき。
-            
-            // どの終着駅とも一致しない origin を探す（真の始発駅）
+            // どの終着駅とも一致しない origin を探す（真の始発駅の候補）
             const allDestinations = new Set(matchingTimetables.map(t => t.destination));
             let currentRun = matchingTimetables.find(t => !allDestinations.has(t.origin));
             
             if (!currentRun) {
-                // 真の始発駅が見つからない場合（循環や単一の時刻表のみの場合など）、単純にリストの最初の要素をスタートとする
-                currentRun = matchingTimetables[0];
+                currentRun = matchingTimetables[0]; // 真の始発駅が見つからない場合は最初の要素を使用
             }
 
-            // 既に使用した時刻表を追跡
             const usedTimetables = new Set();
             usedTimetables.add(currentRun);
-            combinedRuns.push(currentRun);
+            const combinedRuns = [currentRun];
 
-            // 3. 連続する時刻表を探して結合
+            // 連続する時刻表を探して結合
             while (currentRun) {
                 const nextOrigin = currentRun.destination;
                 let nextRun = null;
@@ -469,19 +450,17 @@
                     currentRun = null; // 連続が途切れた
                 }
             }
-
+            
             if (combinedRuns.length === 0) return null;
 
-            // 4. 統合された時刻表オブジェクトを作成
             const firstRun = combinedRuns[0];
             const lastRun = combinedRuns[combinedRuns.length - 1];
             
-            // 始発時刻
+            // 時刻の計算
             let startTime = null;
             const startStop = firstRun.stops.find(s => timeToMinutes(s.departure) !== null);
             if (startStop) startTime = timeToMinutes(startStop.departure);
             
-            // 終着時刻
             let endTime = null;
             const endStop = [...lastRun.stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
             if (endStop) endTime = timeToMinutes(endStop.arrival);
@@ -493,26 +472,20 @@
             return {
                 trainNumber: trainNumber,
                 type: firstRun.type,
-                crown: firstRun.crown,
                 startDate: firstRun.startDate,
-                origin: firstRun.origin, // 真の始発駅
-                destination: lastRun.destination, // 真の終着駅
-                fullRoute: combinedRuns.map(r => r.destination).join('〜'), // 簡易ルート表示
+                origin: firstRun.origin, 
+                destination: lastRun.destination, 
                 startTime: startTime,
                 endTime: endTime,
-                status: null, // 運用JSONから取得するためここではnull
-                segments: combinedRuns, // 詳細表示のためにセグメントを保存
-                stops: combinedRuns.flatMap((seg, segIndex) => {
-                    // 2つ目以降のセグメントでは、最初の駅（前セグメントの終着駅）をスキップ
-                    const segmentStops = segIndex > 0 ? seg.stops.slice(1) : seg.stops;
-                    return segmentStops;
-                })
+                status: null,
+                segments: combinedRuns, 
+                // stops配列の結合ロジックは使用せず segments のみを保持し、詳細表示で処理する
             };
         }
 
 
         /**
-         * 修正: createScheduleData で時刻表統合ロジックを使用
+         * 修正: createScheduleData で区間整合性チェックを厳格化
          */
         function createScheduleData(timetables, data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -537,23 +510,53 @@
                 if (divisionFilter && operation.division !== divisionFilter) return;
 
                 const fullOpLabel = `${operation.operation_number} (${operation.division})`;
-                const trainRunsByNumber = new Map();
+                const trainRunsByTrainNumber = new Map();
                 
-                // 運用JSONの run を処理 (列車番号と route のマッピング)
-                operation.train_runs.forEach((run, runIndex) => {
-                    const trainNumber = run.train_number;
+                // 運用JSONの train_runs を列車番号でグループ化し、統合時刻表を作成
+                const runsByTrain = new Map();
+                operation.train_runs.forEach(run => {
+                    if (!runsByTrain.has(run.train_number)) {
+                        runsByTrain.set(run.train_number, []);
+                    }
+                    runsByTrain.get(run.train_number).push(run);
+                });
 
+
+                runsByTrain.forEach((runs, trainNumber) => {
                     // 1. 時刻表統合処理
                     let integratedTimetable = timetablesByTrainNumber.get(trainNumber);
                     if (!integratedTimetable) return;
 
-                    // 既に統合処理済みの列車番号かどうかチェック
-                    if (trainRunsByNumber.has(trainNumber)) return;
-                    
                     integratedTimetable = getIntegratedTimetable(trainNumber, integratedTimetable);
                     
-                    if (!integratedTimetable) return; // 時刻が取得できない、または連続しない場合はスキップ
+                    if (!integratedTimetable) return; 
 
+                    // 2. 運用JSONの区間を取得
+                    // 運用JSONの "route": "新鶴見〜倉賀野" から始発・終着を抽出
+                    const firstRun = runs[0];
+                    const lastRun = runs[runs.length - 1];
+                    
+                    // 運用JSONの route 文字列から始発終着を取得するヘルパー関数（例: "新鶴見〜倉賀野" -> "新鶴見", "倉賀野"）
+                    const getRouteStations = (routeStr) => {
+                        const parts = routeStr.split(/〜|~/); // '〜' または '~' で分割
+                        return { 
+                            start: parts[0] ? parts[0].trim() : null, 
+                            end: parts[parts.length - 1] ? parts[parts.length - 1].trim() : null
+                        };
+                    };
+                    
+                    const opRouteStart = getRouteStations(firstRun.route).start;
+                    const opRouteEnd = getRouteStations(lastRun.route).end;
+
+                    // 3. 区間の一致チェック (厳格化)
+                    // 運用JSONの始発駅と時刻表の始発駅、運用JSONの終着駅と時刻表の終着駅が一致すること
+                    if (opRouteStart !== integratedTimetable.origin || opRouteEnd !== integratedTimetable.destination) {
+                         // 区間が一致しない場合はスキップ
+                         // console.log(`Skipping ${trainNumber}: Route mismatch. Op: ${opRouteStart}〜${opRouteEnd}, TT: ${integratedTimetable.origin}〜${integratedTimetable.destination}`);
+                         return; 
+                    }
+                    
+                    // 4. 日付チェック
                     const startDateStr = integratedTimetable.startDate;
                     const formattedStartDate = startDateStr ? formatDate(parseJsonDate(startDateStr)) : null;
 
@@ -569,12 +572,13 @@
 
                     if (!shouldDisplay) return;
 
-                    let status = run.status || (isDateUnspecified ? "計画中" : getAutoStatus(startDateStr, currentDate));
+                    // 5. データ統合
+                    let status = firstRun.status || (isDateUnspecified ? "計画中" : getAutoStatus(startDateStr, currentDate));
                     
                     const runData = {
                         trainNumber: trainNumber,
                         type: integratedTimetable.type,
-                        route: run.route, // 運用JSONにあるrouteを保持
+                        route: runs.map(r => r.route).join(' → '), // 運用JSONの全区間を結合
                         startStation: integratedTimetable.origin,
                         endStation: integratedTimetable.destination,
                         startTime: integratedTimetable.startTime, 
@@ -583,15 +587,15 @@
                         operationId: operation.id, 
                         operationNumber: operation.operation_number,
                         division: operation.division,
-                        runIndex: runIndex, // 最初の runIndex を代表として保持
-                        subRuns: operation.train_runs.filter(r => r.train_number === trainNumber).map(r => ({ ...r, timetable: integratedTimetable })),
-                        timetable: integratedTimetable // 統合された時刻表を保持
+                        runIndex: runs[0].runIndex, 
+                        subRuns: runs,
+                        timetable: integratedTimetable
                     };
 
-                    trainRunsByNumber.set(trainNumber, runData); // 統合された運行をマップに保存
+                    trainRunsByTrainNumber.set(trainNumber, runData);
                 });
 
-                const integratedRuns = Array.from(trainRunsByNumber.values());
+                const integratedRuns = Array.from(trainRunsByTrainNumber.values());
 
                 if (integratedRuns.length > 0) {
                      if (!scheduleData.has(fullOpLabel)) {
@@ -611,12 +615,10 @@
 
 
         /**
-         * 修正: 詳細モーダル表示を統合された時刻表データに対応
+         * 修正: 詳細モーダル表示
          */
         function openDetailModal(trainNumber, operationNumber, division, runIndex) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
-            
-            // runIndex は代表値なので、列車番号で統合運行を見つける
             const integratedRun = operation?.runs.find(r => r.trainNumber === trainNumber);
 
             if (!integratedRun || !integratedRun.timetable) {
@@ -624,32 +626,34 @@
                 return;
             }
             
-            const displayTimetable = integratedRun.timetable; // 統合された時刻表オブジェクト
+            const displayTimetable = integratedRun.timetable; 
 
             let detailHtml = `
                 <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
                 <dt>形式</dt><dd>${operation.vehicles}</dd>
-                <dt>列車番号</dt><dd>${trainNumber}</dd>
+                <dt>列車番号</dt><dd>**${trainNumber}**</dd>
                 <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
                 <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
-                <dt>運転区間 (運用JSON)</dt><dd>${integratedRun.route}</dd> 
-                <dt>実運行区間</dt><dd>${displayTimetable.origin}〜${displayTimetable.destination}</dd>
+                <dt>運転区間 (運用計画)</dt><dd>${integratedRun.route}</dd> 
+                <dt>実運行区間 (時刻表)</dt><dd>**${displayTimetable.origin}〜${displayTimetable.destination}**</dd>
                 <dt>ステータス</dt><dd>${integratedRun.status}</dd>
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
-            // 時刻表情報: 統合された全区間の時刻表を結合して表示
+            // 時刻表情報: 統合された全区間の時刻表を線区ごとに分けて表示
             let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
             
             displayTimetable.segments.forEach((segment, index) => {
-                const isFirst = index === 0;
+                const isFirstSegment = index === 0;
                 
-                // 区間ヘッダー
-                tableHtml += `<tr><td colspan="4" style="background-color: #000080; color: #ffffff; font-weight: bold; border-top: 3px solid #ffffff;">列車番号: ${segment.trainNumber} (区間: ${segment.origin}〜${segment.destination})</td></tr>`;
+                // 区間ヘッダー（線区情報を含む）
+                tableHtml += `<tr><td colspan="4" style="background-color: #000080; color: #ffffff; font-weight: bold; border-top: 3px solid #ffffff;">
+                    線区: ${segment.line || '不明'} (${segment.origin}〜${segment.destination})
+                </td></tr>`;
                 
                 segment.stops.forEach((stop, stopIndex) => {
                     // 2つ目以降の区間では、最初の駅（前区間の終着駅）はスキップ
-                    if (!isFirst && stopIndex === 0) return; 
+                    if (!isFirstSegment && stopIndex === 0) return; 
 
                     tableHtml += `<tr>
                         <td>${stop.station}</td>
@@ -668,11 +672,10 @@
 
 
         // ----------------------------------------------------------------
-        // 3. UIレンダリング 
+        // 3. UIレンダリング (V13と変更なし)
         // ----------------------------------------------------------------
         
         function updateDivisionSelector(divisions) {
-            // V12と同じ
             divisionSelector.innerHTML = '<option value="">全ての区所</option>';
             const sortedDivisions = Array.from(divisions).sort();
             sortedDivisions.forEach(div => {
@@ -685,7 +688,6 @@
         }
 
         function renderTimeHeader() {
-            // V12と同じ
             scheduleTable.innerHTML = '';
             const headerRow = document.createElement('div');
             headerRow.classList.add('header-row');
@@ -719,7 +721,6 @@
             let rowIndex = 2; 
 
             data.forEach(operation => {
-                // 修正: 運用ラベルを2行表示に
                 const opLabelContent = `<span class="number">${operation.operation_number}</span><span class="division">(${operation.division})</span>`;
 
                 const operationLabel = document.createElement('div');
@@ -743,7 +744,6 @@
                     const block = document.createElement('div');
                     block.classList.add('train-block', `status-${item.status}`);
                     
-                    // 統合された運行の場合、列車番号と始発→終着駅を表示
                     const routeText = `${item.startStation}→${item.endStation}`;
                     block.textContent = `${item.trainNumber} (${routeText})`;
                     
@@ -762,7 +762,6 @@
                     
                     block.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        // 統合された運行の代表 runIndex を渡す
                         openDetailModal(item.trainNumber, item.operationNumber, item.division, item.runIndex); 
                     });
                     runContainer.appendChild(block);
@@ -773,11 +772,10 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（検索、全画面、ズーム）
+        // 4. 機能（検索、全画面、ズーム）(V13と変更なし)
         // ----------------------------------------------------------------
 
         function searchTrain() {
-            // V12と同じ
             const searchTerm = searchInput.value.trim();
             if (!searchTerm) return;
             
@@ -804,14 +802,12 @@
         }
         
         function clearSearch() {
-            // V12と同じ
             document.querySelectorAll('.train-block.highlight').forEach(b => b.classList.remove('highlight'));
             searchInput.value = '';
         }
 
         function updateSchedule() {
             const dateValue = dateSelector.value;
-            // 日付が未指定の場合は null を渡し、createScheduleData内で全表示ロジックを適用
             selectedDate = dateValue ? new Date(dateValue) : null; 
 
             const divisionFilter = divisionSelector.value;
@@ -822,7 +818,6 @@
         }
 
         function updateOutputDatetime() {
-            // V12と同じ
             const now = new Date();
             const y = now.getFullYear();
             const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -834,7 +829,6 @@
         }
         
         function toggleFullscreen() {
-            // V12と同じ
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
                     alert(`全画面表示を有効にできませんでした: ${err.message} (${err.name})`);
@@ -845,7 +839,6 @@
         }
         
         function updateZoom() {
-            // V12と同じ
             const zoomLevel = zoomRange.value;
             scheduleTable.style.setProperty('--timeline-min-width', `${zoomLevel}px`);
             zoomValueSpan.textContent = `${zoomLevel}px`;
@@ -853,7 +846,7 @@
 
 
         // ----------------------------------------------------------------
-        // 5. 初期化とイベントリスナー
+        // 5. 初期化とイベントリスナー (V13と変更なし)
         // ----------------------------------------------------------------
 
         async function initialize() {
@@ -861,13 +854,11 @@
             today = new Date();
             
             try {
-                // 時刻表と運用データを取得
                 [globalTimetables, globalData] = await Promise.all([
                     fetchJson(TIMETABLES_URL),
                     fetchJson(DATA_URL)
                 ]);
 
-                // 初期化時、日付セレクタを空にして全表示をデフォルトとする
                 dateSelector.value = ''; 
                 
                 updateSchedule();
