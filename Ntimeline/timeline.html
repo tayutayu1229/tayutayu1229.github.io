@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転計画表 (最終調整版 V23)</title>
+    <title>実施列車運転計画表 (表示・ロジック調整版 V24)</title>
     <style>
         /* ----------------------------------------------------------------
         * 1. ベースCSS 
@@ -32,12 +32,25 @@
             position: relative;
         }
         
-        #output-datetime {
+        /* V24: 時刻表示コンテナ */
+        #time-display {
             position: absolute;
             bottom: 5px;
             right: 0;
-            font-size: 0.75em;
+            text-align: right;
+        }
+
+        #current-time {
+            font-size: 1.0em; /* 現在時刻 */
+            color: #ffffff;
+            font-weight: bold;
+            display: block;
+        }
+        
+        #output-datetime {
+            font-size: 0.7em; /* V24: 出力日時を小さく */
             color: #888888;
+            display: block;
         }
 
         /* 制御パネル */
@@ -161,8 +174,12 @@
             color: #888888;
             font-weight: normal;
         }
-        .operation-label span.number {
-            font-weight: bold;
+        
+        /* V24: 施行日ラベル */
+        .operation-label span.start-date {
+            font-size: 0.7em;
+            color: #ffcc00; /* 日付を強調 */
+            font-weight: normal;
         }
 
         .train-run-container {
@@ -309,16 +326,7 @@
             color: #000000;
         }
         
-        /* V22: 区間ヘッダーは非表示にするため不要 (しかし、念のためCSSは残す) */
-        .modal-timetable .segment-header {
-             /* display: none; */ /* JS側でTRを挿入しないようにするが、スタイルは残す */
-             background-color: #000080; 
-             color: #ffffff; 
-             font-weight: bold; 
-             border-top: 3px solid #ffffff;
-        }
-        
-        /* V23: 時刻列幅固定と駅名/番線幅調整 */
+        /* V24: 時刻列幅固定と駅名/番線幅調整 */
         .modal-timetable table {
             table-layout: fixed;
             width: 100%; 
@@ -330,7 +338,7 @@
             width: 27.5%; /* 着時刻/発時刻 */
         }
         .modal-timetable table col.track-col {
-             width: 15%; /* 番線（狭く） */
+             width: 18%; /* V24: 番線（半角スペース1つ分広く） */
         }
         .modal-timetable table th:nth-child(2),
         .modal-timetable table td:nth-child(2),
@@ -376,8 +384,11 @@
 </head>
 <body>
 
-    <h1>実施列車運転計画表 V2.3
-        <span id="output-datetime"></span>
+    <h1>実施列車運転計画表 V2.4
+        <div id="time-display">
+            <span id="current-time"></span>
+            <span id="output-datetime"></span>
+        </div>
     </h1> 
 
     <div id="controls">
@@ -455,6 +466,7 @@
         const operationRunsTitle = document.getElementById('operation-runs-title');
         const scheduleContainer = document.getElementById('schedule-container');
         const outputDatetimeSpan = document.getElementById('output-datetime');
+        const currentTimeSpan = document.getElementById('current-time'); // V24: 追加
         const fullscreenButton = document.getElementById('fullscreen-button');
         const zoomRange = document.getElementById('zoom-range'); 
         const zoomValueSpan = document.getElementById('zoom-value'); 
@@ -475,6 +487,15 @@
         
         // 時刻データと見なされる特殊記号 (V21/V22でそのまま表示)
         const TIME_MARKERS = ['||', '=', '…'];
+        
+        // V24: null値を空白に変換するユーティリティ
+        function cleanValue(value) {
+            if (value === null || value === undefined) return '';
+            // 文字列としての"null"をチェックし、空白に変換
+            const strValue = String(value).trim();
+            if (strValue.toLowerCase() === 'null') return '';
+            return strValue;
+        }
 
 
         // ----------------------------------------------------------------
@@ -482,9 +503,9 @@
         // ----------------------------------------------------------------
 
         function timeToMinutes(timeStr) {
-            // Null, 空白、またはマーカー文字の場合はnullを返す
-            if (!timeStr || timeStr.trim() === "" || TIME_MARKERS.includes(timeStr.trim())) return null;
-            const parts = timeStr.split(':');
+            const cleanStr = cleanValue(timeStr);
+            if (!cleanStr || TIME_MARKERS.includes(cleanStr)) return null;
+            const parts = cleanStr.split(':');
             if (parts.length < 2) return null;
             const hours = parseInt(parts[0], 10);
             const minutes = parseInt(parts[1], 10);
@@ -508,7 +529,8 @@
         
         function parseJsonDate(dateStr) {
             if (!dateStr) return null;
-            const parts = dateStr.split('/');
+            const parts = cleanValue(dateStr).split('/');
+            if (parts.length !== 3) return null;
             return new Date(parts[0], parts[1] - 1, parts[2]);
         }
         
@@ -516,6 +538,8 @@
             if (!startDateStr || !currentDate) return "計画中";
             
             const startDate = parseJsonDate(startDateStr);
+            if (!startDate) return "計画中";
+
             const currentDayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
             const startDayStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
             
@@ -531,7 +555,11 @@
         async function fetchJson(url) {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP Error: ${response.status} (${url})`);
-            return await response.json();
+            const text = await response.text();
+            
+            // V24: 文字列としての"null"を処理
+            const cleanText = text.replace(/"null"/g, '""');
+            return JSON.parse(cleanText);
         }
         
         /**
@@ -540,7 +568,7 @@
         function preprocessTimetables(timetables) {
             const map = new Map();
             timetables.forEach(t => {
-                const dateKey = t.startDate || 'NULL';
+                const dateKey = cleanValue(t.startDate) || 'NULL';
                 const key = `${t.trainNumber}_${dateKey}`;
                 
                 if (!map.has(key)) {
@@ -552,11 +580,11 @@
         }
         
         /**
-         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する (V22ロジック維持)
+         * 同じ列車番号・施行日の時刻表エントリを連続性に基づいて完全に結合する 
          */
         function getIntegratedTimetable(trainNumber, startDate, allTimetables) {
             
-            const trim = (s) => s ? s.trim() : '';
+            const trim = (s) => cleanValue(s);
             const matchingTimetables = allTimetables; 
 
             if (matchingTimetables.length === 0) return null;
@@ -673,7 +701,7 @@
 
             return {
                 trainNumber: trainNumber,
-                type: finalFirstRun.type,
+                type: trim(finalFirstRun.type),
                 startDate: startDate, 
                 origin: trim(finalFirstRun.origin), 
                 destination: trim(finalLastRun.destination), 
@@ -687,6 +715,7 @@
 
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
+         * V24: 同じ運用番号、区所でも startDate が異なれば別運用として扱う。
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -700,10 +729,6 @@
             
             data.forEach(operation => {
                 if (divisionFilter && operation.division !== divisionFilter) return;
-
-                const fullOpLabel = `${operation.operation_number} (${operation.division})`;
-                const integratedRunsForOp = [];
-                const processedRunKeys = new Set(); 
 
                 // 運用JSONの train_runs を 列車番号 でグループ化
                 const runsByTrainNumber = new Map();
@@ -721,7 +746,7 @@
                     const lastOpRun = opRuns[opRuns.length - 1];
                     
                     const getRouteStations = (routeStr) => {
-                        const parts = routeStr.split(/〜|~/); 
+                        const parts = cleanValue(routeStr).split(/〜|~/); 
                         return { 
                             start: parts[0] ? parts[0].trim() : null, 
                             end: parts[parts.length - 1] ? parts[parts.length - 1].trim() : null
@@ -740,10 +765,6 @@
                     relevantTimetableEntries.forEach(([key, timeTableGroup]) => {
                         const startDate = key.split('_')[1] === 'NULL' ? null : key.split('_')[1];
                         
-                        // 既に統合処理済みの組み合わせかチェック
-                        const uniqueRunKey = `${trainNumber}_${startDate}`;
-                        if (processedRunKeys.has(uniqueRunKey)) return;
-
                         // 1. 時刻表統合
                         const integratedTimetable = getIntegratedTimetable(trainNumber, startDate, timeTableGroup);
                         
@@ -754,29 +775,30 @@
                              return; 
                         }
                         
-                        // 3. 日付フィルタチェック
-                        const formattedStartDate = startDate ? formatDate(parseJsonDate(startDate)) : null;
+                        // 3. 日付フィルタチェック (V24: startDateが一致すれば表示)
+                        const formattedStartDate = cleanValue(startDate);
 
                         let shouldDisplay = false;
                         if (isDateUnspecified) {
-                            shouldDisplay = true; // 日付未指定時は、時刻表と区間が一致した全ての運行を表示
+                            shouldDisplay = true; 
                         } else {
-                            // 日付指定時は、JSONのstartDateが未設定、ALWAYS_VISIBLE、または選択日と一致する場合に表示
-                            const isNoDate = !startDate;
+                            const isNoDate = formattedStartDate === '';
                             const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate);
                             const isSelectedDate = (formattedStartDate === formattedCurrentDate);
+                            
+                            // V24: 選択日と時刻表の施行日が一致すれば表示する
                             shouldDisplay = isNoDate || isSpecificDate || isSelectedDate;
                         }
 
                         if (!shouldDisplay) return;
 
                         // 4. データ統合
-                        let status = firstOpRun.status || (isDateUnspecified ? "計画中" : getAutoStatus(startDate, currentDate));
+                        let status = cleanValue(firstOpRun.status) || (isDateUnspecified ? "計画中" : getAutoStatus(startDate, currentDate));
                         
                         const runData = {
                             trainNumber: trainNumber,
                             type: integratedTimetable.type,
-                            route: opRuns.map(r => r.route).join(' → '), 
+                            route: opRuns.map(r => cleanValue(r.route)).join(' → '), 
                             startStation: integratedTimetable.origin,
                             endStation: integratedTimetable.destination,
                             startTime: integratedTimetable.startTime, 
@@ -786,12 +808,11 @@
                             operationNumber: operation.operation_number,
                             division: operation.division,
                             runIndex: firstOpRun.runIndex, 
-                            startDate: startDate,
+                            startDate: formattedStartDate === '' ? null : formattedStartDate,
                             timetable: integratedTimetable
                         };
 
                         integratedRunsForOp.push(runData);
-                        processedRunKeys.add(uniqueRunKey); 
                         foundMatchingRun = true; 
                     });
                 });
@@ -799,43 +820,80 @@
                 // 運行を時間順にソート
                 integratedRunsForOp.sort((a, b) => a.startTime - b.startTime);
 
-                if (isDateUnspecified) {
-                    // 運用ラベルは、運行データが見つからなくても常に作成する (全運用表示)
-                    if (!scheduleData.has(fullOpLabel)) {
-                        scheduleData.set(fullOpLabel, {
+                // V24: 運行データをstartDateでグループ化し、それぞれを独立した運用ブロックとして扱う
+                const runsByStartDate = new Map();
+                integratedRunsForOp.forEach(run => {
+                    const key = run.startDate || 'COMMON'; // startDateがない場合は共通グループ
+                    if (!runsByStartDate.has(key)) {
+                        runsByStartDate.set(key, []);
+                    }
+                    runsByStartDate.get(key).push(run);
+                });
+
+                runsByStartDate.forEach((runs, startDateKey) => {
+                    const labelStartDate = startDateKey === 'COMMON' ? null : startDateKey;
+                    
+                    // V24: 運用ラベルのキーにstartDateを含める
+                    const uniqueOpLabelKey = `${operation.operation_number}_${operation.division}_${labelStartDate || 'COMMON'}`;
+
+                    if (!scheduleData.has(uniqueOpLabelKey)) {
+                        scheduleData.set(uniqueOpLabelKey, {
                             operation_number: operation.operation_number,
                             division: operation.division,
                             vehicles: operation.vehicles,
+                            startDate: labelStartDate, // 新しいプロパティ
                             runs: []
                         });
                     }
-                    scheduleData.get(fullOpLabel).runs.push(...integratedRunsForOp);
-                    scheduleData.get(fullOpLabel).hasRuns = foundMatchingRun;
-                } else if (integratedRunsForOp.length > 0) {
-                    // 日付指定時は、運行が見つかった運用のみ表示する
-                    if (!scheduleData.has(fullOpLabel)) {
-                        scheduleData.set(fullOpLabel, {
-                            operation_number: operation.operation_number,
-                            division: operation.division,
-                            vehicles: operation.vehicles,
-                            runs: []
-                        });
-                    }
-                    scheduleData.get(fullOpLabel).runs.push(...integratedRunsForOp);
-                    scheduleData.get(fullOpLabel).hasRuns = true;
+                    scheduleData.get(uniqueOpLabelKey).runs.push(...runs);
+                    scheduleData.get(uniqueOpLabelKey).hasRuns = true;
+                });
+
+                if (!foundMatchingRun && isDateUnspecified) {
+                    // 日付未指定時は、運行データがなくても運用ラベルは常に作成する
+                     const uniqueOpLabelKey = `${operation.operation_number}_${operation.division}_COMMON`;
+                     if (!scheduleData.has(uniqueOpLabelKey)) {
+                         scheduleData.set(uniqueOpLabelKey, {
+                             operation_number: operation.operation_number,
+                             division: operation.division,
+                             vehicles: operation.vehicles,
+                             startDate: null,
+                             runs: [],
+                             hasRuns: false 
+                         });
+                     }
                 }
             });
 
-            return Array.from(scheduleData.values());
+            // V24: 最終的なスケジュールデータをソート (運用番号 > 施行日 > 区所)
+            return Array.from(scheduleData.values()).sort((a, b) => {
+                const opA = cleanValue(a.operation_number);
+                const opB = cleanValue(b.operation_number);
+                const divA = cleanValue(a.division);
+                const divB = cleanValue(b.division);
+                const dateA = a.startDate || '';
+                const dateB = b.startDate || '';
+
+                if (opA !== opB) return opA.localeCompare(opB);
+                if (dateA !== dateB) return dateA.localeCompare(dateB);
+                return divA.localeCompare(divB);
+            });
         }
 
 
         /**
          * 列車ブロッククリック時の詳細モーダル表示
          */
-        function openDetailModal(trainNumber, operationNumber, division) {
-            const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
-            const integratedRun = operation?.runs.find(r => r.trainNumber === trainNumber);
+        function openDetailModal(trainNumber, operationNumber, division, startDate) {
+            
+            // V24: 運用番号と施行日で運行データを見つける
+            const operationBlock = currentScheduleData.find(op => 
+                op.operation_number === operationNumber && 
+                op.division === division && 
+                (op.startDate === startDate || (op.startDate === null && startDate === 'null'))
+            );
+            
+            const integratedRun = operationBlock?.runs.find(r => r.trainNumber === trainNumber);
 
             if (!integratedRun || !integratedRun.timetable) {
                 alert('ERROR: 詳細データが見つかりません。');
@@ -845,25 +903,26 @@
             const displayTimetable = integratedRun.timetable; 
             
             // モーダルを列車詳細モードに設定
-            modalTitle.textContent = `列車運行詳細情報: ${trainNumber}`;
+            modalTitle.textContent = `列車運行詳細情報: ${cleanValue(trainNumber)}`;
             modalContent.style.display = 'flex';
             allRunsContainer.style.display = 'none';
 
-            // V23: 項目名修正
+            // V24: 項目名とcleanValue適用
+            const displayStartDate = integratedRun.startDate || '未設定';
+
             let detailHtml = `
-                <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
-                <dt>形式</dt><dd>${operation.vehicles}</dd>
-                <dt>列車番号</dt><dd>${trainNumber}</dd>
-                <dt>列車種別</dt><dd>${displayTimetable.type}</dd>
-                <dt>施行日</dt><dd>${displayTimetable.startDate || '未設定'}</dd>
-                <dt>運転区間 (運用)</dt><dd>${integratedRun.route}</dd> 
-                <dt>運行区間 (運転時刻による)</dt><dd>${displayTimetable.origin}〜${displayTimetable.destination}</dd>
-                <dt>計画状況</dt><dd>${integratedRun.status}</dd>
+                <dt>運用番号 (区所)</dt><dd>${cleanValue(operationBlock.operation_number)} (${cleanValue(operationBlock.division)})</dd>
+                <dt>形式</dt><dd>${cleanValue(operationBlock.vehicles)}</dd>
+                <dt>列車番号</dt><dd>${cleanValue(trainNumber)}</dd>
+                <dt>列車種別</dt><dd>${cleanValue(displayTimetable.type)}</dd>
+                <dt>施行日</dt><dd>${displayStartDate}</dd>
+                <dt>運転区間 (運用)</dt><dd>${cleanValue(integratedRun.route)}</dd> 
+                <dt>運行区間 (運転時刻による)</dt><dd>${cleanValue(displayTimetable.origin)}〜${cleanValue(displayTimetable.destination)}</dd>
+                <dt>計画状況</dt><dd>${cleanValue(integratedRun.status)}</dd>
             `;
             document.getElementById('block-details').innerHTML = detailHtml;
             
-            // 時刻表情報: 統合された全区間の時刻表を線区ごとに分けて表示
-            // V23: タイトル変更、線区ヘッダー削除
+            // 時刻表情報
             let tableHtml = `
                 <h3>運転時刻</h3>
                 <table>
@@ -876,43 +935,31 @@
                     <tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>
             `;
             
-            const trim = (s) => s ? s.trim() : '';
             let previousSegmentEndStation = null;
             
             displayTimetable.segments.forEach((segment, segmentIndex) => {
                 
-                // V23: 青色の線区区間ヘッダー行を完全に削除
-                /* const line = trim(segment.line) || '';
-                tableHtml += `<tr><td colspan="4" class="segment-header">
-                    ${line} (${trim(segment.origin)}〜${trim(segment.destination)})
-                </td></tr>`;
-                */
+                // V23: 青色の線区区間ヘッダー行は削除済み
                 
                 segment.stops.forEach((stop, stopIndex) => {
                     
-                    // V22: 接続駅の重複表示を抑制
-                    const currentStation = trim(stop.station);
+                    const currentStation = cleanValue(stop.station);
                     const isFirstStopOfSegment = stopIndex === 0;
 
                     if (segmentIndex > 0 && isFirstStopOfSegment && currentStation === previousSegmentEndStation) {
-                        // 2つ目以降のセグメントの最初の駅が、前のセグメントの終着駅と同じ場合、この行はスキップ
-                        return;
+                        return; // 接続駅の重複表示をスキップ
                     } 
                     
-                    // V21/V22: 時刻データ（特殊記号もそのまま表示）
-                    const arrival = trim(stop.arrival) || '';
-                    const departure = trim(stop.departure) || '';
-                    
-                    // その他データ（null/'不明'は空白に）
-                    const stationName = currentStation || '';
-                    const trackN = trim(stop.trackN);
-                    const normalizedTrackN = (trackN === '不明' || trackN === 'null' || trackN === 'NULL') ? '' : trackN;
+                    // V24: cleanValueを適用
+                    const arrival = cleanValue(stop.arrival);
+                    const departure = cleanValue(stop.departure);
+                    const trackN = cleanValue(stop.trackN);
                     
                     tableHtml += `<tr>
-                        <td>${stationName}</td>
+                        <td>${currentStation}</td>
                         <td>${arrival}</td>
                         <td>${departure}</td>
-                        <td>${normalizedTrackN}</td>
+                        <td>${trackN}</td>
                     </tr>`;
                     
                     // 終着駅情報を更新
@@ -932,6 +979,7 @@
          * 運用ラベルクリック時の運用全体表示 
          */
         function openOperationDetails(operationNumber, division) {
+            // V24: 運用ラベルからクリックされた場合は、オリジナルの運用JSONを参照する
             const originalOperation = globalData.find(op => op.operation_number === operationNumber && op.division === division);
 
             if (!originalOperation) {
@@ -940,23 +988,23 @@
             }
             
             // モーダルを運用全体モードに設定
-            modalTitle.textContent = `運用詳細情報: ${originalOperation.operation_number} (${originalOperation.division})`;
+            modalTitle.textContent = `運用詳細情報: ${cleanValue(originalOperation.operation_number)} (${cleanValue(originalOperation.division)})`;
             modalContent.style.display = 'none'; 
             allRunsContainer.style.display = 'block'; 
-            operationRunsTitle.textContent = '車両運用計画'; // 見出しを修正
+            operationRunsTitle.textContent = '車両運用計画'; 
 
             const allRunsList = document.getElementById('all-runs-list');
             
-            // 運用詳細情報の表示形式を修正
+            // 運用詳細情報
             let htmlContent = `
                 <div class="op-details-line">
-                    <dt>ID:</dt><dd>${originalOperation.id}</dd>
-                    <dt>種別:</dt><dd>${originalOperation.type}</dd>
-                    <dt>曜日:</dt><dd>${originalOperation.weekday || '設定なし'}</dd>
-                    <dt>日付:</dt><dd>${originalOperation.date || '設定なし'}</dd>
-                    <dt>所属区:</dt><dd>${originalOperation.division}</dd>
-                    <dt>形式:</dt><dd>${originalOperation.vehicles}</dd>
-                    <dt>後継運用:</dt><dd>${originalOperation.successor || 'なし'}</dd>
+                    <dt>ID:</dt><dd>${cleanValue(originalOperation.id)}</dd>
+                    <dt>種別:</dt><dd>${cleanValue(originalOperation.type)}</dd>
+                    <dt>曜日:</dt><dd>${cleanValue(originalOperation.weekday) || '設定なし'}</dd>
+                    <dt>日付:</dt><dd>${cleanValue(originalOperation.date) || '設定なし'}</dd>
+                    <dt>所属区:</dt><dd>${cleanValue(originalOperation.division)}</dd>
+                    <dt>形式:</dt><dd>${cleanValue(originalOperation.vehicles)}</dd>
+                    <dt>後継運用:</dt><dd>${cleanValue(originalOperation.successor) || 'なし'}</dd>
                 </div>
                 
                 <h4 style="color: #000080; border-top: 1px solid #808080; padding-top: 10px;">運用列車</h4>
@@ -969,18 +1017,25 @@
             `;
 
             originalOperation.train_runs.forEach(run => {
-                // 運行中の列車ブロックがあればクリック可能にする
-                const runInTimeline = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division)
-                    ?.runs.find(r => r.trainNumber === run.train_number);
+                // V24: 施行日違いで分かれた運用ブロックを考慮して、対象の列車番号で統合運行データを探す
+                const runsInTimeline = currentScheduleData.flatMap(op => op.runs).filter(r => 
+                    r.trainNumber === run.train_number && 
+                    r.operationNumber === operationNumber &&
+                    r.division === division
+                );
                 
-                const trAttributes = runInTimeline 
-                    ? `onclick="openDetailModal('${run.train_number}', '${operationNumber}', '${division}')" style="cursor: pointer;"`
-                    : '';
+                let trAttributes = '';
+                // 運行がタイムラインに存在する場合、そのうち一つ（最初のもの）の詳細を表示できるようにする
+                if (runsInTimeline.length > 0) {
+                     const firstRun = runsInTimeline[0];
+                     const startDateAttr = firstRun.startDate || 'null'; // nullの場合は'null'文字列を渡す
+                     trAttributes = `onclick="openDetailModal('${cleanValue(run.train_number)}', '${cleanValue(operationNumber)}', '${cleanValue(division)}', '${startDateAttr}')" style="cursor: pointer;"`;
+                }
 
                 htmlContent += `
                     <tr ${trAttributes}>
-                        <td>${run.train_number}</td>
-                        <td>${run.route}</td>
+                        <td>${cleanValue(run.train_number)}</td>
+                        <td>${cleanValue(run.route)}</td>
                         <td></td> </tr>
                 `;
             });
@@ -1042,25 +1097,32 @@
             let rowIndex = 2; 
 
             data.forEach(operation => {
-                const opLabelContent = `<span class="number">${operation.operation_number}</span><span class="division">(${operation.division})</span>`;
+                const opNum = cleanValue(operation.operation_number);
+                const opDiv = cleanValue(operation.division);
+                const opDate = operation.startDate ? operation.startDate : '';
+                
+                // V24: 運用ラベルに施行日を追加
+                const dateHtml = opDate ? `<span class="start-date">${opDate}</span>` : '';
+                const opLabelContent = `<span class="number">${opNum}</span><span class="division">(${opDiv})</span>${dateHtml}`;
 
                 const operationLabel = document.createElement('div');
                 operationLabel.classList.add('operation-label');
                 operationLabel.innerHTML = opLabelContent;
-                operationLabel.title = `形式: ${operation.vehicles}\nクリックで運用詳細を表示`;
+                operationLabel.title = `形式: ${cleanValue(operation.vehicles)}\n施行日: ${opDate || '共通'}\nクリックで運用詳細を表示`;
                 operationLabel.style.gridRow = String(rowIndex);
-                operationLabel.id = `op-row-${operation.operation_number}-${operation.division}`; 
-                operationLabel.dataset.opNumber = operation.operation_number;
-                operationLabel.dataset.division = operation.division;
+                // V24: IDに施行日を含める
+                operationLabel.id = `op-row-${opNum}-${opDiv}-${opDate || 'common'}`; 
+                operationLabel.dataset.opNumber = opNum;
+                operationLabel.dataset.division = opDiv;
+                operationLabel.dataset.startDate = opDate || 'null'; // クリックイベント用にnullを渡す
                 
-                // 運行データがない運用はクラスを追加して色を薄くする
                 if (!operation.hasRuns) {
                     operationLabel.classList.add('no-runs');
                 }
                 
-                // 運用ラベルにクリックイベントを追加
+                // 運用ラベルにクリックイベントを追加 (運用全体の詳細表示)
                 operationLabel.addEventListener('click', () => {
-                    openOperationDetails(operation.operation_number, operation.division);
+                    openOperationDetails(opNum, opDiv);
                 });
                 
                 scheduleTable.appendChild(operationLabel);
@@ -1075,17 +1137,21 @@
                     const endMin = item.endTime;
 
                     const block = document.createElement('div');
-                    block.classList.add('train-block', `status-${item.status}`);
+                    block.classList.add('train-block', `status-${cleanValue(item.status)}`);
                     
-                    // 列車ブロックの表示形式: 列車番号 (1全角スペース) 始発駅〜終着駅
-                    const routeText = `${item.startStation}〜${item.endStation}`;
-                    block.textContent = `${item.trainNumber}　${routeText}`;
+                    const routeText = `${cleanValue(item.startStation)}〜${cleanValue(item.endStation)}`;
+                    block.textContent = `${cleanValue(item.trainNumber)}　${routeText}`;
                     
-                    block.dataset.trainNumber = item.trainNumber;
-                    block.dataset.operationNumber = item.operationNumber;
-                    block.dataset.division = item.division; 
-                    block.dataset.runIndex = item.runIndex; 
-                    block.dataset.currentStatus = item.status;
+                    const itemOpNum = cleanValue(item.operationNumber);
+                    const itemDiv = cleanValue(item.division);
+                    const itemDate = item.startDate || 'null';
+
+                    block.dataset.trainNumber = cleanValue(item.trainNumber);
+                    block.dataset.operationNumber = itemOpNum;
+                    block.dataset.division = itemDiv; 
+                    block.dataset.startDate = itemDate; // V24: startDateをデータ属性に追加
+                    block.dataset.runIndex = cleanValue(item.runIndex); 
+                    block.dataset.currentStatus = cleanValue(item.status);
                     
                     const totalMinutes = MIN_IN_DAY;
                     const left = (startMin / totalMinutes) * 100; 
@@ -1096,8 +1162,8 @@
                     
                     block.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        // 列車詳細表示は統合された運行データを使用
-                        openDetailModal(item.trainNumber, item.operationNumber, item.division); 
+                        // V24: 施行日情報も渡す
+                        openDetailModal(item.trainNumber, itemOpNum, itemDiv, itemDate); 
                     });
                     runContainer.appendChild(block);
                 });
@@ -1107,21 +1173,26 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（検索、全画面、ズーム）
+        // 4. 機能（検索、全画面、ズーム、時刻）
         // ----------------------------------------------------------------
 
         function searchTrain() {
-            const searchTerm = searchInput.value.trim();
+            const searchTerm = cleanValue(searchInput.value);
             if (!searchTerm) return;
             
             clearSearch();
             
+            // 列車番号が一致する最初の運行ブロックを検索
             const targetBlock = document.querySelector(`.train-block[data-train-number="${searchTerm}"]`);
             if (targetBlock) {
                 targetBlock.classList.add('highlight');
 
                 const targetOpNumber = targetBlock.dataset.operationNumber;
-                const opRow = document.querySelector(`[data-op-number="${targetOpNumber}"]`); 
+                const targetDivision = targetBlock.dataset.division;
+                const targetStartDate = targetBlock.dataset.startDate || 'common'; // V24: startDateを考慮
+                
+                const opRow = document.querySelector(`[data-op-number="${targetOpNumber}"][data-division="${targetDivision}"][data-start-date="${targetStartDate}"]`); 
+                
                 if (opRow) {
                      opRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
@@ -1153,15 +1224,24 @@
             clearSearch();
         }
 
-        function updateOutputDatetime() {
+        // V24: 現在時刻表示の更新
+        function updateTimeDisplay() {
             const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
             const h = String(now.getHours()).padStart(2, '0');
             const mi = String(now.getMinutes()).padStart(2, '0');
             const s = String(now.getSeconds()).padStart(2, '0');
-            outputDatetimeSpan.textContent = `出力日時: ${y}/${m}/${d} ${h}:${mi}:${s}`;
+            currentTimeSpan.textContent = `現在時刻: ${h}:${mi}:${s}`;
+            
+            // 出力日時は一度だけ設定する
+            if (!outputDatetimeSpan.textContent) {
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const oh = String(now.getHours()).padStart(2, '0');
+                const omi = String(now.getMinutes()).padStart(2, '0');
+                const os = String(now.getSeconds()).padStart(2, '0');
+                outputDatetimeSpan.textContent = `出力日時: ${y}/${m}/${d} ${oh}:${omi}:${os}`;
+            }
         }
         
         function toggleFullscreen() {
@@ -1186,10 +1266,13 @@
         // ----------------------------------------------------------------
 
         async function initialize() {
-            updateOutputDatetime();
+            updateTimeDisplay();
+            setInterval(updateTimeDisplay, 1000); // 1秒ごとに現在時刻を更新
+
             today = new Date();
             
             try {
+                // V24: fetchJson内で"null"を置換
                 [globalTimetables, globalData] = await Promise.all([
                     fetchJson(TIMETABLES_URL),
                     fetchJson(DATA_URL)
