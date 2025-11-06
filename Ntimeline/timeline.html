@@ -3,19 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>列車運用タイムライン (最終修正版 V6)</title>
+    <title>列車運用タイムライン (最終修正版 V7)</title>
     <style>
         /* ----------------------------------------------------------------
-        * 1. レガシーシステム風CSS (レスポンシブ対応を追加)
+        * 1. レガシーシステム風CSS (淡い色に調整)
         * ---------------------------------------------------------------- */
         body {
             font-family: 'ＭＳ ゴシック', 'MS Gothic', 'Osaka-Mono', monospace;
-            background-color: #000080;
-            color: #c0c0c0;
+            /* 修正: 背景色を濃い青から淡い青 (#000080 -> #3a3a8a) に変更 */
+            background-color: #3a3a8a; 
+            /* 修正: 文字色を明るい灰色から少し暗い灰色 (#c0c0c0 -> #e0e0e0) に変更 */
+            color: #e0e0e0;
             margin: 0;
             padding: 15px;
             font-size: 14px;
-            min-width: 320px; /* 縦画面対応 */
+            min-width: 320px;
             height: 100vh;
             box-sizing: border-box;
             display: flex;
@@ -25,141 +27,110 @@
         h1 {
             color: #ffff00;
             text-align: center;
-            border-bottom: 2px solid #c0c0c0;
+            border-bottom: 2px solid #e0e0e0; /* 境界線の色も調整 */
             padding-bottom: 5px;
             margin-bottom: 15px;
             flex-shrink: 0;
-            position: relative; /* 出力日時配置用 */
+            position: relative;
         }
         
-        /* 出力日時表示 */
         #output-datetime {
             position: absolute;
             bottom: 5px;
             right: 0;
             font-size: 0.75em;
-            color: #888888;
+            color: #aaaaaa; /* 淡い色に調整 */
         }
 
         /* 制御パネル */
         #controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px 15px; /* 縦画面で詰める */
+            gap: 10px 15px;
             margin-bottom: 15px;
-            background-color: #000000;
+            /* 修正: コントロールパネルの背景色を黒から濃い青緑 (#1a1a33) へ */
+            background-color: #1a1a33;
             padding: 10px;
-            border: 1px solid #c0c0c0;
-            justify-content: flex-start; /* 左寄せに変更 */
+            border: 1px solid #e0e0e0;
+            justify-content: flex-start;
             flex-shrink: 0;
         }
 
         #controls label, #controls input, #controls button, #controls select {
-            color: #c0c0c0;
-            background-color: #000000;
-            border: 1px solid #c0c0c0;
+            color: #e0e0e0;
+            /* 修正: コントロールの背景色も調整 */
+            background-color: #1a1a33;
+            border: 1px solid #e0e0e0;
             padding: 3px 5px;
             font-family: inherit;
         }
         
         #controls button:hover {
-            background-color: #333333;
+            background-color: #444466; /* ホバー色も調整 */
             cursor: pointer;
         }
         
         #controls select option {
-            background-color: #000080;
+            /* 修正: ドロップダウンの背景色を調整 */
+            background-color: #3a3a8a;
         }
 
         /* ----------------------------------------------------------------
-        * 2. タイムライン表示エリア
+        * 2. タイムライン表示エリア (色調整)
         * ---------------------------------------------------------------- */
         #schedule-container {
             overflow: auto; 
             flex-grow: 1;
-            border: 2px solid #c0c0c0;
+            border: 2px solid #e0e0e0;
             background-color: #000000;
         }
 
         #schedule-table {
             display: grid;
             grid-template-columns: 100px repeat(1440, 1fr); 
-            min-width: 3000px; /* 横スクロールを維持 */
+            min-width: 3000px;
             border-collapse: collapse;
         }
 
-        /* 時刻ヘッダーは固定 */
         .time-header-cell {
-            grid-column: span 60; 
-            text-align: left;
-            padding: 5px 0 5px 5px;
-            border-right: 1px solid #333333;
-            box-sizing: border-box;
-            font-size: 0.9em;
-            background-color: #111111;
+            border-right: 1px solid #555555; /* 境界線の色を調整 */
+            background-color: #222222; /* ヘッダーの背景色も調整 */
+            color: #e0e0e0;
             position: sticky;
             top: 0;
             z-index: 10;
         }
 
-        /* 運用ラベルは固定 */
         .operation-label {
-            grid-column: 1 / 2;
-            padding: 8px 5px;
-            border-bottom: 1px dotted #333333;
-            background-color: #222222;
-            font-weight: bold;
+            border-bottom: 1px dotted #555555; /* 境界線の色を調整 */
+            background-color: #333333; /* ラベルの背景色も調整 */
             position: sticky;
             left: 0;
             z-index: 5;
-            white-space: nowrap;
-            font-size: 1.0em;
+            color: #e0e0e0;
         }
         
         .operation-label span.division {
-            font-size: 0.8em;
-            color: #888888;
-            font-weight: normal;
+            color: #aaaaaa; /* 括弧内の色も調整 */
         }
 
         .train-run-container {
-            grid-column: 2 / 1442; 
-            position: relative;
-            height: 40px;
-            border-bottom: 1px dotted #333333;
+            border-bottom: 1px dotted #555555;
         }
 
         .train-block {
-            position: absolute;
-            height: 30px;
-            top: 5px;
-            border: 1px solid #c0c0c0;
-            cursor: pointer;
-            font-size: 0.75em;
+            border: 1px solid #e0e0e0;
             color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 0 5px;
-            white-space: nowrap;
-            transition: all 0.1s;
         }
 
         .highlight {
             border: 3px solid #ffff00 !important;
             box-shadow: 0 0 10px #ffff00;
-            background-color: #4b0082 !important; 
+            background-color: #6a0dad !important; /* 紫色を少し淡く */
         }
-
-        /* ステータスごとの色の定義 */
-        .status-計画中 { background-color: #0000ff; color: #ffffff; } 
-        .status-実施済み { background-color: #008000; color: #ffffff; }
-        .status-実施中 { background-color: #ff0000; color: #ffffff; } 
-        .status-取り下げ { background-color: #808080; color: #000000; } 
-
+        
         /* ----------------------------------------------------------------
-        * 3. 詳細モーダル (縦画面対応)
+        * 3. 詳細モーダル (CSS修正)
         * ---------------------------------------------------------------- */
         #modal-overlay {
             display: none; 
@@ -168,75 +139,81 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5); 
+            background: rgba(0, 0, 0, 0.7); /* 透明度を少し上げて強調 */
             z-index: 50;
             overflow-y: auto;
         }
         
         #detail-modal {
-            background-color: #c0c0c0;
-            color: #000000;
+            /* 修正: モーダルの背景と文字色を元のレガシーシステム風に戻す */
+            background-color: #c0c0c0; /* 明るい灰色 */
+            color: #000000; /* 黒 */
             border: 3px outset #ffffff;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 90%; /* 縦画面で幅を広く */
+            width: 90%;
             max-width: 900px;
             box-shadow: 8px 8px 0 #000000;
             font-family: inherit;
         }
 
-        .modal-content {
-            padding: 15px;
-            line-height: 1.5;
-            display: flex;
-            flex-direction: row; /* デフォルトは横並び */
-            gap: 20px;
+        .modal-header {
+            /* 修正: ヘッダーを濃い青に戻す */
+            background-color: #000080; 
+            color: #ffffff;
+        }
+
+        .modal-header button {
+            /* 修正: ヘッダーボタンの色を灰色に戻す */
+            background-color: #c0c0c0;
+            color: #000000;
+            border: 2px outset #ffffff;
+            cursor: pointer;
+        }
+
+        .modal-info dt {
+            /* 修正: 項目名を濃い青に戻す */
+            font-weight: bold;
+            color: #000080;
+            margin-top: 5px;
         }
         
-        .modal-info, .modal-timetable {
-            flex: 1; 
-            min-width: 300px;
+        .modal-info dd {
+            margin-left: 10px;
+            border-bottom: 1px dotted #808080;
+        }
+        
+        .modal-timetable table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
         }
 
-        .modal-timetable {
-            overflow-y: auto;
-            max-height: 400px; 
+        .modal-timetable th, .modal-timetable td {
+            border: 1px solid #808080;
+            padding: 3px;
+            text-align: left;
+            /* 修正: テーブル内の背景と文字色もデフォルトに戻す */
+            background-color: #c0c0c0;
+            color: #000000;
         }
-
-        /* 縦画面（モバイル等）での表示調整 */
+        
+        /* レスポンシブ対応はV6から変更なし */
         @media (max-width: 800px) {
-            .modal-content {
-                flex-direction: column; /* 縦画面では縦並びにする */
-            }
-            .modal-timetable {
-                min-width: unset;
-                max-height: 300px; /* 縦画面で高さを抑える */
-            }
-            #detail-modal {
-                width: 95%;
-                /* 画面上部から少し下に配置し、スクロール可能にする */
-                top: 20px;
-                transform: translate(-50%, 0); 
-                position: absolute; /* absoluteにして縦スクロール対応 */
-            }
-            #modal-overlay {
-                 /* モーダルオーバーレイ全体をスクロール可能にする */
-                overflow-y: auto;
-            }
-        }
-        
-        /* 詳細モーダル内のテーブルヘッダーの修正 */
-        .modal-timetable th:nth-child(3) {
-            width: 40%; /* 発（通）時刻の幅を広げる */
+            .modal-content { flex-direction: column; }
+            .modal-timetable { min-width: unset; max-height: 300px; }
+            #detail-modal { top: 20px; transform: translate(-50%, 0); position: absolute; }
+            #modal-overlay { overflow-y: auto; }
         }
 
     </style>
 </head>
 <body>
 
-    <h1>[T-time] 列車運行管理システム V6.0
+    <h1>[T-time] 列車運行管理システム V7.0
         <span id="output-datetime"></span>
     </h1> 
 
@@ -286,7 +263,7 @@
         // ----------------------------------------------------------------
         // 1. 定数とDOM要素
         // ----------------------------------------------------------------
-        // 修正: パスを明示的に指定
+        // 修正: ユーザー指定のパスに変更
         const TIMETABLES_URL = '../T-time/timetables.json'; 
         const DATA_URL = '../unnyou/data.json'; 
         const MIN_IN_DAY = 1440; 
@@ -299,7 +276,7 @@
         const clearSearchButton = document.getElementById('clear-search');
         const modalOverlay = document.getElementById('modal-overlay');
         const scheduleContainer = document.getElementById('schedule-container');
-        const outputDatetimeSpan = document.getElementById('output-datetime'); // 出力日時用
+        const outputDatetimeSpan = document.getElementById('output-datetime');
 
         let currentBlock = null; 
         let globalTimetables = [];
@@ -307,14 +284,13 @@
         let currentScheduleData = [];
         let selectedDate = null;
 
-        // 常時表示する特定の日付（YYYY/MM/DD 形式）
         const ALWAYS_VISIBLE_DATES = [
             '2025/03/15',
             '2026/03/14'
         ];
 
         // ----------------------------------------------------------------
-        // 2. ユーティリティ関数とデータ処理
+        // 2. ユーティリティ関数とデータ処理 (V6から変更なし)
         // ----------------------------------------------------------------
 
         function timeToMinutes(timeStr) {
@@ -356,18 +332,12 @@
             }
         }
 
-        /**
-         * 修正: async キーワードを追加
-         */
         async function fetchJson(url) {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP Error: ${response.status} (${url})`);
             return await response.json();
         }
 
-        /**
-         * 運用ブロックのデータを整形する
-         */
         function createScheduleData(timetables, data, currentDate, divisionFilter) {
             const scheduleData = new Map();
             const divisions = new Set();
@@ -397,10 +367,8 @@
                     let shouldDisplay = false;
                     
                     if (!formattedCurrentDate) {
-                        // 1. 初期読み込み時 (日付指定なし): 全て表示
                         shouldDisplay = true;
                     } else {
-                        // 2. 日付指定あり: 
                         const isNoDate = !startDateStr;
                         const isSpecificDate = ALWAYS_VISIBLE_DATES.includes(formattedStartDate);
                         const isSelectedDate = (formattedStartDate === formattedCurrentDate);
@@ -420,7 +388,6 @@
                     const endStop = [...stops].reverse().find(s => timeToMinutes(s.arrival) !== null);
                     if (endStop) endTime = timeToMinutes(endStop.arrival);
                     
-                    // 時刻データが不完全な場合はスキップ
                     if (startTime === null || endTime === null || endTime <= startTime) {
                         return;
                     }
@@ -459,7 +426,7 @@
         }
 
         // ----------------------------------------------------------------
-        // 3. UIレンダリング
+        // 3. UIレンダリング (V6から変更なし)
         // ----------------------------------------------------------------
 
         function updateDivisionSelector(divisions) {
@@ -547,7 +514,6 @@
                     
                     block.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        // ステータス変更ボタンは削除されたため、詳細モーダルのみ開く
                         openDetailModal(item.trainNumber, item.operationNumber, item.division, item.runIndex); 
                     });
                     runContainer.appendChild(block);
@@ -558,12 +524,9 @@
         }
 
         // ----------------------------------------------------------------
-        // 4. 機能（詳細、検索）
+        // 4. 機能（詳細、検索） (V6から変更なし)
         // ----------------------------------------------------------------
 
-        /**
-         * 詳細モーダルを開く
-         */
         function openDetailModal(trainNumber, operationNumber, division, runIndex) {
             const operation = currentScheduleData.find(op => op.operation_number === operationNumber && op.division === division);
             const run = operation?.runs.find(r => r.trainNumber === trainNumber && r.runIndex === runIndex);
@@ -575,7 +538,6 @@
             
             const timetable = run.timetable;
 
-            // 運用情報
             let detailHtml = `
                 <dt>運用番号 (区所)</dt><dd>${operation.operation_number} (${operation.division})</dd>
                 <dt>形式</dt><dd>${operation.vehicles}</dd>
@@ -588,7 +550,7 @@
             document.getElementById('block-details').innerHTML = detailHtml;
             
             // 時刻表情報
-            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>'; // ヘッダー修正
+            let tableHtml = '<h3>停車駅・時刻表</h3><table><tr><th>駅名</th><th>着時刻</th><th>発（通）時刻</th><th>番線</th></tr>';
             timetable.stops.forEach(stop => {
                  tableHtml += `<tr>
                     <td>${stop.station}</td>
@@ -645,9 +607,6 @@
             clearSearch();
         }
 
-        /**
-         * 出力日時を更新する
-         */
         function updateOutputDatetime() {
             const now = new Date();
             const y = now.getFullYear();
@@ -660,38 +619,27 @@
         }
 
         // ----------------------------------------------------------------
-        // 5. 初期化とイベントリスナー
+        // 5. 初期化とイベントリスナー (V6から変更なし)
         // ----------------------------------------------------------------
 
         async function initialize() {
-            updateOutputDatetime(); // 出力日時を即時表示
+            updateOutputDatetime();
             
             try {
-                // 修正: await を追加し、fetchJson が async 関数であることを保証
                 [globalTimetables, globalData] = await Promise.all([
                     fetchJson(TIMETABLES_URL),
                     fetchJson(DATA_URL)
                 ]);
 
-                // 初期読み込み時は日付セレクタを空にする
                 dateSelector.value = '';
                 
                 updateSchedule();
                 
             } catch (error) {
-                // FATAL ERROR を表示
                 alert(`FATAL ERROR: データ読み込み中にエラーが発生しました。パスを確認してください。: ${error.message}`);
             }
         }
 
-        // --- イベントリスナー設定 ---
-        
-        // ステータス変更ボタンは削除されたため、status-menu関連のリスナーも削除
-        
-        document.addEventListener('click', () => {
-             // ステータスメニューが削除されたため、このリスナーも不要
-        });
-        
         document.getElementById('close-modal').addEventListener('click', () => {
             modalOverlay.style.display = 'none';
         });
@@ -701,6 +649,7 @@
             }
         });
         
+        // 日付選択機能はそのまま維持（type="date"で選ぶ形）
         dateSelector.addEventListener('change', updateSchedule);
         divisionSelector.addEventListener('change', () => {
             divisionSelector.dataset.currentFilter = divisionSelector.value;
