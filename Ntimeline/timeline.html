@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>実施列車運転計画表 V1.7 (V3.2 반영 - 最終修正)</title>
+    <title>実施列車運転計画表 V1.7 (V3.2-R2: 重複運用表示対応)</title>
     <style>
         /* ----------------------------------------------------------------
         * 0. 標準フォントを使用 (ゲームフォント中止)
@@ -583,9 +583,6 @@
         
         /**
          * V3.1: 施行日と表示日付を比較してステータスを決定する
-         * @param {string} startDateStr - JSON内の施行日 ('YYYY/MM/DD' 形式)
-         * @param {Date | null} displayDate - '表示日付' セレクタで選択された日付
-         * @returns {string} 決定されたステータス ('計画中', '実施中', '実施済み')
          */
         function getAutoStatus(startDateStr, displayDate) {
             // 施行日が未設定または表示日付が未選択の場合は「計画中」のまま
@@ -749,7 +746,6 @@
                 if (unUsed.length > 0) {
                     const allSegments = [...combinedRuns, ...unUsed].sort((a, b) => {
                         const getFirstTime = (segment) => {
-                            // 修正: 's' is not defined エラー回避のため変数名を'stop'に変更
                             let time = 3000;
                             // 最初の有効な発時刻または着時刻を探す
                             segment.stops.forEach(stop => {
@@ -806,8 +802,6 @@
         
         /**
          * V3.0: 運行が日を跨ぐ場合、1440分単位で複数の描画ブロックに分割する
-         * @param {Object} runData - 統合された運行データ
-         * @returns {Array<Object>} 分割された描画ブロックの配列
          */
         function splitRunForDisplay(runData) {
             const blocks = [];
@@ -842,7 +836,7 @@
 
         /**
          * 日付と区所によるフィルタリングを行い、運用データを作成
-         * V3.3: 日付フィルタリングロジックを修正
+         * V3.3-R2: 運用番号の重複を許可するため、キーを operation_id_startDate に変更。
          */
         function createScheduleData(data, currentDate, divisionFilter) {
             const scheduleData = new Map();
@@ -863,7 +857,7 @@
             data.forEach(operation => {
                 if (divisionFilter && operation.division !== divisionFilter) return;
                 
-                const originalId = operation.id;
+                const originalId = cleanValue(operation.id); // V3.3-R2: 運用IDを取得
 
                 const integratedRunsForOp = []; 
                 
@@ -879,14 +873,12 @@
 
                 runsByTrainNumber.forEach((opRuns, trainNumber) => {
                     
-                    // --- 🚅 エラー回避のための安全チェックを強化 🚅 ---
                     if (opRuns.length === 0) return; 
                     const firstOpRun = opRuns[0];
                     if (!firstOpRun) return; 
-                    // ------------------------------------
 
-                    const opRoutes = opRuns.map(r => cleanValue(r.route)).filter(r => r); // 運用側の全routeを取得
-                    if (opRoutes.length === 0) return; // route設定がない場合はスキップ
+                    const opRoutes = opRuns.map(r => cleanValue(r.route)).filter(r => r); 
+                    if (opRoutes.length === 0) return; 
 
                     const relevantTimetableEntries = Array.from(timetablesMap.entries())
                         .filter(([key, _]) => key.startsWith(`${trainNumber}_`));
@@ -898,14 +890,13 @@
                         
                         if (!integratedTimetable) return; 
                         
-                        // --- 🚅 施行日によるフィルタリング (V3.3 修正) 🚅 ---
+                        // --- 施行日によるフィルタリング ---
                         const formattedStartDate = cleanValue(startDate);
                         
-                        // 施行日が最大表示日より未来の場合はスキップ
                         if (formattedStartDate) {
                             const currentStartDate = parseJsonDate(formattedStartDate);
                             if (currentStartDate && currentStartDate.getTime() > maxDisplayDayStart) {
-                                return; // スキップ
+                                return; 
                             }
                         }
                         
@@ -926,14 +917,9 @@
 
                         if (!shouldDisplay) return;
 
-                        // --- 🚅 より厳密な停車駅重複チェック (V3.1) 🚅 ---
-                        // (中略 - 停車駅チェックロジックは省略)
-                        // ------------------------------------
-
-                        // V3.1: ステータス判定ロジックを修正
+                        // --- ステータス判定 ---
                         let status = cleanValue(firstOpRun.status);
                         if (isDateSelected && formattedStartDate) {
-                             // 日付が選択され、施行日も設定されている場合のみ自動判定
                              status = getAutoStatus(formattedStartDate, currentDate);
                         } else if (!status) {
                              status = "計画中";
@@ -948,7 +934,7 @@
                             startTime: integratedTimetable.startTime, 
                             endTime: integratedTimetable.endTime,     
                             status: status, 
-                            operationId: originalId, 
+                            operationId: originalId, // V3.3-R2: IDを使用
                             operationNumber: operation.operation_number,
                             division: operation.division,
                             runIndex: firstOpRun.runIndex, 
@@ -977,10 +963,10 @@
                     
                     const hasRuns = runs.length > 0;
                     
-                    // V29/V3.0: 日付が選択されていて、運行が存在しない場合はブロックを作成しない
                     if (isDateSelected && !hasRuns) return; 
                     
-                    const uniqueOpLabelKey = `${operation.division}_${operation.operation_number}_${labelStartDate || 'COMMON'}`;
+                    // V3.3-R2: 運用ラベルキーを operationId と startDate で一意に設定
+                    const uniqueOpLabelKey = `${originalId}_${labelStartDate || 'COMMON'}`; 
 
                     if (!scheduleData.has(uniqueOpLabelKey)) {
                         scheduleData.set(uniqueOpLabelKey, {
@@ -991,18 +977,16 @@
                             startDate: labelStartDate, 
                             runs: [],
                             hasRuns: false,
-                            displayBlocks: [] // V3.0: 分割後のブロックを格納
+                            displayBlocks: new Map()
                         });
                     }
                     
-                    // 運行データを分割し、displayBlocksに追加
                     let totalBlocks = [];
                     runs.forEach(run => {
                         const blocks = splitRunForDisplay(run);
                         totalBlocks.push(...blocks);
                     });
                     
-                    // dayIndexでグループ化し、運用行に紐づける
                     const blocksByDay = new Map();
                     totalBlocks.forEach(block => {
                         const dayKey = block.dayIndex;
@@ -1015,11 +999,12 @@
                     const opData = scheduleData.get(uniqueOpLabelKey);
                     opData.runs.push(...runs);
                     opData.hasRuns = hasRuns;
-                    opData.displayBlocks = blocksByDay; // dayIndexごとのブロックのMapを格納
+                    opData.displayBlocks = blocksByDay; 
                 });
 
                 if (!foundMatchingRunForDate && !isDateSelected) { 
-                     const uniqueOpLabelKey = `${operation.division}_${operation.operation_number}_COMMON`;
+                     // V3.3-R2: ここでもIDベースのキーを使用
+                     const uniqueOpLabelKey = `${originalId}_COMMON`;
                      if (!scheduleData.has(uniqueOpLabelKey)) {
                          scheduleData.set(uniqueOpLabelKey, {
                              id: originalId, 
@@ -1038,10 +1023,8 @@
             // V3.0: 最終的なスケジュールデータをソート
             return Array.from(scheduleData.values()).sort((a, b) => {
                 
-                if (!isDateSelected) {
-                    // 日付未選択時: ID順（元のJSON順）を最優先
-                    if (a.id !== b.id) return a.id - b.id;
-                }
+                // V3.3-R2: ID順を最優先にする（元のJSON順）
+                if (a.id !== b.id) return a.id - b.id;
                 
                 // 共通のソート順: 区所名 > 運用番号 > 施行日
                 const divA = cleanValue(a.division);
@@ -1061,11 +1044,10 @@
         /**
          * 列車ブロッククリック時の詳細モーダル表示
          */
-        function openDetailModal(trainNumber, operationNumber, division, startDate) {
+        function openDetailModal(trainNumber, operationId, startDate) { // V3.3-R2: operationNumber, division ではなく operationId を受け取る
             
             const operationBlock = currentScheduleData.find(op => 
-                op.operation_number === operationNumber && 
-                op.division === division && 
+                op.id == operationId && // IDは文字列/数値混合の可能性があるため == を使用
                 (op.startDate === startDate || (op.startDate === null && startDate === 'null'))
             );
             
@@ -1151,8 +1133,8 @@
         /**
          * 運用ラベルクリック時の運用全体表示 
          */
-        function openOperationDetails(operationNumber, division) {
-            const originalOperation = globalData.find(op => op.operation_number === operationNumber && op.division === division);
+        function openOperationDetails(operationId) { // V3.3-R2: operationId を受け取る
+            const originalOperation = globalData.find(op => op.id == operationId); // IDで検索
 
             if (!originalOperation) {
                 alert('ERROR: 運用データが見つかりません。');
@@ -1189,17 +1171,18 @@
             `;
 
             originalOperation.train_runs.forEach(run => {
+                // 当該運用IDと関連する運行をタイムラインデータから検索
                 const runsInTimeline = currentScheduleData.flatMap(op => op.runs).filter(r => 
                     r.trainNumber === run.train_number && 
-                    r.operationNumber === operationNumber &&
-                    r.division === division
+                    r.operationId == originalOperation.id // IDでフィルタ
                 );
                 
                 let trAttributes = '';
                 if (runsInTimeline.length > 0) {
                      const firstRun = runsInTimeline[0];
                      const startDateAttr = firstRun.startDate || 'null'; 
-                     trAttributes = `onclick="openDetailModal('${cleanValue(run.train_number)}', '${cleanValue(operationNumber)}', '${cleanValue(division)}', '${startDateAttr}')" style="cursor: pointer;"`;
+                     // V3.3-R2: openDetailModalにIDを渡す
+                     trAttributes = `onclick="openDetailModal('${cleanValue(run.train_number)}', '${cleanValue(originalOperation.id)}', '${startDateAttr}')" style="cursor: pointer;"`;
                 }
 
                 htmlContent += `
@@ -1269,6 +1252,7 @@
 
             data.forEach(operation => {
                 
+                const opId = cleanValue(operation.id); // V3.3-R2: 運用ID
                 const opNum = cleanValue(operation.operation_number);
                 const opDiv = cleanValue(operation.division);
                 const opDate = operation.startDate ? operation.startDate : '';
@@ -1301,22 +1285,23 @@
                         operationLabel.classList.add('continuation');
                     }
                     operationLabel.innerHTML = opLabelContent;
-                    operationLabel.title = `形式: ${cleanValue(operation.vehicles)}\n施行日: ${opDate || '共通'}${daySuffix}\nクリックで運用詳細を表示`;
+                    operationLabel.title = `形式: ${cleanValue(operation.vehicles)}\n施行日: ${opDate || '共通'}${daySuffix}\nID: ${opId}\nクリックで運用詳細を表示`;
                     operationLabel.style.gridRow = String(rowIndex);
-                    operationLabel.id = `op-row-${opNum}-${opDiv}-${opDate || 'common'}-${rowIdSuffix}`; 
-                    operationLabel.dataset.opNumber = opNum;
+                    // V3.3-R2: IDを使用して一意な行IDを作成
+                    operationLabel.id = `op-row-${opId}-${opDate || 'common'}-${rowIdSuffix}`; 
+                    operationLabel.dataset.opId = opId; // V3.3-R2: IDをデータセットに追加
+                    operationLabel.dataset.opNumber = opNum; 
                     operationLabel.dataset.division = opDiv;
                     operationLabel.dataset.startDate = opDate || 'null'; 
-                    operationLabel.dataset.dayIndex = dayIndex; // V3.0: 何日目の行か
+                    operationLabel.dataset.dayIndex = dayIndex; 
                     
                     if (!operation.hasRuns) {
                         operationLabel.classList.add('no-runs');
                     }
                     
                     // 運用ラベルにクリックイベントを追加 (運用全体の詳細表示)
-                    // V3.0: クリック時の動作は元の運用（0日目）と同じ
                     operationLabel.addEventListener('click', () => {
-                        openOperationDetails(opNum, opDiv);
+                        openOperationDetails(opId); // V3.3-R2: IDを渡す
                     });
                     
                     scheduleTable.appendChild(operationLabel);
@@ -1359,13 +1344,11 @@
                         // マウスオーバー時のツールチップに、24時間以上の時刻を表示
                         block.title = `${cleanValue(item.trainNumber)} (${item.status})\n${routeText}\n${displayStartStr} 〜 ${displayEndStr}`;
 
-                        const itemOpNum = cleanValue(item.operationNumber);
-                        const itemDiv = cleanValue(item.division);
+                        const itemOpId = cleanValue(item.operationId); // V3.3-R2: IDを使用
                         const itemDate = item.startDate || 'null';
 
                         block.dataset.trainNumber = cleanValue(item.trainNumber);
-                        block.dataset.operationNumber = itemOpNum;
-                        block.dataset.division = itemDiv; 
+                        block.dataset.operationId = itemOpId; // V3.3-R2: IDを格納
                         block.dataset.startDate = itemDate; 
                         block.dataset.runIndex = cleanValue(item.runIndex); 
                         block.dataset.currentStatus = cleanValue(item.status);
@@ -1388,7 +1371,7 @@
 
                         block.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            openDetailModal(item.trainNumber, itemOpNum, itemDiv, itemDate); 
+                            openDetailModal(item.trainNumber, itemOpId, itemDate); // V3.3-R2: IDを渡す
                         });
                         runContainer.appendChild(block);
                     });
@@ -1520,7 +1503,10 @@
 
                 // V3.0: 元のデータにIDを付与する（IDソート時に必要）
                 globalData.forEach((op, index) => {
-                    op.id = op.id || index + 1; 
+                    // IDが設定されていない場合にインデックスで補完
+                    if (op.id === undefined || op.id === null) {
+                         op.id = index + 1; 
+                    }
                 });
 
                 // 時刻表データを事前にマップ化
