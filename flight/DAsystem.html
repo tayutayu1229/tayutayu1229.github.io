@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>離着陸発着監視システム</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <style>
+        /* =======================================================
+           1. 基本スタイル & リセット (新デザイン)
+           ======================================================= */
+        :root {
+            --color-ana: #0076a8; 
+            --color-jal: #e4002b; 
+            --color-base-bg: #eef7ff; /* ライトブルー */
+            --color-panel-bg: #ffffff;
+            --color-header-bg: #004477; /* ダークマリン */
+            --color-header-text: #ffffff;
+            --color-accent: #004477; 
+            --color-warning: #e08e00; /* ゴールド */
+            --color-error: var(--color-jal); 
+            --color-success: #1a7a40; 
+            --color-border-sharp: #99aacc; /* 明るいボーダー */
+            --font-main: 'Meiryo UI', 'MS UI Gothic', 'Segoe UI', Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-main);
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-base-bg);
+            color: #222;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 10px 20px;
+        }
+        
+        /* リアルタイム時刻表示 */
+        #current-time-display {
+            background-color: #dbe4f0;
+            padding: 5px 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--color-border-sharp);
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--color-header-bg);
+            text-align: right;
+        }
+
+        /* =======================================================
+           2. ヘッダー & ナビゲーション
+           ======================================================= */
+        header {
+            background-color: var(--color-header-bg);
+            padding: 10px 20px;
+            border-bottom: 2px solid var(--color-accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-area {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--color-header-text);
+        }
+
+        .tab-navigation {
+            display: flex;
+            gap: 2px;
+        }
+
+        .tab-button {
+            padding: 8px 15px;
+            background-color: var(--color-base-bg);
+            border: 1px solid var(--color-border-sharp);
+            cursor: pointer;
+            transition: all 0.1s;
+            font-weight: 600;
+            border-radius: 4px 4px 0 0; /* 角を丸く */
+            font-size: 14px;
+        }
+
+        .tab-button.active {
+            background-color: var(--color-panel-bg);
+            color: var(--color-accent);
+            border-bottom: none;
+            border-top: 3px solid var(--color-accent); /* 強調 */
+            z-index: 10;
+        }
+        
+        #airport-selection-warning {
+            padding: 8px;
+            margin: 10px 0;
+            background-color: #fff8e1; /* ライトイエロー */
+            border: 1px solid var(--color-warning);
+            color: var(--color-warning);
+            font-weight: bold;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 1.0em;
+        }
+        
+        /* =======================================================
+           3. フィルタリング & グラフエリア
+           ======================================================= */
+        .control-panel {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+            align-items: flex-start;
+        }
+        
+        .filter-area {
+            background-color: var(--color-panel-bg);
+            padding: 15px;
+            border: 1px solid var(--color-border-sharp);
+            border-radius: 4px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            flex-grow: 1;
+            align-items: flex-end;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        /* 💡 アラート設定エリア */
+        #alert-setting-area {
+            background-color: #f0f8ff; /* より明るい背景 */
+            padding: 15px;
+            border: 1px solid var(--color-accent);
+            border-radius: 4px;
+            flex-grow: 1;
+            margin-top: 10px;
+        }
+        #alert-setting-area h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: var(--color-accent);
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 5px;
+        }
+        #alert-setting-area .filter-group {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+
+        .utility-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 250px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: var(--color-accent);
+        }
+
+        .filter-group select,
+        .filter-group input[type="text"],
+        .filter-group input[type="date"],
+        .filter-group input[type="time"],
+        .utility-panel button,
+        #required-airport-select {
+            padding: 6px 8px;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+            min-width: 100px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        
+        #required-airport-select {
+            border: 2px solid var(--color-error); /* 赤で目立たせる */
+            font-weight: bold;
+            min-width: 150px;
+        }
+        
+        .utility-panel button {
+            background-color: var(--color-accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .utility-panel button:hover {
+            background-color: #005a9b;
+        }
+        
+        /* グラフとノートエリア */
+        .dashboard-area {
+            display: flex;
+            gap: 10px;
+            min-width: 250px;
+            flex-grow: 1;
+        }
+
+        .chart-container, .notes-container {
+            border: 1px solid var(--color-border-sharp);
+            background-color: var(--color-panel-bg);
+            padding: 15px;
+            flex: 1;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .chart-container h4, .notes-container h4 {
+            margin-top: 0;
+            font-size: 14px;
+            color: var(--color-accent);
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .chart-wrapper {
+            max-height: 100px;
+            width: 100%; 
+        }
+        #operational-chart {
+            width: 100% !important;
+            height: 90px !important; 
+        }
+        #business-notes {
+            width: 100%;
+            min-height: 100px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            box-sizing: border-box;
+            resize: vertical;
+            font-family: var(--font-main);
+            font-size: 13px;
+            border-radius: 4px;
+        }
+
+        /* =======================================================
+           4. データ表示エリア (テーブル)
+           ======================================================= */
+        .flight-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--color-panel-bg);
+            border: 1px solid var(--color-border-sharp);
+            margin-top: 10px;
+            table-layout: auto;
+            border-radius: 4px;
+            overflow: hidden; /* 角丸対応 */
+        }
+
+        .flight-table th, .flight-table td {
+            padding: 6px 10px; 
+            text-align: left;
+            border: 1px solid #e0e0e0;
+            font-size: 13px; 
+            white-space: nowrap;
+        }
+
+        .flight-table th {
+            background-color: #f0f5ff; /* 明るいヘッダー */
+            color: var(--color-accent);
+            cursor: pointer;
+            user-select: none;
+            font-weight: bold;
+        }
+        
+        /* ソートインジケータ */
+        .flight-table th .sort-indicator {
+            margin-left: 5px;
+            color: var(--color-error);
+        }
+        
+        /* ステータスの色付け */
+        .status-cell { font-weight: bold; }
+        .status-departed, .status-arrived, .status-ontime { color: var(--color-success); }
+        .status-delayed { color: var(--color-warning); }
+        .status-cancelled { color: var(--color-error); }
+        .flight-number-link { cursor: pointer; text-decoration: underline; color: var(--color-accent); }
+        
+        /* =======================================================
+           5. デバッグパネル 
+           ======================================================= */
+        #debug-panel-container {
+            margin-top: 20px;
+        }
+        #debug-panel {
+            white-space: pre;
+            overflow-x: auto;
+            max-height: 200px;
+            background-color: #2c3e50; /* 濃い青 */
+            color: #ecf0f1;
+            padding: 10px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+        
+        /* =======================================================
+           6. モーダル
+           ======================================================= */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            padding-top: 50px;
+        }
+
+        .modal-content {
+            background-color: var(--color-panel-bg);
+            margin: 5% auto;
+            padding: 20px;
+            border: 2px solid var(--color-accent);
+            width: 80%;
+            max-width: 500px;
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+            border-radius: 8px;
+        }
+        .modal-content h2 {
+            font-size: 1.4em;
+            color: var(--color-header-bg);
+            border-bottom: 2px solid var(--color-accent);
+            padding-bottom: 5px;
+            margin-top: 0;
+        }
+        .modal-content table {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100%; /* 追加 */
+            margin-top: 10px;
+        }
+        .modal-content td {
+            border: 1px solid #eee;
+            padding: 6px;
+        }
+
+        /* 統計モーダル固有のスタイル */
+        #statisticsModal .modal-content {
+            max-width: 600px;
+        }
+        #statisticsModal h3 {
+            font-size: 1.1em;
+            color: var(--color-accent);
+            margin-top: 15px;
+        }
+        #statisticsChartContainer {
+             height: 150px; 
+             margin-top: 10px;
+        }
+        
+        /* =======================================================
+           7. フルスクリーン表示用スタイル (新規追加)
+           ======================================================= */
+        /* フルスクリーン時は背景とヘッダー以外の要素を非表示にし、テーブルを拡張 */
+        :fullscreen body {
+            background-color: var(--color-base-bg);
+        }
+
+        :fullscreen .container {
+            padding: 0;
+            max-width: none;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        :fullscreen #current-time-display {
+            padding: 10px 20px;
+            font-size: 1.2em;
+        }
+        
+        /* フルスクリーン表示中、メインのコンテナ以外の要素を非表示にする */
+        :fullscreen .control-panel,
+        :fullscreen .dashboard-area,
+        :fullscreen #debug-panel-container,
+        :fullscreen header { 
+            display: none !important;
+        }
+
+        /* メインデータビューを画面全体に広げる */
+        :fullscreen #flight-data-view {
+            flex-grow: 1; 
+            overflow: auto; 
+            padding: 10px 0;
+        }
+        
+        :fullscreen .flight-table {
+            /* フルスクリーン時のフォントサイズ調整 */
+            font-size: 15px; 
+            height: 100%; 
+        }
+        
+        :fullscreen .flight-table th, 
+        :fullscreen .flight-table td {
+            padding: 10px 15px;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            離着陸発着監視システム
+        </div>
+        <div class="tab-navigation">
+            <button class="tab-button active" data-view="schedule">時刻表</button>
+            <button class="tab-button" data-view="departure">出発</button>
+            <button class="tab-button" data-view="arrival">到着</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="current-time-display"></div>
+        
+        <div id="airport-selection-warning" style="display: block;">
+            システムを開始するには、まず「使用空港 (必須)」を選択してください。
+        </div>
+
+        <div class="control-panel">
+            <div style="flex-grow: 1;">
+                <div class="filter-area">
+                    <div class="filter-group">
+                        <label for="required-airport-select">使用空港 (必須)</label>
+                        <select id="required-airport-select" required>
+                            <option value="">-- 選択してください --</option>
+                            <option value="HND">東京（羽田）</option>
+                            <option value="NRT">東京（成田）</option>
+                            <option value="ITM">大阪（伊丹）</option>
+                            <option value="KIX">関西国際</option>
+                            <option value="FUK">福岡</option>
+                            <option value="CTS">札幌（新千歳）</option>
+                            <option value="OKA">那覇</option>
+                            <option value="NGO">中部(セントレア)</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-operator">運航会社</label>
+                        <select id="filter-operator">
+                            <option value="ALL">すべて</option>
+                            <option value="ANA">ANA</option>
+                            <option value="JAL">JAL</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-flight-number">便名</label>
+                        <input type="text" id="filter-flight-number" placeholder="例: NH123">
+                    </div>
+                    <div class="filter-group realtime-only" style="display: none;">
+                        <label for="filter-date">日付</label>
+                        <input type="date" id="filter-date">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-time-slot">時刻帯</label>
+                        <select id="filter-time-slot">
+                            <option value="ALL">すべて</option>
+                            <option value="morning">午前</option>
+                            <option value="afternoon">午後</option>
+                            <option value="night">夜間</option>
+                        </select>
+                    </div>
+                    <div class="filter-group schedule-only">
+                        <label for="filter-weekday">曜日 (本日自動設定)</label>
+                        <select id="filter-weekday">
+                            <option value="ALL">すべて</option>
+                            <option value="odpt.Calendar:Sunday">日曜</option>
+                            <option value="odpt.Calendar:Monday">月曜</option>
+                            <option value="odpt.Calendar:Tuesday">火曜</option>
+                            <option value="odpt.Calendar:Wednesday">水曜</option>
+                            <option value="odpt.Calendar:Thursday">木曜</option>
+                            <option value="odpt.Calendar:Friday">金曜</option>
+                            <option value="odpt.Calendar:Saturday">土曜</option>
+                        </select>
+                    </div>
+                    <div class="filter-group realtime-only" style="display: none;">
+                        <label for="filter-status">ステータス</label>
+                        <select id="filter-status">
+                            <option value="ALL">すべて</option>
+                            <option value="odpt.FlightStatus:Scheduled">予定</option>
+                            <option value="odpt.FlightStatus:OnTime">定刻</option>
+                            <option value="odpt.FlightStatus:Delayed">遅延</option>
+                            <option value="odpt.FlightStatus:Cancelled">欠航</option>
+                            <option value="odpt.FlightStatus:Departed">出発済</option>
+                            <option value="odpt.FlightStatus:Arrived">到着済</option>
+                            <option value="odpt.FlightStatus:Landed">着陸</option>
+                            <option value="odpt.FlightStatus:LeftGate">ゲート出発</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="alert-setting-area">
+                    <h4>🔔 アラート通知設定 (リアルタイムビューのみ適用)</h4>
+                    <p style="font-size: 12px; margin-top: -5px; color: var(--color-accent);">
+                       **【欠航通知】**は全便が対象です。**【遅延/完了通知】**は以下の条件に合致する便のみ通知されます。
+                    </p>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="filter-group" style="flex: 1;">
+                            <label for="alert-flight-number">対象便名 (カンマ区切り)</label>
+                            <input type="text" id="alert-flight-number" placeholder="例: NH123,JL456">
+                        </div>
+                        <div class="filter-group" style="flex: 1;">
+                            <label for="alert-airport-code">対象出発地/到着地コード (カンマ区切り)</label>
+                            <input type="text" id="alert-airport-code" placeholder="例: FUK,ITM">
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <div class="utility-panel">
+                <div style="font-weight: bold; margin-bottom: 5px;">ユーティリティ</div>
+                <button id="toggle-fullscreen">🖼️ 全画面表示</button> <button id="export-csv">CSV出力</button>
+                <button id="show-statistics">📊 運行統計・定時性分析</button>
+                <div id="realtime-status" style="font-size: 13px; text-align: center; padding: 5px 0;"></div>
+            </div>
+        </div>
+
+
+        <div style="display: flex; gap: 20px; margin-bottom: 10px;">
+            <div class="dashboard-area">
+                <div class="chart-container">
+                    <h4>運行状況グラフ (現在の表示データ)</h4>
+                    <div class="chart-wrapper">
+                        <canvas id="operational-chart"></canvas>
+                    </div>
+                    <p style="font-size: 12px; margin-top: 5px;">
+                        総便数: <span id="gauge-total-count" style="font-weight: bold;">0</span>
+                        <span style="margin-left: 20px; color: var(--color-success);">■ 定刻/出発済</span>
+                        <span style="margin-left: 10px; color: var(--color-warning);">■ 遅延</span>
+                        <span style="margin-left: 10px; color: var(--color-error);">■ 欠航</span>
+                    </p>
+                </div>
+                <div class="notes-container">
+                    <h4>業務引き継ぎノート</h4>
+                    <textarea id="business-notes" placeholder="業務連絡事項、特記事項などを入力してください。ブラウザに自動保存されます。"></textarea>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="flight-data-view">
+            <div class="no-data">データを表示するには、左上の「使用空港」を選択してください。</div>
+        </div>
+        
+        <details id="debug-panel-container">
+            <summary>デバッグログ</summary>
+            <div id="debug-panel">初期化ログを表示します...</div>
+        </details>
+    </div>
+
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" style="position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5em;">&times;</span>
+            <h2 id="modal-flight-number">フライト詳細情報</h2>
+            <table style="font-size: 14px; margin-top: 10px; border-collapse: collapse;">
+                <tr><td style="width: 35%; background-color: #f7f7f7;"><strong>運航会社</strong></td><td id="modal-operator" style="width: 65%;"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong>出発地</strong></td><td id="modal-origin"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong>目的地</strong></td><td id="modal-destination"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong>予定時刻</strong></td><td id="modal-scheduled-time"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong id="modal-actual-time-label">実績/予測時刻</strong></td><td id="modal-actual-time"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong>ステータス</strong></td><td id="modal-status"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong id="modal-gate-label">ゲート/ターミナル</strong></td><td id="modal-gate"></td></tr>
+                <tr><td style="background-color: #f7f7f7;"><strong>機材</strong></td><td id="modal-aircraft"></td></tr>
+            </table>
+            <h3 style="font-size: 1.1em; margin-top: 15px; border-top: 1px solid #ccc; padding-top: 5px;">運行情報テキスト</h3>
+            <p id="modal-info-text" style="font-size: 13px; border: 1px solid #ddd; padding: 5px; background-color: #fff;"></p>
+        </div>
+    </div>
+    
+    <div id="statisticsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" style="position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5em;">&times;</span>
+            <h2>📊 運行統計・定時性分析</h2>
+            <p style="font-size: 12px; color: #666;">**現在のフィルタ条件に基づき、定時性（OTP）を分析します。**</p>
+            
+            <h3>サマリー統計</h3>
+            <table id="statistics-summary-table">
+                 <tr><td style="width: 40%; background-color: #f7f7f7;">**総対象便数**</td><td id="stat-total">0</td></tr>
+                 <tr><td style="background-color: #f7f7f7; color: var(--color-success);">**定時/正常率 (OTP)**</td><td id="stat-normal-rate">0.0%</td></tr>
+                 <tr><td style="background-color: #f7f7f7; color: var(--color-warning);">**遅延/予測率**</td><td id="stat-delayed-rate">0.0%</td></tr>
+                 <tr><td style="background-color: #f7f7f7; color: var(--color-error);">**欠航率**</td><td id="stat-cancelled-rate">0.0%</td></tr>
+            </table>
+
+            <h3>ステータス別内訳</h3>
+            <div id="statisticsChartContainer">
+                 <canvas id="statistics-pie-chart"></canvas>
+            </div>
+            
+        </div>
+    </div>
+    
+    <audio id="alertSound" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAAoBAAAAAgECAgIAAAMDAwMDAQICAQAAAAECAgAAAAIAAgICAQAAAAIBAgICAgAA" preload="auto"></audio>
+
+
+    <script>
+        // =======================================================
+        // 9. JavaScript: データとAPI定義
+        // =======================================================
+
+        const ACCESS_TOKEN = "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v"; 
+        const API_BASE = "https://api.odpt.org/api/v4/";
+        const REALTIME_UPDATE_INTERVAL = 300000; // 5分 (5分ごとに自動更新)
+
+        const API_ENDPOINTS = {
+            schedule: {
+                ANA: `${API_BASE}odpt:FlightSchedule?odpt:operator=odpt.Operator:ANA&acl:consumerKey=${ACCESS_TOKEN}`,
+                JAL: `${API_BASE}odpt:FlightSchedule?odpt:operator=odpt.Operator:JAL&acl:consumerKey=${ACCESS_TOKEN}`
+            },
+            departure: {
+                ANA: `${API_BASE}odpt:FlightInformationDeparture?odpt:operator=odpt.Operator:ANA&acl:consumerKey=${ACCESS_TOKEN}`,
+                JAL: `${API_BASE}odpt:FlightInformationDeparture?odpt:operator=odpt.Operator:JAL&acl:consumerKey=${ACCESS_TOKEN}`
+            },
+            arrival: {
+                ANA: `${API_BASE}odpt:FlightInformationArrival?odpt:operator=odpt.Operator:ANA&acl:consumerKey=${ACCESS_TOKEN}`,
+                JAL: `${API_BASE}odpt:FlightInformationArrival?odpt:operator=odpt.Operator:JAL&acl:consumerKey=${ACCESS_TOKEN}`
+            }
+        };
+
+        let currentView = 'schedule';
+        let currentSortKey = null;
+        // isAscendingは時刻表でのみ使用される
+        let isAscending = true; 
+        // 💡 状態管理変数を追加: 時刻表ビューでのみ使用 (1:昇順, -1:降順, 0:現在時刻順)
+        let timeSortState = 1; 
+        
+        let flightData = [];
+        let previousStatusMap = {};
+        
+        const WEEKDAY_MAP_KEYS = {
+            'odpt.Calendar:Sunday': '日曜', 'odpt.Calendar:Monday': '月曜', 'odpt.Calendar:Tuesday': '火曜',
+            'odpt.Calendar:Wednesday': '水曜', 'odpt.Calendar:Thursday': '木曜', 'odpt.Calendar:Friday': '金曜',
+            'odpt.Calendar:Saturday': '土曜', 'odpt.Calendar:Weekday': '平日', 'odpt.Calendar:Holiday': '休日'
+        };
+        const DAY_OF_WEEK_KEYS = ['odpt.Calendar:Sunday', 'odpt.Calendar:Monday', 'odpt.Calendar:Tuesday', 
+                                  'odpt.Calendar:Wednesday', 'odpt.Calendar:Thursday', 'odpt.Calendar:Friday', 
+                                  'odpt.Calendar:Saturday'];
+
+        const AIRPORT_MAP_JAPANESE = {
+            "ITM": "大阪（伊丹）", "HND": "東京（羽田）", "NRT": "東京（成田）",
+            "CTS": "札幌（新千歳）", "OKA": "那覇", "KIX": "関西国際",
+            "NGO": "中部(セントレア)", "FUK": "福岡", "KOJ": "鹿児島",
+            "HIJ": "広島", "SDJ": "仙台", "AOJ": "青森", "AXT": "秋田",
+            "FKS": "福島",
+            // ... (その他の空港コード)
+        };
+
+        const STATUS_MAP = {
+            'odpt.FlightStatus:Scheduled': '予定', 
+            'odpt.FlightStatus:OnTime': '定刻',
+            'odpt.FlightStatus:Delayed': '遅延', 
+            'odpt.FlightStatus:Cancelled': '欠航',
+            'odpt.FlightStatus:Departed': '出発済', 
+            'odpt.FlightStatus:Arrived': '到着済',
+            'odpt.FlightStatus:Landed': '着陸', 
+            'odpt.FlightStatus:Boarding': '搭乗中', 
+            'odpt.FlightStatus:GateClosed': 'ゲート閉鎖',
+            'odpt.FlightStatus:InAir': '飛行中', 
+            'odpt.FlightStatus:EstimatedDeparture': '出発予測', 
+            'odpt.FlightStatus:EstimatedArrival': '到着予測', 
+            'odpt.FlightStatus:LeftGate': 'ゲート出発', 
+        };
+        
+        let operationalChart = null; 
+        let statisticsPieChart = null; 
+
+        // =======================================================
+        // 10. JavaScript: ユーティリティ関数
+        // =======================================================
+        
+        function debugLog(message, isError = false) {
+            const panel = document.getElementById('debug-panel');
+            if (!panel) return;
+            const now = new Date().toLocaleTimeString('ja-JP');
+            const logEntry = `[${now}] ${isError ? 'ERROR: ' : 'INFO: '}${message}\n`;
+            panel.innerHTML = logEntry + panel.innerHTML;
+        }
+
+        function mapAirportCode(code) {
+            if (!code) return '-';
+            const airportCode = code.split(':').pop();
+            const japaneseName = AIRPORT_MAP_JAPANESE[airportCode];
+            return japaneseName ? `${japaneseName}` : airportCode; 
+        }
+        
+        function mapFlightStatus(status) {
+            if (!status) return '-'; 
+            return STATUS_MAP[status] || status.split(':').pop();
+        }
+        
+        function mapCalendarToJapanese(calendarKey) {
+            return WEEKDAY_MAP_KEYS[calendarKey] || calendarKey.split(':').pop();
+        }
+
+        function getStatusClass(status) {
+             if (!status) return ''; 
+             
+            const statusType = status.split(':').pop().toLowerCase();
+            if (statusType.includes('departed') || statusType.includes('arrived') || statusType.includes('ontime') || statusType.includes('inair') || statusType.includes('landed') || statusType.includes('leftgate')) return 'status-departed';
+            if (statusType.includes('delayed') || statusType.includes('estimated')) return 'status-delayed';
+            if (statusType.includes('cancelled')) return 'status-cancelled';
+            return 'status-scheduled';
+        }
+
+        function updateCurrentTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const dayStr = now.toLocaleDateString('ja-JP', { weekday: 'long' });
+            document.getElementById('current-time-display').textContent = `日時: ${dateStr} (${dayStr}) ${timeStr}`;
+        }
+        
+        function exportToCSV(data, view) {
+            // CSV出力ロジックは省略
+            if (data.length === 0) {
+                alert('出力するデータがありません。');
+                return;
+            }
+            
+            const headers = BASE_HEADERS[view];
+            const requiredAirportCode = document.getElementById('required-airport-select').value;
+            const requiredAirportName = mapAirportCode(`odpt.Airport:${requiredAirportCode}`);
+
+            const csvHeader = headers.map(h => {
+                return h.key === 'sort:currentTime' ? `予定時刻（${requiredAirportName}）` : h.label;
+            }).join(',');
+            
+            const csvRows = data.map(item => {
+                return headers.map(header => {
+                    let displayValue = '';
+                    switch (header.key) {
+                        case 'odpt:operator':
+                            displayValue = item[header.key] ? item[header.key].split(':').pop() : '';
+                            break;
+                        case 'odpt:flightNumber':
+                            displayValue = (Array.isArray(item[header.key]) ? item[header.key].join(', ') : item[header.key]) || '';
+                            break;
+                        case 'odpt:originAirport':
+                        case 'odpt:destinationAirport':
+                            // 到着ビューの出発地参照を修正
+                            const airportKey = (view === 'schedule' || view === 'departure') ? header.key : (
+                                // arrival view
+                                header.key === 'odpt:originAirport' ? 'odpt:originAirport' : 'odpt:arrivalAirport'
+                            );
+                            displayValue = mapAirportCode(item[airportKey] || item[header.key]);
+                            break;
+                        case 'odpt:flightStatus':
+                            displayValue = mapFlightStatus(item[header.key]);
+                            break;
+                        case 'odpt:flightInformationSummary':
+                            displayValue = (item[header.key] && item[header.key].ja) ? item[header.key].ja : '';
+                            break;
+                        case 'odpt:calendar':
+                            displayValue = item[header.key] ? mapCalendarToJapanese(item[header.key]) : '';
+                            break;
+                        case 'odpt:gate':
+                        case 'odpt:terminal':
+                            displayValue = item[header.key] ? item[header.key].split(':').pop() : '';
+                            break;
+                        case 'sort:currentTime':
+                            const requiredAirportTag = `odpt.Airport:${document.getElementById('required-airport-select').value}`;
+                            if (view === 'schedule') {
+                                const timeKey = item['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                                displayValue = item[timeKey] ? item[timeKey].substring(0, 5) : '';
+                            } else {
+                                // リアルタイムビューの予定時刻キーを使用
+                                const timeKey = view === 'departure' ? 'odpt:scheduledDepartureTime' : 'odpt:scheduledArrivalTime';
+                                displayValue = item[timeKey] ? item[timeKey].substring(0, 5) : '';
+                            }
+                            break;
+                        case 'odpt:actualDepartureTime':
+                        case 'odpt:actualArrivalTime':
+                            displayValue = item[header.key] ? item[header.key].substring(0, 5) : '';
+                            break;
+                        default:
+                            displayValue = item[header.key] || '';
+                            if (typeof displayValue === 'string' && (displayValue.includes(',') || displayValue.includes('\n') || displayValue.includes('"'))) {
+                                displayValue = `"${displayValue.replace(/"/g, '""')}"`;
+                            }
+                            break;
+                    }
+                    return displayValue;
+                }).join(',');
+            });
+
+            const csvContent = [csvHeader, ...csvRows].join('\n');
+            const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' }); 
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            const today = new Date().toISOString().substring(0, 10).replace(/-/g, '');
+            const filename = `${mapAirportCode(`odpt.Airport:${document.getElementById('required-airport-select').value}`)}-${view}-${today}.csv`;
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert(`CSVファイルをダウンロードしました: ${filename}`);
+        }
+
+        function playAlertSound() {
+            const audio = document.getElementById('alertSound');
+            try {
+                audio.play();
+            } catch (e) {
+                debugLog('アラート音の再生に失敗しました。ユーザーの操作を待機しています。', true);
+            }
+        }
+        
+        /**
+         * HH:MM 形式の時刻文字列を、その日の 00:00 からの経過分数に変換する
+         * @param {string} timeStr - 時刻文字列 (例: "10:30")
+         * @returns {number} 00:00からの経過分数
+         */
+        function timeToMinutes(timeStr) {
+             if (!timeStr || timeStr.length < 5) return Infinity; // 無効な時刻は最後に
+             const parts = timeStr.split(':');
+             const hours = parseInt(parts[0], 10);
+             const minutes = parseInt(parts[1], 10);
+             return hours * 60 + minutes;
+        }
+
+        function checkStatusChanges(currentData) {
+            if (currentView === 'schedule') return; 
+
+            const alertFlightNumbers = document.getElementById('alert-flight-number').value.toUpperCase().split(',').map(s => s.trim()).filter(s => s.length > 0);
+            const alertAirportCodes = document.getElementById('alert-airport-code').value.toUpperCase().split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+            let newStatusMap = {};
+            let alertMessages = [];
+
+            currentData.forEach(item => {
+                const uniqueId = item._uniqueId;
+                const currentStatus = item['odpt:flightStatus'];
+                newStatusMap[uniqueId] = currentStatus;
+                
+                const previousStatus = previousStatusMap[uniqueId];
+
+                if (!previousStatus) return; 
+
+                const flightNumber = (Array.isArray(item['odpt:flightNumber']) ? item['odpt:flightNumber'][0] : item['odpt:flightNumber']) || '不明';
+                
+                const destinationCode = item['odpt:destinationAirport'] ? item['odpt:destinationAirport'].split(':').pop() : null;
+                const originCode = item['odpt:originAirport'] ? item['odpt:originAirport'].split(':').pop() : null;
+                
+                const relevantAirport = currentView === 'departure' ? destinationCode : originCode;
+
+                const airportName = mapAirportCode(currentView === 'departure' ? item['odpt:destinationAirport'] : item['odpt:originAirport']);
+                const timeKey = currentView === 'departure' ? 'odpt:scheduledDepartureTime' : 'odpt:scheduledArrivalTime';
+                const scheduledTime = item[timeKey] ? item[timeKey].substring(0, 5) : '時刻不明';
+                const direction = currentView === 'departure' ? '出発' : '到着';
+                
+                let trigger = false;
+                let message = `【${direction}便重要通知】`;
+
+                // --- アラート通知条件の判定 ---
+                
+                // 1. 欠航アラート (全ての便が対象)
+                if (currentStatus === 'odpt.FlightStatus:Cancelled' && previousStatus !== 'odpt.FlightStatus:Cancelled') {
+                    trigger = true;
+                    message += `便名: ${flightNumber} (${airportName}) ${scheduledTime} ${direction}便が**欠航**しました。(全便対象)`;
+                } 
+                
+                // 2. 遅延/完了アラート (指定条件の便のみ対象)
+                const isTargetFlight = 
+                    (alertFlightNumbers.includes(flightNumber.toUpperCase())) ||
+                    (relevantAirport && alertAirportCodes.includes(relevantAirport));
+                
+                if (isTargetFlight) {
+                    if (['odpt.FlightStatus:Delayed', 'odpt.FlightStatus:EstimatedDeparture', 'odpt.FlightStatus:EstimatedArrival'].includes(currentStatus) &&
+                        !['odpt.FlightStatus:Delayed', 'odpt.FlightStatus:EstimatedDeparture', 'odpt.FlightStatus:EstimatedArrival', 'odpt.FlightStatus:Cancelled', 'odpt.FlightStatus:Departed', 'odpt.FlightStatus:Arrived', 'odpt.FlightStatus:Landed', 'odpt.FlightStatus:LeftGate'].includes(previousStatus)) {
+                        
+                        // 前回が「予定」や「定刻」から「遅延」になった場合
+                        trigger = true;
+                        message += `便名: ${flightNumber} (${airportName}) ${scheduledTime} ${direction}便が**遅延/予測**に変わりました。`;
+                    }
+                    // 3. 完了アラート (指定条件の便のみ対象)
+                    // 出発
+                    else if (currentView === 'departure' && ['odpt.FlightStatus:Departed', 'odpt.FlightStatus:LeftGate'].includes(currentStatus) && !['odpt.FlightStatus:Departed', 'odpt.FlightStatus:LeftGate'].includes(previousStatus)) {
+                        const statusText = currentStatus === 'odpt.FlightStatus:Departed' ? '出発済' : 'ゲート出発';
+                        trigger = true;
+                        message += `便名: ${flightNumber} (${airportName}) ${scheduledTime} ${direction}便が**${statusText}**になりました。`;
+                    }
+                    // 到着
+                     else if (currentView === 'arrival' && ['odpt.FlightStatus:Arrived', 'odpt.FlightStatus:Landed'].includes(currentStatus) && !['odpt.FlightStatus:Arrived', 'odpt.FlightStatus:Landed'].includes(previousStatus)) {
+                        const statusText = currentStatus === 'odpt.FlightStatus:Arrived' ? '到着済' : '着陸';
+                        trigger = true;
+                        message += `便名: ${flightNumber} (${airportName}) ${scheduledTime} ${direction}便が**${statusText}**になりました。`;
+                    }
+                }
+                // --- アラート通知条件の判定 終了 ---
+
+
+                if (trigger) {
+                    alertMessages.push(message);
+                    debugLog(message);
+                }
+            });
+
+            
+            if (alertMessages.length > 0) {
+                playAlertSound();
+                alert(alertMessages.join('\n\n')); 
+            }
+        }
+
+        /**
+         * 💡 新規追加: フルスクリーン表示を切り替える関数
+         */
+        function toggleFullscreen() {
+            const elem = document.documentElement; // ページ全体をフルスクリーンにする
+            const button = document.getElementById('toggle-fullscreen');
+
+            if (!document.fullscreenElement) {
+                // フルスクリーンモードを要求
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+                button.textContent = '🖥️ 全画面解除';
+            } else {
+                // フルスクリーンモードを終了
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) { /* Safari */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE11 */
+                    document.msExitFullscreen();
+                }
+                button.textContent = '🖼️ 全画面表示';
+            }
+        }
+        
+        // 💡 新規追加: フルスクリーン状態が変更されたときにボタンのテキストを更新する
+        function handleFullscreenChange() {
+            const button = document.getElementById('toggle-fullscreen');
+            if (document.fullscreenElement) {
+                 button.textContent = '🖥️ 全画面解除';
+            } else {
+                 button.textContent = '🖼️ 全画面表示';
+            }
+        }
+
+
+        // =======================================================
+        // 10.5. 設定の永続化 (localStorage)
+        // =======================================================
+
+        function saveSettings() {
+            const settings = {
+                requiredAirport: document.getElementById('required-airport-select').value,
+                view: currentView,
+                operator: document.getElementById('filter-operator').value,
+                flightNumber: document.getElementById('filter-flight-number').value,
+                timeSlot: document.getElementById('filter-time-slot').value,
+                weekday: document.getElementById('filter-weekday').value,
+                date: document.getElementById('filter-date').value,
+                status: document.getElementById('filter-status').value,
+                alertFlightNumber: document.getElementById('alert-flight-number').value,
+                alertAirportCode: document.getElementById('alert-airport-code').value,
+                // 💡 ソート状態も保存
+                currentSortKey: currentSortKey,
+                isAscending: isAscending,
+                timeSortState: timeSortState,
+            };
+            localStorage.setItem('flight_pro_settings', JSON.stringify(settings));
+            localStorage.setItem('flight_pro_notes', document.getElementById('business-notes').value);
+        }
+
+        function loadSettings() {
+            const settingsString = localStorage.getItem('flight_pro_settings');
+            const notes = localStorage.getItem('flight_pro_notes');
+            
+            if (notes) {
+                document.getElementById('business-notes').value = notes;
+            }
+
+            if (settingsString) {
+                const settings = JSON.parse(settingsString);
+                
+                document.getElementById('required-airport-select').value = settings.requiredAirport || '';
+                
+                currentView = settings.view || 'schedule';
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.getAttribute('data-view') === currentView) {
+                        btn.classList.add('active');
+                    }
+                });
+                
+                document.getElementById('filter-operator').value = settings.operator || 'ALL';
+                document.getElementById('filter-flight-number').value = settings.flightNumber || '';
+                document.getElementById('filter-time-slot').value = settings.timeSlot || 'ALL';
+                
+                const today = new Date().getDay(); 
+                const todayKey = DAY_OF_WEEK_KEYS[today];
+                document.getElementById('filter-weekday').value = settings.weekday || todayKey;
+                
+                document.getElementById('filter-date').value = settings.date || (currentView !== 'schedule' ? new Date().toISOString().substring(0, 10) : '');
+                
+                document.getElementById('filter-status').value = settings.status || 'ALL';
+                
+                document.getElementById('alert-flight-number').value = settings.alertFlightNumber || '';
+                document.getElementById('alert-airport-code').value = settings.alertAirportCode || '';
+
+                // 💡 ソート状態の復元
+                currentSortKey = settings.currentSortKey || null;
+                isAscending = settings.isAscending !== undefined ? settings.isAscending : true;
+                timeSortState = settings.timeSortState !== undefined ? settings.timeSortState : 1;
+
+
+                return true;
+            }
+            return false;
+        }
+
+        // =======================================================
+        // 11. JavaScript: データ取得・処理 (変更なし)
+        // =======================================================
+
+        async function fetchFlightData(view) {
+            const requiredAirportCode = document.getElementById('required-airport-select').value;
+            if (!requiredAirportCode) {
+                document.getElementById('flight-data-view').innerHTML = '<div class="no-data">システムを開始するには、まず「使用空港 (必須)」を選択してください。</div>';
+                document.getElementById('airport-selection-warning').style.display = 'block';
+                return [];
+            }
+            document.getElementById('airport-selection-warning').style.display = 'none';
+
+            debugLog(`データ取得開始: ${view}, 対象空港: ${requiredAirportCode}`);
+            const urls = API_ENDPOINTS[view];
+            const allData = [];
+
+            try {
+                document.getElementById('flight-data-view').innerHTML = '<div class="no-data">データを取得中です...</div>';
+                
+                const results = await Promise.allSettled([
+                    fetch(urls.ANA).then(res => res.json()),
+                    fetch(urls.JAL).then(res => res.json())
+                ]);
+
+                results.forEach((result, index) => {
+                    const operator = index === 0 ? 'ANA' : 'JAL';
+                    if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+                        debugLog(`データ取得成功 (${operator}: ${result.value.length}件)`);
+                        allData.push(...result.value);
+                    } else {
+                        debugLog(`${operator}データ取得失敗/無効: ${result.reason || 'エラー詳細不明'}`, true);
+                    }
+                });
+
+            } catch (error) {
+                debugLog(`致命的なデータ取得エラー: ${error.message}`, true);
+                document.getElementById('flight-data-view').innerHTML = '<div class="no-data">データの取得中に致命的なエラーが発生しました。デバッグログを確認してください。</div>';
+                return [];
+            }
+            
+            let processedData = [];
+            const requiredAirportTag = `odpt.Airport:${requiredAirportCode}`;
+
+            if (view === 'schedule') {
+                allData.forEach(schedule => {
+                    const isRelevant = schedule['odpt:originAirport'] === requiredAirportTag || 
+                                       schedule['odpt:destinationAirport'] === requiredAirportTag;
+
+                    if (isRelevant) {
+                        schedule['odpt:flightScheduleObject'].forEach((flight, index) => {
+                            processedData.push({
+                                ...flight,
+                                '_uniqueId': `${schedule['owl:sameAs']}-${index}`,
+                                'odpt:originAirport': schedule['odpt:originAirport'],
+                                'odpt:destinationAirport': schedule['odpt:destinationAirport'],
+                                'odpt:calendar': schedule['odpt:calendar'],
+                                'odpt:operator': schedule['odpt:operator'],
+                                'odpt:aircraftType': flight['odpt:aircraftType'],
+                            });
+                        });
+                    }
+                });
+            } else {
+                 allData.forEach((item, index) => {
+                    const isRelevant = (view === 'departure' && item['odpt:departureAirport'] === requiredAirportTag) || 
+                                       (view === 'arrival' && item['odpt:arrivalAirport'] === requiredAirportTag);
+                    
+                    if (isRelevant) {
+                        processedData.push({
+                            ...item,
+                            '_uniqueId': `${item['owl:sameAs']}-${index}`,
+                        });
+                    }
+                 });
+            }
+            
+            debugLog(`フィルタ後の最終データ数 (使用空港: ${requiredAirportCode}): ${processedData.length}`);
+            return processedData;
+        }
+
+        // =======================================================
+        // 12. JavaScript: フィルタリング・ソート (修正なし)
+        // =======================================================
+
+        function filterAndSortData(data) {
+            const operatorFilter = document.getElementById('filter-operator').value;
+            const flightNumberFilter = document.getElementById('filter-flight-number').value.toUpperCase();
+            const weekdayFilter = currentView === 'schedule' ? document.getElementById('filter-weekday').value : null;
+            const timeSlotFilter = document.getElementById('filter-time-slot').value;
+            const dateFilter = document.getElementById('filter-date').value;
+            const statusFilter = currentView !== 'schedule' ? document.getElementById('filter-status').value : 'ALL';
+            
+            const now = new Date();
+            // 現在時刻 (分単位の数値)
+            const nowMinutes = now.getHours() * 60 + now.getMinutes(); 
+            const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            let filtered = data.filter(item => {
+                const operatorMatch = operatorFilter === 'ALL' || item['odpt:operator'] === `odpt.Operator:${operatorFilter}`;
+                const flightNumberMatch = flightNumberFilter === '' || (item['odpt:flightNumber'] || []).some(num => (num || '').toUpperCase().includes(flightNumberFilter));
+                
+                const weekdayMatch = currentView !== 'schedule' || weekdayFilter === 'ALL' || item['odpt:calendar'] === weekdayFilter;
+                
+                let timeKey;
+                if (currentView === 'schedule') {
+                    const requiredAirportTag = `odpt.Airport:${document.getElementById('required-airport-select').value}`;
+                    timeKey = item['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                } else {
+                    // リアルタイムビューでは予定時刻キーを使用
+                    timeKey = currentView === 'departure' ? 'odpt:scheduledDepartureTime' : 'odpt:scheduledArrivalTime';
+                }
+
+                let timeSlotMatch = true;
+                if (timeSlotFilter !== 'ALL') {
+                    const timeString = item[timeKey];
+                    if (timeString) {
+                        const hour = parseInt(timeString.split(':')[0], 10);
+                        if (timeSlotFilter === 'morning' && (hour < 0 || hour > 11)) timeSlotMatch = false;
+                        if (timeSlotFilter === 'afternoon' && (hour < 12 || hour > 17)) timeSlotMatch = false;
+                        if (timeSlotFilter === 'night' && (hour < 18 || hour > 23)) timeSlotMatch = false;
+                    }
+                }
+                
+                let dateMatch = true;
+                if (currentView !== 'schedule' && dateFilter) {
+                    const dateToCheck = item['dc:date'] ? item['dc:date'].substring(0, 10) : null;
+                    dateMatch = dateToCheck === dateFilter;
+                }
+                
+                const statusMatch = statusFilter === 'ALL' || item['odpt:flightStatus'] === statusFilter;
+                
+                let timeExclusionMatch = true;
+                
+                // リアルタイムビューでの過去時間の自動除外ロジック (時刻表では適用しない)
+                if (currentView !== 'schedule') {
+                    const scheduledTime = item[timeKey] || '99:99'; 
+                    
+                    const isPast = scheduledTime < currentTimeStr;
+                    const isCompleted = ['odpt.FlightStatus:Departed', 'odpt.FlightStatus:Arrived', 'odpt.FlightStatus:Landed', 'odpt.FlightStatus:Cancelled', 'odpt.FlightStatus:LeftGate'].includes(item['odpt:flightStatus']);
+
+                    // 予定時刻が過去であり、かつ未完了の便はリストから除外する
+                    if (isPast && !isCompleted) {
+                        timeExclusionMatch = false;
+                    }
+                }
+                
+                return operatorMatch && flightNumberMatch && weekdayMatch && timeSlotMatch && dateMatch && statusMatch && timeExclusionMatch;
+            });
+            
+            // 💡 ソートロジックの修正と強化
+            if (currentSortKey === null) {
+                 currentSortKey = 'sort:currentTime'; 
+                 isAscending = true;
+                 timeSortState = 1; 
+            }
+
+            if (currentSortKey) {
+                filtered.sort((a, b) => {
+                    let comparison = 0;
+                    
+                    let sortKeyToUse = currentSortKey;
+                    let timeA, timeB;
+                    let timeKeyA, timeKeyB;
+
+                    if (sortKeyToUse === 'sort:currentTime') {
+                        // 時刻表とリアルタイムで参照する時刻キーが異なる
+                        if (currentView === 'schedule') {
+                            const requiredAirportTag = `odpt.Airport:${document.getElementById('required-airport-select').value}`;
+                            timeKeyA = a['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                            timeKeyB = b['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                        } else {
+                            timeKeyA = timeKeyB = currentView === 'departure' ? 'odpt:scheduledDepartureTime' : 'odpt:scheduledArrivalTime';
+                        }
+                        
+                        timeA = a[timeKeyA] || '24:00';
+                        timeB = b[timeKeyB] || '24:00';
+                        
+                        if (currentView === 'schedule' && timeSortState === 0) {
+                            // 💡 現在時刻順ソート (時刻表ビューのみ)
+                            const minutesA = timeToMinutes(timeA);
+                            const minutesB = timeToMinutes(timeB);
+                            
+                            const diffA = Math.abs(minutesA - nowMinutes);
+                            const diffB = Math.abs(minutesB - nowMinutes);
+                            
+                            comparison = diffA - diffB;
+                            
+                        } else {
+                            // 昇順/降順ソート
+                            comparison = timeA.localeCompare(timeB);
+                            if (currentView === 'schedule' && timeSortState === -1) {
+                                comparison = -comparison; // 降順
+                            } else if (currentView !== 'schedule' && !isAscending) {
+                                comparison = -comparison; // リアルタイムビューの降順
+                            }
+                        }
+
+                    } else if (sortKeyToUse.endsWith('Time') || sortKeyToUse.endsWith('originTime') || sortKeyToUse.endsWith('Time')) {
+                         // その他の時刻キー
+                         comparison = (a[sortKeyToUse] || '24:00').localeCompare(b[sortKeyToUse] || '24:00');
+                         if (!isAscending) comparison = -comparison;
+
+                    } else if (sortKeyToUse === 'odpt:flightNumber') {
+                         const numA = (Array.isArray(a[sortKeyToUse]) ? a[sortKeyToUse][0] : a[sortKeyToUse]) || '';
+                         const numB = (Array.isArray(b[sortKeyToUse]) ? b[sortKeyToUse][0] : b[sortKeyToUse]) || '';
+                         comparison = numA.localeCompare(numB);
+                         if (!isAscending) comparison = -comparison;
+                    } else {
+                        // その他の文字列キー
+                        const valA = a[sortKeyToUse] || '';
+                        const valB = b[sortKeyToUse] || '';
+                        comparison = String(valA).localeCompare(String(valB));
+                        if (!isAscending) comparison = -comparison;
+                    }
+                    
+                    return comparison;
+                });
+            }
+            
+            updateOperationalChart(filtered); 
+            return filtered;
+        }
+
+        // 運行状況グラフの更新 (変更なし)
+        function updateOperationalChart(data) {
+            const total = data.length;
+            
+            const normal = data.filter(item => {
+                 if (!item['odpt:flightStatus']) return false; 
+                 
+                 return ['odpt.FlightStatus:OnTime', 
+                         'odpt.FlightStatus:Departed', 
+                         'odpt.FlightStatus:Arrived', 
+                         'odpt.FlightStatus:Scheduled',
+                         'odpt.FlightStatus:InAir',
+                         'odpt.FlightStatus:Landed',
+                         'odpt.FlightStatus:LeftGate' 
+                        ].includes(item['odpt:flightStatus']);
+            }).length;
+            
+            const delayed = data.filter(item => {
+                if (!item['odpt:flightStatus']) return false;
+                return ['odpt.FlightStatus:Delayed', 
+                        'odpt.FlightStatus:EstimatedDeparture', 
+                        'odpt.FlightStatus:EstimatedArrival'
+                        ].includes(item['odpt:flightStatus']);
+            }).length;
+            
+            const cancelled = data.filter(item => item['odpt:flightStatus'] === 'odpt.FlightStatus:Cancelled').length;
+            
+            const totalCounted = normal + delayed + cancelled;
+
+            document.getElementById('gauge-total-count').textContent = total;
+
+            const chartData = {
+                labels: ['運行状況'],
+                datasets: [
+                    {
+                        label: '定刻/出発済/到着済/着陸/飛行中',
+                        data: [normal],
+                        backgroundColor: 'rgba(26, 122, 64, 0.8)',
+                        borderColor: 'rgba(26, 122, 64, 1)',
+                        borderWidth: 1,
+                    },
+                    {
+                        label: '遅延/予測',
+                        data: [delayed],
+                        backgroundColor: 'rgba(224, 142, 0, 0.8)',
+                        borderColor: 'rgba(224, 142, 0, 1)',
+                        borderWidth: 1,
+                    },
+                    {
+                        label: '欠航',
+                        data: [cancelled],
+                        backgroundColor: 'rgba(228, 0, 43, 0.8)',
+                        borderColor: 'rgba(228, 0, 43, 1)',
+                        borderWidth: 1,
+                    }
+                ]
+            };
+
+            const ctx = document.getElementById('operational-chart').getContext('2d');
+
+            if (operationalChart) {
+                operationalChart.destroy();
+                operationalChart = null; 
+            } 
+            
+             if (totalCounted === 0) {
+                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                 return;
+             }
+
+            operationalChart = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.x;
+                                    const percent = totalCounted > 0 ? (value / totalCounted * 100).toFixed(1) : 0;
+                                    return `${context.dataset.label}: ${value}便 (${percent}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '便数',
+                                font: { size: 12, family: 'Meiryo UI' }
+                            },
+                            ticks: { font: { size: 11, family: 'Meiryo UI' } }
+                        },
+                        y: {
+                            stacked: true,
+                            display: false 
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 統計モーダル表示関数 (変更なし)
+        function showStatisticsModal() {
+            const modal = document.getElementById('statisticsModal');
+            const data = filterAndSortData(flightData); 
+            
+            const total = data.length;
+            
+            const normal = data.filter(item => {
+                 if (!item['odpt:flightStatus']) return false; 
+                 return ['odpt.FlightStatus:OnTime', 'odpt.FlightStatus:Departed', 'odpt.FlightStatus:Arrived', 'odpt.FlightStatus:Scheduled', 'odpt.FlightStatus:InAir', 'odpt.FlightStatus:Landed', 'odpt.FlightStatus:LeftGate'].includes(item['odpt:flightStatus']);
+            }).length;
+            
+            const delayed = data.filter(item => {
+                if (!item['odpt:flightStatus']) return false;
+                return ['odpt.FlightStatus:Delayed', 'odpt.FlightStatus:EstimatedDeparture', 'odpt.FlightStatus:EstimatedArrival'].includes(item['odpt:flightStatus']);
+            }).length;
+            
+            const cancelled = data.filter(item => item['odpt:flightStatus'] === 'odpt.FlightStatus:Cancelled').length;
+            
+            const totalCounted = normal + delayed + cancelled;
+            
+            let normalRate = totalCounted > 0 ? (normal / totalCounted * 100).toFixed(1) : '0.0';
+            let delayedRate = totalCounted > 0 ? (delayed / totalCounted * 100).toFixed(1) : '0.0';
+            let cancelledRate = totalCounted > 0 ? (cancelled / totalCounted * 100).toFixed(1) : '0.0';
+            
+            document.getElementById('stat-total').textContent = totalCounted;
+            document.getElementById('stat-normal-rate').textContent = `${normalRate}% (${normal}便)`;
+            document.getElementById('stat-delayed-rate').textContent = `${delayedRate}% (${delayed}便)`;
+            document.getElementById('stat-cancelled-rate').textContent = `${cancelledRate}% (${cancelled}便)`;
+
+            const pieData = {
+                labels: ['定時/正常', '遅延/予測', '欠航'],
+                datasets: [{
+                    data: [normal, delayed, cancelled],
+                    backgroundColor: [
+                        'rgba(26, 122, 64, 0.8)', 
+                        'rgba(224, 142, 0, 0.8)', 
+                        'rgba(228, 0, 43, 0.8)'   
+                    ],
+                    hoverBackgroundColor: [
+                        'rgba(26, 122, 64, 1)', 
+                        'rgba(224, 142, 0, 1)', 
+                        'rgba(228, 0, 43, 1)'
+                    ]
+                }]
+            };
+
+            const ctx = document.getElementById('statistics-pie-chart').getContext('2d');
+            if (statisticsPieChart) {
+                statisticsPieChart.destroy();
+            }
+
+            statisticsPieChart = new Chart(ctx, {
+                type: 'doughnut', 
+                data: pieData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                font: {
+                                    size: 13,
+                                    family: 'Meiryo UI'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const percent = totalCounted > 0 ? (value / totalCounted * 100).toFixed(1) : 0;
+                                    return `${context.label}: ${value}便 (${percent}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            modal.style.display = 'block';
+        }
+
+
+        // =======================================================
+        // 13. JavaScript: 描画・ビュー切替 (修正あり)
+        // =======================================================
+
+        const BASE_HEADERS = {
+            schedule: [
+                { key: 'odpt:operator', label: '会社', sortable: true },
+                { key: 'odpt:flightNumber', label: '便名', sortable: true },
+                { key: 'sort:currentTime', label: '予定時刻', sortable: true }, 
+                { key: 'odpt:originAirport', label: '出発地', sortable: true },
+                { key: 'odpt:destinationAirport', label: '到着地', sortable: true },
+                { key: 'odpt:originTime', label: '予定出発', sortable: true },
+                { key: 'odpt:destinationTime', label: '予定到着', sortable: true },
+                { key: 'odpt:calendar', label: '曜日', sortable: true },
+                { key: 'odpt:aircraftType', label: '機材', sortable: true },
+            ],
+            departure: [
+                { key: 'odpt:operator', label: '会社', sortable: true },
+                { key: 'sort:currentTime', label: '予定時刻', sortable: true }, 
+                { key: 'odpt:actualDepartureTime', label: '実績/予測', sortable: true },
+                { key: 'odpt:flightNumber', label: '便名', sortable: true },
+                { key: 'odpt:destinationAirport', label: '到着地', sortable: true },
+                { key: 'odpt:gate', label: 'ゲート', sortable: true }, 
+                { key: 'odpt:aircraftType', label: '機材', sortable: true }, 
+                { key: 'odpt:flightStatus', label: 'ステータス', sortable: true },
+                { key: 'odpt:flightInformationSummary', label: '概要', sortable: false },
+            ],
+            arrival: [
+                { key: 'odpt:operator', label: '会社', sortable: true },
+                { key: 'sort:currentTime', label: '予定時刻', sortable: true }, 
+                { key: 'odpt:actualArrivalTime', label: '実績/予測', sortable: true },
+                { key: 'odpt:flightNumber', label: '便名', sortable: true },
+                { key: 'odpt:originAirport', label: '出発地', sortable: true }, 
+                { key: 'odpt:terminal', label: 'ターミナル', sortable: true }, 
+                { key: 'odpt:aircraftType', label: '機材', sortable: true }, 
+                { key: 'odpt:flightStatus', label: 'ステータス', sortable: true },
+                { key: 'odpt:flightInformationSummary', label: '概要', sortable: false },
+            ]
+        };
+        
+        function renderTable(data, view) {
+            const viewElement = document.getElementById('flight-data-view');
+            const requiredAirportCode = document.getElementById('required-airport-select').value;
+            const requiredAirportName = mapAirportCode(`odpt.Airport:${requiredAirportCode}`);
+
+            const headers = BASE_HEADERS[view].map(header => {
+                 // 予定時刻のラベルを動的に更新
+                if (header.key === 'sort:currentTime') {
+                    return { 
+                        ...header, 
+                        label: `予定時刻（${requiredAirportName}）` 
+                    };
+                }
+                // 到着ビューの出発地列のラベルを「出発地」で固定
+                if (view === 'arrival' && header.key === 'odpt:originAirport') {
+                    return { ...header, label: '出発地' };
+                }
+                return header;
+            });
+
+
+            if (!requiredAirportCode) {
+                viewElement.innerHTML = '<div class="no-data">システムを開始するには、まず「使用空港 (必須)」を選択してください。</div>';
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                viewElement.innerHTML = '<div class="no-data">該当するフライト情報はありません。フィルタ条件を確認してください。</div>';
+                return;
+            }
+
+            let html = '<table class="flight-table"><thead><tr>';
+
+            headers.forEach(header => {
+                const isCurrentSort = currentSortKey === header.key;
+                let indicator = '';
+
+                if (isCurrentSort) {
+                    if (header.key === 'sort:currentTime' && view === 'schedule') {
+                         // 時刻表ビューの時刻ソート: 1:昇順(▲), -1:降順(▼), 0:現在時刻順(★)
+                         if (timeSortState === 1) indicator = ' ▲'; 
+                         else if (timeSortState === -1) indicator = ' ▼';
+                         else if (timeSortState === 0) indicator = ' ★'; // 現在時刻順
+                    } else {
+                        // その他のソート: 昇順(▲), 降順(▼)
+                        indicator = isAscending ? ' ▲' : ' ▼';
+                    }
+                }
+                
+                const sortClass = header.sortable ? 'sortable' : '';
+                html += `<th data-key="${header.key}" class="${sortClass}">
+                            ${header.label}
+                            ${indicator ? `<span class="sort-indicator">${indicator}</span>` : ''}
+                        </th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach(item => {
+                const rowClass = ''; 
+                html += `<tr class="${rowClass}">`;
+                
+                headers.forEach(header => {
+                    const key = header.key;
+                    let displayValue = item[key];
+                    let cellClass = '';
+                    
+                    try { 
+                        switch(key) {
+                            case 'sort:currentTime':
+                                if (view === 'schedule') {
+                                    const requiredAirportTag = `odpt.Airport:${document.getElementById('required-airport-select').value}`;
+                                    const timeKey = item['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                                    displayValue = item[timeKey] ? item[timeKey].substring(0, 5) : '-';
+                                } else {
+                                    // リアルタイムビューの予定時刻キーを使用
+                                    const timeKey = view === 'departure' ? 'odpt:scheduledDepartureTime' : 'odpt:scheduledArrivalTime';
+                                    displayValue = item[timeKey] ? item[timeKey].substring(0, 5) : '-';
+                                }
+                                cellClass = 'status-cell';
+                                break;
+                            case 'odpt:operator':
+                                const operatorCode = item[key] ? item[key].split(':').pop() : '-';
+                                displayValue = operatorCode;
+                                cellClass = operatorCode === 'ANA' ? 'airline-ana' : 'airline-jal';
+                                break;
+                            case 'odpt:flightNumber':
+                                displayValue = (Array.isArray(item[key]) ? item[key].join(', ') : item[key]) || '-';
+                                displayValue = `<span class="flight-number-link" data-flight-id="${item._uniqueId}">${displayValue}</span>`;
+                                break;
+                            case 'odpt:originAirport':
+                            case 'odpt:destinationAirport':
+                                // 💡 修正ロジックの適用: 到着ビューでodpt:originAirport列が正しくitem['odpt:originAirport']を参照するように
+                                let airportKey;
+                                if (view === 'schedule' || view === 'departure') {
+                                    airportKey = key; 
+                                } else { // arrival
+                                    // 到着便ビューの場合、odpt:originAirport列はitem['odpt:originAirport']、odpt:destinationAirport列はitem['odpt:arrivalAirport']を参照
+                                    airportKey = (key === 'odpt:originAirport') ? 'odpt:originAirport' : 'odpt:arrivalAirport';
+                                }
+                                displayValue = mapAirportCode(item[airportKey] || item[key]);
+                                break;
+                            case 'odpt:flightStatus':
+                                displayValue = mapFlightStatus(item[key]);
+                                cellClass = `status-cell ${getStatusClass(item[key] || '')}`;
+                                break;
+                            case 'odpt:flightInformationSummary':
+                                displayValue = (item[key] && item[key].ja) ? item[key].ja : '-';
+                                cellClass = displayValue.includes('遅延') || displayValue.includes('欠航') ? 'status-delayed' : '';
+                                break;
+                            case 'odpt:calendar':
+                                displayValue = item[key] ? mapCalendarToJapanese(item[key]) : '-';
+                                break;
+                            case 'odpt:gate':
+                            case 'odpt:terminal':
+                                displayValue = item[key] ? item[key].split(':').pop() : '-';
+                                break;
+                            case 'odpt:actualDepartureTime':
+                            case 'odpt:actualArrivalTime':
+                                displayValue = item[key] ? item[key].substring(0, 5) : '-';
+                                break;
+                            case 'odpt:originTime':
+                            case 'odpt:destinationTime':
+                            case 'odpt:aircraftType':
+                                displayValue = item[key] ? (key.endsWith('Time') ? item[key].substring(0, 5) : item[key]) : '-';
+                                break;
+                            default:
+                                displayValue = displayValue || '-';
+                                break;
+                        }
+                    } catch (e) {
+                         debugLog(`テーブル描画エラー (キー: ${key}, ID: ${item._uniqueId}): ${e.message}`, true);
+                         displayValue = 'エラー';
+                    }
+                    html += `<td class="${cellClass}">${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            viewElement.innerHTML = html;
+
+            document.querySelectorAll('.flight-table th.sortable').forEach(th => {
+                th.addEventListener('click', handleSort);
+            });
+            document.querySelectorAll('.flight-number-link').forEach(link => {
+                link.addEventListener('click', (e) => showDetailModal(e.currentTarget.getAttribute('data-flight-id')));
+            });
+        }
+        
+        // 詳細モーダルの表示ロジック (変更なし)
+        function showDetailModal(uniqueId) {
+            const flight = flightData.find(item => item._uniqueId === uniqueId);
+            if (!flight) return;
+
+            document.getElementById('modal-flight-number').textContent = `便名: ${(Array.isArray(flight['odpt:flightNumber']) ? flight['odpt:flightNumber'].join(', ') : flight['odpt:flightNumber']) || '不明'}`;
+            document.getElementById('modal-operator').textContent = flight['odpt:operator'] ? flight['odpt:operator'].split(':').pop() : '-';
+            
+            const isSchedule = currentView === 'schedule';
+            const isDeparture = currentView === 'departure';
+
+            const requiredAirportTag = `odpt.Airport:${document.getElementById('required-airport-select').value}`;
+            
+            let originKey, destinationKey;
+            let scheduledTimeKey, actualTimeKey;
+
+            if (isSchedule) {
+                originKey = 'odpt:originAirport';
+                destinationKey = 'odpt:destinationAirport';
+                scheduledTimeKey = flight['odpt:originAirport'] === requiredAirportTag ? 'odpt:originTime' : 'odpt:destinationTime';
+                actualTimeKey = null;
+            } else if (isDeparture) {
+                originKey = 'odpt:departureAirport';
+                destinationKey = 'odpt:destinationAirport';
+                scheduledTimeKey = 'odpt:scheduledDepartureTime'; 
+                actualTimeKey = 'odpt:actualDepartureTime';
+            } else { // arrival
+                originKey = 'odpt:originAirport'; // 💡 修正箇所：到着ビューではodpt:originAirportが真の出発地
+                destinationKey = 'odpt:arrivalAirport';
+                scheduledTimeKey = 'odpt:scheduledArrivalTime'; 
+                actualTimeKey = 'odpt:actualArrivalTime';
+            }
+
+            document.getElementById('modal-origin').textContent = mapAirportCode(flight[originKey]) || '-';
+            document.getElementById('modal-destination').textContent = mapAirportCode(flight[destinationKey]) || '-';
+            
+            document.getElementById('modal-scheduled-time').textContent = flight[scheduledTimeKey] ? flight[scheduledTimeKey].substring(0, 5) : '-';
+            
+            const actualTime = actualTimeKey ? (flight[actualTimeKey] ? flight[actualTimeKey].substring(0, 5) : '-') : 'N/A';
+            document.getElementById('modal-actual-time-label').textContent = actualTimeKey ? '実績/予測時刻' : '実績/予測時刻 (N/A)';
+            document.getElementById('modal-actual-time').textContent = actualTime;
+
+            const status = mapFlightStatus(flight['odpt:flightStatus']);
+            document.getElementById('modal-status').textContent = status;
+            document.getElementById('modal-aircraft').textContent = flight['odpt:aircraftType'] || '-';
+            
+            const gateOrTerminalCode = isDeparture ? flight['odpt:gate'] : flight['odpt:terminal'];
+            const gateOrTerminalLabel = isDeparture ? 'ゲート' : 'ターミナル';
+            
+            document.getElementById('modal-gate-label').textContent = gateOrTerminalLabel;
+
+            document.getElementById('modal-gate').textContent = gateOrTerminalCode ? gateOrTerminalCode.split(':').pop() : '-';
+
+            document.getElementById('modal-info-text').textContent = (flight['odpt:flightInformationSummary'] && flight['odpt:flightInformationSummary'].ja) || '特記事項なし';
+
+            document.getElementById('detailModal').style.display = 'block';
+        }
+
+        function handleSort(event) {
+            const newSortKey = event.currentTarget.getAttribute('data-key');
+            
+            if (currentSortKey === newSortKey) {
+                if (currentView === 'schedule' && newSortKey === 'sort:currentTime') {
+                    // 時刻表ビューで「予定時刻」を連続クリック
+                    timeSortState = (timeSortState + 1) % 3; // 1 (昇順) -> -1 (降順) -> 0 (現在時刻順) -> 1 (昇順)
+                    if (timeSortState === 2) timeSortState = -1; // 0, 1, -1 の3状態
+                    if (timeSortState === -1) isAscending = false;
+                    else if (timeSortState === 1) isAscending = true;
+                    else isAscending = true; // 現在時刻順の場合、isAscendingは意味を持たないが、便宜上trueに
+                    
+                } else {
+                    // その他のキー、またはリアルタイムビューの時刻ソート
+                    isAscending = !isAscending;
+                }
+            } else {
+                currentSortKey = newSortKey;
+                isAscending = true; 
+                if (currentView === 'schedule' && newSortKey === 'sort:currentTime') {
+                    timeSortState = 1; // 新しいキー選択時、時刻ソートは昇順から開始
+                } else {
+                    timeSortState = 1; // 時刻ソート以外のソートキーが選択された場合、時刻ソートの状態をリセット
+                }
+            }
+            
+            // 💡 クリック時に再描画 (ソート処理) を実行
+            renderView(currentView, false);
+        }
+        
+        async function renderView(view, fetchData = true) {
+            
+            const requiredAirportCode = document.getElementById('required-airport-select').value;
+            
+            if (!requiredAirportCode) {
+                document.getElementById('flight-data-view').innerHTML = '<div class="no-data">システムを開始するには、まず**「使用空港 (必須)」**を選択してください。</div>';
+                document.getElementById('airport-selection-warning').style.display = 'block';
+                updateOperationalChart([]);
+                saveSettings();
+                return;
+            }
+            document.getElementById('airport-selection-warning').style.display = 'none';
+
+            const isSchedule = view === 'schedule';
+            document.querySelectorAll('.schedule-only').forEach(el => el.style.display = isSchedule ? 'flex' : 'none');
+            document.querySelectorAll('.realtime-only').forEach(el => el.style.display = isSchedule ? 'none' : 'flex');
+            
+            // アラート設定エリアの表示/非表示をリアルタイムビューに連動
+            document.getElementById('alert-setting-area').style.display = isSchedule ? 'none' : 'block';
+
+            const realtimeStatus = document.getElementById('realtime-status');
+            realtimeStatus.innerHTML = `<span style="color: ${isSchedule ? '#666' : 'var(--color-success)'};">${isSchedule ? 'スケジュールデータ' : 'リアルタイムデータ'}</span>`;
+            
+            if (fetchData) {
+                
+                // データ取得前に前回のステータスを保存する
+                if (currentView !== 'schedule') {
+                     previousStatusMap = {};
+                     flightData.forEach(item => {
+                        previousStatusMap[item._uniqueId] = item['odpt:flightStatus'];
+                     });
+                     debugLog(`前回のフライトステータスを${Object.keys(previousStatusMap).length}件保存しました。`);
+                } else {
+                    previousStatusMap = {}; 
+                }
+                
+                flightData = await fetchFlightData(view);
+                
+                // ビュー切り替え時のソートキーの初期化
+                if (currentSortKey === null || currentSortKey === 'sort:currentTime') {
+                    currentSortKey = 'sort:currentTime'; 
+                    isAscending = true; 
+                    timeSortState = 1;
+                }
+            }
+
+            const dataToRender = filterAndSortData(flightData);
+            renderTable(dataToRender, view);
+            
+            // フィルタリング後のデータでステータス変更をチェック
+            if (currentView !== 'schedule') {
+                checkStatusChanges(dataToRender); 
+            }
+            
+            saveSettings();
+        }
+
+
+        // =======================================================
+        // 14. JavaScript: イベントリスナー設定
+        // =======================================================
+
+        function init() {
+            debugLog('システム初期化開始...');
+
+            const settingsLoaded = loadSettings();
+
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            if (!settingsLoaded) {
+                const today = new Date().getDay(); 
+                const todayKey = DAY_OF_WEEK_KEYS[today];
+                document.getElementById('filter-weekday').value = todayKey;
+                document.getElementById('filter-date').value = new Date().toISOString().substring(0, 10);
+            }
+
+            // 1. タブ切り替え
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    document.querySelector('.tab-button.active')?.classList.remove('active');
+                    e.currentTarget.classList.add('active');
+                    currentView = e.currentTarget.getAttribute('data-view');
+                    document.getElementById('filter-date').value = currentView !== 'schedule' ? new Date().toISOString().substring(0, 10) : '';
+                    
+                    // タブ切り替え時にソート状態をリセット
+                    currentSortKey = null;
+                    isAscending = true;
+                    timeSortState = 1;
+                    
+                    await renderView(currentView, true);
+                });
+            });
+
+            // 2. フィルタ変更
+            const filterInputs = [
+                'filter-operator', 'filter-flight-number', 'filter-weekday', 'filter-time-slot', 
+                'filter-date', 'filter-status'
+            ];
+            filterInputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener(element.tagName === 'INPUT' && element.type === 'text' ? 'input' : 'change', 
+                                              () => renderView(currentView, false));
+                }
+            });
+            
+            // アラート設定の変更時も設定を保存
+            const alertInputs = ['alert-flight-number', 'alert-airport-code'];
+            alertInputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', saveSettings);
+                }
+            });
+
+
+            // 必須空港選択時の処理
+            document.getElementById('required-airport-select').addEventListener('change', (e) => {
+                debugLog(`使用空港が ${e.target.value} に設定されました。データを再取得・描画します。`);
+                renderView(currentView, true);
+            });
+
+            // 業務ノートの保存
+            document.getElementById('business-notes').addEventListener('input', saveSettings);
+            
+            // CSVエクスポート
+            document.getElementById('export-csv').addEventListener('click', () => { 
+                exportToCSV(filterAndSortData(flightData), currentView); 
+            });
+            
+            // 統計ボタンのイベントリスナー
+            document.getElementById('show-statistics').addEventListener('click', showStatisticsModal);
+            
+            // 💡 フルスクリーンボタンのイベントリスナー
+            document.getElementById('toggle-fullscreen').addEventListener('click', toggleFullscreen);
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+            // 3. モーダルの閉じるボタン設定
+            const modalIds = ['detailModal', 'statisticsModal'];
+            modalIds.forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal) {
+                    modal.querySelector('.close-button').onclick = () => { modal.style.display = 'none'; };
+                    window.onclick = (event) => { if (event.target == modal) { modal.style.display = 'none'; } };
+                }
+            });
+
+
+            // 4. リアルタイム更新機能 (5分ごと)
+            setInterval(() => {
+                if (currentView !== 'schedule' && document.getElementById('required-airport-select').value) {
+                    debugLog('リアルタイムデータ自動更新トリガー');
+                    renderView(currentView, true);
+                }
+            }, REALTIME_UPDATE_INTERVAL);
+            
+            // 初回描画の実行
+            renderView(currentView, true);
+
+            debugLog('システム初期化完了。初回描画をトリガーしました。');
+        }
+
+        // ページロード時に初期化を実行
+        window.onload = init;
+    </script>
+</body>
+</html>
