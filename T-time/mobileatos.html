@@ -138,9 +138,24 @@
             text-align: left; 
         }
 
-        /* エラーメッセージを常に非表示にする */
-        #messageArea {
-            display: none !important;
+        /* エラーメッセージ表示用のスタイル */
+        .error-msg {
+            color: var(--error-red);
+            font-weight: bold;
+            padding: 10px;
+            font-size: 16px;
+            background-color: var(--bg-white);
+            border-bottom: 1px solid #ccc;
+        }
+        
+        /* 代替検索成功時の通知メッセージスタイル (非表示を維持) */
+        .notice-msg {
+            color: #007bff; 
+            font-weight: bold;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #e3f2fd; 
+            border-bottom: 1px solid #bbdefb;
         }
         
         /* --- DEBUG AREA STYLE (非表示) --- */
@@ -230,6 +245,12 @@
             font-size: 16px; 
             letter-spacing: normal;
         }
+        
+        /* **修正**: 着時刻・発時刻の「実績/到着/発車」列 (5番目, 7番目) の幅を調整 */
+        td:nth-child(5), td:nth-child(7) {
+            width: var(--time-status-width);
+            text-align: center;
+        }
 
         /* 番線セルを右揃えにする (8番目のTD) */
         td:nth-child(8) {
@@ -310,7 +331,7 @@
             </div>
         </div>
 
-        <div id="messageArea" class="hidden"></div>
+        <div id="messageArea" class="hidden error-msg"></div>
         
         <div id="debugArea" class="hidden">
             <pre id="debugContent"></pre>
@@ -396,15 +417,11 @@
             return normalized;
         }
 
-        // =======================================================================================
-        // <<<<<<<<<<<<<<<<<<<<<<<< デバッグ表示用ヘルパー関数 (非表示のため空関数化) >>>>>>>>>>>>>>>>>>>>
-        // =======================================================================================
         function updateDebugInfo(searchParams, result, mode) {
             if (!ENABLE_DEBUG) return;
             // ... (デバッグロジックは省略)
         }
-        // =======================================================================================
-
+        
         // ==========================================
         //  JSONデータ読み込み
         // ==========================================
@@ -488,7 +505,7 @@
             const dateInput = document.getElementById('dateInput');
             const crownSelect = document.getElementById('crownSelect');
             const noInput = document.getElementById('trainNoInput');
-            const messageArea = document.getElementById('messageArea'); // 非表示化のため、ここでは参照のみ
+            const messageArea = document.getElementById('messageArea'); 
 
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
@@ -511,8 +528,10 @@
             };
 
 
-            // UIリセット (messageAreaの非表示を維持)
+            // UIリセット
             contentArea.classList.add('hidden');
+            messageArea.classList.add('hidden'); // エラーメッセージを一旦隠す
+
             
             if (targetTrainNoNormalized === "" || selectedLine === "" || !selectedDateUI) {
                 updateDebugInfo(searchParams, null, '初期状態/入力不足');
@@ -520,7 +539,8 @@
             }
             
             if (rawJsonData.length === 0) {
-                // データがない場合もUIにはエラーを出さず、非表示を維持
+                messageArea.innerText = `データが読み込まれていません。${JSON_FILE}を確認してください。`;
+                messageArea.classList.remove('hidden'); // エラー表示
                 updateDebugInfo(searchParams, null, 'データなし');
                 return;
             }
@@ -547,6 +567,7 @@
                 
                 updateDebugInfo(searchParams, result, searchMode);
                 contentArea.classList.remove('hidden');
+                messageArea.classList.add('hidden'); // 成功時はメッセージを隠す
 
                 document.getElementById('trainSummary').innerHTML = 
                     `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
@@ -557,7 +578,10 @@
             } else {
                 updateDebugInfo(searchParams, null, searchMode);
                 contentArea.classList.add('hidden');
-                // ** データが見つからない場合も、エラーメッセージは非表示を維持 **
+                
+                // ** データが見つからない場合のみエラーメッセージを表示 **
+                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) は (${selectedLine}) / (${selectedDateJSON}) に存在していません`;
+                messageArea.classList.remove('hidden'); // エラー表示
             }
         }
 
@@ -580,8 +604,8 @@
                     else if (data.tt1 === "o") opInfo = "折返";
                     
                     if (data.tr1) {
-                        // 修正: kid1 を正しく引数に渡す
                         const kid1 = data.kid1 || '';
+                        // 修正: kid1 を正しく引数に渡す (変更なし、前回の修正でOK)
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kid1}', 'prev')">${data.tr1}</span>`;
                     }
                 } else if (index === totalStops - 1) {
@@ -589,8 +613,8 @@
                     else if (data.tt2 === "o") opInfo = "折返";
 
                     if (data.tr2) {
-                        // 修正: kid2 を正しく引数に渡す
                         const kid2 = data.kid2 || '';
+                        // 修正: kid2 を正しく引数に渡す (変更なし、前回の修正でOK)
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kid2}', 'next')">${data.tr2}</span>`;
                     }
                 }
@@ -663,13 +687,13 @@
 
 
             if (match) {
+                // UIの線区、列車番号、施行日を、見つかったマッチング結果に合わせて更新する
                 document.getElementById('lineSelect').value = match.line;
                 
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
                 let numOnly = trainNum;
 
-                // 列車番号の入力欄を埋めるための処理
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
@@ -682,15 +706,23 @@
                         }
                     }
                 }
-
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
+
+                // 施行日も更新して検索する (これにより、その日のデータが再検索される)
+                const dateParts = match.startDate.split('/');
+                const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                document.getElementById('dateInput').value = formatDate(matchDate);
+
 
                 // 検索実行
                 performSearch();
 
             } else {
-                // リンク先のデータが見つからなかった場合も、エラーメッセージは非表示を維持
+                // リンク先のデータが見つからなかった場合
+                document.getElementById('messageArea').innerText = `リンク先の列車番号 (${targetTrainNum}) に対応するデータが見つかりませんでした。`;
+                document.getElementById('messageArea').classList.remove('hidden');
+                document.getElementById('contentArea').classList.add('hidden');
             }
         }
 
