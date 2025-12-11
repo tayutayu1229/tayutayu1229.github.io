@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile ATOS App</title>
+    <style>
+        /* ===========================================================
+         【 色設定エリア 】
+         ここを変えると、ヘッダーの緑色などが変わります。
+         ===========================================================
+        */
+        :root {
+            /* ▼ 明るい緑（テーブルヘッダー文字色など） */
+            --atos-green-light: #80cbc4; 
+            
+            /* ▼ 濃い緑（テーブルヘッダー背景色、ここを調整してください） */
+            --atos-table-header: #4db6ac; 
+            
+            /* その他基本色 */
+            --bg-white: #ffffff;
+            --header-gray: #e0e0e0;
+            --row-gray: #cfcfcf;
+            --text-black: #222;
+            --border-white: #ffffff;
+            --error-red: #ff0000;
+        }
+        /* =========================================================== */
+
+        /* 全体のフォントをMS Gothicに統一し、太字を適用 */
+        body {
+            font-family: "MS Gothic", "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
+            background-color: var(--bg-white);
+            margin: 0;
+            padding: 0;
+            font-size: 15px;
+            color: var(--text-black);
+            overflow-x: hidden;
+            font-weight: bold;
+        }
+        
+        /* 左右余白を持たせ、幅に応じて調整するためのコンテナ */
+        #appContainer {
+            max-width: 1200px; /* PCでの最大幅 */
+            margin: 0 auto; /* 中央寄せ */
+            padding: 0 5px; /* 左右に余白を設定 (幅によって調整) */
+        }
+        
+        /* --- 1. Header --- */
+        .system-header {
+            background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #999;
+            color: #444;
+            height: 30px;
+        }
+        .header-title { 
+            font-size: 16px; 
+            flex-grow: 1; 
+            text-align: center;
+            font-family: inherit; /* フォント統一 */
+        }
+        
+        /* 時刻表示の背景を透明化し、フォントを統一 */
+        .clock-area {
+            background-color: transparent; 
+            color: #333; 
+            padding: 2px 8px;
+            font-family: inherit; /* フォント統一 */
+            font-size: 15px; 
+            min-width: 180px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        /* --- 2. Info Bar (削除) --- */
+        .info-bar { display: none; }
+
+        /* --- 3. Filter / Search Area --- */
+        .filter-bar {
+            background-color: #e0e0e0;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid #999;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            font-size: 15px;
+        }
+
+        .filter-label-text {
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            height: auto;
+        }
+
+        select, input {
+            border: 1px solid #999;
+            padding: 2px 4px;
+            font-size: 15px;
+            height: 24px;
+            border-radius: 2px;
+            font-weight: bold;
+            font-family: inherit; /* フォント統一 */
+        }
+
+        input#trainNoInput {
+            background-color: #fff9c4;
+            width: 70px;
+            text-align: left; 
+        }
+
+        /* エラーメッセージ */
+        .error-msg {
+            color: var(--error-red);
+            font-weight: bold;
+            padding: 10px;
+            font-size: 16px;
+            background-color: var(--bg-white);
+            border-bottom: 1px solid #ccc;
+        }
+
+        /* --- 4. Train Summary --- */
+        .train-summary {
+            background-color: #eee;
+            padding: 5px 10px;
+            font-size: 15px;
+            border-bottom: 1px solid #ccc;
+            line-height: 1.5;
+            font-weight: bold;
+        }
+
+        /* --- 5. Main Table --- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+            color: #000;
+            table-layout: fixed; /* テーブル幅固定 */
+        }
+
+        th {
+            background-color: var(--atos-table-header);
+            color: white;
+            border: 1px solid var(--border-white);
+            padding: 5px;
+            font-weight: bold;
+            white-space: nowrap;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        td {
+            border: 1px solid var(--border-white);
+            padding: 2px 5px; /* 縦パディングを減らして文字を大きく見せる */
+            text-align: center;
+            background-color: var(--row-gray);
+            height: 30px; /* 高さを確保 */
+            font-weight: bold;
+            font-size: 16px; /* 文字を大きく */
+            line-height: 1.2; /* 行間を狭めてセルにフィットさせる */
+            vertical-align: middle;
+        }
+        
+        /* 時刻表示（全てのセルで同じフォントを使用） */
+        .col-time { 
+            font-family: inherit; 
+            font-size: 16px; 
+            letter-spacing: normal; /* モノスペースを解除 */
+        }
+        .col-station { text-align: left; padding-left: 10px; }
+        
+        /* リンク用スタイル */
+        .link-text {
+            color: #0000EE;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* --- 6. Footer (凡例) --- */
+        .footer-legend {
+            background-color: var(--bg-white);
+            padding: 10px 10px 5px 10px; 
+            font-size: 15px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        
+        /* 表示切り替え用 */
+        .hidden { display: none !important; }
+
+        /* Icon styling (unchanged) */
+        .icon-menu {
+            width: 20px; height: 16px;
+            border-top: 3px solid #666; border-bottom: 3px solid #666;
+            position: relative;
+        }
+        .icon-menu::after {
+            content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="system-header">
+        <div class="icon-menu"></div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.2.0</div>
+        <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
+    </div>
+    
+    <div id="appContainer">
+
+        <div class="filter-bar">
+            
+            <div class="filter-group">
+                <span class="filter-label-text">線区：</span>
+                <select id="lineSelect" onchange="performSearch()">
+                    <option value="">(選択)</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <span class="filter-label-text">施行日：</span>
+                <input type="text" id="dateInput" value="2024/12/02" style="width: 100px; text-align:center;" oninput="performSearch()">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label-text">列車番号：</span>
+                <select id="crownSelect" style="width:50px;" onchange="performSearch()">
+                    <option value=""></option>
+                    <option value="回">回</option>
+                    <option value="試">試</option>
+                    <option value="単">単</option>
+                    <option value="工">工</option>
+                    <option value="配">配</option>
+                    <option value="試単">試単</option>
+                </select>
+                <input type="text" id="trainNoInput" value="" oninput="performSearch()">
+            </div>
+        </div>
+
+        <div id="errorArea" class="error-msg hidden">
+            検索した列車番号は存在していません
+        </div>
+
+        <div id="contentArea" class="hidden">
+            
+            <div class="train-summary" id="trainSummary">
+                </div>
+
+            <div class="monitor-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width: 60px;">列車種別</th>
+                            <th rowspan="2" style="width: 30px;">抑止</th>
+                            <th rowspan="2" style="width: 120px;">駅名</th>
+                            <th colspan="3">着時刻</th>
+                            <th colspan="3">発時刻</th>
+                            <th rowspan="2" style="width: 50px;">番線</th>
+                            <th rowspan="2" style="width: 40px;">運用<br>情報</th>
+                            <th rowspan="2" style="width: 60px;">運用列番</th>
+                        </tr>
+                        <tr>
+                            <th style="width: 60px;">計画</th>
+                            <th style="width: 50px;">予測</th>
+                            <th style="width: 30px;">到着</th>
+                            <th style="width: 60px;">計画</th>
+                            <th style="width: 50px;">予測</th>
+                            <th style="width: 30px;">発車</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleBody"></tbody>
+                </table>
+            </div>
+
+            <div class="footer-legend">
+                「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止
+            </div>
+        </div>
+    </div> <script>
+        let rawJsonData = [];
+
+        // ==========================================
+        //  JSONデータ読み込み
+        // ==========================================
+        async function loadData() {
+            try {
+                const response = await fetch('timetables.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                rawJsonData = await response.json();
+                console.log("Data loaded successfully:", rawJsonData.length, "entries.");
+            } catch (error) {
+                console.error("Error loading timetables.json:", error);
+                alert("timetables.jsonの読み込みに失敗しました。ファイルが同じ階層にあるか確認してください。");
+                // データがない場合でもUIの初期化は行う
+            }
+        }
+
+        // ==========================================
+        //  APP LOGIC
+        // ==========================================
+
+        window.onload = async function() {
+            await loadData();
+            populateLines();
+            // 初期検索実行（デフォルト値に基づいて）
+            performSearch(); 
+        };
+
+        function populateLines() {
+            const select = document.getElementById('lineSelect');
+            select.innerHTML = '<option value="">(選択)</option>'; // 初期化
+            
+            if (rawJsonData.length === 0) return;
+
+            // 重複なしで線区リスト作成
+            const lines = [...new Set(rawJsonData.map(d => d.line))];
+            
+            lines.forEach(line => {
+                const option = document.createElement('option');
+                option.value = line;
+                option.text = line;
+                // デフォルト選択設定 (例: 最初のデータが存在する線区)
+                if (rawJsonData[0] && line === rawJsonData[0].line) option.selected = true;
+                select.appendChild(option);
+            });
+        }
+
+        function performSearch() {
+            const lineSelect = document.getElementById('lineSelect');
+            const dateInput = document.getElementById('dateInput');
+            const crownSelect = document.getElementById('crownSelect');
+            const noInput = document.getElementById('trainNoInput');
+
+            const selectedLine = lineSelect.value;
+            const selectedDate = dateInput.value;
+            const selectedCrown = crownSelect.value;
+            const inputNo = noInput.value.trim();
+
+            const contentArea = document.getElementById('contentArea');
+            const errorArea = document.getElementById('errorArea');
+            const summary = document.getElementById('trainSummary');
+
+            // 必須入力チェック
+            if (inputNo === "" || selectedLine === "") {
+                contentArea.classList.add('hidden');
+                errorArea.classList.add('hidden');
+                return;
+            }
+            
+            if (rawJsonData.length === 0) {
+                // データがロードされていない場合のエラー表示
+                contentArea.classList.add('hidden');
+                errorArea.classList.remove('hidden');
+                errorArea.innerText = "データが読み込まれていません。timetables.jsonを確認してください。";
+                return;
+            }
+
+            // データ検索
+            const result = rawJsonData.find(d => {
+                let numberPart = d.trainNumber;
+                if (d.crown && d.trainNumber.startsWith(d.crown)) {
+                    numberPart = d.trainNumber.substring(d.crown.length);
+                } else if (selectedCrown !== "" && d.trainNumber.startsWith(selectedCrown)) {
+                    numberPart = d.trainNumber.substring(selectedCrown.length);
+                }
+
+                return d.line === selectedLine 
+                    && d.crown === selectedCrown
+                    && numberPart === inputNo; 
+            });
+
+            if (result) {
+                errorArea.classList.add('hidden');
+                contentArea.classList.remove('hidden');
+
+                // Summary更新: 検索した条件＋結果を表示
+                summary.innerHTML = 
+                    `■${selectedLine} 施行日:${selectedDate}<br>` +
+                    `運転区間:${result.origin}～${result.destination} 列車番号: ${selectedCrown}${inputNo}`;
+
+                updateSystemClock(selectedDate);
+                renderTable(result);
+            } else {
+                // データなし
+                contentArea.classList.add('hidden');
+                errorArea.classList.remove('hidden');
+                errorArea.innerText = `検索した列車番号 (${selectedCrown}${inputNo}) は存在していません`;
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('scheduleBody');
+            tbody.innerHTML = '';
+            const totalStops = data.stops.length;
+
+            data.stops.forEach((stop, index) => {
+                const tr = document.createElement('tr');
+                
+                const typeText = (index === 0) ? data.type : '';
+                
+                let opInfo = ""; 
+                let opNum = "";
+
+                // 運用情報 / 運用列番 の判定ロジック
+                if (index === 0) {
+                    if (data.tt1 === "k") opInfo = "継送";
+                    else if (data.tt1 === "o") opInfo = "折返";
+                    
+                    if (data.tr1) {
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${stop.station}', 'prev')">${data.tr1}</span>`;
+                    }
+                } else if (index === totalStops - 1) {
+                    if (data.tt2 === "k") opInfo = "継送";
+                    else if (data.tt2 === "o") opInfo = "折返";
+
+                    if (data.tr2) {
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${stop.station}', 'next')">${data.tr2}</span>`;
+                    }
+                }
+
+                // HTML生成
+                tr.innerHTML = `
+                    <td>${typeText}</td>
+                    <td></td> 
+                    <td class="col-station">${stop.station}</td>
+                    
+                    <td class="col-time">${stop.arrival || ''}</td>
+                    <td class="col-time"></td>
+                    <td></td>
+
+                    <td class="col-time">${stop.departure || ''}</td>
+                    <td class="col-time"></td>
+                    <td></td>
+
+                    <td>${stop.trackN}</td>
+                    
+                    <td>${opInfo}</td>
+                    <td>${opNum}</td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function jumpToTrain(targetTrainNum, currentStation, direction) {
+            if (rawJsonData.length === 0) return;
+
+            const candidates = rawJsonData.filter(d => d.trainNumber === targetTrainNum);
+            let match = null;
+
+            if (candidates.length === 1) {
+                match = candidates[0];
+            } else if (candidates.length > 1) {
+                if (direction === 'next') {
+                    // 「次」へ飛ぶ場合：候補列車の「出発地(origin)」 == 「現在の終着地(currentStation)」
+                    match = candidates.find(d => d.origin === currentStation);
+                } else {
+                    // 「前」へ飛ぶ場合：候補列車の「目的地(destination)」 == 「現在の出発地(currentStation)」
+                    match = candidates.find(d => d.destination === currentStation);
+                }
+                
+                if (!match) match = candidates[0];
+            }
+
+            if (match) {
+                document.getElementById('lineSelect').value = match.line;
+                
+                const crownSelect = document.getElementById('crownSelect');
+                crownSelect.value = match.crown || "";
+
+                let numOnly = match.trainNumber;
+                if (match.crown && numOnly.startsWith(match.crown)) {
+                    numOnly = numOnly.substring(match.crown.length);
+                }
+                document.getElementById('trainNoInput').value = numOnly;
+
+                // 検索再実行
+                performSearch();
+
+            } else {
+                alert("リンク先の列車データが見つかりません: " + targetTrainNum);
+            }
+        }
+
+        function updateSystemClock(dateStr) {
+            if (!dateStr) return;
+            try {
+                const d = new Date(dateStr);
+                d.setDate(d.getDate() - 2);
+                d.setHours(22, 45);
+                const randomSec = Math.floor(Math.random() * 60);
+                d.setSeconds(randomSec);
+
+                const fmt = (n) => String(n).padStart(2, '0');
+                const str = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+                
+                document.getElementById('clockDisplay').innerText = str;
+            } catch(e) {}
+        }
+
+    </script>
+</body>
+</html>
