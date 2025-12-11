@@ -73,7 +73,6 @@
             min-width: 180px;
             text-align: right;
             font-weight: bold;
-            /* タイトルとクロックが中央均等配置になるよう、クロックの幅を固定 */
             width: 180px; 
         }
         
@@ -81,7 +80,6 @@
         .icon-menu {
             width: 20px; 
             height: 16px;
-            /* 幅を固定し、タイトルに影響を与えない */
             flex-shrink: 0;
         }
 
@@ -173,15 +171,14 @@
         }
         
         /* TH 幅調整 */
-        /* 列幅を再配分 */
-        th:nth-child(1) { width: 70px; } /* 列車種別: 拡大 */
-        th:nth-child(2) { width: 30px; } /* 抑止: 変更なし */
-        th:nth-child(3) { width: 120px; } /* 駅名: 変更なし */
+        th:nth-child(1) { width: 70px; } /* 列車種別 */
+        th:nth-child(2) { width: 30px; } /* 抑止 */
+        th:nth-child(3) { width: 120px; } /* 駅名 */
         th:nth-child(4) { width: 110px; } /* 着時刻(colspan 2) */
         th:nth-child(5) { width: 110px; } /* 発時刻(colspan 2) */
-        th:nth-child(6) { width: 70px; } /* 番線: 拡大 */
-        th:nth-child(7) { width: 40px; } /* 運用情報: 変更なし */
-        th:nth-child(8) { width: 70px; } /* 運用列番: 拡大 */
+        th:nth-child(6) { width: 70px; } /* 番線 */
+        th:nth-child(7) { width: 40px; } /* 運用情報 */
+        th:nth-child(8) { width: 70px; } /* 運用列番 */
         
         /* 副ヘッダーの幅調整 */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 70px; } /* 着時刻-時間 */
@@ -213,7 +210,6 @@
         td:nth-child(4), td:nth-child(6) {
             text-align: right !important;
             padding-right: 5px;
-            /* 時間表示は右揃えだが、文字自体は統一フォント */
             font-family: inherit; 
             font-size: 16px; 
             letter-spacing: normal;
@@ -257,7 +253,7 @@
 
     <div class="system-header">
         <div class="icon-menu"></div>
-        <div class="header-title">モバイル ATOS アプリ Ver2.2.0</div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.3.0</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -334,8 +330,8 @@
         const JSON_FILE = 'timetables.json';
         
         // --- 設定変数 ---
-        // true: 2025/03/15などの日付のデータは、どんな日付で検索してもヒットする
-        const ALLOW_FLEXIBLE_DATE = true; 
+        // false: 施行日を選択したらその日付を厳密に検索する (今回の変更点)
+        const ALLOW_FLEXIBLE_DATE = false; 
         
         // YYYY-MM-DD 形式にフォーマットするユーティリティ関数
         function formatDate(date) {
@@ -366,7 +362,6 @@
                 rawJsonData = await response.json();
             } catch (error) {
                 console.error(`Error loading ${JSON_FILE}:`, error);
-                // エラーメッセージはperformSearchで表示される
             }
         }
 
@@ -440,11 +435,11 @@
                 }
                 const numberMatch = (d.crown === selectedCrown) && (numberPart === inputNo);
 
-                // 2. 日付マッチング
+                // 2. 日付マッチング: 選択された日付とJSONの日付が厳密に一致すること
                 let dateMatch = (d.startDate === selectedDateJSON);
                 
                 if (ALLOW_FLEXIBLE_DATE) {
-                    // 特定の日付('2025/03/15')のデータは、どんな検索日でもヒットする
+                    // ALLOW_FLEXIBLE_DATE が false のため、このブロックは実行されない
                     if (d.startDate === '2025/03/15') {
                          dateMatch = true;
                     }
@@ -502,13 +497,19 @@
                     }
                 }
 
-                // HTML生成 - 時刻表示は右揃え
+                // HTML生成
                 tr.innerHTML = `
                     <td class="col-type">${typeText}</td> 
                     <td></td> 
                     <td class="col-station">${stop.station}</td>
                     
-                    <td class="col-time">${stop.arrival || ''}</td> <td></td> <td class="col-time">${stop.departure || ''}</td> <td></td> <td>${stop.trackN}</td>
+                    <td class="col-time">${stop.arrival || ''}</td>
+                    <td></td> 
+
+                    <td class="col-time">${stop.departure || ''}</td>
+                    <td></td> 
+
+                    <td>${stop.trackN}</td>
                     
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
