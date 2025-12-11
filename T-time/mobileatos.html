@@ -28,7 +28,7 @@
              時刻の実績/到着の列幅を調整できます。
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
-            --time-status-width: 15px; 
+            --time-status-width:  10px; 
             /* ================================================== */
         }
         /* =========================================================== */
@@ -149,7 +149,7 @@
             border-bottom: 1px solid #ccc;
         }
         
-        /* 代替検索成功時の通知メッセージスタイル (※JS側で非表示化しましたがスタイルは残します) */
+        /* 代替検索成功時の通知メッセージスタイル (非表示) */
         .notice-msg {
             color: var(--notice-blue); 
             font-weight: bold;
@@ -200,10 +200,10 @@
         th:nth-child(1) { width: 70px; } /* 列車種別 */
         th:nth-child(2) { width: 30px; } /* 抑止 */
         th:nth-child(3) { width: 100px; } /* 駅名: 狭く */
-        /* 着時刻 (時間 + 実績/到着) = 105px から計算 */
-        th:nth-child(4) { width: calc(80px + var(--time-status-width)); } /* 着時刻 (colspan 2) */
-        /* 発時刻 (時間 + 実績/発車) = 105px から計算 */
-        th:nth-child(5) { width: calc(80px + var(--time-status-width)); } /* 発時刻 (colspan 2) */
+        /* 着時刻 (時間 + 実績/到着) の合計幅 */
+        th:nth-child(4) { width: calc(80px + var(--time-status-width)); } 
+        /* 発時刻 (時間 + 実績/発車) の合計幅 */
+        th:nth-child(5) { width: calc(80px + var(--time-status-width)); } 
         th:nth-child(6) { width: 70px; } /* 番線 */
         th:nth-child(7) { width: 40px; } /* 運用情報 */
         th:nth-child(8) { width: 70px; } /* 運用列番 */
@@ -600,9 +600,6 @@
             let result = null;
             let searchMode = '';
             
-            // 通知メッセージのフラグ (今回はUIに出力しないが、ログのために保持)
-            let isFlexibleSearchUsed = false;
-
             // --- 1. 厳密検索 (選択された施行日に厳密に合致するもの) ---
             searchMode = '厳密検索';
             result = rawJsonData.find(d => checkTrainMatch(d, searchParams, 'strict'));
@@ -617,10 +614,7 @@
                     return checkTrainMatch(d, searchParams, 'flexible');
                 });
                 
-                if (result) {
-                    isFlexibleSearchUsed = true;
-                    // **【ご要望により通知メッセージは表示しません】**
-                }
+                // 代替検索に成功した場合でも、通知メッセージは表示しない
             }
 
 
@@ -628,9 +622,6 @@
             if (result) {
                 
                 updateDebugInfo(searchParams, result, searchMode);
-                
-                // メッセージエリアは通知を表示しないため、常に隠す
-                messageArea.classList.add('hidden');
                 
                 contentArea.classList.remove('hidden');
 
@@ -669,14 +660,18 @@
                     else if (data.tt1 === "o") opInfo = "折返";
                     
                     if (data.tr1) {
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${stop.station}', 'prev')">${data.tr1}</span>`;
+                        // ** リンクに kid1 の値を追加 **
+                        const kid1 = data.kid1 || '';
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kid1}', 'prev')">${data.tr1}</span>`;
                     }
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
                     else if (data.tt2 === "o") opInfo = "折返";
 
                     if (data.tr2) {
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${stop.station}', 'next')">${data.tr2}</span>`;
+                        // ** リンクに kid2 の値を追加 **
+                        const kid2 = data.kid2 || '';
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kid2}', 'next')">${data.tr2}</span>`;
                     }
                 }
 
@@ -702,29 +697,50 @@
             });
         }
 
-        function jumpToTrain(targetTrainNum, currentStation, direction) {
+        /**
+         * 運用列番のリンクジャンプ処理 (kidを優先)
+         * @param {string} targetTrainNum - リンク先の列車番号 (tr1/tr2)
+         * @param {string} targetKid - リンク元のkid値 (kid1/kid2)
+         * @param {string} direction - 'prev' または 'next'
+         */
+        function jumpToTrain(targetTrainNum, targetKid, direction) {
             if (rawJsonData.length === 0) return;
 
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
+            const targetKidNormalized = normalizeString(targetKid);
 
-            const candidates = rawJsonData.filter(d => {
-                const dataTrainNumNormalized = normalizeString(d.trainNumber);
-                return dataTrainNumNormalized === targetTrainNumNormalized;
-            });
-            
             let match = null;
-
-            if (candidates.length === 1) {
-                match = candidates[0];
-            } else if (candidates.length > 1) {
-                if (direction === 'next') {
-                    match = candidates.find(d => d.origin === currentStation);
-                } else {
-                    match = candidates.find(d => d.destination === currentStation);
+            
+            // 1. **kid マッチング (最優先)**
+            if (targetKidNormalized !== "") {
+                // リンク元が kid1 の場合 ('prev') -> リンク先は kid2 と一致
+                if (direction === 'prev') {
+                    match = rawJsonData.find(d => 
+                        normalizeString(d.trainNumber) === targetTrainNumNormalized && 
+                        normalizeString(d.kid2 || '') === targetKidNormalized
+                    );
+                } 
+                // リンク元が kid2 の場合 ('next') -> リンク先は kid1 と一致
+                else if (direction === 'next') {
+                    match = rawJsonData.find(d => 
+                        normalizeString(d.trainNumber) === targetTrainNumNormalized && 
+                        normalizeString(d.kid1 || '') === targetKidNormalized
+                    );
                 }
-                
-                if (!match) match = candidates[0];
             }
+
+            // 2. **kid マッチングに失敗した場合、列車番号のみで検索 (フォールバック)**
+            if (!match) {
+                 const candidates = rawJsonData.filter(d => 
+                    normalizeString(d.trainNumber) === targetTrainNumNormalized
+                 );
+                 
+                 // フォールバックでは、単純に最初の候補を採用
+                 if (candidates.length > 0) {
+                     match = candidates[0];
+                 }
+            }
+
 
             if (match) {
                 document.getElementById('lineSelect').value = match.line;
@@ -733,6 +749,7 @@
                 let crown = match.crown || "";
                 let numOnly = trainNum;
 
+                // 列車番号の入力欄を埋めるための処理
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
@@ -749,6 +766,7 @@
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
 
+                // 検索実行
                 performSearch();
 
             } else {
