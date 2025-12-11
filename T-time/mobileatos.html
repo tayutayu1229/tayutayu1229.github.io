@@ -392,20 +392,31 @@
                 console.error(`Error loading ${JSON_FILE}:`, error);
             }
         }
-
-        // ==========================================
-        //  APP LOGIC
-        // ==========================================
-
-        window.onload = async function() {
-            // 初期日付を今日の日付にセット
-            document.getElementById('dateInput').value = formatDate(new Date());
-            
-            await loadData();
-            populateLines();
-            performSearch(); 
-        };
         
+        // ==========================================
+        //  UI初期化関数 (ロード時に実行される)
+        // ==========================================
+        function populateLines() {
+            const select = document.getElementById('lineSelect');
+            select.innerHTML = '<option value="">(選択)</option>';
+
+            if (rawJsonData.length === 0) return;
+
+            // JSONデータからユニークな線区名のリストを作成
+            const lines = [...new Set(rawJsonData.map(d => d.line))];
+            
+            lines.forEach(line => {
+                const option = document.createElement('option');
+                option.value = line;
+                option.text = line;
+                
+                // 初めて見つかった線区を初期選択状態にする
+                if (rawJsonData[0] && line === rawJsonData[0].line) option.selected = true;
+                select.appendChild(option);
+            });
+        }
+
+
         /**
          * 検索条件に合致するデータかチェックする共通ロジック
          * @param {object} d - JSONの列車データオブジェクト
@@ -456,6 +467,7 @@
                     // JSONの startDate が 2025/03/15 の場合、2025/03/15 から 2026/03/13 までの検索日でヒット
                     const rangeStart = new Date('2025/03/15');
                     const rangeEnd = new Date('2026/03/13');
+                    // 時刻情報を無視して日付だけ比較するため、UTCで日付を構築
                     dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
                 } else if (dataStartDate === '2026/03/14') {
                     // JSONの startDate が 2026/03/14 の場合、2026/03/14 から 2027/03/13 までの検索日でヒット
@@ -659,8 +671,10 @@
         function updateSystemClock(dateStr) {
             if (!dateStr) return;
             try {
+                // dateStr は YYYY-MM-DD 形式
                 const d = new Date(dateStr);
-                d.setDate(d.getDate() - 2);
+                // 実行日と表示時刻を調整
+                d.setDate(d.getDate() - 2); 
                 d.setHours(22, 45);
                 const randomSec = Math.floor(Math.random() * 60);
                 d.setSeconds(randomSec);
@@ -671,6 +685,23 @@
                 document.getElementById('clockDisplay').innerText = str;
             } catch(e) {}
         }
+        
+        // ==========================================
+        //  APP ENTRY POINT (window.onload)
+        // ==========================================
+        window.onload = async function() {
+            // エラーが発生していた行周辺。関数の定義順を整理したため、
+            // ここで呼び出す populateLines は問題なく認識されるはずです。
+            
+            // 初期日付を今日の日付にセット
+            document.getElementById('dateInput').value = formatDate(new Date());
+            
+            await loadData();
+            // JSONデータ読み込み後にUI要素（線区のドロップダウン）を構築
+            populateLines(); 
+            // 初期検索の実行
+            performSearch(); 
+        };
     </script>
 </body>
 </html>
