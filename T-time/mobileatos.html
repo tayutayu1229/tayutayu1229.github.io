@@ -21,6 +21,7 @@
             --text-black: #222;
             --border-white: #ffffff;
             --error-red: #ff0000;
+            --notice-blue: #007bff; /* 代替検索用の通知色 */
         }
         /* =========================================================== */
 
@@ -139,6 +140,17 @@
             background-color: var(--bg-white);
             border-bottom: 1px solid #ccc;
         }
+        
+        /* 代替検索成功時の通知メッセージスタイル */
+        .notice-msg {
+            color: var(--notice-blue); 
+            font-weight: bold;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #e3f2fd; /* 薄い青の背景 */
+            border-bottom: 1px solid #bbdefb;
+        }
+
 
         /* --- 3. Train Summary --- */
         .train-summary {
@@ -156,6 +168,7 @@
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
+            /* テーブル全体の幅を固定幅で管理 */
             table-layout: fixed;
         }
 
@@ -170,22 +183,21 @@
             font-size: 15px;
         }
         
-        /* TH 幅調整 */
-        /* 列ヘッダーの合計幅を再計算 */
+        /* TH 幅調整 (合計幅は約550px) */
         th:nth-child(1) { width: 70px; } /* 列車種別 */
         th:nth-child(2) { width: 30px; } /* 抑止 */
-        th:nth-child(3) { width: 120px; } /* 駅名 */
-        th:nth-child(4) { width: 95px; } /* 着時刻(colspan 2): 70px+25px */
-        th:nth-child(5) { width: 95px; } /* 発時刻(colspan 2): 70px+25px */
+        th:nth-child(3) { width: 100px; } /* 駅名: 狭く */
+        th:nth-child(4) { width: 105px; } /* 着時刻(colspan 2): 80px+25px */
+        th:nth-child(5) { width: 105px; } /* 発時刻(colspan 2): 80px+25px */
         th:nth-child(6) { width: 70px; } /* 番線 */
         th:nth-child(7) { width: 40px; } /* 運用情報 */
         th:nth-child(8) { width: 70px; } /* 運用列番 */
         
         /* 副ヘッダーの幅調整 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 70px; } /* 着時刻-時間 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 25px; } /* 着時刻-到着 (さらに狭く) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 70px; } /* 発時刻-時間 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 25px; } /* 発時刻-発車 (さらに狭く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 80px; } /* 着時刻-時間 (広く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 25px; } /* 着時刻-到着 (狭く維持) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 80px; } /* 発時刻-時間 (広く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 25px; } /* 発時刻-発車 (狭く維持) */
 
 
         td {
@@ -295,9 +307,8 @@
             </div>
         </div>
 
-        <div id="errorArea" class="error-msg hidden">
-            検索した列車番号は存在していません
-        </div>
+        <div id="messageArea" class="hidden">
+            </div>
 
         <div id="contentArea" class="hidden">
             
@@ -394,119 +405,148 @@
             populateLines();
             performSearch(); 
         };
-
-        function populateLines() {
-            const select = document.getElementById('lineSelect');
-            select.innerHTML = '<option value="">(選択)</option>';
-
-            if (rawJsonData.length === 0) return;
-
-            const lines = [...new Set(rawJsonData.map(d => d.line))];
+        
+        /**
+         * 検索条件に合致するデータかチェックする共通ロジック
+         * @param {object} d - JSONの列車データオブジェクト
+         * @param {string} selectedLine - 選択された線区
+         * @param {string} selectedCrownNormalized - 選択された冠 (正規化済)
+         * @param {string} inputNoNormalized - 入力された番号 (正規化済)
+         * @param {Date} searchDate - 検索する日付オブジェクト
+         * @param {string} dateMode - 'strict' or 'flexible'
+         * @returns {boolean} - マッチしたかどうか
+         */
+        function checkTrainMatch(d, selectedLine, selectedCrownNormalized, inputNoNormalized, searchDate, dateMode) {
             
-            lines.forEach(line => {
-                const option = document.createElement('option');
-                option.value = line;
-                option.text = line;
+            // 1. 列車番号マッチング
+            const dataCrownNormalized = normalizeString(d.crown);
+            let dataNumberPart = d.trainNumber;
+            if (d.crown && d.trainNumber.startsWith(d.crown)) {
+                dataNumberPart = d.trainNumber.substring(d.crown.length);
+            }
+            const dataNumberNormalized = normalizeString(dataNumberPart);
+
+            const numberMatch = (dataCrownNormalized === selectedCrownNormalized) && 
+                                (dataNumberNormalized === inputNoNormalized);
+
+            // 2. 線区マッチング
+            const lineMatch = d.line === selectedLine;
+
+            if (!lineMatch || !numberMatch) {
+                return false;
+            }
+
+            // 3. 日付マッチング
+            const dataStartDate = d.startDate;
+            const selectedDateJSON = formatJsonDate(searchDate); 
+
+            let dateMatch = false;
+            
+            // =========================================================================================================
+            //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック >>>>>>>>>>>>>
+            // ---------------------------------------------------------------------------------------------------------
+            
+            if (dateMode === 'strict') {
+                // (A) 厳密検索モード: 選択された日付とJSONの startDate が厳密に一致する場合のみ
+                dateMatch = (dataStartDate === selectedDateJSON);
+            } else if (dateMode === 'flexible') {
+                // (B) 代替検索モード: 特殊な施行日を持つデータが、検索日で有効期間内にあるかチェック
                 
-                if (rawJsonData[0] && line === rawJsonData[0].line) option.selected = true;
-                select.appendChild(option);
-            });
+                if (dataStartDate === '2025/03/15') {
+                    // JSONの startDate が 2025/03/15 の場合、2025/03/15 から 2026/03/13 までの検索日でヒット
+                    const rangeStart = new Date('2025/03/15');
+                    const rangeEnd = new Date('2026/03/13');
+                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
+                } else if (dataStartDate === '2026/03/14') {
+                    // JSONの startDate が 2026/03/14 の場合、2026/03/14 から 2027/03/13 までの検索日でヒット
+                    const rangeStart = new Date('2026/03/14');
+                    const rangeEnd = new Date('2027/03/13');
+                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
+                }
+            }
+            
+            // ---------------------------------------------------------------------------------------------------------
+            //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック 終 了 >>>>>>>>>>>>>
+            // =========================================================================================================
+
+            return lineMatch && numberMatch && dateMatch;
         }
+
 
         function performSearch() {
             const lineSelect = document.getElementById('lineSelect');
             const dateInput = document.getElementById('dateInput');
             const crownSelect = document.getElementById('crownSelect');
             const noInput = document.getElementById('trainNoInput');
+            const messageArea = document.getElementById('messageArea');
 
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
-            const selectedDateJSON = selectedDateUI.replace(/-/g, '/');
+            const searchDate = new Date(selectedDateUI); // Dateオブジェクトとして保持
+            
             const selectedCrownNormalized = normalizeString(crownSelect.value);
             const inputNoNormalized = normalizeString(noInput.value);
 
             const contentArea = document.getElementById('contentArea');
-            const errorArea = document.getElementById('errorArea');
 
+            // UIリセット
+            contentArea.classList.add('hidden');
+            messageArea.classList.add('hidden');
+            messageArea.className = '';
+            
             if (inputNoNormalized === "" || selectedLine === "" || !selectedDateUI) {
-                contentArea.classList.add('hidden');
-                errorArea.classList.add('hidden');
                 return;
             }
             
             if (rawJsonData.length === 0) {
-                contentArea.classList.add('hidden');
-                errorArea.classList.remove('hidden');
-                errorArea.innerText = `データが読み込まれていません。${JSON_FILE}を確認してください。`;
+                messageArea.classList.remove('hidden');
+                messageArea.classList.add('error-msg');
+                messageArea.innerText = `データが読み込まれていません。${JSON_FILE}を確認してください。`;
                 return;
             }
 
-            // --- 検索ロジック ---
-            const searchDate = new Date(selectedDateUI);
+            let result = null;
+            let messageText = '';
+            let messageClass = '';
 
-            const result = rawJsonData.find(d => {
+            // --- 1. 厳密検索 (選択された施行日に厳密に合致するもの) ---
+            result = rawJsonData.find(d => checkTrainMatch(d, selectedLine, selectedCrownNormalized, inputNoNormalized, searchDate, 'strict'));
+
+            if (!result) {
+                // --- 2. 代替検索 (特殊な期間のデータから検索日付に合致するもの) ---
+                result = rawJsonData.find(d => checkTrainMatch(d, selectedLine, selectedCrownNormalized, inputNoNormalized, searchDate, 'flexible'));
                 
-                // 1. 列車番号マッチング (正規化された文字列で比較)
-                const dataCrownNormalized = normalizeString(d.crown);
-                let dataNumberPart = d.trainNumber;
-                if (d.crown && d.trainNumber.startsWith(d.crown)) {
-                    dataNumberPart = d.trainNumber.substring(d.crown.length);
+                if (result) {
+                    // 代替検索に成功した場合のメッセージ
+                    messageText = `**【通知】** 施行日 (${formatJsonDate(searchDate)}) のデータが見つからなかったため、期間指定されたダイヤ（施行日: ${result.startDate}）を表示しています。`;
+                    messageClass = 'notice-msg';
                 }
-                const dataNumberNormalized = normalizeString(dataNumberPart);
+            }
 
-                const numberMatch = (dataCrownNormalized === selectedCrownNormalized) && 
-                                    (dataNumberNormalized === inputNoNormalized);
-
-                // 2. 日付マッチング
-                let dateMatch = false;
-                
-                // =========================================================================================================
-                //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック >>>>>>>>>>>>>
-                // ---------------------------------------------------------------------------------------------------------
-                
-                const dataStartDate = d.startDate;
-                
-                if (dataStartDate === selectedDateJSON) {
-                    // (A) 選択された日付とJSONの startDate が厳密に一致する場合
-                    dateMatch = true;
-                } else if (dataStartDate === '2025/03/15') {
-                    // (B) JSONの startDate が 2025/03/15 の場合、2025/03/15 から 2026/03/13 までの検索日でヒットする
-                    const rangeStart = new Date('2025/03/15');
-                    const rangeEnd = new Date('2026/03/13');
-                    // 検索日付が期間内 (<= rangeEnd) であるかチェック
-                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
-                } else if (dataStartDate === '2026/03/14') {
-                    // (C) JSONの startDate が 2026/03/14 の場合、2026/03/14 から 2027/03/13 までの検索日でヒットする
-                    const rangeStart = new Date('2026/03/14');
-                    const rangeEnd = new Date('2027/03/13');
-                    // 検索日付が期間内 (<= rangeEnd) であるかチェック
-                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
-                }
-                
-                // ---------------------------------------------------------------------------------------------------------
-                //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック 終 了 >>>>>>>>>>>>>
-                // =========================================================================================================
-
-
-                // 3. 最終判定: 線区 AND 列車番号 AND 日付
-                return d.line === selectedLine && numberMatch && dateMatch;
-            });
 
             // --- 結果表示 ---
             if (result) {
-                errorArea.classList.add('hidden');
+                
+                // メッセージ表示 (代替検索の場合のみ)
+                if (messageText) {
+                    messageArea.classList.remove('hidden');
+                    messageArea.classList.add(messageClass);
+                    messageArea.innerHTML = messageText;
+                }
+                
                 contentArea.classList.remove('hidden');
 
                 document.getElementById('trainSummary').innerHTML = 
-                    `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
+                    `■${selectedLine} 施行日:${formatJsonDate(searchDate)}<br>` +
                     `運転区間:${result.origin}～${result.destination} 列車番号: ${selectedCrownNormalized}${inputNoNormalized}`;
 
-                updateSystemClock(selectedDateJSON);
+                updateSystemClock(formatDate(searchDate));
                 renderTable(result);
             } else {
                 contentArea.classList.add('hidden');
-                errorArea.classList.remove('hidden');
-                errorArea.innerText = `検索した列車番号 (${selectedCrownNormalized}${inputNoNormalized}) は (${selectedLine}) / (${selectedDateJSON}) に存在していません`;
+                messageArea.classList.remove('hidden');
+                messageArea.classList.add('error-msg');
+                messageArea.innerText = `検索した列車番号 (${selectedCrownNormalized}${inputNoNormalized}) は (${selectedLine}) / (${formatJsonDate(searchDate)}) に存在していません`;
             }
         }
 
@@ -565,7 +605,6 @@
         function jumpToTrain(targetTrainNum, currentStation, direction) {
             if (rawJsonData.length === 0) return;
 
-            // リンク先の列車番号を正規化して検索
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
 
             const candidates = rawJsonData.filter(d => {
@@ -588,10 +627,8 @@
             }
 
             if (match) {
-                // UIに入力状態を反映
                 document.getElementById('lineSelect').value = match.line;
                 
-                // 冠と番号を分離してUIにセット
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
                 let numOnly = trainNum;
