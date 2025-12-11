@@ -7,6 +7,7 @@
     <style>
         /* ===========================================================
          【 色設定エリア 】
+         ここを変えると、ヘッダーの緑色などが変わります。
          ===========================================================
         */
         :root {
@@ -20,7 +21,15 @@
             --text-black: #222;
             --border-white: #ffffff;
             --error-red: #ff0000;
-            --notice-blue: #007bff; /* 代替検索用の通知色 */
+            --notice-blue: #007bff; 
+            
+            /* ==================================================
+             ★★★ 幅調整エリア ★★★
+             時刻の実績/到着の列幅を調整できます。
+             -------------------------------------------------- */
+            /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
+            --time-status-width: 25px; 
+            /* ================================================== */
         }
         /* =========================================================== */
 
@@ -140,29 +149,19 @@
             border-bottom: 1px solid #ccc;
         }
         
-        /* 代替検索成功時の通知メッセージスタイル */
+        /* 代替検索成功時の通知メッセージスタイル (※JS側で非表示化しましたがスタイルは残します) */
         .notice-msg {
             color: var(--notice-blue); 
             font-weight: bold;
             padding: 10px;
             font-size: 16px;
-            background-color: #e3f2fd; /* 薄い青の背景 */
+            background-color: #e3f2fd; 
             border-bottom: 1px solid #bbdefb;
         }
         
-        /* --- DEBUG AREA STYLE --- */
+        /* --- DEBUG AREA STYLE (非表示) --- */
         #debugArea {
-            background-color: #f0f0f0;
-            border: 1px solid #aaa;
-            padding: 10px;
-            margin-top: 10px;
-            font-size: 12px;
-            color: #333;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-break: break-all;
-            max-height: 300px;
-            overflow-y: auto;
+            display: none !important;
         }
 
 
@@ -201,17 +200,23 @@
         th:nth-child(1) { width: 70px; } /* 列車種別 */
         th:nth-child(2) { width: 30px; } /* 抑止 */
         th:nth-child(3) { width: 100px; } /* 駅名: 狭く */
-        th:nth-child(4) { width: 105px; } /* 着時刻(colspan 2): 80px+25px */
-        th:nth-child(5) { width: 105px; } /* 発時刻(colspan 2): 80px+25px */
+        /* 着時刻 (時間 + 実績/到着) = 105px から計算 */
+        th:nth-child(4) { width: calc(80px + var(--time-status-width)); } /* 着時刻 (colspan 2) */
+        /* 発時刻 (時間 + 実績/発車) = 105px から計算 */
+        th:nth-child(5) { width: calc(80px + var(--time-status-width)); } /* 発時刻 (colspan 2) */
         th:nth-child(6) { width: 70px; } /* 番線 */
         th:nth-child(7) { width: 40px; } /* 運用情報 */
         th:nth-child(8) { width: 70px; } /* 運用列番 */
         
         /* 副ヘッダーの幅調整 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 80px; } /* 着時刻-時間 (広く) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 25px; } /* 着時刻-到着 (狭く維持) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 80px; } /* 発時刻-時間 (広く) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 25px; } /* 発時刻-発車 (狭く維持) */
+        /* 着時刻-時間 (広い方の列幅: 80pxを固定とする) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 80px; } 
+        /* 着時刻-到着 (狭い方の列幅: CSS変数で指定) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } 
+        /* 発時刻-時間 (広い方の列幅: 80pxを固定とする) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 80px; } 
+        /* 発時刻-発車 (狭い方の列幅: CSS変数で指定) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } 
 
 
         td {
@@ -325,7 +330,6 @@
             </div>
         
         <div id="debugArea" class="hidden">
-            **デバッグ情報**
             <pre id="debugContent"></pre>
         </div>
         <div id="contentArea" class="hidden">
@@ -368,7 +372,7 @@
         // =======================================================================================
         // <<<<<<<<<<<<<<<<<<<< デバッグ機能の有効/無効 フラグ >>>>>>>>>>>>>>>>>>>>>>>>>
         // =======================================================================================
-        const ENABLE_DEBUG = false; // ★★★ デバッグ情報を表示する場合は true に変更 ★★★
+        const ENABLE_DEBUG = false; // ★★★ デバッグ情報を表示しないため false ★★★
         // =======================================================================================
         
         /**
@@ -413,14 +417,12 @@
         }
 
         // =======================================================================================
-        // <<<<<<<<<<<<<<<<<<<<<<<< デバッグ表示用ヘルパー関数 >>>>>>>>>>>>>>>>>>>>>>>>>>>
+        // <<<<<<<<<<<<<<<<<<<<<<<< デバッグ表示用ヘルパー関数 (非表示のため空関数化) >>>>>>>>>>>>>>>>>>>>
         // =======================================================================================
         function updateDebugInfo(searchParams, result, mode) {
-            if (!ENABLE_DEBUG) {
-                document.getElementById('debugArea').classList.add('hidden');
-                return;
-            }
+            if (!ENABLE_DEBUG) return;
             
+            // デバッグが有効な場合の処理 (コメントアウトせずに残します)
             const debugArea = document.getElementById('debugArea');
             debugArea.classList.remove('hidden');
 
@@ -429,7 +431,7 @@
             let info = `--- 検索情報 ---\n`;
             info += `線区: ${searchParams.selectedLine}\n`;
             info += `検索施行日: ${searchParams.selectedDateJSON}\n`;
-            info += `列車番号: ${searchParams.targetTrainNoNormalized}\n`; // 修正後の正規化された列車番号
+            info += `列車番号: ${searchParams.targetTrainNoNormalized}\n`; 
             info += `検索モード: ${mode}\n`;
             info += `\n--- 結果 ---\n`;
             
@@ -444,7 +446,6 @@
             info += `\n--- JSONデータ件数 ---\n`;
             info += `総件数: ${rawJsonData.length}\n`;
             
-            // 読み込んだJSONの最初の数件を表示
             info += `\n--- JSONデータの先頭5件 ---\n`;
             info += JSON.stringify(rawJsonData.slice(0, 5), null, 2);
             
@@ -496,10 +497,6 @@
 
         /**
          * 検索条件に合致するデータかチェックする共通ロジック
-         * @param {object} d - JSONの列車データオブジェクト
-         * @param {object} searchParams - 検索パラメータオブジェクト
-         * @param {string} dateMode - 'strict' (厳密) or 'flexible' (期間検索)
-         * @returns {boolean} - マッチしたかどうか
          */
         function checkTrainMatch(d, searchParams, dateMode) {
             
@@ -510,7 +507,7 @@
                 return false;
             }
 
-            // 2. 列車番号マッチング (簡素化: データ全体と入力全体を比較)
+            // 2. 列車番号マッチング
             const dataTrainNoNormalized = normalizeString(d.trainNumber);
             if (dataTrainNoNormalized !== targetTrainNoNormalized) {
                 return false;
@@ -531,7 +528,6 @@
             } else if (dateMode === 'flexible') {
                 // (B) 代替検索モード: 特殊な施行日を持つデータが、検索日で有効期間内にあるかチェック
                 
-                // Dateオブジェクトを UTC 日付として使用し、時間帯によるズレを防ぐ
                 const searchTime = searchDate.getTime();
                 
                 if (dataStartDate === '2025/03/15') {
@@ -564,11 +560,10 @@
 
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
-            const searchDate = new Date(selectedDateUI); // Dateオブジェクト (日付比較用)
+            const searchDate = new Date(selectedDateUI); 
             
             const crownPart = crownSelect.value;
             const numberPart = noInput.value;
-            // ユーザーが入力した「冠 + 番号」の連結文字列を正規化
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate);
 
@@ -603,8 +598,10 @@
             }
 
             let result = null;
-            let messageText = '';
             let searchMode = '';
+            
+            // 通知メッセージのフラグ (今回はUIに出力しないが、ログのために保持)
+            let isFlexibleSearchUsed = false;
 
             // --- 1. 厳密検索 (選択された施行日に厳密に合致するもの) ---
             searchMode = '厳密検索';
@@ -613,16 +610,16 @@
             if (!result) {
                 // --- 2. 代替検索 (特殊な期間のデータから検索日付に合致するもの) ---
                 searchMode = '期間検索 (代替)';
-                // 厳密な日付を持たない、期間指定のデータのみに絞り込んで検索
+                
                 result = rawJsonData.find(d => {
+                    // 厳密な日付を持たない、期間指定のデータのみに絞り込んで検索
                     if (d.startDate !== '2025/03/15' && d.startDate !== '2026/03/14') return false;
                     return checkTrainMatch(d, searchParams, 'flexible');
                 });
                 
                 if (result) {
-                    // 代替検索に成功した場合のメッセージ
-                    messageText = `**【通知】** 施行日 (${selectedDateJSON}) のデータが見つからなかったため、期間指定されたダイヤ（施行日: ${result.startDate}）を表示しています。`;
-                    messageClass = 'notice-msg';
+                    isFlexibleSearchUsed = true;
+                    // **【ご要望により通知メッセージは表示しません】**
                 }
             }
 
@@ -631,13 +628,9 @@
             if (result) {
                 
                 updateDebugInfo(searchParams, result, searchMode);
-
-                // メッセージ表示 (代替検索の場合のみ)
-                if (messageText) {
-                    messageArea.classList.remove('hidden');
-                    messageArea.classList.add(messageClass);
-                    messageArea.innerHTML = messageText;
-                }
+                
+                // メッセージエリアは通知を表示しないため、常に隠す
+                messageArea.classList.add('hidden');
                 
                 contentArea.classList.remove('hidden');
 
