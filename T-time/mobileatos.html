@@ -171,20 +171,21 @@
         }
         
         /* TH 幅調整 */
+        /* 列ヘッダーの合計幅を再計算 */
         th:nth-child(1) { width: 70px; } /* 列車種別 */
         th:nth-child(2) { width: 30px; } /* 抑止 */
         th:nth-child(3) { width: 120px; } /* 駅名 */
-        th:nth-child(4) { width: 110px; } /* 着時刻(colspan 2) */
-        th:nth-child(5) { width: 110px; } /* 発時刻(colspan 2) */
+        th:nth-child(4) { width: 95px; } /* 着時刻(colspan 2): 70px+25px */
+        th:nth-child(5) { width: 95px; } /* 発時刻(colspan 2): 70px+25px */
         th:nth-child(6) { width: 70px; } /* 番線 */
         th:nth-child(7) { width: 40px; } /* 運用情報 */
         th:nth-child(8) { width: 70px; } /* 運用列番 */
         
         /* 副ヘッダーの幅調整 */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 70px; } /* 着時刻-時間 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 35px; } /* 着時刻-到着 (狭く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 25px; } /* 着時刻-到着 (さらに狭く) */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 70px; } /* 発時刻-時間 */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 35px; } /* 発時刻-発車 (狭く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 25px; } /* 発時刻-発車 (さらに狭く) */
 
 
         td {
@@ -213,6 +214,12 @@
             font-family: inherit; 
             font-size: 16px; 
             letter-spacing: normal;
+        }
+
+        /* 番線セルを右揃えにする (8番目のTD) */
+        td:nth-child(8) {
+            text-align: right !important;
+            padding-right: 5px;
         }
         
         .col-station { text-align: left; padding-left: 10px; }
@@ -329,10 +336,6 @@
         let rawJsonData = [];
         const JSON_FILE = 'timetables.json';
         
-        // --- 設定変数 ---
-        // false: 施行日を選択したらその日付を厳密に検索する
-        const ALLOW_FLEXIBLE_DATE = false; 
-        
         // YYYY-MM-DD 形式にフォーマットするユーティリティ関数
         function formatDate(date) {
             const y = date.getFullYear();
@@ -353,18 +356,15 @@
         function normalizeString(str) {
             if (typeof str !== 'string') return '';
             
-            // 1. 全角を半角に変換 (主に数字、英字、記号)
+            // 1. 全角を半角に変換
             let normalized = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             });
             
-            // 2. すべて大文字に変換
-            normalized = normalized.toUpperCase();
-            
-            // 3. 全角スペースも半角スペースも削除（列番でスペースは使わないはずだが念のため）
-            normalized = normalized.replace(/\s/g, '');
+            // 2. すべて大文字に変換し、スペースを削除
+            normalized = normalized.toUpperCase().replace(/\s/g, '').trim();
 
-            return normalized.trim();
+            return normalized;
         }
 
         // ==========================================
@@ -422,8 +422,6 @@
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
             const selectedDateJSON = selectedDateUI.replace(/-/g, '/');
-            
-            // 入力された冠と番号を正規化
             const selectedCrownNormalized = normalizeString(crownSelect.value);
             const inputNoNormalized = normalizeString(noInput.value);
 
@@ -444,25 +442,51 @@
             }
 
             // --- 検索ロジック ---
+            const searchDate = new Date(selectedDateUI);
+
             const result = rawJsonData.find(d => {
                 
-                // JSONデータ内の冠と番号を正規化
+                // 1. 列車番号マッチング (正規化された文字列で比較)
                 const dataCrownNormalized = normalizeString(d.crown);
-                // JSONデータ内の列車番号から冠を取り除いた番号部分を正規化
                 let dataNumberPart = d.trainNumber;
                 if (d.crown && d.trainNumber.startsWith(d.crown)) {
                     dataNumberPart = d.trainNumber.substring(d.crown.length);
                 }
                 const dataNumberNormalized = normalizeString(dataNumberPart);
 
-                // 1. 列車番号マッチング (正規化された文字列で比較)
                 const numberMatch = (dataCrownNormalized === selectedCrownNormalized) && 
                                     (dataNumberNormalized === inputNoNormalized);
 
-                // 2. 日付マッチング: 選択された日付とJSONの日付が厳密に一致すること
-                let dateMatch = (d.startDate === selectedDateJSON);
+                // 2. 日付マッチング
+                let dateMatch = false;
                 
-                // ALLOW_FLEXIBLE_DATE は false のため、日付は厳密に一致する必要がある。
+                // =========================================================================================================
+                //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック >>>>>>>>>>>>>
+                // ---------------------------------------------------------------------------------------------------------
+                
+                const dataStartDate = d.startDate;
+                
+                if (dataStartDate === selectedDateJSON) {
+                    // (A) 選択された日付とJSONの startDate が厳密に一致する場合
+                    dateMatch = true;
+                } else if (dataStartDate === '2025/03/15') {
+                    // (B) JSONの startDate が 2025/03/15 の場合、2025/03/15 から 2026/03/13 までの検索日でヒットする
+                    const rangeStart = new Date('2025/03/15');
+                    const rangeEnd = new Date('2026/03/13');
+                    // 検索日付が期間内 (<= rangeEnd) であるかチェック
+                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
+                } else if (dataStartDate === '2026/03/14') {
+                    // (C) JSONの startDate が 2026/03/14 の場合、2026/03/14 から 2027/03/13 までの検索日でヒットする
+                    const rangeStart = new Date('2026/03/14');
+                    const rangeEnd = new Date('2027/03/13');
+                    // 検索日付が期間内 (<= rangeEnd) であるかチェック
+                    dateMatch = (searchDate >= rangeStart && searchDate <= rangeEnd);
+                }
+                
+                // ---------------------------------------------------------------------------------------------------------
+                //                         <<<<<<<<<<<< 日付検索期間の特殊ロジック 終 了 >>>>>>>>>>>>>
+                // =========================================================================================================
+
 
                 // 3. 最終判定: 線区 AND 列車番号 AND 日付
                 return d.line === selectedLine && numberMatch && dateMatch;
@@ -554,7 +578,6 @@
             if (candidates.length === 1) {
                 match = candidates[0];
             } else if (candidates.length > 1) {
-                // 複数候補がある場合、乗り継ぎ/折り返し駅で絞り込みを試みる
                 if (direction === 'next') {
                     match = candidates.find(d => d.origin === currentStation);
                 } else {
@@ -576,7 +599,6 @@
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
-                    // JSONデータ内の冠が空の場合も、列番から冠を推測してセット (例: "単"9565)
                     const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
                     for (const pc of potentialCrowns) {
                         if (trainNum.startsWith(pc)) {
