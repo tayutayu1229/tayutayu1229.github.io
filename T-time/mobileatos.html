@@ -36,7 +36,7 @@
             font-weight: bold;
         }
         
-        /* 左右余白を持たせ、幅に応じて調整するためのコンテナ */
+        /* 左右余白を持たせ、幅によって調整するためのコンテナ */
         #appContainer {
             max-width: 1200px; 
             margin: 0 auto; 
@@ -54,6 +54,8 @@
             color: #444;
             height: 30px;
         }
+        
+        /* タイトルを中央均等配置にする */
         .header-title { 
             font-size: 16px; 
             flex-grow: 1; 
@@ -71,7 +73,18 @@
             min-width: 180px;
             text-align: right;
             font-weight: bold;
+            /* タイトルとクロックが中央均等配置になるよう、クロックの幅を固定 */
+            width: 180px; 
         }
+        
+        /* アイコンは左端に固定 */
+        .icon-menu {
+            width: 20px; 
+            height: 16px;
+            /* 幅を固定し、タイトルに影響を与えない */
+            flex-shrink: 0;
+        }
+
 
         /* --- 2. Filter / Search Area --- */
         .filter-bar {
@@ -108,7 +121,6 @@
             font-family: inherit;
         }
         
-        /* カレンダー入力欄 */
         input[type="date"] {
             width: 130px; 
             text-align: center;
@@ -121,7 +133,6 @@
             text-align: left; 
         }
 
-        /* エラーメッセージ */
         .error-msg {
             color: var(--error-red);
             font-weight: bold;
@@ -160,6 +171,24 @@
             text-align: center;
             font-size: 15px;
         }
+        
+        /* TH 幅調整 */
+        /* 列幅を再配分 */
+        th:nth-child(1) { width: 70px; } /* 列車種別: 拡大 */
+        th:nth-child(2) { width: 30px; } /* 抑止: 変更なし */
+        th:nth-child(3) { width: 120px; } /* 駅名: 変更なし */
+        th:nth-child(4) { width: 110px; } /* 着時刻(colspan 2) */
+        th:nth-child(5) { width: 110px; } /* 発時刻(colspan 2) */
+        th:nth-child(6) { width: 70px; } /* 番線: 拡大 */
+        th:nth-child(7) { width: 40px; } /* 運用情報: 変更なし */
+        th:nth-child(8) { width: 70px; } /* 運用列番: 拡大 */
+        
+        /* 副ヘッダーの幅調整 */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 70px; } /* 着時刻-時間 */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: 35px; } /* 着時刻-到着 (狭く) */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 70px; } /* 発時刻-時間 */
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: 35px; } /* 発時刻-発車 (狭く) */
+
 
         td {
             border: 1px solid var(--border-white);
@@ -179,12 +208,17 @@
             padding-left: 10px !important;
         }
 
-        /* 時刻表示（全てのセルで同じフォントを使用） */
-        .col-time { 
+        /* 時刻表示（着時刻・発時刻の「時間」列）を右揃えにする */
+        /* TDの位置: [1(Type)], [2(抑止)], [3(駅名)], [4(着時間)], [5(着実績)], [6(発時間)], [7(発実績)], [8(番線)], [9(運用情報)], [10(運用列番)] */
+        td:nth-child(4), td:nth-child(6) {
+            text-align: right !important;
+            padding-right: 5px;
+            /* 時間表示は右揃えだが、文字自体は統一フォント */
             font-family: inherit; 
             font-size: 16px; 
-            letter-spacing: normal; 
+            letter-spacing: normal;
         }
+        
         .col-station { text-align: left; padding-left: 10px; }
         
         /* リンク用スタイル */
@@ -209,7 +243,8 @@
 
         /* Icon styling (unchanged) */
         .icon-menu {
-            width: 20px; height: 16px;
+            width: 20px; 
+            height: 16px;
             border-top: 3px solid #666; border-bottom: 3px solid #666;
             position: relative;
         }
@@ -270,19 +305,21 @@
                 <table>
                     <thead>
                         <tr>
-                            <th rowspan="2" style="width: 70px;">列車種別</th>
-                            <th rowspan="2" style="width: 30px;">抑止</th>
-                            <th rowspan="2" style="width: 120px;">駅名</th>
+                            <th rowspan="2">列車種別</th>
+                            <th rowspan="2">抑止</th>
+                            <th rowspan="2">駅名</th>
                             <th colspan="2">着時刻</th>
                             <th colspan="2">発時刻</th>
-                            <th rowspan="2" style="width: 50px;">番線</th>
-                            <th rowspan="2" style="width: 40px;">運用<br>情報</th>
-                            <th rowspan="2" style="width: 60px;">運用列番</th>
+                            <th rowspan="2">番線</th>
+                            <th rowspan="2">運用<br>情報</th>
+                            <th rowspan="2">運用列番</th>
                         </tr>
                         <tr>
-                            <th style="width: 70px;">計画</th>
-                            <th style="width: 40px;">到着</th> <th style="width: 70px;">計画</th>
-                            <th style="width: 40px;">発車</th> </tr>
+                            <th>時間</th>
+                            <th>到着</th>
+                            <th>時間</th>
+                            <th>発車</th>
+                        </tr>
                     </thead>
                     <tbody id="scheduleBody"></tbody>
                 </table>
@@ -298,7 +335,6 @@
         
         // --- 設定変数 ---
         // true: 2025/03/15などの日付のデータは、どんな日付で検索してもヒットする
-        // false: 施行日も厳密に一致しなければヒットしない
         const ALLOW_FLEXIBLE_DATE = true; 
         
         // YYYY-MM-DD 形式にフォーマットするユーティリティ関数
@@ -330,7 +366,7 @@
                 rawJsonData = await response.json();
             } catch (error) {
                 console.error(`Error loading ${JSON_FILE}:`, error);
-                alert(`${JSON_FILE}の読み込みに失敗しました。ファイルが同じ階層にあるか確認してください。`);
+                // エラーメッセージはperformSearchで表示される
             }
         }
 
@@ -360,7 +396,6 @@
                 option.value = line;
                 option.text = line;
                 
-                // 初回ロード時、最初のデータに合わせて線区を選択
                 if (rawJsonData[0] && line === rawJsonData[0].line) option.selected = true;
                 select.appendChild(option);
             });
@@ -373,8 +408,8 @@
             const noInput = document.getElementById('trainNoInput');
 
             const selectedLine = lineSelect.value;
-            const selectedDateUI = dateInput.value; // YYYY-MM-DD (UI形式)
-            const selectedDateJSON = selectedDateUI.replace(/-/g, '/'); // YYYY/MM/DD (JSON検索形式)
+            const selectedDateUI = dateInput.value; 
+            const selectedDateJSON = selectedDateUI.replace(/-/g, '/');
             const selectedCrown = crownSelect.value;
             const inputNo = noInput.value.trim();
 
@@ -409,7 +444,7 @@
                 let dateMatch = (d.startDate === selectedDateJSON);
                 
                 if (ALLOW_FLEXIBLE_DATE) {
-                    // 設定がONの場合、2025/03/15のデータはどんな検索日でもヒットする
+                    // 特定の日付('2025/03/15')のデータは、どんな検索日でもヒットする
                     if (d.startDate === '2025/03/15') {
                          dateMatch = true;
                     }
@@ -467,9 +502,10 @@
                     }
                 }
 
-                // HTML生成 - 予測列は削除済み
+                // HTML生成 - 時刻表示は右揃え
                 tr.innerHTML = `
-                    <td class="col-type">${typeText}</td> <td></td> 
+                    <td class="col-type">${typeText}</td> 
+                    <td></td> 
                     <td class="col-station">${stop.station}</td>
                     
                     <td class="col-time">${stop.arrival || ''}</td> <td></td> <td class="col-time">${stop.departure || ''}</td> <td></td> <td>${stop.trackN}</td>
@@ -501,7 +537,6 @@
             }
 
             if (match) {
-                // UIに入力状態を反映
                 document.getElementById('lineSelect').value = match.line;
                 
                 const crownSelect = document.getElementById('crownSelect');
@@ -513,7 +548,6 @@
                 }
                 document.getElementById('trainNoInput').value = numOnly;
 
-                // 検索再実行
                 performSearch();
 
             } else {
@@ -524,7 +558,6 @@
         function updateSystemClock(dateStr) {
             if (!dateStr) return;
             try {
-                // dateStr は YYYY/MM/DD 形式を想定
                 const d = new Date(dateStr);
                 d.setDate(d.getDate() - 2);
                 d.setHours(22, 45);
