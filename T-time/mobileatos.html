@@ -330,7 +330,7 @@
         const JSON_FILE = 'timetables.json';
         
         // --- 設定変数 ---
-        // false: 施行日を選択したらその日付を厳密に検索する (今回の変更点)
+        // false: 施行日を選択したらその日付を厳密に検索する
         const ALLOW_FLEXIBLE_DATE = false; 
         
         // YYYY-MM-DD 形式にフォーマットするユーティリティ関数
@@ -349,6 +349,23 @@
             return `${y}/${m}/${d}`;
         }
 
+        // --- 文字列正規化関数 (全角半角・大文字小文字無視のためのヘルパー) ---
+        function normalizeString(str) {
+            if (typeof str !== 'string') return '';
+            
+            // 1. 全角を半角に変換 (主に数字、英字、記号)
+            let normalized = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+            
+            // 2. すべて大文字に変換
+            normalized = normalized.toUpperCase();
+            
+            // 3. 全角スペースも半角スペースも削除（列番でスペースは使わないはずだが念のため）
+            normalized = normalized.replace(/\s/g, '');
+
+            return normalized.trim();
+        }
 
         // ==========================================
         //  JSONデータ読み込み
@@ -405,13 +422,15 @@
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
             const selectedDateJSON = selectedDateUI.replace(/-/g, '/');
-            const selectedCrown = crownSelect.value;
-            const inputNo = noInput.value.trim();
+            
+            // 入力された冠と番号を正規化
+            const selectedCrownNormalized = normalizeString(crownSelect.value);
+            const inputNoNormalized = normalizeString(noInput.value);
 
             const contentArea = document.getElementById('contentArea');
             const errorArea = document.getElementById('errorArea');
 
-            if (inputNo === "" || selectedLine === "" || !selectedDateUI) {
+            if (inputNoNormalized === "" || selectedLine === "" || !selectedDateUI) {
                 contentArea.classList.add('hidden');
                 errorArea.classList.add('hidden');
                 return;
@@ -426,24 +445,24 @@
 
             // --- 検索ロジック ---
             const result = rawJsonData.find(d => {
-                // 1. 列車番号マッチング
-                let numberPart = d.trainNumber;
+                
+                // JSONデータ内の冠と番号を正規化
+                const dataCrownNormalized = normalizeString(d.crown);
+                // JSONデータ内の列車番号から冠を取り除いた番号部分を正規化
+                let dataNumberPart = d.trainNumber;
                 if (d.crown && d.trainNumber.startsWith(d.crown)) {
-                    numberPart = d.trainNumber.substring(d.crown.length);
-                } else if (selectedCrown !== "" && d.trainNumber.startsWith(selectedCrown)) {
-                    numberPart = d.trainNumber.substring(selectedCrown.length);
+                    dataNumberPart = d.trainNumber.substring(d.crown.length);
                 }
-                const numberMatch = (d.crown === selectedCrown) && (numberPart === inputNo);
+                const dataNumberNormalized = normalizeString(dataNumberPart);
+
+                // 1. 列車番号マッチング (正規化された文字列で比較)
+                const numberMatch = (dataCrownNormalized === selectedCrownNormalized) && 
+                                    (dataNumberNormalized === inputNoNormalized);
 
                 // 2. 日付マッチング: 選択された日付とJSONの日付が厳密に一致すること
                 let dateMatch = (d.startDate === selectedDateJSON);
                 
-                if (ALLOW_FLEXIBLE_DATE) {
-                    // ALLOW_FLEXIBLE_DATE が false のため、このブロックは実行されない
-                    if (d.startDate === '2025/03/15') {
-                         dateMatch = true;
-                    }
-                }
+                // ALLOW_FLEXIBLE_DATE は false のため、日付は厳密に一致する必要がある。
 
                 // 3. 最終判定: 線区 AND 列車番号 AND 日付
                 return d.line === selectedLine && numberMatch && dateMatch;
@@ -456,14 +475,14 @@
 
                 document.getElementById('trainSummary').innerHTML = 
                     `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
-                    `運転区間:${result.origin}～${result.destination} 列車番号: ${selectedCrown}${inputNo}`;
+                    `運転区間:${result.origin}～${result.destination} 列車番号: ${selectedCrownNormalized}${inputNoNormalized}`;
 
                 updateSystemClock(selectedDateJSON);
                 renderTable(result);
             } else {
                 contentArea.classList.add('hidden');
                 errorArea.classList.remove('hidden');
-                errorArea.innerText = `検索した列車番号 (${selectedCrown}${inputNo}) は (${selectedLine}) / (${selectedDateJSON}) に存在していません`;
+                errorArea.innerText = `検索した列車番号 (${selectedCrownNormalized}${inputNoNormalized}) は (${selectedLine}) / (${selectedDateJSON}) に存在していません`;
             }
         }
 
@@ -522,12 +541,20 @@
         function jumpToTrain(targetTrainNum, currentStation, direction) {
             if (rawJsonData.length === 0) return;
 
-            const candidates = rawJsonData.filter(d => d.trainNumber === targetTrainNum);
+            // リンク先の列車番号を正規化して検索
+            const targetTrainNumNormalized = normalizeString(targetTrainNum);
+
+            const candidates = rawJsonData.filter(d => {
+                const dataTrainNumNormalized = normalizeString(d.trainNumber);
+                return dataTrainNumNormalized === targetTrainNumNormalized;
+            });
+            
             let match = null;
 
             if (candidates.length === 1) {
                 match = candidates[0];
             } else if (candidates.length > 1) {
+                // 複数候補がある場合、乗り継ぎ/折り返し駅で絞り込みを試みる
                 if (direction === 'next') {
                     match = candidates.find(d => d.origin === currentStation);
                 } else {
@@ -538,15 +565,29 @@
             }
 
             if (match) {
+                // UIに入力状態を反映
                 document.getElementById('lineSelect').value = match.line;
                 
-                const crownSelect = document.getElementById('crownSelect');
-                crownSelect.value = match.crown || "";
+                // 冠と番号を分離してUIにセット
+                const trainNum = match.trainNumber;
+                let crown = match.crown || "";
+                let numOnly = trainNum;
 
-                let numOnly = match.trainNumber;
-                if (match.crown && numOnly.startsWith(match.crown)) {
-                    numOnly = numOnly.substring(match.crown.length);
+                if (crown && trainNum.startsWith(crown)) {
+                    numOnly = trainNum.substring(crown.length);
+                } else {
+                    // JSONデータ内の冠が空の場合も、列番から冠を推測してセット (例: "単"9565)
+                    const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
+                    for (const pc of potentialCrowns) {
+                        if (trainNum.startsWith(pc)) {
+                            crown = pc;
+                            numOnly = trainNum.substring(pc.length);
+                            break;
+                        }
+                    }
                 }
+
+                document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
 
                 performSearch();
