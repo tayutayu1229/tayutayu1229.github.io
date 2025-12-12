@@ -7,12 +7,12 @@
     <style>
         /* ===========================================================
          【 色設定エリア 】
-         画像を参考に、濃い青灰色のヘッダーと、明るい灰色の行を設定。
+         画像を参考に、薄い青灰色のヘッダーと、明るい灰色の行を設定。
          ===========================================================
         */
         :root {
-            /* ▼ テーブルヘッダー背景色 (画像のような濃い青灰/スレート色) */
-            --atos-table-header: #404B57; 
+            /* ▼ テーブルヘッダー背景色 (画像のような薄い青灰/スレート色 #78909C に変更) */
+            --atos-table-header: #78909C; 
             
             /* その他基本色 */
             --bg-white: #ffffff;
@@ -27,11 +27,11 @@
              ★★★ 幅・高さ調整エリア ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
-            --time-status-width: 15px; 
+            --time-status-width: 8px; /* 縮小 */
             /* ▼ テーブルの行の高さ (縦幅) */
             --atos-row-height: 23px; 
-            /* 計画時刻の幅 */
-            --plan-time-width: 100px; 
+            /* 計画時刻の幅を広く確保 */
+            --plan-time-width: 110px; /* 拡大 */
             /* ================================================== */
         }
         /* =========================================================== */
@@ -109,8 +109,47 @@
             font-size: 15px;
             justify-content: flex-start;
         }
+        
+        /* ★ 2-1. 表示内容選択の囲み全体 */
+        .filter-container {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* グループ間の間隔 */
+            padding: 2px 10px 2px 5px; /* 囲み内のパディング */
+            border: 1px solid #777; /* 薄めの黒色の枠線 */
+            background-color: var(--bg-white); /* 囲まれた領域の背景色 */
+            position: relative;
+        }
+        
+        /* ★ 2-2. 「表示内容選択」ラベルのスタイル (画像に合わせて変更) */
+        .filter-container::before {
+            content: "表示内容選択 |";
+            position: absolute;
+            left: -1px; 
+            top: -1px;
+            padding: 2px 6px;
+            font-size: 14px;
+            color: #333;
+            background-color: #e0e0e0; /* ラベルの背景色 */
+            border-right: 1px solid #777;
+            border-bottom: 1px solid #777;
+            font-weight: bold;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+        
+        /* 「表示内容選択」の幅を確保するため、コンテンツを右にずらす */
+        .filter-container > *:first-child {
+            margin-left: 105px; 
+        }
 
         .filter-label-text { color: #333; white-space: nowrap; }
+        
+        /* 施行日と列車番号のラベルは、画像のように細字で左揃えにする */
+        .filter-group .filter-label-text {
+            font-weight: normal; 
+            text-align: left;
+        }
 
         .filter-group {
             display: flex;
@@ -137,10 +176,13 @@
         }
         
         .filter-group select {
-            width: 60px; 
+            width: 70px; /* 線区のドロップダウンは少し広めに */
         }
         .filter-group select#lineSelect {
-            width: 120px; 
+            width: 100px; 
+        }
+        .filter-group select#crownSelect {
+            width: 50px;
         }
         
         input#trainNoInput {
@@ -156,10 +198,14 @@
             gap: 10px;
             flex-shrink: 0;
         }
+        
+        /* ★ 2-3. 更新ボタンのデザインを画像に合わせる */
         .refresh-button {
-            background-color: #55aaff; 
+            /* 緑色のグラデーション */
+            background: linear-gradient(to bottom, #66BB6A, #4CAF50); 
             color: white;
             padding: 5px 12px;
+            border: 1px solid #000; /* 普通の黒色枠 */
             border-radius: 4px;
             font-size: 14px;
             font-weight: bold;
@@ -169,14 +215,29 @@
             gap: 5px;
             height: 28px;
             box-sizing: border-box;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         .refresh-button::before {
             content: "↻";
             font-size: 18px;
             line-height: 1;
+            margin-right: -2px;
         }
         
-        .help-icon { display: none !important; }
+        .help-icon { 
+            font-size: 20px;
+            color: #555;
+            text-decoration: none;
+            cursor: pointer;
+            border: 1px solid #555;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
 
 
         /* --- 3. Train Summary --- */
@@ -230,11 +291,11 @@
         .monitor-table-container table thead tr:nth-child(1) th:nth-child(2) { width: 30px; } 
         .monitor-table-container table thead tr:nth-child(1) th:nth-child(3) { width: 100px; } 
         
-        /* 着時刻 (colspan 2) - 計画(100px) + 到着(15px) */
+        /* 着時刻 (colspan 2) - 計画(110px) + 到着(8px) = 118px */
         .monitor-table-container table thead tr:nth-child(1) th:nth-child(4) { 
             width: calc(var(--plan-time-width) + var(--time-status-width)); 
         } 
-        /* 発時刻 (colspan 2) - 計画(100px) + 発車(15px) */
+        /* 発時刻 (colspan 2) - 計画(110px) + 発車(8px) = 118px */
         .monitor-table-container table thead tr:nth-child(1) th:nth-child(5) { 
             width: calc(var(--plan-time-width) + var(--time-status-width)); 
         }
@@ -245,9 +306,14 @@
 
         /* 副ヘッダーの幅調整 */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: var(--plan-time-width); } /* 着時刻-計画 (拡大) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } /* 着時刻-到着 */
+        .monitor-table-container table tbody tr td:nth-child(4) { width: var(--plan-time-width); } /* TDにも反映 */
+        
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } /* 着時刻-到着 (縮小) */
+        
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: var(--plan-time-width); } /* 発時刻-計画 (拡大) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } /* 発時刻-発車 */
+        .monitor-table-container table tbody tr td:nth-child(6) { width: var(--plan-time-width); } /* TDにも反映 */
+        
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } /* 発時刻-発車 (縮小) */
 
         td {
             border: 1px solid var(--border-white);
@@ -277,8 +343,10 @@
         
         /* 実績/到着/発車 列 (5番目, 7番目) の幅を調整 */
         td:nth-child(5), td:nth-child(7) { 
+            /* 幅をCSS変数でコントロール */
             width: var(--time-status-width) !important; 
             min-width: var(--time-status-width) !important; 
+            padding: 0 1px; /* 内部パディングも減らしてコンパクトに */
             text-align: center;
         }
 
@@ -293,6 +361,15 @@
             text-decoration: none; 
             cursor: pointer;
             font-weight: bold;
+        }
+        
+        .error-msg {
+            color: var(--error-red);
+            font-weight: bold;
+            padding: 10px;
+            font-size: 16px;
+            background-color: var(--bg-white);
+            border-bottom: 1px solid #ccc;
         }
 
         /* --- 5. Footer (凡例) --- */
@@ -338,35 +415,38 @@
 
         <div class="filter-bar">
             
-            <div class="filter-group">
-                <span class="filter-label-text">表示内容選択 線区：</span>
-                <select id="lineSelect" onchange="performSearch()">
-                    <option value="">(選択)</option>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <span class="filter-label-text">施行日：</span>
-                <input type="date" id="dateInput" onchange="performSearch()">
-                <div style="font-size: 18px; line-height: 28px;">📅</div> 
-            </div>
-
-            <div class="filter-group">
-                <span class="filter-label-text">列車番号：</span>
-                <select id="crownSelect" onchange="performSearch()">
-                    <option value=""></option>
-                    <option value="回">回</option>
-                    <option value="試">試</option>
-                    <option value="単">単</option>
-                    <option value="工">工</option>
-                    <option value="配">配</option>
-                    <option value="試単">試単</option>
-                </select>
-                <input type="text" id="trainNoInput" value="" placeholder="9875" oninput="performSearch()">
+            <div class="filter-container">
+                
+                <div class="filter-group">
+                    <span class="filter-label-text">線区：</span>
+                    <select id="lineSelect" onchange="performSearch()">
+                        <option value="">(選択)</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <span class="filter-label-text">施行日：</span>
+                    <input type="date" id="dateInput" onchange="performSearch()">
+                </div>
+    
+                <div class="filter-group">
+                    <span class="filter-label-text">列車番号：</span>
+                    <select id="crownSelect" onchange="performSearch()">
+                        <option value=""></option>
+                        <option value="回">回</option>
+                        <option value="試">試</option>
+                        <option value="単">単</option>
+                        <option value="工">工</option>
+                        <option value="配">配</option>
+                        <option value="試単">試単</option>
+                    </select>
+                    <input type="text" id="trainNoInput" value="" placeholder="9875" oninput="performSearch()">
+                </div>
             </div>
 
             <div class="action-buttons">
                 <div class="refresh-button">更新</div>
+                <a href="#" class="help-icon">?</a>
             </div>
         </div>
 
@@ -414,7 +494,7 @@
     
     <script>
         let rawJsonData = [];
-        const JSON_FILE = 'timetables.json';
+        const JSON_FILE = 'timetables.json'; 
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         
         let holidayData = {}; 
@@ -485,61 +565,23 @@
                 
                 // 2. ダイヤデータの読み込み
                 const dataResponse = await fetch(JSON_FILE);
+                
                 if (!dataResponse.ok) {
-                    console.error(`Data file (${JSON_FILE}) not found or failed to load. Using mock data for demo.`);
-                    // ユーザー提供のJSONサンプルを元にしたモックデータ (kid要素を追加)
-                    rawJsonData = [
-                        // --- 検索対象の列車 (kid1:1, kid2:2) ---
-                        {
-                            "trainNumber": "8764",
-                            "type": "専貨A",
-                            "crown": "単",
-                            "dayType": "平日",
-                            "startDate": "2025/09/18", /* 施行日と一致させるため日付変更 */
-                            "origin": "倉賀野",
-                            "destination": "東京タ",
-                            "line": "東北貨物",
-                            "tt1": "k",
-                            "tt2": "k",
-                            "tr1":"8763", /* 前列車 */
-                            "tr2":"8765", /* 後列車 */
-                            "kid1":"1",
-                            "kid2":"2",
-                            "stops": [
-                                { "station": "大　宮", "arrival": "", "departure": "12:36:00", "trackN": "６番" },
-                                { "station": "大宮操", "arrival": "12:42:00", "departure": "12:50:00", "trackN": "上３" }
-                            ]
-                        },
-                        // --- リンク先となる前列車 (kid2:1) ---
-                        { 
-                            "trainNumber": "8763", "type": "専貨A", "crown": "単", "dayType": "平日", "startDate": "2025/09/18", 
-                            "origin": "高崎", "destination": "倉賀野", "line": "高崎", 
-                            "tr1": "単8762", "tr2": "8764", "kid1": "0", "kid2": "1", /* kid2を "1" に設定 */
-                            "stops": [
-                                { "station": "高崎", "departure": "10:00:00", "trackN": "１番" },
-                                { "station": "倉賀野", "arrival": "10:30:00" , "departure": "10:30:00", "trackN": "本線"}
-                            ]
-                        },
-                         // --- リンク先となる後列車 (kid1:2) ---
-                        { 
-                            "trainNumber": "8765", "type": "専貨A", "crown": "単", "dayType": "平日", "startDate": "2025/09/18", 
-                            "origin": "東京タ", "destination": "新鶴見", "line": "東海道", 
-                            "tr1": "8764", "tr2": "単8766", "kid1": "2", "kid2": "3", /* kid1を "2" に設定 */
-                            "stops": [
-                                { "station": "東京タ", "arrival": "14:00:00" , "departure": "14:15:00", "trackN": "３番" },
-                                { "station": "新鶴見", "arrival": "14:30:00" , "departure": "14:30:00", "trackN": "入"}
-                            ]
-                        },
-                        { "trainNumber": "回3174M", "type": "回電", "crown": "回", "dayType": "平日", "startDate": "2025/09/18", "origin": "東大宮操", "destination": "東　京", "line": "東北", "tr1": "単9875", "tr2": "回3175M", "stops": [ { "station": "大　宮", "departure": "17:48:15", "trackN": "７番"}, { "station": "東　京", "arrival": "18:23:00" , "departure": "=", "trackN": "９番"} ] },
-                    ];
-                } else {
-                    rawJsonData = await dataResponse.json();
-                }
+                    throw new Error(`HTTP error! status: ${dataResponse.status}`);
+                } 
+                
+                rawJsonData = await dataResponse.json();
                 
             } catch (error) {
                 console.error(`Error loading data:`, error);
-                document.getElementById('messageArea').innerText = `データ (${JSON_FILE}) の読み込み中にエラーが発生しました。ファイルが存在するか確認してください。`;
+                const message = error.message.includes("HTTP error! status: 404") 
+                    ? `ダイヤファイル (${JSON_FILE}) が見つかりません。ファイルが同じ階層に存在するか確認してください。`
+                    : `データ (${JSON_FILE}) の読み込み中に予期せぬエラーが発生しました。JSONの形式を確認してください。`;
+                
+                document.getElementById('messageArea').innerText = message;
                 document.getElementById('messageArea').classList.remove('hidden');
+                
+                rawJsonData = [];
             }
         }
         
@@ -563,6 +605,12 @@
             messageArea.classList.add('hidden');
             document.getElementById('scheduleBody').innerHTML = '';
             document.getElementById('clockDisplay').innerText = `----/--/-- --:--:-- 現在`;
+
+            if (rawJsonData.length === 0) {
+                 messageArea.innerText = `ダイヤデータがロードされていません。${JSON_FILE}ファイルを確認してください。`;
+                 messageArea.classList.remove('hidden');
+                 return;
+            }
 
             if (selectedDateUI === "" || selectedLine === "" || noInput.value === "") {
                  return;
@@ -673,7 +721,7 @@
                 if (index === 0) {
                     if (data.tt1 === "k") opInfo = "継走";
                     else if (data.tt1 === "o") opInfo = "折返";
-                    // tr1 (前列車) のリンク。kid1 (前の運用の kid) を渡す。
+                    // tr1 (前列車) のリンク。kid1 (現在の列車への「入り」のKid) を渡す。
                     if (data.tr1) {
                         const targetKid = normalizeKid(data.kid1); 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${targetKid}', 'prev')">${data.tr1}</span>`;
@@ -681,7 +729,7 @@
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継走";
                     else if (data.tt2 === "o") opInfo = "折返";
-                    // tr2 (後列車) のリンク。kid2 (後の運用の kid) を渡す。
+                    // tr2 (後列車) のリンク。kid2 (現在の列車からの「出」のKid) を渡す。
                     if (data.tr2) {
                         const targetKid = normalizeKid(data.kid2); 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${targetKid}', 'next')">${data.tr2}</span>`;
@@ -705,7 +753,12 @@
          * 運用列番のリンクジャンプ処理 (kid対応版)
          */
         function jumpToTrain(targetTrainNum, targetKid, direction) {
-            if (rawJsonData.length === 0) return;
+            if (rawJsonData.length === 0) {
+                document.getElementById('messageArea').innerText = `ダイヤデータがロードされていません。リンク機能が動作しません。`;
+                document.getElementById('messageArea').classList.remove('hidden');
+                document.getElementById('contentArea').classList.add('hidden');
+                return;
+            }
 
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
             const normalizedTargetKid = normalizeKid(targetKid);
@@ -713,18 +766,20 @@
 
             let match = null;
 
-            // 1. **kid マッチング (最優先)**
+            // 1. **kid マッチング (最優先)**: 列車番号、施行日、Kidの連結ロジックが一致するもの
             if (normalizedTargetKid !== "") {
                 match = rawJsonData.find(d => {
+                    // 必須条件: 列車番号と施行日が一致
                     if (normalizeString(d.trainNumber) !== targetTrainNumNormalized || d.startDate !== selectedDateJSON) {
                         return false;
                     }
                     
-                    // 前列車へのジャンプ (現在の列車が後継走としてターゲットのkidを持つ)
+                    // 継走ロジック:
+                    // 'prev' (前列車へ): リンク先の列車 (d) の後継走 kid2 が、現在の列車から渡された kid1 と一致すること
                     if (direction === 'prev') {
                         return normalizeKid(d.kid2) === normalizedTargetKid;
                     } 
-                    // 後列車へのジャンプ (現在の列車が前継走としてターゲットのkidを持つ)
+                    // 'next' (後列車へ): リンク先の列車 (d) の前継走 kid1 が、現在の列車から渡された kid2 と一致すること
                     else if (direction === 'next') {
                         return normalizeKid(d.kid1) === normalizedTargetKid;
                     }
@@ -750,7 +805,21 @@
 
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
-                } 
+                    crown = match.crown; 
+                } else {
+                    // crownがJSONにない場合、列車番号から自動検出を試みる
+                    const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
+                    for (const pc of potentialCrowns) {
+                        if (trainNum.startsWith(pc)) {
+                            crown = pc;
+                            numOnly = trainNum.substring(pc.length);
+                            break;
+                        }
+                    }
+                    if (crown === "") {
+                        numOnly = trainNum;
+                    }
+                }
                 
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
@@ -759,7 +828,8 @@
                 performSearch();
 
             } else {
-                document.getElementById('messageArea').innerText = `リンク先の列車番号 (${targetTrainNum}) に対応するデータが見つかりませんでした。(Kid: ${targetKid} 施行日: ${selectedDateJSON})`;
+                const errorMessage = `リンク先の列車番号 (${targetTrainNum}) に対応するダイヤが見つかりませんでした。(Kid: ${normalizedTargetKid}, 施行日: ${selectedDateJSON})`;
+                document.getElementById('messageArea').innerText = errorMessage;
                 document.getElementById('messageArea').classList.remove('hidden');
                 document.getElementById('contentArea').classList.add('hidden');
             }
@@ -791,6 +861,7 @@
         //  APP ENTRY POINT (window.onload)
         // ==========================================
         window.onload = async function() {
+            // 初期日付をデモ値にセット
             document.getElementById('dateInput').value = '2025-09-18'; 
             
             await loadData();
@@ -798,23 +869,36 @@
             populateLines(); 
             
             if (rawJsonData.length > 0) {
-                 // デモとして、kidを持つ「8764」(東北貨物)を初期表示
-                 const initialData = rawJsonData.find(d => d.line === "東北貨物" && d.trainNumber === "8764");
-                 if(initialData) {
-                    document.getElementById('lineSelect').value = initialData.line;
-                    document.getElementById('crownSelect').value = initialData.crown;
-                    const trainNumOnly = initialData.trainNumber.replace(initialData.crown, '');
-                    document.getElementById('trainNoInput').value = trainNumOnly;
+                 // 東海支社のデモ列車(単9875)を初期値にセット (JSONデータに依存するため、存在しない場合は最初の列車を採用)
+                 const demoData = rawJsonData.find(d => d.line === "東海道" && d.trainNumber.includes("9875"));
+                 const initialData = demoData || rawJsonData[0];
+                 
+                 document.getElementById('lineSelect').value = initialData.line;
+                 
+                 let crown = initialData.crown || "";
+                 let trainNumOnly = initialData.trainNumber;
+                 
+                 // 列車番号から冠を取り出す処理
+                 if (crown && initialData.trainNumber.startsWith(crown)) {
+                    trainNumOnly = initialData.trainNumber.substring(crown.length);
                  } else {
-                    // フォールバック
-                    document.getElementById('lineSelect').value = rawJsonData[0].line;
-                    document.getElementById('crownSelect').value = rawJsonData[0].crown;
-                    const trainNumOnly = rawJsonData[0].trainNumber.replace(rawJsonData[0].crown, '');
-                    document.getElementById('trainNoInput').value = trainNumOnly;
+                     const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
+                     for (const pc of potentialCrowns) {
+                         if (initialData.trainNumber.startsWith(pc)) {
+                             crown = pc;
+                             trainNumOnly = initialData.trainNumber.substring(pc.length);
+                             break;
+                         }
+                     }
                  }
+                 
+                 document.getElementById('crownSelect').value = crown;
+                 document.getElementById('trainNoInput').value = trainNumOnly;
+                 
+                 performSearch(); 
+            } else {
+                 // データがロードできなかった場合は、エラーメッセージが表示されているはず
             }
-
-            performSearch(); 
         };
 
         /**
