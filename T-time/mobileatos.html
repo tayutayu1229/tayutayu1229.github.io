@@ -30,7 +30,7 @@
             --time-plan-width: 90px;
 
             /* ▼ テーブルの行の高さ (縦幅) */
-            --atos-row-height: 25px;
+            --atos-row-height: 23px;
             /* ================================================== */
         }
 
@@ -45,9 +45,9 @@
             font-weight: bold;
         }
         
-        /* ★★★ 修正箇所: 全体コンテンツの最大幅を1000pxに広げました ★★★ */
+        /* 全体コンテンツの最大幅 (1000px: iPadmini対応) */
         #appContainer {
-            max-width: 1000px; /* 800pxから1000pxに拡大 */
+            max-width: 1000px; 
             margin: 0 auto; 
             padding: 0 5px; 
         }
@@ -371,7 +371,38 @@
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
+        
+        /**
+         * 時刻文字列を正規化し、通過記号を「…」に統一、または空白を維持する
+         * @param {string | null | undefined} timeStr 
+         * @returns {string} 表示用の文字列
+         */
+        function getDisplayTime(timeStr) {
+            // 1. データが完全に「 」（半角/全角の空白1つ）の場合はそれを維持する
+            if (timeStr === ' ') {
+                return ' ';
+            }
+            
+            // 2. null, undefined, 空文字列、および「・・・」や「...」などの通過記号を「…」に統一
+            // 「ー」や「-」も通過を示す記号として処理
+            const passageSymbols = ['…', '...', '・・・', 'ー', '-']; 
+            
+            if (
+                !timeStr || // null, undefined
+                String(timeStr).trim() === '' || // 空白のみ or 空文字列
+                passageSymbols.includes(String(timeStr)) // 明示的な通過記号
+            ) {
+                return '…';
+            }
+            
+            // 3. それ以外（時刻など）はそのまま返す
+            return timeStr;
+        }
 
+
+        // ==========================================
+        //  テーブル描画処理 
+        // ==========================================
         function renderTable(data) {
             const tbody = document.getElementById('scheduleBody');
             tbody.innerHTML = '';
@@ -404,18 +435,18 @@
                     }
                 }
 
+                // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
+                const displayArrival = getDisplayTime(stop.arrival);
+                const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
+                
+                // HTML生成
                 tr.innerHTML = `
                     <td class="col-align-left">${typeText}</td> 
-                    <td></td> 
-                    <td class="col-station">${stop.station}</td>
+                    <td></td> <td class="col-station">${stop.station}</td>
                     
-                    <td class="col-align-right">${stop.arrival || ''}</td>
-                    <td class="col-align-center cell-narrow"></td> 
-
-                    <td class="col-align-right">${stop.departure || ''}</td>
-                    <td class="col-align-center cell-narrow"></td> 
-
-                    <td class="col-align-right">${stop.trackN}</td>
+                    <td class="col-align-right">${displayArrival}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${displayDeparture}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.trackN}</td>
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
                 `;
