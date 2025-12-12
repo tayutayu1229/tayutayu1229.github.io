@@ -25,9 +25,9 @@
              ★★★ 幅・高さ調整エリア ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
-            --time-status-width: 15px; 
+            --time-status-width: 15px; /* ★修正: 15px に変更 */
             /* ▼ テーブルの行の高さ (縦幅) */
-            --atos-row-height: 23px; /* ← ここを修正すると縦幅が変わります */
+            --atos-row-height: 23px; /* ★修正: 23px に変更 */
             /* ================================================== */
         }
         /* =========================================================== */
@@ -192,9 +192,9 @@
         th:nth-child(2) { width: 30px; } /* 抑止 */
         th:nth-child(3) { width: 100px; } /* 駅名: 狭く */
         /* 着時刻 (時間 + 実績/到着) の合計幅 */
-        th:nth-child(4) { width: calc(80px + var(--time-status-width)); } 
+        th:nth-child(4) { width: calc(80px + var(--time-status-width)); } /* ★修正なし (変数使用) */
         /* 発時刻 (時間 + 実績/発車) の合計幅 */
-        th:nth-child(5) { width: calc(80px + var(--time-status-width)); } 
+        th:nth-child(5) { width: calc(80px + var(--time-status-width)); } /* ★修正なし (変数使用) */
         th:nth-child(6) { width: 70px; } /* 番線 */
         th:nth-child(7) { width: 40px; } /* 運用情報 */
         th:nth-child(8) { width: 70px; } /* 運用列番 */
@@ -203,11 +203,11 @@
         /* 着時刻-時間 (広い方の列幅: 80pxを固定とする) */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 80px; } 
         /* 着時刻-到着 (狭い方の列幅: CSS変数で指定) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } 
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } /* ★修正: 変数で再指定 */
         /* 発時刻-時間 (広い方の列幅: 80pxを固定とする) */
         .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 80px; } 
         /* 発時刻-発車 (狭い方の列幅: CSS変数で指定) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } 
+        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } /* ★修正: 変数で再指定 */
 
 
         td {
@@ -236,11 +236,13 @@
             font-family: inherit; 
             font-size: 16px; 
             letter-spacing: normal;
+            width: 80px; /* ★修正: ここも固定幅80pxにすることで、残りを発車/到着に割り当てる */
         }
         
         /* **修正**: 着時刻・発時刻の「実績/到着/発車」列 (5番目, 7番目) の幅を調整 */
         td:nth-child(5), td:nth-child(7) {
-            width: var(--time-status-width); 
+            width: var(--time-status-width); /* ★修正: ここで変数の値を確実に適用 */
+            min-width: var(--time-status-width); /* 念のため追加 */
             text-align: center;
         }
 
@@ -572,17 +574,11 @@
         
         /**
          * 検索結果が見つかった場合の表示更新処理
-         * @param {object} result - 検索で見つかったJSONデータオブジェクト
-         * @param {string} selectedLine - 検索窓で選択されている線区
-         * @param {string} selectedDateJSON - 検索窓で選択されている日付 (YYYY/MM/DD形式)
-         * @param {string} crownPart - 冠部分
-         * @param {string} numberPart - 番号部分
          */
         function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
 
-            // ★修正: サマリーの施行日は、検索窓で選択されている日付(selectedDateJSON)を使用する
             document.getElementById('trainSummary').innerHTML = 
                 `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
                 `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
@@ -652,7 +648,6 @@
 
         /**
          * 運用列番のリンクジャンプ処理
-         * ★修正: 検索窓の施行日は更新せず、線区と列車番号のみを更新する。
          */
         function jumpToTrain(targetTrainNum, currentKid, direction) {
             if (rawJsonData.length === 0) return;
@@ -694,7 +689,7 @@
 
 
             if (match) {
-                // ★修正: 検索窓の線区と列車番号のみを更新
+                // 検索窓の線区と列車番号のみを更新
                 document.getElementById('lineSelect').value = match.line;
                 
                 const trainNum = match.trainNumber;
@@ -715,9 +710,6 @@
                 }
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
-
-                // ★削除: 検索窓の日付をジャンプ先のJSONデータに合わせて更新する処理を削除
-                // document.getElementById('dateInput').value = formatDate(matchDate); 
 
                 // 検索実行 (選択されている日付と新しい列車番号で検索し直す)
                 performSearch();
@@ -749,11 +741,9 @@
         //  APP ENTRY POINT (window.onload)
         // ==========================================
         window.onload = async function() {
-            // ★修正: 初期日付を今日の日付にセット
+            // 初期日付を今日の日付にセット
             document.getElementById('dateInput').value = formatDate(new Date());
             
-            // ★修正: 線区は「(選択)」のままにするため、初期選択処理を削除
-
             await loadData();
             
             populateLines(); 
@@ -774,7 +764,7 @@
                 const option = document.createElement('option');
                 option.value = line;
                 option.text = line;
-                // ★修正: 最初のオプションを自動選択する処理を削除
+                
                 select.appendChild(option);
             });
         }
