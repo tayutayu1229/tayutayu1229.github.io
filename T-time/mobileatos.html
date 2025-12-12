@@ -373,7 +373,6 @@
         const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         
-        // 祝日データを格納するオブジェクト
         let holidayData = {}; 
 
         // 所定ダイヤの運行期間
@@ -481,6 +480,7 @@
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
             
+            // 入力値チェック
             if (selectedDateUI === "") {
                  contentArea.classList.add('hidden');
                  messageArea.classList.add('hidden');
@@ -492,7 +492,7 @@
             const crownPart = crownSelect.value;
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
-            const selectedDateJSON = formatJsonDate(searchDate);
+            const selectedDateJSON = formatJsonDate(searchDate); // YYYY/MM/DD形式
 
             // UIリセット
             contentArea.classList.add('hidden');
@@ -505,7 +505,6 @@
             
             // 検索パラメータ
             const isTargetHoliday = isHoliday(searchDate);
-            // 検索するべき dayType を決定
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
             const searchTime = searchDate.getTime();
             
@@ -513,7 +512,6 @@
             
             // ========================================================
             // 1. 最優先：特定日ダイヤ検索 (startDate 完全一致)
-            // JSONのdayTypeに関わらず、特定日のみ適用される時刻を探す
             // ========================================================
             result = rawJsonData.find(d => 
                 d.line === selectedLine &&
@@ -522,7 +520,6 @@
             );
             
             if (result) {
-                // 特定日ダイヤが見つかった場合は即終了
                 updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
                 return;
             }
@@ -541,18 +538,19 @@
                     
                     const dataDayType = d.dayType || ""; 
                     
+                    // 所定ダイヤの基準日リスト (startDateがこれに合致すること)
+                    const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
+
                     // --- 2a. dayTypeが空欄（毎日ダイヤ）の場合 ---
                     if (dataDayType === "") {
-                        // 期間内であれば採用。ただし、startDateが特定日でない（所定ダイヤ基準日を使う）ことを確認
-                        if (d.startDate === formatJsonDate(PERIOD_START) || d.startDate === '2026/03/14') {
+                        if (standardStartDates.includes(d.startDate)) {
                              return true;
                         }
                     } 
                     
                     // --- 2b. dayTypeが指定されている場合 (平日 or 土休日) ---
                     else if (dataDayType === searchDayType) {
-                        // 検索日 (曜日) とダイヤの dayType が一致し、かつ startDateが所定ダイヤの基準日であること
-                        if (d.startDate === '2025/03/15' || d.startDate === '2025/03/17' || d.startDate === '2026/03/14') { 
+                        if (standardStartDates.includes(d.startDate)) { 
                             return true;
                         }
                     }
@@ -567,7 +565,6 @@
             } else {
                 contentArea.classList.add('hidden');
                 
-                // データが見つからない場合のみエラーメッセージを表示
                 messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}, 曜日:${searchDayType}) は見つかりませんでした。`;
                 messageArea.classList.remove('hidden');
             }
@@ -575,11 +572,17 @@
         
         /**
          * 検索結果が見つかった場合の表示更新処理
+         * @param {object} result - 検索で見つかったJSONデータオブジェクト
+         * @param {string} selectedLine - 検索窓で選択されている線区
+         * @param {string} selectedDateJSON - 検索窓で選択されている日付 (YYYY/MM/DD形式)
+         * @param {string} crownPart - 冠部分
+         * @param {string} numberPart - 番号部分
          */
         function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
 
+            // ★修正: サマリーの施行日は、検索窓で選択されている日付(selectedDateJSON)を使用する
             document.getElementById('trainSummary').innerHTML = 
                 `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
                 `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
@@ -648,13 +651,15 @@
         }
 
         /**
-         * 運用列番のリンクジャンプ処理 (変更なし)
+         * 運用列番のリンクジャンプ処理
+         * ★修正: 検索窓の施行日は更新せず、線区と列車番号のみを更新する。
          */
         function jumpToTrain(targetTrainNum, currentKid, direction) {
             if (rawJsonData.length === 0) return;
 
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
             const currentKidNormalized = normalizeString(currentKid);
+            const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/'); // 現在ユーザーが選択している日付を取得
 
             let match = null;
             
@@ -676,10 +681,12 @@
                 }
             }
 
-            // 2. **kid マッチングに失敗した場合、列車番号と始発日の組み合わせで再検索 (フォールバック)**
+            // 2. **kid マッチングに失敗した場合、列車番号と施行日の組み合わせで再検索 (フォールバック)**
             if (!match) {
-                 match = candidates.find(d => d.startDate === document.getElementById('dateInput').value.replace(/-/g, '/'));
+                 // ユーザーが選択している施行日と同じstartDateを持つデータを探す (特定日ダイヤに対応)
+                 match = candidates.find(d => d.startDate === selectedDateJSON);
                  
+                 // それでも見つからない場合、単に最初の候補を採用
                  if (!match && candidates.length > 0) {
                      match = candidates[0];
                  }
@@ -687,6 +694,7 @@
 
 
             if (match) {
+                // ★修正: 検索窓の線区と列車番号のみを更新
                 document.getElementById('lineSelect').value = match.line;
                 
                 const trainNum = match.trainNumber;
@@ -708,10 +716,10 @@
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
 
-                const dateParts = match.startDate.split('/');
-                const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-                document.getElementById('dateInput').value = formatDate(matchDate);
+                // ★削除: 検索窓の日付をジャンプ先のJSONデータに合わせて更新する処理を削除
+                // document.getElementById('dateInput').value = formatDate(matchDate); 
 
+                // 検索実行 (選択されている日付と新しい列車番号で検索し直す)
                 performSearch();
 
             } else {
@@ -741,16 +749,16 @@
         //  APP ENTRY POINT (window.onload)
         // ==========================================
         window.onload = async function() {
-            // 初期日付を今日の日付にセット
+            // ★修正: 初期日付を今日の日付にセット
             document.getElementById('dateInput').value = formatDate(new Date());
             
-            // データのロード (祝日データとダイヤデータ)
+            // ★修正: 線区は「(選択)」のままにするため、初期選択処理を削除
+
             await loadData();
             
-            // UI初期化
             populateLines(); 
             
-            // 検索実行
+            // 検索実行 (日付は「今日」、線区は「(選択)」の状態で実行)
             performSearch(); 
         };
 
@@ -766,8 +774,7 @@
                 const option = document.createElement('option');
                 option.value = line;
                 option.text = line;
-                
-                if (rawJsonData[0] && line === rawJsonData[0].line) option.selected = true;
+                // ★修正: 最初のオプションを自動選択する処理を削除
                 select.appendChild(option);
             });
         }
