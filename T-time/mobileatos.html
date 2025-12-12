@@ -22,11 +22,12 @@
             --error-red: #ff0000;
             
             /* ==================================================
-             ★★★ 幅調整エリア ★★★
-             時刻の実績/到着の列幅を調整できます。
+             ★★★ 幅・高さ調整エリア ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
-            --time-status-width: 10px; 
+            --time-status-width: 25px; 
+            /* ▼ テーブルの行の高さ (縦幅) */
+            --atos-row-height: 26px; /* ← ここを修正すると縦幅が変わります */
             /* ================================================== */
         }
         /* =========================================================== */
@@ -148,16 +149,6 @@
             border-bottom: 1px solid #ccc;
         }
         
-        /* 代替検索成功時の通知メッセージスタイル (非表示を維持) */
-        .notice-msg {
-            color: #007bff; 
-            font-weight: bold;
-            padding: 10px;
-            font-size: 16px;
-            background-color: #e3f2fd; 
-            border-bottom: 1px solid #bbdefb;
-        }
-        
         /* --- DEBUG AREA STYLE (非表示) --- */
         #debugArea {
             display: none !important;
@@ -188,11 +179,12 @@
             background-color: var(--atos-table-header);
             color: white;
             border: 1px solid var(--border-white);
-            padding: 5px;
+            padding: 2px 5px; /* 縦幅調整のためpaddingも少し減らす */
             font-weight: bold;
             white-space: nowrap;
             text-align: center;
             font-size: 15px;
+            height: var(--atos-row-height); 
         }
         
         /* TH 幅調整 (合計幅は約550px) */
@@ -223,7 +215,7 @@
             padding: 2px 5px;
             text-align: center;
             background-color: var(--row-gray);
-            height: 30px; 
+            height: var(--atos-row-height); 
             font-weight: bold;
             font-size: 16px; 
             line-height: 1.2;
@@ -248,7 +240,7 @@
         
         /* **修正**: 着時刻・発時刻の「実績/到着/発車」列 (5番目, 7番目) の幅を調整 */
         td:nth-child(5), td:nth-child(7) {
-            width: var(--time-status-width);
+            width: var(--time-status-width); 
             text-align: center;
         }
 
@@ -597,6 +589,7 @@
                 
                 let opInfo = ""; 
                 let opNum = "";
+                let currentKid = data.kid || ''; // 現在の列車のkidを取得
 
                 // 運用情報 / 運用列番 の判定ロジック
                 if (index === 0) {
@@ -604,8 +597,9 @@
                     else if (data.tt1 === "o") opInfo = "折返";
                     
                     if (data.tr1) {
-                        const kid1 = data.kid1 || '';
-                        // 修正: kid1 を正しく引数に渡す (変更なし、前回の修正でOK)
+                        // リンク元: tr1 (前列車)
+                        // リンク先へ渡す kid: 現在の列車の kid1
+                        const kid1 = data.kid1 || currentKid; // kid1がなければkidを代替使用 (ユーザーJSONの最初の例に対応)
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kid1}', 'prev')">${data.tr1}</span>`;
                     }
                 } else if (index === totalStops - 1) {
@@ -613,8 +607,9 @@
                     else if (data.tt2 === "o") opInfo = "折返";
 
                     if (data.tr2) {
-                        const kid2 = data.kid2 || '';
-                        // 修正: kid2 を正しく引数に渡す (変更なし、前回の修正でOK)
+                        // リンク元: tr2 (次列車)
+                        // リンク先へ渡す kid: 現在の列車の kid2
+                        const kid2 = data.kid2 || currentKid; // kid2がなければkidを代替使用
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kid2}', 'next')">${data.tr2}</span>`;
                     }
                 }
@@ -644,43 +639,47 @@
         /**
          * 運用列番のリンクジャンプ処理 (kidを優先)
          * @param {string} targetTrainNum - リンク先の列車番号 (tr1/tr2)
-         * @param {string} targetKid - リンク元のkid値 (kid1/kid2)
-         * @param {string} direction - 'prev' または 'next'
+         * @param {string} currentKid - リンク元 (現在の列車) の kid1 または kid2 の値
+         * @param {string} direction - 'prev' (前列車へ) または 'next' (次列車へ)
          */
-        function jumpToTrain(targetTrainNum, targetKid, direction) {
+        function jumpToTrain(targetTrainNum, currentKid, direction) {
             if (rawJsonData.length === 0) return;
 
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
-            const targetKidNormalized = normalizeString(targetKid);
+            const currentKidNormalized = normalizeString(currentKid);
 
             let match = null;
             
+            // リンク先の候補を列車番号で絞り込む
+            const candidates = rawJsonData.filter(d => 
+                normalizeString(d.trainNumber) === targetTrainNumNormalized
+            );
+            
             // 1. **kid マッチング (最優先)**
-            if (targetKidNormalized !== "") {
+            if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
-                    // リンク元(tr1/kid1) -> リンク先(trainNumber/kid2)
-                    match = rawJsonData.find(d => 
-                        normalizeString(d.trainNumber) === targetTrainNumNormalized && 
-                        normalizeString(d.kid2 || '') === targetKidNormalized
+                    // リンク元 (tr1) -> リンク先は tr2/kid2 で繋がっているはず
+                    // 相手の kid2 が、現在の列車の kid1 と一致するものを探す
+                    match = candidates.find(d => 
+                        normalizeString(d.kid2 || '') === currentKidNormalized
                     );
                 } 
                 else if (direction === 'next') {
-                    // リンク元(tr2/kid2) -> リンク先(trainNumber/kid1)
-                    match = rawJsonData.find(d => 
-                        normalizeString(d.trainNumber) === targetTrainNumNormalized && 
-                        normalizeString(d.kid1 || '') === targetKidNormalized
+                    // リンク元 (tr2) -> リンク先は tr1/kid1 で繋がっているはず
+                    // 相手の kid1 が、現在の列車の kid2 と一致するものを探す
+                    match = candidates.find(d => 
+                        normalizeString(d.kid1 || '') === currentKidNormalized
                     );
                 }
             }
 
-            // 2. **kid マッチングに失敗した場合、列車番号のみで検索 (フォールバック)**
+            // 2. **kid マッチングに失敗した場合、列車番号と始発日の組み合わせで再検索 (フォールバック)**
             if (!match) {
-                 const candidates = rawJsonData.filter(d => 
-                    normalizeString(d.trainNumber) === targetTrainNumNormalized
-                 );
+                // ここは、特定の運行日（ユーザーの JSON 例では 2025/11/21）のデータがあればそれを採用
+                 match = candidates.find(d => d.startDate === document.getElementById('dateInput').value.replace(/-/g, '/'));
                  
-                 // フォールバックでは、単純に最初の候補を採用
-                 if (candidates.length > 0) {
+                 // それでも見つからない場合、単に最初の候補を採用
+                 if (!match && candidates.length > 0) {
                      match = candidates[0];
                  }
             }
@@ -694,6 +693,7 @@
                 let crown = match.crown || "";
                 let numOnly = trainNum;
 
+                // 列車番号の冠(回/試/単...)を分離
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
@@ -709,7 +709,7 @@
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
 
-                // 施行日も更新して検索する (これにより、その日のデータが再検索される)
+                // 施行日を更新
                 const dateParts = match.startDate.split('/');
                 const matchDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
                 document.getElementById('dateInput').value = formatDate(matchDate);
