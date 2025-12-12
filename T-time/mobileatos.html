@@ -24,11 +24,9 @@
              ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
-            /* ご要望通り、極限まで狭くします (20px) */
             --time-status-width: 20px; 
             
             /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
-            /* 侵略して広げます (90px) */
             --time-plan-width: 90px;
 
             /* ▼ テーブルの行の高さ (縦幅) */
@@ -47,8 +45,9 @@
             font-weight: bold;
         }
         
+        /* ★★★ 修正箇所: 全体コンテンツの最大幅を狭くしました ★★★ */
         #appContainer {
-            max-width: 1200px; 
+            max-width: 500px; /* 5分の4程度の相対的な狭さを実現 */
             margin: 0 auto; 
             padding: 0 5px; 
         }
@@ -114,10 +113,10 @@
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
-            table-layout: fixed; /* ★重要: 列幅を強制固定 */
+            table-layout: fixed; 
         }
 
-        /* colgroupで幅を一括管理するためにクラスを定義 */
+        /* colgroupで幅を一括管理 */
         col.col-wide { width: var(--time-plan-width); }
         col.col-narrow { width: var(--time-status-width); }
 
@@ -148,8 +147,8 @@
         /* 実績列 (到着/発車) */
         td:nth-child(5), td:nth-child(7) { 
             text-align: center !important; 
-            padding: 0 !important; /* パディングを削除 */
-            font-size: 12px; /* ★実績列の文字サイズを小さくする */
+            padding: 0 !important; 
+            font-size: 12px; 
         }
         
         /* 時刻列 (時間) */
@@ -248,15 +247,8 @@
         const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         let holidayData = {}; 
-        
-        // 所定ダイヤの運行期間 (機能を維持)
         const PERIOD_START = new Date('2025/03/15');
         const PERIOD_END = new Date('2026/03/13');
-        
-        
-        // =======================================================================================
-        // <<<<<<<<<<<<<<<<<<<< ユーティリティ関数 (機能を維持) >>>>>>>>>>>>>>>>>>>>>>>>>
-        // =======================================================================================
         
         function formatDate(date) {
             const y = date.getFullYear();
@@ -301,9 +293,6 @@
             }
         }
         
-        // ==========================================
-        //  メイン検索処理 (機能を維持)
-        // ==========================================
         function performSearch() {
             const lineSelect = document.getElementById('lineSelect');
             const dateInput = document.getElementById('dateInput');
@@ -327,7 +316,6 @@
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate); 
 
-            // リセット
             contentArea.classList.add('hidden');
             messageArea.classList.add('hidden');
             
@@ -338,7 +326,6 @@
             const searchTime = searchDate.getTime();
             let result = null;
             
-            // 1. 最優先：特定日ダイヤ検索 (startDate 完全一致)
             result = rawJsonData.find(d => 
                 d.line === selectedLine &&
                 normalizeString(d.trainNumber) === targetTrainNoNormalized &&
@@ -350,12 +337,10 @@
                 return;
             }
 
-            // 2. 第2優先：所定ダイヤ検索 (dayType / 期間マッチ)
             const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
             if (isInPeriod) {
                 result = rawJsonData.find(d => {
                     if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
-                    
                     const dataDayType = d.dayType || ""; 
                     const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
 
@@ -387,9 +372,6 @@
             renderTable(result);
         }
 
-        // ==========================================
-        //  テーブル描画処理 (停車駅の複数行表示を維持)
-        // ==========================================
         function renderTable(data) {
             const tbody = document.getElementById('scheduleBody');
             tbody.innerHTML = '';
@@ -404,7 +386,6 @@
                 let opNum = "";
                 let currentKid = data.kid || ''; 
 
-                // 運用情報 / 運用列番 の判定ロジック (機能を維持)
                 if (index === 0) {
                     if (data.tt1 === "k") opInfo = "継送";
                     else if (data.tt1 === "o") opInfo = "折返";
@@ -423,14 +404,18 @@
                     }
                 }
 
-                // HTML生成 (クラス名と内容を、CSSの新しいレイアウトに合わせて調整)
                 tr.innerHTML = `
                     <td class="col-align-left">${typeText}</td> 
-                    <td></td> <td class="col-station">${stop.station}</td>
+                    <td></td> 
+                    <td class="col-station">${stop.station}</td>
                     
                     <td class="col-align-right">${stop.arrival || ''}</td>
-                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.departure || ''}</td>
-                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.trackN}</td>
+                    <td class="col-align-center cell-narrow"></td> 
+
+                    <td class="col-align-right">${stop.departure || ''}</td>
+                    <td class="col-align-center cell-narrow"></td> 
+
+                    <td class="col-align-right">${stop.trackN}</td>
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
                 `;
@@ -450,7 +435,6 @@
                 normalizeString(d.trainNumber) === targetTrainNumNormalized
             );
             
-            // 1. kid マッチング
             if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
                     match = candidates.find(d => normalizeString(d.kid2 || '') === currentKidNormalized);
@@ -459,7 +443,6 @@
                 }
             }
 
-            // 2. フォールバック
             if (!match) {
                  match = candidates.find(d => d.startDate === selectedDateJSON);
                  if (!match && candidates.length > 0) match = candidates[0];
@@ -508,9 +491,6 @@
             } catch(e) {}
         }
         
-        // ==========================================
-        //  APP ENTRY POINT (機能を維持)
-        // ==========================================
         window.onload = async function() {
             document.getElementById('dateInput').value = formatDate(new Date());
             await loadData();
