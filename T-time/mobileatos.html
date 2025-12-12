@@ -7,11 +7,10 @@
     <style>
         /* ===========================================================
          【 色設定エリア 】
-         ここを変えると、ヘッダーの緑色などが変わります。
          ===========================================================
         */
         :root {
-            /* ▼ 濃い緑（テーブルヘッダー背景色、ここを調整してください） */
+            /* ▼ 濃い緑（テーブルヘッダー背景色） */
             --atos-table-header: #4db6ac; 
             
             /* その他基本色 */
@@ -24,15 +23,15 @@
             /* ==================================================
              ★★★ 幅・高さ調整エリア ★★★
              -------------------------------------------------- */
-            /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 (狭い方の列) */
-            --time-status-width: 10px; /* ★ 再修正: 10px に設定して極限まで狭くします */
+            /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
+            /* ここを小さくすると、到着・発車の列が狭くなります */
+            --time-status-width: 25px; 
+            
             /* ▼ テーブルの行の高さ (縦幅) */
-            --atos-row-height: 23px; 
+            --atos-row-height: 23px;
             /* ================================================== */
         }
-        /* =========================================================== */
 
-        /* 全体のフォントをMS Gothicに統一し、太字を適用 */
         body {
             font-family: "MS Gothic", "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
             background-color: var(--bg-white);
@@ -44,14 +43,13 @@
             font-weight: bold;
         }
         
-        /* 左右余白を持たせ、幅によって調整するためのコンテナ */
         #appContainer {
             max-width: 1200px; 
             margin: 0 auto; 
             padding: 0 5px; 
         }
         
-        /* --- 1. Header --- */
+        /* --- Header --- */
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
             padding: 8px 10px;
@@ -63,236 +61,103 @@
             height: 30px;
         }
         
-        /* タイトルを中央均等配置にする */
-        .header-title { 
-            font-size: 16px; 
-            flex-grow: 1; 
-            text-align: center;
-            font-family: inherit;
-        }
-        
-        /* 時刻表示の背景を透明化し、フォントを統一 */
+        .header-title { font-size: 16px; flex-grow: 1; text-align: center; }
         .clock-area {
-            background-color: transparent; 
-            color: #333; 
-            padding: 2px 8px;
-            font-family: inherit; 
-            font-size: 15px; 
-            min-width: 180px;
-            text-align: right;
-            font-weight: bold;
-            width: 180px; 
+            background-color: transparent; color: #333; padding: 2px 8px;
+            font-family: inherit; font-size: 15px; min-width: 180px;
+            text-align: right; font-weight: bold; width: 180px; 
         }
-        
-        /* アイコンは左端に固定 */
+        .icon-menu { width: 20px; height: 16px; flex-shrink: 0; }
         .icon-menu {
-            width: 20px; 
-            height: 16px;
-            flex-shrink: 0;
+            border-top: 3px solid #666; border-bottom: 3px solid #666; position: relative;
+        }
+        .icon-menu::after {
+            content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666;
         }
 
-
-        /* --- 2. Filter / Search Area --- */
+        /* --- Filter Bar --- */
         .filter-bar {
-            background-color: #e0e0e0;
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            border-bottom: 1px solid #999;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            font-size: 15px;
+            background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
+            gap: 15px; border-bottom: 1px solid #999; flex-wrap: nowrap; overflow-x: auto; font-size: 15px;
         }
-
         .filter-label-text { color: #333; white-space: nowrap; }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            background-color: transparent;
-            border: none;
-            padding: 0;
-            height: auto;
-        }
-
+        .filter-group { display: flex; align-items: center; gap: 5px; }
         select, input {
-            border: 1px solid #999;
-            padding: 2px 4px;
-            font-size: 15px;
-            height: 24px;
-            border-radius: 2px;
-            font-weight: bold;
-            font-family: inherit;
+            border: 1px solid #999; padding: 2px 4px; font-size: 15px;
+            height: 24px; border-radius: 2px; font-weight: bold; font-family: inherit;
         }
-        
-        input[type="date"] {
-            width: 130px; 
-            text-align: center;
-            padding-right: 2px;
-        }
+        input[type="date"] { width: 130px; text-align: center; padding-right: 2px; }
+        input#trainNoInput { background-color: #fff9c4; width: 70px; text-align: left; }
 
-        input#trainNoInput {
-            background-color: #fff9c4;
-            width: 70px;
-            text-align: left; 
-        }
-
-        /* エラーメッセージ表示用のスタイル */
         .error-msg {
-            color: var(--error-red);
-            font-weight: bold;
-            padding: 10px;
-            font-size: 16px;
-            background-color: var(--bg-white);
-            border-bottom: 1px solid #ccc;
+            color: var(--error-red); font-weight: bold; padding: 10px; font-size: 16px;
+            background-color: var(--bg-white); border-bottom: 1px solid #ccc;
         }
-        
-        /* --- DEBUG AREA STYLE (非表示) --- */
-        #debugArea {
-            display: none !important;
-        }
+        #messageArea { display: none !important; }
+        #debugArea { display: none !important; }
 
-
-        /* --- 3. Train Summary --- */
+        /* --- Train Summary --- */
         .train-summary {
-            background-color: #eee;
-            padding: 5px 10px;
-            font-size: 15px;
-            border-bottom: 1px solid #ccc;
-            line-height: 1.5;
-            font-weight: bold;
+            background-color: #eee; padding: 5px 10px; font-size: 15px;
+            border-bottom: 1px solid #ccc; line-height: 1.5; font-weight: bold;
         }
 
-        /* --- 4. Main Table --- */
+        /* --- Main Table --- */
+        .monitor-table-container { width: 100%; overflow-x: auto; }
+        
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
-            /* テーブル全体の幅を固定幅で管理 */
-            table-layout: fixed;
+            table-layout: fixed; /* 列幅固定モード */
         }
 
         th {
-            background-color: var(--atos-table-header);
-            color: white;
-            border: 1px solid var(--border-white);
-            padding: 2px 5px; /* 縦幅調整のためpaddingも少し減らす */
-            font-weight: bold;
-            white-space: nowrap;
-            text-align: center;
-            font-size: 15px;
-            height: var(--atos-row-height); 
+            background-color: var(--atos-table-header); color: white;
+            border: 1px solid var(--border-white); padding: 2px 5px;
+            font-weight: bold; white-space: nowrap; text-align: center;
+            height: var(--atos-row-height);
+            overflow: hidden; /* 幅からはみ出た文字を隠す（崩れ防止） */
         }
-        
-        /* TH 幅調整 (合計幅は約550px) */
-        th:nth-child(1) { width: 70px; } /* 列車種別 */
-        th:nth-child(2) { width: 30px; } /* 抑止 */
-        th:nth-child(3) { width: 100px; } /* 駅名: 狭く */
-        /* 着時刻 (時間 + 実績/到着) の合計幅 */
-        th:nth-child(4) { width: calc(80px + var(--time-status-width)); }
-        /* 発時刻 (時間 + 実績/発車) の合計幅 */
-        th:nth-child(5) { width: calc(80px + var(--time-status-width)); }
-        th:nth-child(6) { width: 70px; } /* 番線 */
-        th:nth-child(7) { width: 40px; } /* 運用情報 */
-        th:nth-child(8) { width: 70px; } /* 運用列番 */
-        
-        /* 副ヘッダーの幅調整 */
-        /* 着時刻-時間 (広い方の列幅: 80pxを固定とする) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(1) { width: 80px; } 
-        /* 着時刻-到着 (狭い方の列幅: CSS変数で指定) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(2) { width: var(--time-status-width); } 
-        /* 発時刻-時間 (広い方の列幅: 80pxを固定とする) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(3) { width: 80px; } 
-        /* 発時刻-発車 (狭い方の列幅: CSS変数で指定) */
-        .monitor-table-container table thead tr:nth-child(2) th:nth-child(4) { width: var(--time-status-width); } 
-
 
         td {
-            border: 1px solid var(--border-white);
-            padding: 2px 5px;
-            text-align: center;
-            background-color: var(--row-gray);
-            height: var(--atos-row-height); 
-            font-weight: bold;
-            font-size: 16px; 
-            line-height: 1.2;
+            border: 1px solid var(--border-white); padding: 0 5px;
+            text-align: center; background-color: var(--row-gray);
+            height: var(--atos-row-height);
+            font-weight: bold; font-size: 16px; line-height: var(--atos-row-height);
             vertical-align: middle;
+            white-space: nowrap; overflow: hidden; /* はみ出し防止 */
         }
         
-        /* 列車種別セルを左揃えにする */
-        .col-type {
-            text-align: left !important;
-            padding-left: 10px !important;
-        }
-
-        /* 時刻表示（着時刻・発時刻の「時間」列）を右揃えにする */
-        /* TDの位置: [1(Type)], [2(抑止)], [3(駅名)], [4(着時間)], [5(着実績)], [6(発時間)], [7(発実績)], [8(番線)], [9(運用情報)], [10(運用列番)] */
-        td:nth-child(4), td:nth-child(6) {
-            text-align: right !important;
-            padding-right: 5px;
-            font-family: inherit; 
-            font-size: 16px; 
-            letter-spacing: normal;
-            width: 80px !important; /* 固定幅80pxを確実に適用 */
-        }
-        
-        /* **修正**: 着時刻・発時刻の「実績/到着/発車」列 (5番目, 7番目) の幅を調整 */
-        td:nth-child(5), td:nth-child(7) {
-            width: var(--time-status-width) !important; /* 変数の値を最優先で確実に適用 */
-            min-width: var(--time-status-width) !important; 
-            padding-left: 0px !important; /* ★追加: パディングを削る */
-            padding-right: 0px !important; /* ★追加: パディングを削る */
-            text-align: center;
-        }
-
-        /* 番線セルを右揃えにする (8番目のTD) */
-        td:nth-child(8) {
-            text-align: right !important;
-            padding-right: 5px;
-        }
-        
+        /* 各列の文字寄せ設定 */
+        .col-type { text-align: left !important; padding-left: 10px !important; }
         .col-station { text-align: left; padding-left: 10px; }
         
-        /* リンク用スタイル */
+        /* 時間列 (4, 6) */
+        td:nth-child(4), td:nth-child(6) { text-align: right !important; padding-right: 5px; font-family: inherit; }
+        
+        /* 実績列 (5, 7) - 到着/発車 */
+        td:nth-child(5), td:nth-child(7) { 
+            text-align: center !important; 
+            padding: 0 !important; /* パディングを削除して幅を確保 */
+            font-size: 13px; /* 狭いので少しフォントを小さくする */
+        }
+        
+        /* 番線列 (8) */
+        td:nth-child(8) { text-align: right !important; padding-right: 5px; }
+
         .link-text {
-            color: #0000EE;
-            text-decoration: underline;
-            cursor: pointer;
-            font-weight: bold;
+            color: #0000EE; text-decoration: underline; cursor: pointer; font-weight: bold;
         }
 
-        /* --- 5. Footer (凡例) --- */
+        /* --- Footer --- */
         .footer-legend {
-            background-color: var(--bg-white);
-            padding: 10px 10px 5px 10px; 
-            font-size: 15px;
-            font-weight: bold;
-            margin-top: 15px;
+            background-color: var(--bg-white); padding: 10px 10px 5px 10px;
+            font-size: 15px; font-weight: bold; margin-top: 15px;
         }
-        
-        /* 凡例後に10行程度の余白を作成 */
-        .footer-legend::after {
-            content: "";
-            display: block;
-            height: 150px; /* 1行約15px x 10行 = 150px */
-        }
-        
-        /* 表示切り替え用 */
+        .footer-legend::after { content: ""; display: block; height: 150px; }
         .hidden { display: none !important; }
-
-        /* Icon styling (unchanged) */
-        .icon-menu {
-            width: 20px; 
-            height: 16px;
-            border-top: 3px solid #666; border-bottom: 3px solid #666;
-            position: relative;
-        }
-        .icon-menu::after {
-            content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666;
-        }
     </style>
 </head>
 <body>
@@ -304,31 +169,19 @@
     </div>
     
     <div id="appContainer">
-
         <div class="filter-bar">
-            
             <div class="filter-group">
                 <span class="filter-label-text">線区：</span>
-                <select id="lineSelect" onchange="performSearch()">
-                    <option value="">(選択)</option>
-                </select>
+                <select id="lineSelect" onchange="performSearch()"><option value="">(選択)</option></select>
             </div>
-            
             <div class="filter-group">
                 <span class="filter-label-text">施行日：</span>
                 <input type="date" id="dateInput" onchange="performSearch()">
             </div>
-
             <div class="filter-group">
                 <span class="filter-label-text">列車番号：</span>
                 <select id="crownSelect" style="width:50px;" onchange="performSearch()">
-                    <option value=""></option>
-                    <option value="回">回</option>
-                    <option value="試">試</option>
-                    <option value="単">単</option>
-                    <option value="工">工</option>
-                    <option value="配">配</option>
-                    <option value="試単">試単</option>
+                    <option value=""></option><option value="回">回</option><option value="試">試</option><option value="単">単</option><option value="工">工</option><option value="配">配</option><option value="試単">試単</option>
                 </select>
                 <input type="text" id="trainNoInput" value="" oninput="performSearch()">
             </div>
@@ -336,16 +189,14 @@
 
         <div id="messageArea" class="hidden error-msg"></div>
         
-        <div id="debugArea" class="hidden">
-            <pre id="debugContent"></pre>
-        </div>
         <div id="contentArea" class="hidden">
-            
-            <div class="train-summary" id="trainSummary">
-                </div>
+            <div class="train-summary" id="trainSummary"></div>
 
             <div class="monitor-table-container">
                 <table>
+                    <colgroup>
+                        <col style="width: 70px;"> <col style="width: 30px;"> <col style="width: 100px;"> <col style="width: 85px;"> <col style="width: var(--time-status-width);"> <col style="width: 85px;"> <col style="width: var(--time-status-width);"> <col style="width: 70px;"> <col style="width: 40px;"> <col style="width: 70px;"> </colgroup>
+                    
                     <thead>
                         <tr>
                             <th rowspan="2">列車種別</th>
@@ -372,107 +223,58 @@
                 「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止
             </div>
         </div>
-    </div> <script>
+    </div>
+
+    <script>
         let rawJsonData = [];
         const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
-        
         let holidayData = {}; 
-
-        // 所定ダイヤの運行期間
         const PERIOD_START = new Date('2025/03/15');
         const PERIOD_END = new Date('2026/03/13');
         
-        
-        // =======================================================================================
-        // <<<<<<<<<<<<<<<<<<<< ユーティリティ関数 >>>>>>>>>>>>>>>>>>>>>>>>>
-        // =======================================================================================
-        
-        /**
-         * YYYY-MM-DD 形式にフォーマット (祝日APIで使用)
-         */
         function formatDate(date) {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const d = String(date.getDate()).padStart(2, '0');
             return `${y}-${m}-${d}`;
         }
-        
-        /**
-         * YYYY/MM/DD 形式にフォーマット (JSONデータ形式に合わせる)
-         */
         function formatJsonDate(date) {
-            if (typeof date === 'string') {
-                return date.replace(/-/g, '/');
-            }
+            if (typeof date === 'string') return date.replace(/-/g, '/');
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const d = String(date.getDate()).padStart(2, '0');
             return `${y}/${m}/${d}`;
         }
-
-        /**
-         * 文字列の正規化 (全角半角・大文字小文字無視)
-         */
         function normalizeString(str) {
             if (typeof str !== 'string') return '';
-            
             let normalized = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             });
-            
-            normalized = normalized.toUpperCase().replace(/\s/g, '').trim();
-
-            return normalized;
+            return normalized.toUpperCase().replace(/\s/g, '').trim();
         }
-
-        /**
-         * 祝日判定 (土日、およびAPIから取得した祝日データ)
-         * @param {Date} date - 判定する日付オブジェクト
-         * @returns {boolean} 土休日であれば true
-         */
         function isHoliday(date) {
-            const dayOfWeek = date.getDay(); // 0: 日, 6: 土
-            if (dayOfWeek === 0 || dayOfWeek === 6) {
-                return true; // 土日
-            }
-            
-            // 祝日APIデータとの照合
-            const dateKey = formatDate(date); // YYYY-MM-DD 形式
-            return holidayData.hasOwnProperty(dateKey); // 祝日
+            const dayOfWeek = date.getDay(); 
+            if (dayOfWeek === 0 || dayOfWeek === 6) return true; 
+            const dateKey = formatDate(date);
+            return holidayData.hasOwnProperty(dateKey); 
         }
 
-        // ==========================================
-        //  JSONデータ読み込み
-        // ==========================================
         async function loadData() {
             try {
-                // 1. 祝日データの読み込み
                 const holidayResponse = await fetch(HOLIDAY_API_URL);
-                if (holidayResponse.ok) {
-                    holidayData = await holidayResponse.json();
-                } else {
-                    console.warn(`Holiday API error! status: ${holidayResponse.status}. Proceeding without external holiday data.`);
-                }
+                if (holidayResponse.ok) holidayData = await holidayResponse.json();
                 
-                // 2. ダイヤデータの読み込み
                 const dataResponse = await fetch(JSON_FILE);
-                if (!dataResponse.ok) {
-                    throw new Error(`HTTP error! status: ${dataResponse.status}`);
-                }
+                if (!dataResponse.ok) throw new Error(`HTTP error! status: ${dataResponse.status}`);
                 rawJsonData = await dataResponse.json();
-                
             } catch (error) {
                 console.error(`Error loading required data:`, error);
-                document.getElementById('messageArea').innerText = `データ (${JSON_FILE} または 祝日API) の読み込み中にエラーが発生しました。`;
+                document.getElementById('messageArea').innerText = `データ読み込みエラー`;
                 document.getElementById('messageArea').classList.remove('hidden');
             }
         }
         
-        // ==========================================
-        //  メイン検索処理
-        // ==========================================
-
         function performSearch() {
             const lineSelect = document.getElementById('lineSelect');
             const dateInput = document.getElementById('dateInput');
@@ -484,7 +286,6 @@
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
             
-            // 入力値チェック
             if (selectedDateUI === "") {
                  contentArea.classList.add('hidden');
                  messageArea.classList.add('hidden');
@@ -492,31 +293,22 @@
             }
             
             const searchDate = new Date(selectedDateUI); 
-            
             const crownPart = crownSelect.value;
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
-            const selectedDateJSON = formatJsonDate(searchDate); // YYYY/MM/DD形式
+            const selectedDateJSON = formatJsonDate(searchDate); 
 
-            // UIリセット
             contentArea.classList.add('hidden');
             messageArea.classList.add('hidden');
-
             
-            if (targetTrainNoNormalized === "" || selectedLine === "" || rawJsonData.length === 0) {
-                return;
-            }
+            if (targetTrainNoNormalized === "" || selectedLine === "" || rawJsonData.length === 0) return;
             
-            // 検索パラメータ
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
             const searchTime = searchDate.getTime();
-            
             let result = null;
             
-            // ========================================================
-            // 1. 最優先：特定日ダイヤ検索 (startDate 完全一致)
-            // ========================================================
+            // 1. 特定日検索
             result = rawJsonData.find(d => 
                 d.line === selectedLine &&
                 normalizeString(d.trainNumber) === targetTrainNoNormalized &&
@@ -528,70 +320,41 @@
                 return;
             }
 
-            // ========================================================
-            // 2. 第2優先：所定ダイヤ検索 (dayType / 期間マッチ)
-            // ========================================================
-            
+            // 2. 期間検索
             const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
-            
             if (isInPeriod) {
                 result = rawJsonData.find(d => {
-                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) {
-                        return false;
-                    }
-                    
+                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
                     const dataDayType = d.dayType || ""; 
-                    
-                    // 所定ダイヤの基準日リスト (startDateがこれに合致すること)
                     const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
 
-                    // --- 2a. dayTypeが空欄（毎日ダイヤ）の場合 ---
                     if (dataDayType === "") {
-                        if (standardStartDates.includes(d.startDate)) {
-                             return true;
-                        }
-                    } 
-                    
-                    // --- 2b. dayTypeが指定されている場合 (平日 or 土休日) ---
-                    else if (dataDayType === searchDayType) {
-                        if (standardStartDates.includes(d.startDate)) { 
-                            return true;
-                        }
+                        if (standardStartDates.includes(d.startDate)) return true;
+                    } else if (dataDayType === searchDayType) {
+                        if (standardStartDates.includes(d.startDate)) return true;
                     }
-                    
                     return false;
                 });
             }
 
-            // --- 結果表示 ---
             if (result) {
                 updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
             } else {
                 contentArea.classList.add('hidden');
-                
-                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}, 曜日:${searchDayType}) は見つかりませんでした。`;
+                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}) は見つかりませんでした。`;
                 messageArea.classList.remove('hidden');
             }
         }
         
-        /**
-         * 検索結果が見つかった場合の表示更新処理
-         */
         function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
-
             document.getElementById('trainSummary').innerHTML = 
                 `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
                 `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
-
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
-
-        // ==========================================
-        //  テーブル描画処理 (変更なし)
-        // ==========================================
 
         function renderTable(data) {
             const tbody = document.getElementById('scheduleBody');
@@ -600,18 +363,14 @@
 
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
-                
                 const typeText = (index === 0) ? data.type : '';
-                
                 let opInfo = ""; 
                 let opNum = "";
                 let currentKid = data.kid || ''; 
 
-                // 運用情報 / 運用列番 の判定ロジック
                 if (index === 0) {
                     if (data.tt1 === "k") opInfo = "継送";
                     else if (data.tt1 === "o") opInfo = "折返";
-                    
                     if (data.tr1) {
                         const kidToPass = data.kid1 || currentKid; 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kidToPass}', 'prev')">${data.tr1}</span>`;
@@ -619,14 +378,12 @@
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
                     else if (data.tt2 === "o") opInfo = "折返";
-
                     if (data.tr2) {
                         const kidToPass = data.kid2 || currentKid; 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kidToPass}', 'next')">${data.tr2}</span>`;
                     }
                 }
 
-                // HTML生成
                 tr.innerHTML = `
                     <td class="col-type">${typeText}</td> 
                     <td></td> 
@@ -639,65 +396,42 @@
                     <td></td> 
 
                     <td>${stop.trackN}</td>
-                    
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
                 `;
-
                 tbody.appendChild(tr);
             });
         }
 
-        /**
-         * 運用列番のリンクジャンプ処理
-         */
         function jumpToTrain(targetTrainNum, currentKid, direction) {
             if (rawJsonData.length === 0) return;
-
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
             const currentKidNormalized = normalizeString(currentKid);
-            const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/'); // 現在ユーザーが選択している日付を取得
+            const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
 
             let match = null;
-            
             const candidates = rawJsonData.filter(d => 
                 normalizeString(d.trainNumber) === targetTrainNumNormalized
             );
             
-            // 1. **kid マッチング (最優先)**
             if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
-                    match = candidates.find(d => 
-                        normalizeString(d.kid2 || '') === currentKidNormalized
-                    );
-                } 
-                else if (direction === 'next') {
-                    match = candidates.find(d => 
-                        normalizeString(d.kid1 || '') === currentKidNormalized
-                    );
+                    match = candidates.find(d => normalizeString(d.kid2 || '') === currentKidNormalized);
+                } else if (direction === 'next') {
+                    match = candidates.find(d => normalizeString(d.kid1 || '') === currentKidNormalized);
                 }
             }
 
-            // 2. **kid マッチングに失敗した場合、列車番号と施行日の組み合わせで再検索 (フォールバック)**
             if (!match) {
-                 // ユーザーが選択している施行日と同じstartDateを持つデータを探す (特定日ダイヤに対応)
                  match = candidates.find(d => d.startDate === selectedDateJSON);
-                 
-                 // それでも見つからない場合、単に最初の候補を採用
-                 if (!match && candidates.length > 0) {
-                     match = candidates[0];
-                 }
+                 if (!match && candidates.length > 0) match = candidates[0];
             }
 
-
             if (match) {
-                // 検索窓の線区と列車番号のみを更新
                 document.getElementById('lineSelect').value = match.line;
-                
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
                 let numOnly = trainNum;
-
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
@@ -712,10 +446,7 @@
                 }
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
-
-                // 検索実行 (選択されている日付と新しい列車番号で検索し直す)
                 performSearch();
-
             } else {
                 document.getElementById('messageArea').innerText = `リンク先の列車番号 (${targetTrainNum}) に対応するデータが見つかりませんでした。`;
                 document.getElementById('messageArea').classList.remove('hidden');
@@ -724,49 +455,34 @@
         }
 
         function updateSystemClock(dateStr) {
-            if (!dateStr) return;
             try {
                 const d = new Date(dateStr);
                 d.setDate(d.getDate() - 2); 
                 d.setHours(22, 45);
                 const randomSec = Math.floor(Math.random() * 60);
                 d.setSeconds(randomSec);
-
                 const fmt = (n) => String(n).padStart(2, '0');
                 const str = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
-                
                 document.getElementById('clockDisplay').innerText = str;
             } catch(e) {}
         }
         
-        // ==========================================
-        //  APP ENTRY POINT (window.onload)
-        // ==========================================
         window.onload = async function() {
-            // 初期日付を今日の日付にセット
             document.getElementById('dateInput').value = formatDate(new Date());
-            
             await loadData();
-            
             populateLines(); 
-            
-            // 検索実行 (日付は「今日」、線区は「(選択)」の状態で実行)
             performSearch(); 
         };
 
         function populateLines() {
             const select = document.getElementById('lineSelect');
             select.innerHTML = '<option value="">(選択)</option>';
-
             if (rawJsonData.length === 0) return;
-
             const lines = [...new Set(rawJsonData.map(d => d.line))];
-            
             lines.forEach(line => {
                 const option = document.createElement('option');
                 option.value = line;
                 option.text = line;
-                
                 select.appendChild(option);
             });
         }
