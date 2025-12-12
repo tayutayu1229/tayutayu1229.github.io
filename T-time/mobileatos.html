@@ -21,12 +21,16 @@
             --error-red: #ff0000;
             
             /* ==================================================
-             ★★★ 幅・高さ調整エリア ★★★
+             ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
-            /* ここを小さくすると、到着・発車の列が狭くなります */
-            --time-status-width: 25px; 
+            /* 極限まで狭くしました (20px) */
+            --time-status-width: 20px; 
             
+            /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
+            /* 侵略して広げました (90px) */
+            --time-plan-width: 90px;
+
             /* ▼ テーブルの行の高さ (縦幅) */
             --atos-row-height: 23px;
             /* ================================================== */
@@ -67,9 +71,9 @@
             font-family: inherit; font-size: 15px; min-width: 180px;
             text-align: right; font-weight: bold; width: 180px; 
         }
-        .icon-menu { width: 20px; height: 16px; flex-shrink: 0; }
         .icon-menu {
-            border-top: 3px solid #666; border-bottom: 3px solid #666; position: relative;
+            width: 20px; height: 16px; border-top: 3px solid #666; 
+            border-bottom: 3px solid #666; position: relative; flex-shrink: 0;
         }
         .icon-menu::after {
             content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666;
@@ -93,7 +97,7 @@
             color: var(--error-red); font-weight: bold; padding: 10px; font-size: 16px;
             background-color: var(--bg-white); border-bottom: 1px solid #ccc;
         }
-        #messageArea { display: none !important; }
+        #messageArea { display: none !important; } /* メッセージエリアはJSで制御 */
         #debugArea { display: none !important; }
 
         /* --- Train Summary --- */
@@ -110,19 +114,23 @@
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
-            table-layout: fixed; /* 列幅固定モード */
+            table-layout: fixed; /* ★重要: 列幅を強制固定 */
         }
+
+        /* colgroupで幅を一括管理 */
+        col.col-wide { width: var(--time-plan-width); }
+        col.col-narrow { width: var(--time-status-width); }
 
         th {
             background-color: var(--atos-table-header); color: white;
-            border: 1px solid var(--border-white); padding: 2px 5px;
+            border: 1px solid var(--border-white); padding: 0 2px;
             font-weight: bold; white-space: nowrap; text-align: center;
             height: var(--atos-row-height);
-            overflow: hidden; /* 幅からはみ出た文字を隠す（崩れ防止） */
+            overflow: hidden; /* はみ出し防止 */
         }
 
         td {
-            border: 1px solid var(--border-white); padding: 0 5px;
+            border: 1px solid var(--border-white); padding: 0 4px;
             text-align: center; background-color: var(--row-gray);
             height: var(--atos-row-height);
             font-weight: bold; font-size: 16px; line-height: var(--atos-row-height);
@@ -130,22 +138,13 @@
             white-space: nowrap; overflow: hidden; /* はみ出し防止 */
         }
         
-        /* 各列の文字寄せ設定 */
-        .col-type { text-align: left !important; padding-left: 10px !important; }
-        .col-station { text-align: left; padding-left: 10px; }
-        
-        /* 時間列 (4, 6) */
-        td:nth-child(4), td:nth-child(6) { text-align: right !important; padding-right: 5px; font-family: inherit; }
-        
-        /* 実績列 (5, 7) - 到着/発車 */
-        td:nth-child(5), td:nth-child(7) { 
-            text-align: center !important; 
-            padding: 0 !important; /* パディングを削除して幅を確保 */
-            font-size: 13px; /* 狭いので少しフォントを小さくする */
-        }
-        
-        /* 番線列 (8) */
-        td:nth-child(8) { text-align: right !important; padding-right: 5px; }
+        /* 各列の文字寄せ */
+        .col-align-left { text-align: left !important; padding-left: 8px !important; }
+        .col-align-right { text-align: right !important; padding-right: 5px !important; }
+        .col-align-center { text-align: center !important; padding: 0 !important; }
+
+        /* 実績列（狭い列）のフォントサイズ調整 */
+        .cell-narrow { font-size: 12px; }
 
         .link-text {
             color: #0000EE; text-decoration: underline; cursor: pointer; font-weight: bold;
@@ -158,6 +157,9 @@
         }
         .footer-legend::after { content: ""; display: block; height: 150px; }
         .hidden { display: none !important; }
+        
+        /* エラー表示時のみvisibleにするクラス */
+        .visible-error { display: block !important; }
     </style>
 </head>
 <body>
@@ -187,7 +189,7 @@
             </div>
         </div>
 
-        <div id="messageArea" class="hidden error-msg"></div>
+        <div id="messageArea" class="error-msg hidden"></div>
         
         <div id="contentArea" class="hidden">
             <div class="train-summary" id="trainSummary"></div>
@@ -195,7 +197,7 @@
             <div class="monitor-table-container">
                 <table>
                     <colgroup>
-                        <col style="width: 70px;"> <col style="width: 30px;"> <col style="width: 100px;"> <col style="width: 85px;"> <col style="width: var(--time-status-width);"> <col style="width: 85px;"> <col style="width: var(--time-status-width);"> <col style="width: 70px;"> <col style="width: 40px;"> <col style="width: 70px;"> </colgroup>
+                        <col style="width: 70px;"> <col style="width: 30px;"> <col style="width: 100px;"> <col class="col-wide">   <col class="col-narrow"> <col class="col-wide">   <col class="col-narrow"> <col style="width: 70px;"> <col style="width: 40px;"> <col style="width: 70px;"> </colgroup>
                     
                     <thead>
                         <tr>
@@ -210,9 +212,9 @@
                         </tr>
                         <tr>
                             <th>時間</th>
-                            <th>到着</th>
+                            <th class="cell-narrow">到着</th>
                             <th>時間</th>
-                            <th>発車</th>
+                            <th class="cell-narrow">発車</th>
                         </tr>
                     </thead>
                     <tbody id="scheduleBody"></tbody>
@@ -270,8 +272,9 @@
                 rawJsonData = await dataResponse.json();
             } catch (error) {
                 console.error(`Error loading required data:`, error);
-                document.getElementById('messageArea').innerText = `データ読み込みエラー`;
-                document.getElementById('messageArea').classList.remove('hidden');
+                const msgArea = document.getElementById('messageArea');
+                msgArea.innerText = `データ読み込みエラー: ${error.message}`;
+                msgArea.classList.remove('hidden');
             }
         }
         
@@ -298,6 +301,7 @@
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate); 
 
+            // リセット
             contentArea.classList.add('hidden');
             messageArea.classList.add('hidden');
             
@@ -308,7 +312,7 @@
             const searchTime = searchDate.getTime();
             let result = null;
             
-            // 1. 特定日検索
+            // 1. 最優先：特定日ダイヤ検索 (startDate 完全一致)
             result = rawJsonData.find(d => 
                 d.line === selectedLine &&
                 normalizeString(d.trainNumber) === targetTrainNoNormalized &&
@@ -320,14 +324,16 @@
                 return;
             }
 
-            // 2. 期間検索
+            // 2. 第2優先：所定ダイヤ検索 (dayType / 期間マッチ)
             const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
             if (isInPeriod) {
                 result = rawJsonData.find(d => {
                     if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
+                    
                     const dataDayType = d.dayType || ""; 
                     const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
 
+                    // 毎日ダイヤ or 曜日指定ダイヤ
                     if (dataDayType === "") {
                         if (standardStartDates.includes(d.startDate)) return true;
                     } else if (dataDayType === searchDayType) {
@@ -363,7 +369,9 @@
 
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
+                // 1. 列車種別 (左揃え)
                 const typeText = (index === 0) ? data.type : '';
+                // 運用情報用
                 let opInfo = ""; 
                 let opNum = "";
                 let currentKid = data.kid || ''; 
@@ -385,17 +393,13 @@
                 }
 
                 tr.innerHTML = `
-                    <td class="col-type">${typeText}</td> 
+                    <td class="col-align-left">${typeText}</td> 
                     <td></td> 
                     <td class="col-station">${stop.station}</td>
                     
-                    <td class="col-time">${stop.arrival || ''}</td>
-                    <td></td> 
-
-                    <td class="col-time">${stop.departure || ''}</td>
-                    <td></td> 
-
-                    <td>${stop.trackN}</td>
+                    <td class="col-align-right">${stop.arrival || ''}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.departure || ''}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.trackN}</td>
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
                 `;
@@ -414,6 +418,7 @@
                 normalizeString(d.trainNumber) === targetTrainNumNormalized
             );
             
+            // 1. kid マッチング
             if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
                     match = candidates.find(d => normalizeString(d.kid2 || '') === currentKidNormalized);
@@ -422,12 +427,14 @@
                 }
             }
 
+            // 2. フォールバック
             if (!match) {
                  match = candidates.find(d => d.startDate === selectedDateJSON);
                  if (!match && candidates.length > 0) match = candidates[0];
             }
 
             if (match) {
+                // 線区・列車番号のみ更新し、日付は維持
                 document.getElementById('lineSelect').value = match.line;
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
@@ -446,10 +453,12 @@
                 }
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
+                
                 performSearch();
             } else {
-                document.getElementById('messageArea').innerText = `リンク先の列車番号 (${targetTrainNum}) に対応するデータが見つかりませんでした。`;
-                document.getElementById('messageArea').classList.remove('hidden');
+                const msgArea = document.getElementById('messageArea');
+                msgArea.innerText = `リンク先の列車番号 (${targetTrainNum}) のデータが見つかりません。`;
+                msgArea.classList.remove('hidden');
                 document.getElementById('contentArea').classList.add('hidden');
             }
         }
