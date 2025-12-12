@@ -11,7 +11,7 @@
         */
         :root {
             /* ▼ 濃い緑（テーブルヘッダー背景色） */
-            --atos-table-header: #4db6ac; 
+            --atos-table-header: #1A968A; 
             
             /* その他基本色 */
             --bg-white: #ffffff;
@@ -24,11 +24,11 @@
              ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
              -------------------------------------------------- */
             /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
-            /* 極限まで狭くしました (20px) */
+            /* ご要望通り、極限まで狭くします (20px) */
             --time-status-width: 20px; 
             
             /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
-            /* 侵略して広げました (90px) */
+            /* 侵略して広げます (90px) */
             --time-plan-width: 90px;
 
             /* ▼ テーブルの行の高さ (縦幅) */
@@ -97,7 +97,7 @@
             color: var(--error-red); font-weight: bold; padding: 10px; font-size: 16px;
             background-color: var(--bg-white); border-bottom: 1px solid #ccc;
         }
-        #messageArea { display: none !important; } /* メッセージエリアはJSで制御 */
+        #messageArea { display: none !important; }
         #debugArea { display: none !important; }
 
         /* --- Train Summary --- */
@@ -117,7 +117,7 @@
             table-layout: fixed; /* ★重要: 列幅を強制固定 */
         }
 
-        /* colgroupで幅を一括管理 */
+        /* colgroupで幅を一括管理するためにクラスを定義 */
         col.col-wide { width: var(--time-plan-width); }
         col.col-narrow { width: var(--time-status-width); }
 
@@ -126,8 +126,11 @@
             border: 1px solid var(--border-white); padding: 0 2px;
             font-weight: bold; white-space: nowrap; text-align: center;
             height: var(--atos-row-height);
-            overflow: hidden; /* はみ出し防止 */
+            overflow: hidden; 
         }
+        
+        /* 狭くなった実績列ヘッダーのフォントサイズを調整 */
+        th.cell-narrow { font-size: 12px; }
 
         td {
             border: 1px solid var(--border-white); padding: 0 4px;
@@ -135,16 +138,32 @@
             height: var(--atos-row-height);
             font-weight: bold; font-size: 16px; line-height: var(--atos-row-height);
             vertical-align: middle;
-            white-space: nowrap; overflow: hidden; /* はみ出し防止 */
+            white-space: nowrap; overflow: hidden; 
         }
         
         /* 各列の文字寄せ */
         .col-align-left { text-align: left !important; padding-left: 8px !important; }
         .col-align-right { text-align: right !important; padding-right: 5px !important; }
-        .col-align-center { text-align: center !important; padding: 0 !important; }
+        
+        /* 実績列 (到着/発車) */
+        td:nth-child(5), td:nth-child(7) { 
+            text-align: center !important; 
+            padding: 0 !important; /* パディングを削除 */
+            font-size: 12px; /* ★実績列の文字サイズを小さくする */
+        }
+        
+        /* 時刻列 (時間) */
+        td:nth-child(4), td:nth-child(6) {
+            text-align: right !important;
+            padding-right: 5px !important;
+        }
+        
+        /* 駅名 */
+        td:nth-child(3) { text-align: left !important; padding-left: 10px !important; }
 
-        /* 実績列（狭い列）のフォントサイズ調整 */
-        .cell-narrow { font-size: 12px; }
+        /* 番線 */
+        td:nth-child(8) { text-align: right !important; padding-right: 5px !important; }
+
 
         .link-text {
             color: #0000EE; text-decoration: underline; cursor: pointer; font-weight: bold;
@@ -157,9 +176,6 @@
         }
         .footer-legend::after { content: ""; display: block; height: 150px; }
         .hidden { display: none !important; }
-        
-        /* エラー表示時のみvisibleにするクラス */
-        .visible-error { display: block !important; }
     </style>
 </head>
 <body>
@@ -232,8 +248,15 @@
         const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         let holidayData = {}; 
+        
+        // 所定ダイヤの運行期間 (機能を維持)
         const PERIOD_START = new Date('2025/03/15');
         const PERIOD_END = new Date('2026/03/13');
+        
+        
+        // =======================================================================================
+        // <<<<<<<<<<<<<<<<<<<< ユーティリティ関数 (機能を維持) >>>>>>>>>>>>>>>>>>>>>>>>>
+        // =======================================================================================
         
         function formatDate(date) {
             const y = date.getFullYear();
@@ -278,6 +301,9 @@
             }
         }
         
+        // ==========================================
+        //  メイン検索処理 (機能を維持)
+        // ==========================================
         function performSearch() {
             const lineSelect = document.getElementById('lineSelect');
             const dateInput = document.getElementById('dateInput');
@@ -333,7 +359,6 @@
                     const dataDayType = d.dayType || ""; 
                     const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
 
-                    // 毎日ダイヤ or 曜日指定ダイヤ
                     if (dataDayType === "") {
                         if (standardStartDates.includes(d.startDate)) return true;
                     } else if (dataDayType === searchDayType) {
@@ -362,6 +387,9 @@
             renderTable(result);
         }
 
+        // ==========================================
+        //  テーブル描画処理 (停車駅の複数行表示を維持)
+        // ==========================================
         function renderTable(data) {
             const tbody = document.getElementById('scheduleBody');
             tbody.innerHTML = '';
@@ -369,16 +397,18 @@
 
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
-                // 1. 列車種別 (左揃え)
+                
                 const typeText = (index === 0) ? data.type : '';
-                // 運用情報用
+                
                 let opInfo = ""; 
                 let opNum = "";
                 let currentKid = data.kid || ''; 
 
+                // 運用情報 / 運用列番 の判定ロジック (機能を維持)
                 if (index === 0) {
                     if (data.tt1 === "k") opInfo = "継送";
                     else if (data.tt1 === "o") opInfo = "折返";
+                    
                     if (data.tr1) {
                         const kidToPass = data.kid1 || currentKid; 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kidToPass}', 'prev')">${data.tr1}</span>`;
@@ -386,16 +416,17 @@
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
                     else if (data.tt2 === "o") opInfo = "折返";
+
                     if (data.tr2) {
                         const kidToPass = data.kid2 || currentKid; 
                         opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kidToPass}', 'next')">${data.tr2}</span>`;
                     }
                 }
 
+                // HTML生成 (クラス名と内容を、CSSの新しいレイアウトに合わせて調整)
                 tr.innerHTML = `
                     <td class="col-align-left">${typeText}</td> 
-                    <td></td> 
-                    <td class="col-station">${stop.station}</td>
+                    <td></td> <td class="col-station">${stop.station}</td>
                     
                     <td class="col-align-right">${stop.arrival || ''}</td>
                     <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.departure || ''}</td>
@@ -403,6 +434,7 @@
                     <td>${opInfo}</td>
                     <td>${opNum}</td>
                 `;
+
                 tbody.appendChild(tr);
             });
         }
@@ -434,7 +466,6 @@
             }
 
             if (match) {
-                // 線区・列車番号のみ更新し、日付は維持
                 document.getElementById('lineSelect').value = match.line;
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
@@ -464,6 +495,7 @@
         }
 
         function updateSystemClock(dateStr) {
+            if (!dateStr) return;
             try {
                 const d = new Date(dateStr);
                 d.setDate(d.getDate() - 2); 
@@ -476,6 +508,9 @@
             } catch(e) {}
         }
         
+        // ==========================================
+        //  APP ENTRY POINT (機能を維持)
+        // ==========================================
         window.onload = async function() {
             document.getElementById('dateInput').value = formatDate(new Date());
             await loadData();
