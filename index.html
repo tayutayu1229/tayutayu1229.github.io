@@ -110,6 +110,15 @@
             60% { content: ".."; }
             80% { content: "..."; }
         }
+        .register-link {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        .register-link a {
+            color: #01977a;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -118,8 +127,8 @@
         
         <form id="login-form">
             <div class="input-group">
-                <label for="username">ユーザーID:</label>
-                <input type="text" name="username" id="username" required autocomplete="username">
+                <label for="username">メールアドレス:</label>
+                <input type="text" name="username" id="username" required autocomplete="email" placeholder="user@example.com">
             </div>
             <div class="input-group">
                 <label for="password">パスワード:</label>
@@ -129,6 +138,11 @@
         </form>
         <div id="loading" class="loading">ログイン中</div>
         <p id="error-message"></p>
+        
+        <div class="register-link">
+             <a href="register.html">新規ユーザー登録はこちら</a>
+        </div>
+
         <div class="system-info">
             <p>システムバージョン: 2.94.140</p>
             <p>最終更新日: 2025年12月15日</p>
@@ -138,105 +152,10 @@
             <p>お問い合わせ: 中央指令室</p>
         </div>
     </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const USERS = {
-            'trombone1727': 'hvPNh8qZ',
-            'Yoshihito': '9uET2z',
-            'Ayakawa': '8sjeMPhATaXF',
-            'Ekopa': 'iEG4CDwujzZG',
-            'zero': 'MPxBkd9g7SY7',
-            'abhfly11AA': '3KNJ98qEH200pKPou3',
-        };
 
-        const loginForm = document.getElementById('login-form');
-        const errorMessage = document.getElementById('error-message');
-        const loadingIndicator = document.getElementById('loading');
-        const loginButton = document.getElementById('login-button');
-        const inputs = loginForm.querySelectorAll('input[type="text"], input[type="password"]');
-
-        // フォームのバリデーション
-        function validateForm() {
-            let isValid = true;
-            inputs.forEach(input => {
-                if (!input.value.trim()) {
-                    isValid = false;
-                    input.classList.add('error');
-                } else {
-                    input.classList.remove('error');
-                }
-            });
-            return isValid;
-        }
-
-        // エラーメッセージの表示
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-            }, 5000); // 5秒後に消える
-        }
-
-        // ログイン処理
-        async function login(username, password) {
-            // ログインボタンを無効化
-            loginButton.disabled = true;
-            loadingIndicator.style.display = 'block';
-
-            try {
-                // 実際の実装では、ここでサーバーへのリクエストを行う
-                await new Promise(resolve => setTimeout(resolve, 1000)); // サーバーレスポンスのシミュレーション
-
-                if (USERS[username] && USERS[username] === password) {
-                    // トークン生成と保存
-                    const token = btoa(Math.random().toString(36) + Date.now().toString(36));
-                    localStorage.setItem('authToken', token);
-                    localStorage.setItem('tokenExpiry', Date.now() + 3600000); // 1時間有効
-                    
-                    // トップページへリダイレクト
-                    window.location.href = 'toppage.html';
-                } else {
-                    throw new Error('ユーザーIDまたはパスワードが正しくありません。');
-                }
-            } catch (error) {
-                showError(error.message);
-                // 入力フィールドをクリア
-                document.getElementById('password').value = '';
-            } finally {
-                loginButton.disabled = false;
-                loadingIndicator.style.display = 'none';
-            }
-        }
-
-        // イベントリスナーの設定
-        loginForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            if (!validateForm()) {
-                showError('すべての項目を入力してください。');
-                return;
-            }
-
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            
-            login(username, password);
-        });
-
-        // 入力フィールドのバリデーション
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                this.classList.remove('error');
-                errorMessage.style.display = 'none';
-            });
-        });
-    });
-    </script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    
+    <script src="login.js"></script> 
 </body>
 </html>
-
-
-
-
-
