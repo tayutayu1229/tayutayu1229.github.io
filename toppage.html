@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>東京圏輸送情報システム トップページ</title>
     <style>
+        /* 既存のスタイルを全て保持 */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #f0f0f0;
@@ -22,10 +23,9 @@
             padding: 1.5rem;
             max-width: 800px;
             width: 95%;
-            /* ページロード中はこの要素を非表示にして、認証ガード中にロード中メッセージを表示 */
+            /* 認証成功まで非表示 */
             display: none; 
         }
-        /* 認証ガード中のローディング表示用のスタイルを追加 */
         #loading-page {
             text-align: center;
             font-size: 1.2rem;
@@ -167,7 +167,7 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         // --------------------------------------------------------------------------
-        // 🚨 【重要】ご自身の Firebase 設定に置き換えてください (login.js と同じ設定)
+        // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
         // --------------------------------------------------------------------------
         const firebaseConfig = {
             apiKey: "YOUR_API_KEY", 
@@ -187,32 +187,37 @@
         const userInfo = document.getElementById('user-info');
         const logoutButton = document.getElementById('firebase-logout-button');
         
-        // --------------------------------------------------------------------------
-        // 1. ページアクセスガード (Firebase認証状態の確認)
-        // --------------------------------------------------------------------------
+        // ユーザーID（ダミーメール）をクリーンアップして表示する関数
+        function getUserIdFromEmail(email) {
+            // @system.local の部分を削除
+            return email.split('@')[0];
+        }
+        
+        // ページアクセスガード (Firebase認証状態の確認)
         auth.onAuthStateChanged((user) => {
             if (user) {
                 // 認証済みの場合: コンテンツを表示
                 loadingPage.style.display = 'none';
                 mainContainer.style.display = 'block';
-                userInfo.textContent = `(${user.email})でログイン中`;
+                
+                // ユーザーIDを表示
+                const userId = getUserIdFromEmail(user.email);
+                userInfo.textContent = `ユーザーID: ${userId} でログイン中`;
 
             } else {
-                // 未認証の場合: ログインページへ強制リダイレクト
+                // 未認証の場合：ログインページへ強制リダイレクト
                 alert("アクセスするにはログインが必要です。セッションが切れました。");
                 window.location.href = 'index.html';
             }
         });
 
-        // --------------------------------------------------------------------------
-        // 2. ログアウト処理 (Firebase signOutに置き換え)
-        // --------------------------------------------------------------------------
+        // ログアウト処理 (Firebase signOut)
         async function firebaseLogout() {
             const confirmed = confirm("本当にログアウトしますか？");
             if (confirmed) {
                 try {
                     await auth.signOut();
-                    // signOutが成功すると onAuthStateChanged がトリガーされ、自動的にリダイレクトされる
+                    // signOut後、onAuthStateChangedがトリガーされ、自動でindex.htmlへリダイレクト
                 } catch (error) {
                     console.error('ログアウトエラー:', error);
                     alert('ログアウトに失敗しました。');
@@ -222,13 +227,8 @@
 
         // ログアウトボタンにFirebaseのログアウト処理を割り当てる
         if (logoutButton) {
-            // HTMLのonclick="confirmLogout()"は削除し、こちらに置き換えます
             logoutButton.addEventListener('click', firebaseLogout);
         }
-        
-        // 旧トークンチェック（セキュリティ強化のため削除推奨ですが、一時的な確認のためコメントアウト）
-        // 旧ロジックはセキュリティリスクがあるため、完全に削除しました。
-        // ローカルストレージを使用した旧ロジックは不要になりました。
     });
     </script>
 </body>
