@@ -121,32 +121,50 @@
             color: #555;
         }
         
-        /* 管理者パネルのスタイル */
+        /* 🚨 【修正】管理者パネルのスタイルを業務システム風に変更 🚨 */
         #admin-panel {
             margin-top: 2rem;
             padding: 1.5rem;
-            background-color: #fff3e0; 
-            border-left: 5px solid #ff9800; 
+            background-color: #e6e6e6; /* 薄いグレーの背景 */
+            border: 1px solid #999; /* シンプルな枠線 */
             border-radius: 5px;
             display: none; 
         }
         #admin-panel h2 {
-            color: #ff9800;
+            color: #333; /* 暗めの色 */
             margin-top: 0;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
         }
-        #pending-users-list ul {
-            list-style: none;
-            padding: 0;
+        /* ユーザーリストをテーブル形式にする */
+        #pending-users-list table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
         }
-        #pending-users-list li {
-            background-color: white;
+        #pending-users-list th, #pending-users-list td {
+            border: 1px solid #ddd;
             padding: 10px;
-            margin-bottom: 8px;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #ffcc80;
+            text-align: left;
+        }
+        #pending-users-list th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            color: #555;
+        }
+        #pending-users-list td button {
+            background-color: #28a745; 
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #pending-users-list td button:hover {
+             background-color: #1e7e34;
         }
     </style>
 </head>
@@ -170,7 +188,7 @@
         </div>
 
         <div id="admin-panel">
-            <h2>🚨 管理者パネル (ユーザー承認)</h2>
+            <h2>🚨 ユーザーアクセス承認パネル</h2>
             <div id="pending-users-list">ユーザーリストをロード中...</div>
         </div>
         
@@ -224,13 +242,12 @@
         // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
         // --------------------------------------------------------------------------
         const firebaseConfig = {
-            apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
-  authDomain: "tokyo-pass.firebaseapp.com",
-  projectId: "tokyo-pass",
-  storageBucket: "tokyo-pass.firebasestorage.app",
-  messagingSenderId: "950120670058",
-  appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
-  measurementId: "G-DSQQ31EZE9"
+            apiKey: "YOUR_API_KEY", 
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
         try {
@@ -243,7 +260,6 @@
             const mainContainer = document.getElementById('main-container');
             const loadingPage = document.getElementById('loading-page');
             const userInfo = document.getElementById('user-info');
-            const accountStatusDiv = document.getElementById('account-status');
             const logoutButton = document.getElementById('firebase-logout-button');
             const changeEmailButton = document.getElementById('change-email-button');
             const changePasswordButton = document.getElementById('change-password-button');
@@ -308,10 +324,10 @@
             });
 
             // ------------------------------------------------------------------
-            // 管理者機能の実装 (変更なし)
+            // 管理者機能の実装
             // ------------------------------------------------------------------
 
-            // 承認待ちユーザーのリストをFirestoreから取得し表示
+            // 承認待ちユーザーのリストをFirestoreから取得し、テーブル形式で表示
             function loadPendingUsers() {
                 console.log("DEBUG: 承認待ちユーザーリストをロード中...");
                 db.collection("users")
@@ -324,7 +340,10 @@
                         return;
                     }
 
-                    let html = '<ul>';
+                    let html = '<table>';
+                    html += '<thead><tr><th>メールアドレス</th><th>申請日時</th><th>操作</th></tr></thead>';
+                    html += '<tbody>';
+                    
                     snapshot.forEach(doc => {
                         const data = doc.data();
                         const userId = doc.id;
@@ -332,13 +351,17 @@
                             data.registeredAt.toDate().toLocaleString('ja-JP') : 'N/A';
                         
                         html += `
-                            <li>
-                                ${data.email} (申請: ${registrationTime}) 
-                                <button onclick="window.approveUser('${userId}')" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">承認</button>
-                            </li>
+                            <tr>
+                                <td>${data.email}</td>
+                                <td>${registrationTime}</td>
+                                <td>
+                                    <button onclick="window.approveUser('${userId}')">承認</button>
+                                </td>
+                            </tr>
                         `;
                     });
-                    html += '</ul>';
+                    
+                    html += '</tbody></table>';
                     pendingUsersList.innerHTML = html;
                     console.log(`DEBUG: 承認待ちユーザー ${snapshot.size} 件をロードしました。`);
                 })
@@ -366,7 +389,7 @@
 
 
             // ------------------------------------------------------------------
-            // 一般ユーザー向けアカウント管理機能 (メール確認関連を削除)
+            // 一般ユーザー向けアカウント管理機能
             // ------------------------------------------------------------------
 
             // 1. メールアドレスの変更
