@@ -51,15 +51,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const user = userCredential.user;
                 console.log(`DEBUG: 認証成功 - UID: ${user.uid}`);
 
-                // 2. メール確認チェック
-                if (!user.emailVerified) {
-                    console.warn("DEBUG: メール未確認。ログアウト処理中...");
-                    await auth.signOut();
-                    showError('ログインできません。メールアドレスの確認が完了していません。受信トレイをご確認ください。');
-                    return;
-                }
-                
-                // 3. Firestoreの承認フラグチェック
+                // 🚨 【変更点】メール確認チェックをスキップ
+
+                // 2. Firestoreの承認フラグチェック
                 const userDoc = await db.collection("users").doc(user.uid).get();
                 
                 if (!userDoc.exists) {
@@ -103,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // パスワード再設定メール送信処理
+        // パスワード再設定メール送信処理 (ロジックは変更なし)
         async function resetPassword() {
             const email = emailInput.value.trim();
             console.log(`DEBUG: パスワードリセット試行 - Email: ${email}`);
