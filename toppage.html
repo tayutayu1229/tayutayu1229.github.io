@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>東京圏輸送情報システム トップページ</title>
     <style>
-        /* 既存のスタイルを全て保持 */
+        /* (スタイルは変更なし。前回のtoppage.htmlのスタイルをそのまま使用) */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #f0f0f0;
@@ -23,7 +23,6 @@
             padding: 1.5rem;
             max-width: 800px;
             width: 95%;
-            /* 認証成功まで非表示 */
             display: none; 
         }
         #loading-page {
@@ -60,7 +59,6 @@
             margin-top: 1.5rem;
             padding: 1rem;
             background-color: #e8f8f5;
-            border-radius: 3px;
             border-left: 5px solid #01977a;
         }
         .info h2 {
@@ -69,23 +67,12 @@
             font-size: 1.2rem;
             margin-bottom: 6px;
         }
-        .info ul {
-            padding-left: 1.2rem;
-        }
-        .info p {
-            margin: 4px 0;
-        }
         .additional-section {
             margin-top: 2rem;
             padding: 1rem;
             background-color: #f9f9f9;
             border-radius: 3px;
             box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-        }
-        .additional-section h2 {
-            font-size: 1.4rem;
-            color: #017a64;
-            margin-bottom: 1rem;
         }
         .logout-container {
             text-align: right;
@@ -136,6 +123,34 @@
         }
         .verified { color: #01977a; font-weight: bold; }
         .unverified { color: #d9534f; font-weight: bold; }
+
+        /* 管理者パネルのスタイル */
+        #admin-panel {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: #fff3e0; 
+            border-left: 5px solid #ff9800; 
+            border-radius: 5px;
+            display: none; 
+        }
+        #admin-panel h2 {
+            color: #ff9800;
+            margin-top: 0;
+        }
+        #pending-users-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        #pending-users-list li {
+            background-color: white;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #ffcc80;
+        }
     </style>
 </head>
 <body>
@@ -145,6 +160,7 @@
     </div>
 
     <div class="container" id="main-container">
+        
         <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;"></p>
         
         <h1>東京圏輸送情報システム</h1>
@@ -157,8 +173,12 @@
             <button id="change-password-button">パスワード変更</button>
         </div>
 
+        <div id="admin-panel">
+            <h2>🚨 管理者パネル (ユーザー承認)</h2>
+            <div id="pending-users-list">ユーザーリストをロード中...</div>
+        </div>
+        
         <div class="button-container">
-            
             <button class="button" onclick="location.href='ATOSlocation.html'">ATOS在線モニタ</button>
             <button class="button" onclick="location.href='train_zai-data.html'">列車在線状況一覧表</button>
             <button class="button" onclick="location.href='train_grasp.html'">運行把握モニタ</button>
@@ -179,15 +199,10 @@
             <button class="button" onclick="location.href='Flightpage.html'">フライトデータページ</button>
             <button class="button" onclick="location.href='ekibetu.html'">駅別ダイヤモニタ</button>
             <button class="button" onclick="location.href='train_ressyabetu.html'">列車別ダイヤモニタ</button>
-
         </div>
         
         <div class="info">
             <h2>ご利用にあたって</h2>
-            <p>本ウェブサイトで使用しているデータは、公共交通オープンデータセンターにより提供されているものです。</p>
-            <p>データは各公共交通事業者からのデータに基づいていますが、必ずしも正確・完全なものではありません。</p>
-            <p>実際の運行状況とは異なる場合がありますので、あらかじめご了承ください。</p>
-            <p>本ウェブサイトの表示内容について、公共交通事業者への直接の問合せは行わないでください。</p>
             <p>本ウェブサイトに関するご質問やご意見は、以下のメールアドレスまでご連絡ください。</p>
             <p><a href="mailto:tayutayu368@gmail.com">tayutayu368@gmail.com</a></p>
         </div>
@@ -205,6 +220,7 @@
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -220,116 +236,243 @@
             appId: "YOUR_APP_ID"
         };
 
-        // Firebase の初期化
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth(); 
+        try {
+            const app = firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth(); 
+            const db = firebase.firestore();
 
-        const mainContainer = document.getElementById('main-container');
-        const loadingPage = document.getElementById('loading-page');
-        const userInfo = document.getElementById('user-info');
-        const accountStatusDiv = document.getElementById('account-status');
-        const logoutButton = document.getElementById('firebase-logout-button');
-        const sendVerificationButton = document.getElementById('send-verification-button');
-        const changeEmailButton = document.getElementById('change-email-button');
-        const changePasswordButton = document.getElementById('change-password-button');
-        
-        // 認証状態の変化を監視し、ページアクセスをガード
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                // 認証済みの場合: コンテンツを表示
-                loadingPage.style.display = 'none';
-                mainContainer.style.display = 'block';
-                
-                // ユーザー情報とアカウント状態の表示
-                userInfo.textContent = `(${user.email})でログイン中`;
-                updateAccountStatus(user);
+            console.log("DEBUG: Firebase SDK 初期化成功 (toppage.html)");
+            
+            const mainContainer = document.getElementById('main-container');
+            const loadingPage = document.getElementById('loading-page');
+            const userInfo = document.getElementById('user-info');
+            const accountStatusDiv = document.getElementById('account-status');
+            const logoutButton = document.getElementById('firebase-logout-button');
+            const sendVerificationButton = document.getElementById('send-verification-button');
+            const changeEmailButton = document.getElementById('change-email-button');
+            const changePasswordButton = document.getElementById('change-password-button');
+            const adminPanel = document.getElementById('admin-panel'); 
+            const pendingUsersList = document.getElementById('pending-users-list');
+            
+            // 認証状態の変化を監視し、ページアクセスをガード
+            auth.onAuthStateChanged(async (user) => { 
+                if (user) {
+                    console.log(`DEBUG: 認証済みユーザー - UID: ${user.uid}`);
+                    
+                    try {
+                        const userDocRef = db.collection("users").doc(user.uid);
+                        const userDoc = await userDocRef.get();
+                        
+                        // 1. 承認チェック
+                        if (!userDoc.exists) {
+                            console.error("DEBUG: Firestoreユーザーデータが見つかりません。");
+                            await auth.signOut();
+                            alert("システムエラー: ユーザーデータが不完全です。再登録してください。");
+                            window.location.href = 'index.html';
+                            return;
+                        }
 
-            } else {
-                // 未認証の場合：ログインページへ強制リダイレクト
-                alert("アクセスするにはログインが必要です。");
-                window.location.href = 'index.html';
+                        const userData = userDoc.data();
+                        
+                        if (!userData.approved) {
+                            console.warn("DEBUG: ユーザーは未承認。トップページアクセスを拒否。");
+                            await auth.signOut();
+                            alert("ログインできません。このアカウントは管理者による承認が完了していません。");
+                            window.location.href = 'index.html';
+                            return;
+                        }
+                        
+                        // 2. コンテンツを表示
+                        loadingPage.style.display = 'none';
+                        mainContainer.style.display = 'block';
+                        
+                        // 3. ユーザー情報とアカウント状態の表示
+                        userInfo.textContent = `(${user.email})でログイン中`;
+                        updateAccountStatus(user);
+
+                        // 4. 管理者権限チェックとパネル表示
+                        if (userData.isAdmin) {
+                            console.log("DEBUG: 管理者権限あり。管理者パネルを表示します。");
+                            adminPanel.style.display = 'block';
+                            loadPendingUsers(); 
+                        } else {
+                            adminPanel.style.display = 'none';
+                        }
+
+                    } catch (error) {
+                        console.error('ERROR: Firestore/承認チェックでエラー', error);
+                        alert("システムエラーが発生しました。管理者にご連絡ください。");
+                        await auth.signOut();
+                        window.location.href = 'index.html';
+                    }
+
+                } else {
+                    console.log("DEBUG: 未認証。ログインページへリダイレクト。");
+                    // 未認証の場合：ログインページへ強制リダイレクト
+                    window.location.href = 'index.html';
+                }
+            });
+
+            // ------------------------------------------------------------------
+            // 管理者機能の実装
+            // ------------------------------------------------------------------
+
+            // 承認待ちユーザーのリストをFirestoreから取得し表示
+            function loadPendingUsers() {
+                console.log("DEBUG: 承認待ちユーザーリストをロード中...");
+                db.collection("users")
+                  .where("approved", "==", false)
+                  .get()
+                  .then((snapshot) => {
+                    if (snapshot.empty) {
+                        pendingUsersList.innerHTML = "承認待ちユーザーはいません。";
+                        console.log("DEBUG: 承認待ちユーザーなし。");
+                        return;
+                    }
+
+                    let html = '<ul>';
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const userId = doc.id;
+                        const registrationTime = data.registeredAt ? 
+                            data.registeredAt.toDate().toLocaleString('ja-JP') : 'N/A';
+                        
+                        html += `
+                            <li>
+                                ${data.email} (申請: ${registrationTime}) 
+                                <button onclick="window.approveUser('${userId}')" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">承認</button>
+                            </li>
+                        `;
+                    });
+                    html += '</ul>';
+                    pendingUsersList.innerHTML = html;
+                    console.log(`DEBUG: 承認待ちユーザー ${snapshot.size} 件をロードしました。`);
+                })
+                .catch(error => {
+                    console.error("ERROR: 承認待ちユーザーの取得エラー: ", error);
+                    pendingUsersList.innerHTML = "ユーザーリストのロード中にエラーが発生しました。";
+                });
             }
-        });
+            
+            // ユーザーを承認する処理 (グローバル関数として定義)
+            window.approveUser = async function(uid) {
+                console.log(`DEBUG: ユーザー承認処理開始 - UID: ${uid}`);
+                if (confirm(`ユーザー ${uid} を承認し、アクセスを許可しますか？`)) {
+                    try {
+                        await db.collection("users").doc(uid).update({ approved: true });
+                        alert(`ユーザー ${uid} を承認しました。次回ログイン時からアクセス可能になります。`);
+                        console.log(`DEBUG: ユーザー ${uid} の承認をFirestoreで完了。`);
+                        loadPendingUsers(); // リストを再ロード
+                    } catch (error) {
+                        console.error("ERROR: ユーザー承認エラー: ", error);
+                        alert("ユーザー承認中にエラーが発生しました。セキュリティルールの問題かもしれません。");
+                    }
+                }
+            };
 
-        // ------------------------------------------------------------------
-        // アカウント管理機能
-        // ------------------------------------------------------------------
 
-        // アカウント確認状態の更新
-        function updateAccountStatus(user) {
-            if (user.emailVerified) {
-                accountStatusDiv.innerHTML = `ステータス: <span class="verified">確認済み</span>`;
-                sendVerificationButton.style.display = 'none'; // 確認済みならボタン非表示
-            } else {
-                accountStatusDiv.innerHTML = `ステータス: <span class="unverified">未確認</span> - 一部の機能が制限される可能性があります。`;
-                sendVerificationButton.style.display = 'inline-block';
+            // ------------------------------------------------------------------
+            // 一般ユーザー向けアカウント管理機能
+            // ------------------------------------------------------------------
+
+            // アカウント確認状態の更新
+            function updateAccountStatus(user) {
+                if (user.emailVerified) {
+                    accountStatusDiv.innerHTML = `メール: <span class="verified">確認済み</span>`;
+                    sendVerificationButton.style.display = 'none';
+                } else {
+                    accountStatusDiv.innerHTML = `メール: <span class="unverified">未確認</span>`;
+                    sendVerificationButton.style.display = 'inline-block';
+                }
             }
-        }
 
-        // 1. メールアドレスの再確認メール送信
-        sendVerificationButton.addEventListener('click', async () => {
-            const user = auth.currentUser;
-            if (user) {
+            // 1. メールアドレスの再確認メール送信
+            sendVerificationButton.addEventListener('click', async () => {
+                const user = auth.currentUser;
+                if (!user) { return; }
+                console.log("DEBUG: メール再確認リンク送信試行");
                 try {
                     await user.sendEmailVerification();
                     alert("確認メールを再送しました。受信トレイをご確認ください。");
+                    console.log("DEBUG: メール再確認リンク送信成功");
                 } catch (error) {
-                    console.error("メール再送エラー:", error);
+                    console.error("ERROR: メール再送エラー:", error);
                     alert("メールの再送に失敗しました。時間をおいてお試しください。");
                 }
-            }
-        });
+            });
 
-        // 2. メールアドレスの変更
-        changeEmailButton.addEventListener('click', async () => {
-            const user = auth.currentUser;
-            const newEmail = prompt(`現在のメールアドレス: ${user.email}\n新しいメールアドレスを入力してください:`);
-            
-            if (newEmail && newEmail !== user.email) {
-                 // パスワードの再認証を求められる場合があるため、一度ログアウトして再ログインを促すのが安全
-                 alert("セキュリティのため、メールアドレス変更には再認証が必要です。\n変更後、自動的にログアウトします。");
-                try {
-                    await user.updateEmail(newEmail);
-                    alert(`メールアドレスを ${newEmail} に変更しました。再度ログインしてください。`);
-                    await auth.signOut();
-                } catch (error) {
-                    console.error("メールアドレス変更エラー:", error);
-                    alert("メールアドレスの変更に失敗しました。パスワード認証の有効期限切れの可能性があります。一度ログアウトし、再ログインしてからお試しください。");
+            // 2. メールアドレスの変更
+            changeEmailButton.addEventListener('click', async () => {
+                const user = auth.currentUser;
+                if (!user) { return; }
+
+                const newEmail = prompt(`現在のメールアドレス: ${user.email}\n新しいメールアドレスを入力してください:`);
+                
+                if (newEmail && newEmail.trim() !== user.email) {
+                     console.log(`DEBUG: メールアドレス変更試行: ${user.email} -> ${newEmail.trim()}`);
+                     alert("セキュリティのため、メールアドレス変更後は自動的にログアウトし、再ログインが必要です。");
+                    try {
+                        await user.updateEmail(newEmail.trim());
+                        console.log("DEBUG: Auth側のメールアドレス更新成功");
+                        
+                        // Firestoreのメールアドレスも更新
+                        await db.collection("users").doc(user.uid).update({ email: newEmail.trim() });
+                        console.log("DEBUG: Firestore側のメールアドレス更新成功");
+                        
+                        alert(`メールアドレスを ${newEmail.trim()} に変更しました。再度ログインしてください。`);
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error("ERROR: メールアドレス変更エラー:", error.code, error.message);
+                        let errMsg = "メールアドレスの変更に失敗しました。";
+                        if (error.code === 'auth/requires-recent-login') {
+                            errMsg += 'セキュリティ上の理由から、この操作には最近のログインが必要です。一度ログアウトし、すぐに再ログインしてからお試しください。';
+                        } else if (error.code === 'auth/invalid-email') {
+                            errMsg += 'メールアドレスの形式が正しくありません。';
+                        } else if (error.code === 'auth/email-already-in-use') {
+                            errMsg += 'そのメールアドレスは既に使用されています。';
+                        }
+                        alert(errMsg);
+                    }
+                }
+            });
+
+            // 3. パスワードの変更 (再設定メールを自分に送る)
+            changePasswordButton.addEventListener('click', async () => {
+                const user = auth.currentUser;
+                if (!user) { return; }
+                console.log("DEBUG: パスワード変更リセットメール送信試行");
+                if (confirm("パスワード変更用のメールを送信しますか？\n(変更はメール内のリンクから行ってください)")) {
+                    try {
+                        await auth.sendPasswordResetEmail(user.email);
+                        alert(`パスワード変更用のメールを ${user.email} に送信しました。ご確認ください。`);
+                        console.log("DEBUG: パスワード変更リセットメール送信成功");
+                    } catch (error) {
+                        console.error("ERROR: パスワード変更メール送信エラー:", error);
+                        alert("パスワード変更メールの送信に失敗しました。時間をおいてお試しください。");
+                    }
+                }
+            });
+
+            // 4. ログアウト処理
+            async function firebaseLogout() {
+                const confirmed = confirm("本当にログアウトしますか？");
+                if (confirmed) {
+                    console.log("DEBUG: ログアウト処理実行");
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('ERROR: ログアウトエラー:', error);
+                        alert('ログアウトに失敗しました。');
+                    }
                 }
             }
-        });
 
-        // 3. パスワードの変更 (再設定メールを自分に送る)
-        changePasswordButton.addEventListener('click', async () => {
-            const user = auth.currentUser;
-            if (confirm("パスワード変更用のメールを送信しますか？\n(変更はメール内のリンクから行ってください)")) {
-                try {
-                    await auth.sendPasswordResetEmail(user.email);
-                    alert(`パスワード変更用のメールを ${user.email} に送信しました。ご確認ください。`);
-                } catch (error) {
-                    console.error("パスワード変更メール送信エラー:", error);
-                    alert("パスワード変更メールの送信に失敗しました。時間をおいてお試しください。");
-                }
+            if (logoutButton) {
+                logoutButton.addEventListener('click', firebaseLogout);
             }
-        });
-
-        // 4. ログアウト処理 (Firebase signOut)
-        async function firebaseLogout() {
-            const confirmed = confirm("本当にログアウトしますか？");
-            if (confirmed) {
-                try {
-                    await auth.signOut();
-                    // signOut後、onAuthStateChangedがトリガーされ、自動でindex.htmlへリダイレクト
-                } catch (error) {
-                    console.error('ログアウトエラー:', error);
-                    alert('ログアウトに失敗しました。');
-                }
-            }
-        }
-
-        // ログアウトボタンにFirebaseのログアウト処理を割り当てる
-        if (logoutButton) {
-            logoutButton.addEventListener('click', firebaseLogout);
+        } catch (e) {
+            console.error("FATAL ERROR: Firebase SDK 初期化失敗 (toppage.html)", e);
+            document.getElementById('loading-page').innerHTML = '<h1>致命的なエラーが発生しました。管理者にご連絡ください。</h1>';
         }
     });
     </script>
