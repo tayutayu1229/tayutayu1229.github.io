@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>東京圏輸送情報システム トップページ</title>
     <style>
-        /* (スタイルは変更なし。前回のtoppage.htmlのスタイルをそのまま使用) */
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #f0f0f0;
@@ -121,9 +120,7 @@
             font-size: 0.9rem;
             color: #555;
         }
-        .verified { color: #01977a; font-weight: bold; }
-        .unverified { color: #d9534f; font-weight: bold; }
-
+        
         /* 管理者パネルのスタイル */
         #admin-panel {
             margin-top: 2rem;
@@ -167,8 +164,7 @@
         
         <div class="account-management">
             <h3>アカウント管理</h3>
-            <div id="account-status" class="account-status"></div>
-            <button id="send-verification-button">メールアドレスを再確認</button>
+            <div id="account-status" class="account-status">ログインアカウント管理</div>
             <button id="change-email-button">メールアドレス変更</button>
             <button id="change-password-button">パスワード変更</button>
         </div>
@@ -228,12 +224,13 @@
         // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
         // --------------------------------------------------------------------------
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY", 
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
+  authDomain: "tokyo-pass.firebaseapp.com",
+  projectId: "tokyo-pass",
+  storageBucket: "tokyo-pass.firebasestorage.app",
+  messagingSenderId: "950120670058",
+  appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
+  measurementId: "G-DSQQ31EZE9"
         };
 
         try {
@@ -248,7 +245,6 @@
             const userInfo = document.getElementById('user-info');
             const accountStatusDiv = document.getElementById('account-status');
             const logoutButton = document.getElementById('firebase-logout-button');
-            const sendVerificationButton = document.getElementById('send-verification-button');
             const changeEmailButton = document.getElementById('change-email-button');
             const changePasswordButton = document.getElementById('change-password-button');
             const adminPanel = document.getElementById('admin-panel'); 
@@ -286,9 +282,8 @@
                         loadingPage.style.display = 'none';
                         mainContainer.style.display = 'block';
                         
-                        // 3. ユーザー情報とアカウント状態の表示
+                        // 3. ユーザー情報表示
                         userInfo.textContent = `(${user.email})でログイン中`;
-                        updateAccountStatus(user);
 
                         // 4. 管理者権限チェックとパネル表示
                         if (userData.isAdmin) {
@@ -308,13 +303,12 @@
 
                 } else {
                     console.log("DEBUG: 未認証。ログインページへリダイレクト。");
-                    // 未認証の場合：ログインページへ強制リダイレクト
                     window.location.href = 'index.html';
                 }
             });
 
             // ------------------------------------------------------------------
-            // 管理者機能の実装
+            // 管理者機能の実装 (変更なし)
             // ------------------------------------------------------------------
 
             // 承認待ちユーザーのリストをFirestoreから取得し表示
@@ -372,36 +366,10 @@
 
 
             // ------------------------------------------------------------------
-            // 一般ユーザー向けアカウント管理機能
+            // 一般ユーザー向けアカウント管理機能 (メール確認関連を削除)
             // ------------------------------------------------------------------
 
-            // アカウント確認状態の更新
-            function updateAccountStatus(user) {
-                if (user.emailVerified) {
-                    accountStatusDiv.innerHTML = `メール: <span class="verified">確認済み</span>`;
-                    sendVerificationButton.style.display = 'none';
-                } else {
-                    accountStatusDiv.innerHTML = `メール: <span class="unverified">未確認</span>`;
-                    sendVerificationButton.style.display = 'inline-block';
-                }
-            }
-
-            // 1. メールアドレスの再確認メール送信
-            sendVerificationButton.addEventListener('click', async () => {
-                const user = auth.currentUser;
-                if (!user) { return; }
-                console.log("DEBUG: メール再確認リンク送信試行");
-                try {
-                    await user.sendEmailVerification();
-                    alert("確認メールを再送しました。受信トレイをご確認ください。");
-                    console.log("DEBUG: メール再確認リンク送信成功");
-                } catch (error) {
-                    console.error("ERROR: メール再送エラー:", error);
-                    alert("メールの再送に失敗しました。時間をおいてお試しください。");
-                }
-            });
-
-            // 2. メールアドレスの変更
+            // 1. メールアドレスの変更
             changeEmailButton.addEventListener('click', async () => {
                 const user = auth.currentUser;
                 if (!user) { return; }
@@ -436,7 +404,7 @@
                 }
             });
 
-            // 3. パスワードの変更 (再設定メールを自分に送る)
+            // 2. パスワードの変更 (再設定メールを自分に送る)
             changePasswordButton.addEventListener('click', async () => {
                 const user = auth.currentUser;
                 if (!user) { return; }
@@ -453,7 +421,7 @@
                 }
             });
 
-            // 4. ログアウト処理
+            // 3. ログアウト処理
             async function firebaseLogout() {
                 const confirmed = confirm("本当にログアウトしますか？");
                 if (confirmed) {
