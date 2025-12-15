@@ -22,6 +22,14 @@
             padding: 1.5rem;
             max-width: 800px;
             width: 95%;
+            /* ページロード中はこの要素を非表示にして、認証ガード中にロード中メッセージを表示 */
+            display: none; 
+        }
+        /* 認証ガード中のローディング表示用のスタイルを追加 */
+        #loading-page {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #01977a;
         }
         h1 {
             color: #01977a;
@@ -79,41 +87,6 @@
             color: #017a64;
             margin-bottom: 1rem;
         }
-        .form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 0.8rem;
-        }
-        .form-container input,
-        .form-container textarea,
-        .form-container button {
-            width: 100%;
-            padding: 0.8rem;
-            border-radius: 3px;
-            border: 1px solid #ccc;
-            font-size: 1rem;
-        }
-        .form-container button {
-            background-color: #01977a;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .form-container button:hover {
-            background-color: #017a64;
-        }
-        @media (max-width: 600px) {
-            .container {
-                padding: 1rem;
-            }
-            h1 {
-                font-size: 1.5rem;
-            }
-            .button {
-                font-size: 0.9rem;
-            }
-        }
         .logout-container {
             text-align: right;
             margin-top: 1rem;
@@ -132,17 +105,16 @@
             background-color: #c9302c;
         }
     </style>
-    <script>
-        function confirmLogout() {
-            const confirmed = confirm("本当にログアウトしますか？");
-            if (confirmed) {
-                location.href = 'index.html';
-            }
-        }
-    </script>
 </head>
 <body>
-    <div class="container">
+    
+    <div id="loading-page">
+        <p>認証情報を確認中です...しばらくお待ちください。</p>
+    </div>
+
+    <div class="container" id="main-container">
+        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;"></p>
+        
         <h1>東京圏輸送情報システム</h1>
         <div class="button-container">
             
@@ -167,16 +139,9 @@
             <button class="button" onclick="location.href='ekibetu.html'">駅別ダイヤモニタ</button>
             <button class="button" onclick="location.href='train_ressyabetu.html'">列車別ダイヤモニタ</button>
 
-            <!--
-            <button class="button" onclick="location.href='desgi-line_info.html'">指定路線状況確認</button>
-            <button class="button" onclick="location.href='train_table#.html'">【現在使用不可】ダイヤ掲載列車一覧</button>
-            <button class="button" onclick="location.href='train_plan#.html'">【現在使用不可】運転計画モニタ</button>
-            <button class="button" onclick="location.href='login.html'">宮原統括セシステムログイン</button>  
-            -->
-
-        </div>
+            </div>
         <div class="info">
-             <h2>ご利用にあたって</h2>
+            <h2>ご利用にあたって</h2>
             <p>本ウェブサイトで使用しているデータは、公共交通オープンデータセンターにより提供されているものです。</p>
             <p>データは各公共交通事業者からのデータに基づいていますが、必ずしも正確・完全なものではありません。</p>
             <p>実際の運行状況とは異なる場合がありますので、あらかじめご了承ください。</p>
@@ -188,39 +153,83 @@
         <div class="additional-section">
             <h2>その他</h2>
             <div class="button-container">
-                <!--<button class="button" onclick="location.href='help.html'">ご利用ガイド</button>-->
                 <button class="button" onclick="location.href='outside.html'">外部サイト</button>
             </div>
         </div>
         <div class="logout-container">
-            <button class="logout-button" onclick="confirmLogout()">ログアウト</button>
+            <button class="logout-button" id="firebase-logout-button">ログアウト</button>
         </div>
     </div>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-    // トークン検証
-    const token = localStorage.getItem('authToken');
-    const tokenExpiry = localStorage.getItem('tokenExpiry');
+        // --------------------------------------------------------------------------
+        // 🚨 【重要】ご自身の Firebase 設定に置き換えてください (login.js と同じ設定)
+        // --------------------------------------------------------------------------
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY", 
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
 
-    if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-        // 無効な場合はログインページへ
-        alert('セッションが切れました');
-        window.location.href = 'index.html';
-    }
+        // Firebase の初期化
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); 
 
-    // ログアウト関数
-    function logout() {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('tokenExpiry');
-        window.location.href = 'index.html';
-    }
+        const mainContainer = document.getElementById('main-container');
+        const loadingPage = document.getElementById('loading-page');
+        const userInfo = document.getElementById('user-info');
+        const logoutButton = document.getElementById('firebase-logout-button');
+        
+        // --------------------------------------------------------------------------
+        // 1. ページアクセスガード (Firebase認証状態の確認)
+        // --------------------------------------------------------------------------
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                // 認証済みの場合: コンテンツを表示
+                loadingPage.style.display = 'none';
+                mainContainer.style.display = 'block';
+                userInfo.textContent = `(${user.email})でログイン中`;
 
-    // ログアウトボタンにイベント追加
-    const logoutButton = document.querySelector('.logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', logout);
-    }
-});
+            } else {
+                // 未認証の場合: ログインページへ強制リダイレクト
+                alert("アクセスするにはログインが必要です。セッションが切れました。");
+                window.location.href = 'index.html';
+            }
+        });
+
+        // --------------------------------------------------------------------------
+        // 2. ログアウト処理 (Firebase signOutに置き換え)
+        // --------------------------------------------------------------------------
+        async function firebaseLogout() {
+            const confirmed = confirm("本当にログアウトしますか？");
+            if (confirmed) {
+                try {
+                    await auth.signOut();
+                    // signOutが成功すると onAuthStateChanged がトリガーされ、自動的にリダイレクトされる
+                } catch (error) {
+                    console.error('ログアウトエラー:', error);
+                    alert('ログアウトに失敗しました。');
+                }
+            }
+        }
+
+        // ログアウトボタンにFirebaseのログアウト処理を割り当てる
+        if (logoutButton) {
+            // HTMLのonclick="confirmLogout()"は削除し、こちらに置き換えます
+            logoutButton.addEventListener('click', firebaseLogout);
+        }
+        
+        // 旧トークンチェック（セキュリティ強化のため削除推奨ですが、一時的な確認のためコメントアウト）
+        // 旧ロジックはセキュリティリスクがあるため、完全に削除しました。
+        // ローカルストレージを使用した旧ロジックは不要になりました。
+    });
     </script>
 </body>
 </html>
