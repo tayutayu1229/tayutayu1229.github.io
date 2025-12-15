@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, isSuccess ? 10000 : 5000); 
         }
 
-        // フォームのバリデーション (省略)
+        // フォームのバリデーション (変更なし)
         function validateForm() {
             let isValid = true;
             inputs.forEach(input => {
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
 
-        // 新規登録処理（登録とFirestoreへの承認待ちドキュメント作成）
+        // 新規登録処理（メール確認をスキップ）
         async function registerUser(email, password) {
             registerButton.disabled = true;
             loadingIndicator.style.display = 'block';
@@ -84,26 +84,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 const user = userCredential.user;
                 console.log(`DEBUG: Auth登録成功 - UID: ${user.uid}`);
 
-                // 2. メール確認リンクを送信
-                await user.sendEmailVerification();
-                console.log("DEBUG: メール確認リンク送信成功");
+                // 🚨 【削除】メール確認リンク送信処理を削除
+                // await user.sendEmailVerification(); 
+                // console.log("DEBUG: メール確認リンク送信成功 (スキップ)");
                 
-                // 3. Firestoreに承認待ちレコードを登録
+                // 2. Firestoreに承認待ちレコードを登録
                 const docRef = db.collection("users").doc(user.uid);
                 await docRef.set({
                     email: email,
-                    approved: false,
+                    approved: false, // 承認フラグを false に設定
                     isAdmin: false,
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 console.log("DEBUG: Firestoreに承認待ちレコード作成成功");
 
-                // 4. ユーザーをログアウトさせ、承認待ちを通知
+                // 3. ユーザーをログアウトさせ、承認待ちを通知
                 await auth.signOut();
                 
                 showMessage(
-                    'アカウントの申請が完了しました。ご登録のメールアドレスに確認リンクを送信しました。\n' +
-                    '🚨 メール確認後も、**管理者による承認が完了するまでログインできません**。承認をお待ちください。', 
+                    'アカウントの申請が完了しました。\n' +
+                    '🚨 **管理者による承認が完了するまでログインできません**。承認をお待ちください。', 
                     true
                 );
                 
