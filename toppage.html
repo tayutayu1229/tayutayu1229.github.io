@@ -3,233 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>東京圏輸送情報システム トップページ</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <title>東京圏輸送情報システム ログインページ</title>
     <style>
-        /* 既存のスタイルを全て保持 */
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
             background-color: #f0f0f0;
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            height: 100vh;
         }
-        .container {
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            max-width: 800px;
-            width: 95%;
-            /* 認証成功まで非表示 */
-            display: none; 
+        .login-container {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            max-width: 90%;
         }
-        #loading-page {
-            text-align: center;
-            font-size: 1.2rem;
-            color: #01977a;
-        }
-        h1 {
+        h2 {
             color: #01977a;
             text-align: center;
             margin-bottom: 1.5rem;
-            font-size: 1.8rem;
         }
-        .button-container {
-            display: grid;
-            gap: 0.8rem;
+        form {
+            display: flex;
+            flex-direction: column;
         }
-        .button {
-            background-color: #01977a;
-            color: white;
-            border: none;
-            padding: 0.8rem;
-            border-radius: 3px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            text-align: left;
-            font-weight: bold;
+        label {
+            margin-bottom: 0.5rem;
+            color: #333;
         }
-        .button:hover {
-            background-color: #017a64;
-        }
-        .info {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background-color: #e8f8f5;
-            border-radius: 3px;
-            border-left: 5px solid #01977a;
-        }
-        .info h2 {
-            color: #01977a;
-            margin-top: 0;
-            font-size: 1.2rem;
-            margin-bottom: 6px;
-        }
-        .info ul {
-            padding-left: 1.2rem;
-        }
-        .info p {
-            margin: 4px 0;
-        }
-        .additional-section {
-            margin-top: 2rem;
-            padding: 1rem;
-            background-color: #f9f9f9;
-            border-radius: 3px;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-        }
-        .additional-section h2 {
-            font-size: 1.4rem;
-            color: #017a64;
+        .input-group {
+            position: relative;
             margin-bottom: 1rem;
         }
-        .logout-container {
-            text-align: right;
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #01977a;
+            box-shadow: 0 0 0 2px rgba(1, 151, 122, 0.2);
+        }
+        .error {
+            border-color: #d32f2f !important;
+        }
+        input[type="submit"] {
+            background-color: #01977a;
+            color: white;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+        input[type="submit"]:hover {
+            background-color: #017a64;
+        }
+        input[type="submit"]:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #error-message {
+            color: #d32f2f;
+            text-align: center;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            background-color: #ffebee;
+            display: none;
+        }
+        .system-info {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .loading {
+            display: none;
+            text-align: center;
             margin-top: 1rem;
         }
-        .logout-button {
-            background-color: #d9534f;
-            color: white;
-            border: none;
-            padding: 0.8rem 1.2rem;
-            border-radius: 3px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s;
+        .loading::after {
+            content: "...";
+            animation: dots 1.5s steps(4, end) infinite;
         }
-        .logout-button:hover {
-            background-color: #c9302c;
+        @keyframes dots {
+            0%, 20% { content: ""; }
+            40% { content: "."; }
+            60% { content: ".."; }
+            80% { content: "..."; }
+        }
+        .link-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .link-group a {
+            color: #01977a;
+            text-decoration: none;
         }
     </style>
 </head>
 <body>
-    
-    <div id="loading-page">
-        <p>認証情報を確認中です...しばらくお待ちください。</p>
-    </div>
-
-    <div class="container" id="main-container">
-        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;"></p>
+    <div class="login-container">
+        <h2>東京圏輸送情報システム</h2>
         
-        <h1>東京圏輸送情報システム</h1>
-        <div class="button-container">
-            
-            <button class="button" onclick="location.href='ATOSlocation.html'">ATOS在線モニタ</button>
-            <button class="button" onclick="location.href='train_zai-data.html'">列車在線状況一覧表</button>
-            <button class="button" onclick="location.href='train_grasp.html'">運行把握モニタ</button>
-            <button class="button" onclick="location.href='T-time/mobileatos.html'">ATOSダイヤモニタ</button>
-            <button class="button" onclick="location.href='train_info.html'">運行情報一覧</button>
-            <button class="button" onclick="location.href='JRFtest/jr_freight_status.html'">貨物輸送状況</button>
-            <button class="button" onclick="location.href='JREgyoumu/JREtop.html'">東日本旅客鉄道システムページ</button>
-            <button class="button" onclick="location.href='eastaria-info.html'">他会社線運行情報</button>
-            <button class="button" onclick="location.href='flight/DAsystem.html'">離着陸発着監視システム</button>
-            <button class="button" onclick="location.href='T-time/T-time.html'">列車検索システム</button>
-            <button class="button" onclick="location.href='unnyou/unnyouindex.html'">運用情報検索システム</button>
-            <button class="button" onclick="location.href='unnyou/datacreate.html'">運用データ作成ツール</button>
-            <button class="button" onclick="location.href='timeedit.html'">時刻表データ作成ツール</button>
-            <button class="button" onclick="location.href='tobu-zai.html'">東武線在線モニタ</button>
-            <button class="button" onclick="location.href='keisei-zai.html'">京成線在線モニタ</button>
-            <button class="button" onclick="location.href='zaisen-JRE.html'">JR東日本駅列車在線モニタ</button>
-            <button class="button" onclick="location.href='TWR-top.html'">りんかい線システムページ</button>
-            <button class="button" onclick="location.href='Flightpage.html'">フライトデータページ</button>
-            <button class="button" onclick="location.href='ekibetu.html'">駅別ダイヤモニタ</button>
-            <button class="button" onclick="location.href='train_ressyabetu.html'">列車別ダイヤモニタ</button>
-
+        <form id="login-form">
+            <div class="input-group">
+                <label for="email">メールアドレス:</label>
+                <input type="text" name="email" id="email" required autocomplete="email" placeholder="user@example.com">
             </div>
-        <div class="info">
-            <h2>ご利用にあたって</h2>
-            <p>本ウェブサイトで使用しているデータは、公共交通オープンデータセンターにより提供されているものです。</p>
-            <p>データは各公共交通事業者からのデータに基づいていますが、必ずしも正確・完全なものではありません。</p>
-            <p>実際の運行状況とは異なる場合がありますので、あらかじめご了承ください。</p>
-            <p>本ウェブサイトの表示内容について、公共交通事業者への直接の問合せは行わないでください。</p>
-            <p>本ウェブサイトに関するご質問やご意見は、以下のメールアドレスまでご連絡ください。</p>
-            <p><a href="mailto:tayutayu368@gmail.com">tayutayu368@gmail.com</a></p>
+            <div class="input-group">
+                <label for="password">パスワード:</label>
+                <input type="password" name="password" id="password" required autocomplete="current-password">
+            </div>
+            <input type="submit" value="ログイン" id="login-button">
+        </form>
+        <div id="loading" class="loading">ログイン中</div>
+        <p id="error-message"></p>
+        
+        <div class="link-group">
+            <a href="register.html">新規ユーザー登録はこちら</a>
+            <a href="#" id="reset-password-link">パスワードを忘れた場合</a>
         </div>
 
-        <div class="additional-section">
-            <h2>その他</h2>
-            <div class="button-container">
-                <button class="button" onclick="location.href='outside.html'">外部サイト</button>
-            </div>
+        <div class="system-info">
+            <p>システムバージョン: 2.94.140</p>
+            <p>最終更新日: 2025年12月15日</p>
         </div>
-        <div class="logout-container">
-            <button class="logout-button" id="firebase-logout-button">ログアウト</button>
+        <div class="login-footer">
+            <p>&copy; 2025 N・H／yoshiシステム管理部門</p>
+            <p>お問い合わせ: 中央指令室</p>
         </div>
     </div>
-    
+
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // --------------------------------------------------------------------------
-        // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
-        // --------------------------------------------------------------------------
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY", 
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
-
-        // Firebase の初期化
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth(); 
-
-        const mainContainer = document.getElementById('main-container');
-        const loadingPage = document.getElementById('loading-page');
-        const userInfo = document.getElementById('user-info');
-        const logoutButton = document.getElementById('firebase-logout-button');
-        
-        // ユーザーID（ダミーメール）をクリーンアップして表示する関数
-        function getUserIdFromEmail(email) {
-            // @system.local の部分を削除
-            return email.split('@')[0];
-        }
-        
-        // ページアクセスガード (Firebase認証状態の確認)
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                // 認証済みの場合: コンテンツを表示
-                loadingPage.style.display = 'none';
-                mainContainer.style.display = 'block';
-                
-                // ユーザーIDを表示
-                const userId = getUserIdFromEmail(user.email);
-                userInfo.textContent = `ユーザーID: ${userId} でログイン中`;
-
-            } else {
-                // 未認証の場合：ログインページへ強制リダイレクト
-                alert("アクセスするにはログインが必要です。セッションが切れました。");
-                window.location.href = 'index.html';
-            }
-        });
-
-        // ログアウト処理 (Firebase signOut)
-        async function firebaseLogout() {
-            const confirmed = confirm("本当にログアウトしますか？");
-            if (confirmed) {
-                try {
-                    await auth.signOut();
-                    // signOut後、onAuthStateChangedがトリガーされ、自動でindex.htmlへリダイレクト
-                } catch (error) {
-                    console.error('ログアウトエラー:', error);
-                    alert('ログアウトに失敗しました。');
-                }
-            }
-        }
-
-        // ログアウトボタンにFirebaseのログアウト処理を割り当てる
-        if (logoutButton) {
-            logoutButton.addEventListener('click', firebaseLogout);
-        }
-    });
-    </script>
+    
+    <script src="login.js"></script> 
 </body>
 </html>
