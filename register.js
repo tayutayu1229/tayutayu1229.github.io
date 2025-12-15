@@ -3,12 +3,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
     // --------------------------------------------------------------------------
     const firebaseConfig = {
-        apiKey: "YOUR_API_KEY", 
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
+  authDomain: "tokyo-pass.firebaseapp.com",
+  projectId: "tokyo-pass",
+  storageBucket: "tokyo-pass.firebasestorage.app",
+  messagingSenderId: "950120670058",
+  appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
+  measurementId: "G-DSQQ31EZE9"
     };
 
     // Firebase の初期化
