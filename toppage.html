@@ -22,12 +22,8 @@
             padding: 1.5rem;
             max-width: 800px;
             width: 95%;
+            /* 認証ガードが成功するまで非表示 */
             display: none; 
-        }
-        #loading-page {
-            text-align: center;
-            font-size: 1.2rem;
-            color: #01977a;
         }
         h1 {
             color: #01977a;
@@ -53,6 +49,15 @@
         }
         .button:hover {
             background-color: #017a64;
+        }
+        /* 管理ページへのボタンを追加 */
+        .management-button {
+            background-color: #3f51b5;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .management-button:hover {
+            background-color: #303f9f;
         }
         .info {
             margin-top: 1.5rem;
@@ -90,108 +95,20 @@
         .logout-button:hover {
             background-color: #c9302c;
         }
-        /* アカウント管理セクションのスタイル */
-        .account-management {
-            margin-top: 1rem;
-            padding: 1rem;
-            border: 1px dashed #ccc;
-            border-radius: 4px;
-        }
-        .account-management h3 {
-            color: #333;
-            font-size: 1.1rem;
-            margin-bottom: 0.8rem;
-        }
-        .account-management button {
-            background-color: #3f51b5;
-            color: white;
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            margin-right: 0.5rem;
-            transition: background-color 0.2s;
-        }
-        .account-management button:hover {
-            background-color: #303f9f;
-        }
-        .account-status {
-            margin-bottom: 0.8rem;
-            font-size: 0.9rem;
-            color: #555;
-        }
-        
-        /* 🚨 【修正】管理者パネルのスタイルを業務システム風に変更 🚨 */
-        #admin-panel {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            background-color: #e6e6e6; /* 薄いグレーの背景 */
-            border: 1px solid #999; /* シンプルな枠線 */
-            border-radius: 5px;
-            display: none; 
-        }
-        #admin-panel h2 {
-            color: #333; /* 暗めの色 */
-            margin-top: 0;
-            border-bottom: 2px solid #ccc;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-        }
-        /* ユーザーリストをテーブル形式にする */
-        #pending-users-list table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95rem;
-        }
-        #pending-users-list th, #pending-users-list td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-        }
-        #pending-users-list th {
-            background-color: #f5f5f5;
-            font-weight: bold;
-            color: #555;
-        }
-        #pending-users-list td button {
-            background-color: #28a745; 
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        #pending-users-list td button:hover {
-             background-color: #1e7e34;
-        }
     </style>
 </head>
 <body>
     
-    <div id="loading-page">
-        <p>認証情報を確認中です...しばらくお待ちください。</p>
-    </div>
-
-    <div class="container" id="main-container">
+    <div class="container" id="main-content">
         
-        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;"></p>
+        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;">(認証チェック中)</p>
         
         <h1>東京圏輸送情報システム</h1>
         
-        <div class="account-management">
-            <h3>アカウント管理</h3>
-            <div id="account-status" class="account-status">ログインアカウント管理</div>
-            <button id="change-email-button">メールアドレス変更</button>
-            <button id="change-password-button">パスワード変更</button>
-        </div>
+        <button class="button management-button" onclick="location.href='account_management.html'">
+            アカウント管理・ユーザー承認
+        </button>
 
-        <div id="admin-panel">
-            <h2>🚨 ユーザーアクセス承認パネル</h2>
-            <div id="pending-users-list">ユーザーリストをロード中...</div>
-        </div>
-        
         <div class="button-container">
             <button class="button" onclick="location.href='ATOSlocation.html'">ATOS在線モニタ</button>
             <button class="button" onclick="location.href='train_zai-data.html'">列車在線状況一覧表</button>
@@ -236,237 +153,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // --------------------------------------------------------------------------
-        // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
-        // --------------------------------------------------------------------------
-        const firebaseConfig = {
-            apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
-  authDomain: "tokyo-pass.firebaseapp.com",
-  projectId: "tokyo-pass",
-  storageBucket: "tokyo-pass.firebasestorage.app",
-  messagingSenderId: "950120670058",
-  appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
-  measurementId: "G-DSQQ31EZE9"
-        };
-
-        try {
-            const app = firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth(); 
-            const db = firebase.firestore();
-
-            console.log("DEBUG: Firebase SDK 初期化成功 (toppage.html)");
-            
-            const mainContainer = document.getElementById('main-container');
-            const loadingPage = document.getElementById('loading-page');
-            const userInfo = document.getElementById('user-info');
-            const logoutButton = document.getElementById('firebase-logout-button');
-            const changeEmailButton = document.getElementById('change-email-button');
-            const changePasswordButton = document.getElementById('change-password-button');
-            const adminPanel = document.getElementById('admin-panel'); 
-            const pendingUsersList = document.getElementById('pending-users-list');
-            
-            // 認証状態の変化を監視し、ページアクセスをガード
-            auth.onAuthStateChanged(async (user) => { 
-                if (user) {
-                    console.log(`DEBUG: 認証済みユーザー - UID: ${user.uid}`);
-                    
-                    try {
-                        const userDocRef = db.collection("users").doc(user.uid);
-                        const userDoc = await userDocRef.get();
-                        
-                        // 1. 承認チェック
-                        if (!userDoc.exists) {
-                            console.error("DEBUG: Firestoreユーザーデータが見つかりません。");
-                            await auth.signOut();
-                            alert("システムエラー: ユーザーデータが不完全です。再登録してください。");
-                            window.location.href = 'index.html';
-                            return;
-                        }
-
-                        const userData = userDoc.data();
-                        
-                        if (!userData.approved) {
-                            console.warn("DEBUG: ユーザーは未承認。トップページアクセスを拒否。");
-                            await auth.signOut();
-                            alert("ログインできません。このアカウントは管理者による承認が完了していません。");
-                            window.location.href = 'index.html';
-                            return;
-                        }
-                        
-                        // 2. コンテンツを表示
-                        loadingPage.style.display = 'none';
-                        mainContainer.style.display = 'block';
-                        
-                        // 3. ユーザー情報表示
-                        userInfo.textContent = `(${user.email})でログイン中`;
-
-                        // 4. 管理者権限チェックとパネル表示
-                        if (userData.isAdmin) {
-                            console.log("DEBUG: 管理者権限あり。管理者パネルを表示します。");
-                            adminPanel.style.display = 'block';
-                            loadPendingUsers(); 
-                        } else {
-                            adminPanel.style.display = 'none';
-                        }
-
-                    } catch (error) {
-                        console.error('ERROR: Firestore/承認チェックでエラー', error);
-                        alert("システムエラーが発生しました。管理者にご連絡ください。");
-                        await auth.signOut();
-                        window.location.href = 'index.html';
-                    }
-
-                } else {
-                    console.log("DEBUG: 未認証。ログインページへリダイレクト。");
-                    window.location.href = 'index.html';
-                }
-            });
-
-            // ------------------------------------------------------------------
-            // 管理者機能の実装
-            // ------------------------------------------------------------------
-
-            // 承認待ちユーザーのリストをFirestoreから取得し、テーブル形式で表示
-            function loadPendingUsers() {
-                console.log("DEBUG: 承認待ちユーザーリストをロード中...");
-                db.collection("users")
-                  .where("approved", "==", false)
-                  .get()
-                  .then((snapshot) => {
-                    if (snapshot.empty) {
-                        pendingUsersList.innerHTML = "承認待ちユーザーはいません。";
-                        console.log("DEBUG: 承認待ちユーザーなし。");
-                        return;
-                    }
-
-                    let html = '<table>';
-                    html += '<thead><tr><th>メールアドレス</th><th>申請日時</th><th>操作</th></tr></thead>';
-                    html += '<tbody>';
-                    
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        const userId = doc.id;
-                        const registrationTime = data.registeredAt ? 
-                            data.registeredAt.toDate().toLocaleString('ja-JP') : 'N/A';
-                        
-                        html += `
-                            <tr>
-                                <td>${data.email}</td>
-                                <td>${registrationTime}</td>
-                                <td>
-                                    <button onclick="window.approveUser('${userId}')">承認</button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                    
-                    html += '</tbody></table>';
-                    pendingUsersList.innerHTML = html;
-                    console.log(`DEBUG: 承認待ちユーザー ${snapshot.size} 件をロードしました。`);
-                })
-                .catch(error => {
-                    console.error("ERROR: 承認待ちユーザーの取得エラー: ", error);
-                    pendingUsersList.innerHTML = "ユーザーリストのロード中にエラーが発生しました。";
-                });
-            }
-            
-            // ユーザーを承認する処理 (グローバル関数として定義)
-            window.approveUser = async function(uid) {
-                console.log(`DEBUG: ユーザー承認処理開始 - UID: ${uid}`);
-                if (confirm(`ユーザー ${uid} を承認し、アクセスを許可しますか？`)) {
-                    try {
-                        await db.collection("users").doc(uid).update({ approved: true });
-                        alert(`ユーザー ${uid} を承認しました。次回ログイン時からアクセス可能になります。`);
-                        console.log(`DEBUG: ユーザー ${uid} の承認をFirestoreで完了。`);
-                        loadPendingUsers(); // リストを再ロード
-                    } catch (error) {
-                        console.error("ERROR: ユーザー承認エラー: ", error);
-                        alert("ユーザー承認中にエラーが発生しました。セキュリティルールの問題かもしれません。");
-                    }
-                }
-            };
-
-
-            // ------------------------------------------------------------------
-            // 一般ユーザー向けアカウント管理機能
-            // ------------------------------------------------------------------
-
-            // 1. メールアドレスの変更
-            changeEmailButton.addEventListener('click', async () => {
-                const user = auth.currentUser;
-                if (!user) { return; }
-
-                const newEmail = prompt(`現在のメールアドレス: ${user.email}\n新しいメールアドレスを入力してください:`);
-                
-                if (newEmail && newEmail.trim() !== user.email) {
-                     console.log(`DEBUG: メールアドレス変更試行: ${user.email} -> ${newEmail.trim()}`);
-                     alert("セキュリティのため、メールアドレス変更後は自動的にログアウトし、再ログインが必要です。");
-                    try {
-                        await user.updateEmail(newEmail.trim());
-                        console.log("DEBUG: Auth側のメールアドレス更新成功");
-                        
-                        // Firestoreのメールアドレスも更新
-                        await db.collection("users").doc(user.uid).update({ email: newEmail.trim() });
-                        console.log("DEBUG: Firestore側のメールアドレス更新成功");
-                        
-                        alert(`メールアドレスを ${newEmail.trim()} に変更しました。再度ログインしてください。`);
-                        await auth.signOut();
-                    } catch (error) {
-                        console.error("ERROR: メールアドレス変更エラー:", error.code, error.message);
-                        let errMsg = "メールアドレスの変更に失敗しました。";
-                        if (error.code === 'auth/requires-recent-login') {
-                            errMsg += 'セキュリティ上の理由から、この操作には最近のログインが必要です。一度ログアウトし、すぐに再ログインしてからお試しください。';
-                        } else if (error.code === 'auth/invalid-email') {
-                            errMsg += 'メールアドレスの形式が正しくありません。';
-                        } else if (error.code === 'auth/email-already-in-use') {
-                            errMsg += 'そのメールアドレスは既に使用されています。';
-                        }
-                        alert(errMsg);
-                    }
-                }
-            });
-
-            // 2. パスワードの変更 (再設定メールを自分に送る)
-            changePasswordButton.addEventListener('click', async () => {
-                const user = auth.currentUser;
-                if (!user) { return; }
-                console.log("DEBUG: パスワード変更リセットメール送信試行");
-                if (confirm("パスワード変更用のメールを送信しますか？\n(変更はメール内のリンクから行ってください)")) {
-                    try {
-                        await auth.sendPasswordResetEmail(user.email);
-                        alert(`パスワード変更用のメールを ${user.email} に送信しました。ご確認ください。`);
-                        console.log("DEBUG: パスワード変更リセットメール送信成功");
-                    } catch (error) {
-                        console.error("ERROR: パスワード変更メール送信エラー:", error);
-                        alert("パスワード変更メールの送信に失敗しました。時間をおいてお試しください。");
-                    }
-                }
-            });
-
-            // 3. ログアウト処理
-            async function firebaseLogout() {
-                const confirmed = confirm("本当にログアウトしますか？");
-                if (confirmed) {
-                    console.log("DEBUG: ログアウト処理実行");
-                    try {
-                        await auth.signOut();
-                    } catch (error) {
-                        console.error('ERROR: ログアウトエラー:', error);
-                        alert('ログアウトに失敗しました。');
-                    }
-                }
-            }
-
-            if (logoutButton) {
-                logoutButton.addEventListener('click', firebaseLogout);
-            }
-        } catch (e) {
-            console.error("FATAL ERROR: Firebase SDK 初期化失敗 (toppage.html)", e);
-            document.getElementById('loading-page').innerHTML = '<h1>致命的なエラーが発生しました。管理者にご連絡ください。</h1>';
-        }
-    });
-    </script>
+    <script src="auth_guard.js"></script>
+    
 </body>
 </html>
