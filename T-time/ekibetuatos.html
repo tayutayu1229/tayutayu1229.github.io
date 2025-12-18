@@ -6,7 +6,6 @@
     <title>Mobile ATOS App</title>
     <style>
         :root {
-            /* 基本フォント設定: 全て MSPゴシック で統一 */
             --atos-font: "MS PGothic", "ＭＳ Ｐゴシック", sans-serif;
             --atos-table-header: #1A968A; 
             --bg-white: #ffffff;
@@ -15,7 +14,7 @@
             --border-white: #ffffff;
 
             /* 横幅固定設定 */
-            --w-line-side: 70px;  /* 線別 (横書き用に少し幅を広めに確保) */
+            --w-line-side: 70px;
             --w-train-no: 95px;   
             --w-type: 110px;      
             --w-power: 55px;      
@@ -33,9 +32,7 @@
             font-family: var(--atos-font);
             background-color: var(--bg-white);
             margin: 0; padding: 0;
-            font-weight: bold; 
-            color: var(--text-black);
-            -webkit-text-size-adjust: 100%;
+            font-weight: bold; color: var(--text-black);
         }
         
         #appContainer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 5px; }
@@ -65,35 +62,14 @@
 
         .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; position: relative; }
         table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
-        
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
             padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
         }
-        
-        td { 
-            border: 1px solid var(--border-white); 
-            background-color: var(--row-gray); 
-            height: var(--atos-row-height); 
-            text-align: center; 
-            font-size: 16px; /* 他のセルと同じサイズ */
-            font-family: var(--atos-font); /* 他のセルと同じ書体 */
-            font-weight: bold; /* 他のセルと同じ太さ */
-        }
+        td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; font-family: var(--atos-font); font-weight: bold; }
 
-        /* 線別セルのスタイル（横書き・統一デザイン） */
-        .td-line-side {
-            background-color: #f0f0f0; 
-            border-right: 2px solid #888; 
-            /* 横書きに修正 */
-            writing-mode: horizontal-tb; 
-            vertical-align: middle;
-        }
-
-        /* 方向が変わる際の境界線（太線） */
-        .row-boundary td {
-            border-top: 3px solid #333;
-        }
+        .td-line-side { background-color: #f0f0f0; border-right: 2px solid #888; vertical-align: middle; }
+        .row-boundary td { border-top: 3px solid #333; }
 
         .w-line-side { width: var(--w-line-side); }
         .w-tno { width: var(--w-train-no); }
@@ -109,14 +85,13 @@
         .col-type, .col-dst { text-align: left; padding-left: 6px; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
-        
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.1</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.2</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -164,6 +139,16 @@
                 rawTimetableData = await response.json();
                 populateLines();
             } catch (e) { console.error(e); } finally { loadingMsg.classList.add('hidden'); }
+        }
+
+        // 時刻文字列を比較可能な数値(秒)に変換する関数
+        function timeToSeconds(timeStr) {
+            if (!timeStr || timeStr === "=" || timeStr === "…") return 999999; // 並び順を最後に
+            const parts = timeStr.split(':').map(Number);
+            const h = parts[0] || 0;
+            const m = parts[1] || 0;
+            const s = parts[2] || 0;
+            return (h * 3600) + (m * 60) + s;
         }
 
         function populateLines() {
@@ -249,10 +234,13 @@
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
+                // グループ内でのソート：hh:mm:ss と hh:mm を数値変換して比較
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
-                    return (sa.arrival || sa.departure).localeCompare(sb.arrival || sb.departure);
+                    const valA = timeToSeconds(sa.arrival || sa.departure);
+                    const valB = timeToSeconds(sb.arrival || sb.departure);
+                    return valA - valB;
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
@@ -264,7 +252,6 @@
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
-                    // --- 線別セル (横書き・デザイン統一) ---
                     if (rowIdx === 0) {
                         const tdLine = document.createElement('td');
                         tdLine.className = 'td-line-side';
