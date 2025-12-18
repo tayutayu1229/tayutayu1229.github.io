@@ -18,7 +18,7 @@
             --w-train-no: 95px;   
             --w-type: 110px;      
             --w-power: 55px;      
-            --w-time-plan: 90px;  
+            --w-time-plan: 90px;  /* 時刻表示幅 */
             --w-time-act: 45px;   
             --w-track: 65px;      
             --w-op-info: 60px;    
@@ -91,7 +91,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.2</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.3</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -141,14 +141,24 @@
             } catch (e) { console.error(e); } finally { loadingMsg.classList.add('hidden'); }
         }
 
-        // 時刻文字列を比較可能な数値(秒)に変換する関数
-        function timeToSeconds(timeStr) {
-            if (!timeStr || timeStr === "=" || timeStr === "…") return 999999; // 並び順を最後に
-            const parts = timeStr.split(':').map(Number);
-            const h = parts[0] || 0;
-            const m = parts[1] || 0;
-            const s = parts[2] || 0;
-            return (h * 3600) + (m * 60) + s;
+        /**
+         * 時刻文字列を整形し、比較用の秒数と表示用の文字列を返す
+         * @param {string} timeStr - "11:41" や "11:41:05"
+         * @returns {Object} { seconds: 数値, display: "hh:mm:ss" }
+         */
+        function parseTime(timeStr) {
+            if (!timeStr || timeStr === "=" || timeStr === "…") {
+                return { seconds: 999999, display: timeStr || "" };
+            }
+            const parts = timeStr.split(':');
+            let h = parseInt(parts[0], 10) || 0;
+            let m = parseInt(parts[1], 10) || 0;
+            let s = parseInt(parts[2], 10) || 0;
+
+            const totalSeconds = (h * 3600) + (m * 60) + s;
+            const displayStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            
+            return { seconds: totalSeconds, display: displayStr };
         }
 
         function populateLines() {
@@ -234,13 +244,15 @@
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
-                // グループ内でのソート：hh:mm:ss と hh:mm を数値変換して比較
+                // グループ内ソートの強化
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
-                    const valA = timeToSeconds(sa.arrival || sa.departure);
-                    const valB = timeToSeconds(sb.arrival || sb.departure);
-                    return valA - valB;
+                    
+                    const timeA = parseTime(sa.arrival || sa.departure);
+                    const timeB = parseTime(sb.arrival || sb.departure);
+                    
+                    return timeA.seconds - timeB.seconds;
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
@@ -249,6 +261,9 @@
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
                     
+                    const arrivalInfo = parseTime(s.arrival);
+                    const departureInfo = parseTime(s.departure);
+
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -269,13 +284,14 @@
                         opNo = train.tr2 || "";
                     }
 
+                    // 表示部分で秒数を補完した display 文字列を使用
                     tr.innerHTML += `
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
                         <td>${getPowerLabel(train)}</td>
-                        <td class="col-time">${s.arrival || ""}</td>
+                        <td class="col-time">${arrivalInfo.display}</td>
                         <td class="col-act"></td>
-                        <td class="col-time">${s.departure === '=' ? '=' : (s.departure || "…")}</td>
+                        <td class="col-time">${departureInfo.display === '=' ? '=' : (departureInfo.display || "…")}</td>
                         <td class="col-act"></td>
                         <td class="col-trk">${s.trackN}</td>
                         <td>${opText}</td>
