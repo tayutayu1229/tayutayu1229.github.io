@@ -58,7 +58,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.6</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.7</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -70,7 +70,6 @@
         </div>
 
         <div class="monitor-table-container">
-            <div id="loadingMsg" class="hidden" style="text-align: center; padding: 20px;">データを読み込んでいます...</div>
             <table id="mainTable">
                 <thead>
                     <tr>
@@ -95,46 +94,42 @@
         let rawTimetableData = [];
 
         async function loadData() {
-            const loadingMsg = document.getElementById('loadingMsg');
-            loadingMsg.classList.remove('hidden');
             try {
                 const response = await fetch('timetables.json');
                 rawTimetableData = await response.json();
                 populateLines();
-            } catch (e) { console.error(e); } finally { loadingMsg.classList.add('hidden'); }
+            } catch (e) { console.error(e); }
         }
 
-        /**
-         * ソート用の数値化。データがない場合は純粋に null。
-         */
+        // 安全な値取得関数（undefinedを回避してnull的な空文字を返す）
+        function safeVal(val) {
+            return (val === undefined || val === null) ? "" : String(val);
+        }
+
+        // 時刻をソート用の数値に変換（データなしは一貫してnullを返す）
         function parseTimeValue(timeStr) {
-            if (!timeStr || timeStr.trim() === "" || timeStr === "…" || timeStr === "=") {
-                return null; 
-            }
-            const parts = timeStr.split(':');
-            let h = parseInt(parts[0], 10);
-            let m = parseInt(parts[1], 10);
-            let s = parseInt(parts[2], 10) || 0;
+            const s = safeVal(timeStr).trim();
+            if (s === "" || s === "…" || s === "=") return null;
+            
+            const parts = s.split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const sec = parseInt(parts[2], 10) || 0;
+            
             if (isNaN(h) || isNaN(m)) return null;
-            return (h * 3600) + (m * 60) + s;
+            return (h * 3600) + (m * 60) + sec;
         }
 
-        /**
-         * 表示用。値がない（nullまたは記号）場合は "…" を表示。
-         * 時刻がある場合のみ hh:mm:ss に整形。
-         */
+        // 表示用時刻整形（hh:mm も hh:mm:ss に。空は「…」）
         function formatDisplayTime(timeStr) {
-            const totalSec = parseTimeValue(timeStr);
-            // ソート値が null の場合、または元の文字が空白や記号なら「…」を表示
-            if (totalSec === null) {
-                // ただし「=」などはそのまま表示したい場合もあるため条件分岐
-                if (timeStr === "=") return "=";
-                return "…"; 
+            const val = parseTimeValue(timeStr);
+            if (val === null) {
+                const s = safeVal(timeStr).trim();
+                return (s === "=") ? "=" : "…";
             }
-            
-            const h = Math.floor(totalSec / 3600);
-            const m = Math.floor((totalSec % 3600) / 60);
-            const s = totalSec % 60;
+            const h = Math.floor(val / 3600);
+            const m = Math.floor((val % 3600) / 60);
+            const s = val % 60;
             return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
@@ -142,7 +137,6 @@
             const lines = [...new Set(rawTimetableData.map(d => d.line))].sort();
             const lineSelect = document.getElementById('lineSelect');
             lineSelect.innerHTML = '<option value="">(選択)</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
-            
             lineSelect.onchange = () => {
                 const stations = new Set();
                 rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
@@ -154,9 +148,8 @@
         function getNsLabel(train) {
             const dict = {"A":"上り","B":"下り","N":"北行","S":"南行","U":"内回り","O":"外回り"};
             if (train.ns && dict[train.ns]) return dict[train.ns];
-            const numMatch = train.trainNumber.match(/\d+/);
-            if (numMatch) return (parseInt(numMatch[0], 10) % 2 === 0) ? "上り" : "下り";
-            return "その他";
+            const numMatch = safeVal(train.trainNumber).match(/\d+/);
+            return (numMatch && parseInt(numMatch[0], 10) % 2 === 0) ? "上り" : "下り";
         }
 
         function render() {
@@ -171,16 +164,10 @@
             const dObj = new Date(targetDateStr);
             const targetDayType = (dObj.getDay() === 0 || dObj.getDay() === 6) ? "土休日" : "平日";
 
-            let candidates = rawTimetableData.filter(train => {
+            const finalData = rawTimetableData.filter(train => {
                 const hasStation = train.stops.some(s => s.station === station);
-                if (!hasStation || train.line !== line) return false;
-                if (train.startDate === targetDateStr) return true;
-                return new Date(train.startDate) <= dObj && (train.dayType === targetDayType || !train.dayType);
+                return hasStation && train.line === line && (train.startDate === targetDateStr || (new Date(train.startDate) <= dObj && (train.dayType === targetDayType || !train.dayType)));
             });
-
-            const trainMap = new Map();
-            candidates.forEach(train => trainMap.set(train.trainNumber, train));
-            const finalData = Array.from(trainMap.values());
 
             const grouped = {};
             finalData.forEach(t => {
@@ -192,19 +179,23 @@
             const sortedLabels = Object.keys(grouped).sort((a,b) => ["上り","下り"].indexOf(a) - ["上り","下り"].indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
-                // ソートロジック：時刻がある場合のみ比較
+                // 【重要】ソートロジック：時刻があるものを優先して早い順に
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
                     const valA = parseTimeValue(sa.arrival || sa.departure);
                     const valB = parseTimeValue(sb.arrival || sb.departure);
+                    
                     if (valA !== null && valB !== null) return valA - valB;
-                    return 0; 
+                    if (valA === null && valB !== null) return 1;  // 時刻なしを後ろへ
+                    if (valA !== null && valB === null) return -1; // 時刻ありを前へ
+                    return 0;
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => st.station === station);
                     const stopIdx = train.stops.findIndex(st => st.station === station);
+                    const isLast = (stopIdx === train.stops.length - 1);
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -216,18 +207,22 @@
                         tr.appendChild(tdLine);
                     }
 
+                    // 運用列番・情報の undefined 回避
+                    const opText = (stopIdx === 0 && train.tt1 === 'k') ? '継送' : (isLast && train.tt2 === 'k' ? '継送' : '');
+                    const opNo = (stopIdx === 0) ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "");
+
                     tr.innerHTML += `
-                        <td class="link-text">${train.trainNumber}</td>
-                        <td class="col-type">${train.type}</td>
-                        <td>${train.power || ""}</td>
+                        <td class="link-text">${safeVal(train.trainNumber)}</td>
+                        <td class="col-type">${safeVal(train.type)}</td>
+                        <td>${safeVal(train.power)}</td>
                         <td class="col-time">${formatDisplayTime(s.arrival)}</td>
                         <td></td>
                         <td class="col-time">${formatDisplayTime(s.departure)}</td>
                         <td></td>
-                        <td class="col-trk">${s.trackN}</td>
-                        <td>${(stopIdx===0 && train.tt1==='k')?'継送':''}</td>
-                        <td class="link-text">${(stopIdx===0?train.tr1:'')}</td>
-                        <td class="col-dst">${train.destination}</td>
+                        <td class="col-trk">${safeVal(s.trackN)}</td>
+                        <td>${opText}</td>
+                        <td class="link-text">${opNo}</td>
+                        <td class="col-dst">${safeVal(train.destination)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
