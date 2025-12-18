@@ -6,6 +6,7 @@
     <title>Mobile ATOS App</title>
     <style>
         :root {
+            /* 基本フォント設定: 全て MSPゴシック で統一 */
             --atos-font: "MS PGothic", "ＭＳ Ｐゴシック", sans-serif;
             --atos-table-header: #1A968A; 
             --bg-white: #ffffff;
@@ -14,7 +15,7 @@
             --border-white: #ffffff;
 
             /* 横幅固定設定 */
-            --w-line-side: 60px;  /* 線別 (結合用) */
+            --w-line-side: 70px;  /* 線別 (横書き用に少し幅を広めに確保) */
             --w-train-no: 95px;   
             --w-type: 110px;      
             --w-power: 55px;      
@@ -32,7 +33,9 @@
             font-family: var(--atos-font);
             background-color: var(--bg-white);
             margin: 0; padding: 0;
-            font-weight: bold; color: var(--text-black);
+            font-weight: bold; 
+            color: var(--text-black);
+            -webkit-text-size-adjust: 100%;
         }
         
         #appContainer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 5px; }
@@ -68,16 +71,23 @@
             padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
         }
         
-        td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; }
+        td { 
+            border: 1px solid var(--border-white); 
+            background-color: var(--row-gray); 
+            height: var(--atos-row-height); 
+            text-align: center; 
+            font-size: 16px; /* 他のセルと同じサイズ */
+            font-family: var(--atos-font); /* 他のセルと同じ書体 */
+            font-weight: bold; /* 他のセルと同じ太さ */
+        }
 
-        /* セル結合（線別）の特別スタイル */
+        /* 線別セルのスタイル（横書き・統一デザイン） */
         .td-line-side {
             background-color: #f0f0f0; 
-            border-right: 2px solid #666; 
-            writing-mode: vertical-rl; /* 縦書きにするとより「結合」感が出ます */
-            text-orientation: upright;
-            letter-spacing: 0.1em;
-            font-size: 14px;
+            border-right: 2px solid #888; 
+            /* 横書きに修正 */
+            writing-mode: horizontal-tb; 
+            vertical-align: middle;
         }
 
         /* 方向が変わる際の境界線（太線） */
@@ -106,7 +116,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.0</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.1</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -206,7 +216,6 @@
             const isWeekend = (dObj.getDay() === 0 || dObj.getDay() === 6); 
             const targetDayType = isWeekend ? "土休日" : "平日";
 
-            // 1. 抽出と特定日優先
             let candidates = rawTimetableData.filter(train => {
                 const hasStation = train.stops.some(s => s.station === station);
                 if (!hasStation || train.line !== line) return false;
@@ -229,7 +238,6 @@
 
             updateClock(targetDateStr);
 
-            // 2. 分類とソート
             const grouped = {};
             finalData.forEach(t => {
                 const label = getNsLabel(t);
@@ -240,9 +248,7 @@
             const sortOrder = ["上り", "下り", "北行", "南行", "内回り", "外回り", "その他"];
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
-            // 3. 表示生成（セル結合ロジック）
             sortedLabels.forEach((label, groupIdx) => {
-                // そのグループ内での時間順ソート
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
@@ -256,11 +262,9 @@
                     const isLast = (stopIdx === train.stops.length - 1);
                     
                     const tr = document.createElement('tr');
-                    
-                    // グループの最初の行に境界線（上端）
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
-                    // --- セル結合(Rowspan) ---
+                    // --- 線別セル (横書き・デザイン統一) ---
                     if (rowIdx === 0) {
                         const tdLine = document.createElement('td');
                         tdLine.className = 'td-line-side';
