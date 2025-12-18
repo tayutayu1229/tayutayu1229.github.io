@@ -78,7 +78,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App</div>
+        <div class="header-title">Mobile ATOS App Ver2.5.7 (Fixed Logic)</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -178,9 +178,6 @@
             };
         }
 
-        // ==================================================
-        // 平日・土休日・特定日の厳密特定ロジック
-        // ==================================================
         function render() {
             const line = document.getElementById('lineSelect').value;
             const station = document.getElementById('stationSelect').value;
@@ -191,7 +188,6 @@
 
             const targetDate = new Date(dateVal);
             const targetDateStr = dateVal.replace(/-/g, '/');
-            // 曜日の判定 (0:日, 6:土 は土休日、1-5は平日)
             const targetDayType = (targetDate.getDay() === 0 || targetDate.getDay() === 6) ? "土休日" : "平日";
 
             const candidates = rawTimetableData.filter(t => t.line === line && t.stops.some(s => s.station === station));
@@ -201,24 +197,22 @@
             uniqueNos.forEach(tNo => {
                 const versions = candidates.filter(v => v.trainNumber === tNo);
                 
-                // 1. まず、施行日(startDate)がカレンダー選択日と完全一致するものを探す (特定日ダイヤ)
-                let match = versions.find(v => v.startDate === targetDateStr);
+                // 1. 【特定日・施行日】startDateが完全一致 かつ dayTypeが空("") のものを最優先
+                let match = versions.find(v => v.startDate === targetDateStr && v.dayType === "");
                 
-                // 2. 一致がない場合、所定ダイヤを探す
+                // 2. なければ【所定ダイヤ】を判定
                 if (!match) {
-                    const matches = versions.filter(v => {
+                    const regulars = versions.filter(v => {
                         const vDate = new Date(v.startDate);
-                        // 選択日以前のデータであること 
                         const isPastOrToday = vDate <= targetDate;
-                        // dayTypeが選択日の曜日区分と一致すること
-                        const isDayTypeMatch = (v.dayType === targetDayType);
-                        return isPastOrToday && isDayTypeMatch;
+                        // 指定の曜日区分と一致、またはdayType空（毎日）
+                        const isDayMatch = (v.dayType === targetDayType || v.dayType === "");
+                        return isPastOrToday && isDayMatch;
                     });
-                    
-                    if (matches.length > 0) {
-                        // 該当する所定ダイヤの中で、最も新しい startDate のものを採用
-                        matches.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-                        match = matches[0];
+                    if (regulars.length > 0) {
+                        // 期間内（startDateが選択日以前）で、最も新しい定義を採用
+                        regulars.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+                        match = regulars[0];
                     }
                 }
                 
@@ -272,17 +266,37 @@
             updateClock(targetDateStr);
         }
 
+        // --- 全停車駅時刻表オーバーレイ (計画・実績 分離形式) ---
         function showOverlay(tNo, sDate) {
             const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
             if (!train) return;
+
             document.getElementById('modalTrainInfo').innerHTML = 
                 `列車番号: ${train.trainNumber} / 列車種別: ${train.type} / 運転区間: ${train.origin} ～ ${train.destination}`;
-            let html = `<table><thead><tr><th rowspan="2" style="width:120px;">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2" style="width:50px;">番線</th></tr>
-                        <tr><th style="width:90px;">計画</th><th style="width:45px;">到着</th><th style="width:90px;">計画</th><th style="width:45px;">発車</th></tr></thead><tbody>`;
+            
+            let html = `<table><thead>
+                <tr>
+                    <th rowspan="2" style="width:120px;">駅名</th>
+                    <th colspan="2">着時刻</th>
+                    <th colspan="2">発時刻</th>
+                    <th rowspan="2" style="width:50px;">番線</th>
+                </tr>
+                <tr>
+                    <th style="width:90px;">計画</th><th style="width:45px;">到着</th>
+                    <th style="width:90px;">計画</th><th style="width:45px;">発車</th>
+                </tr>
+                </thead><tbody>`;
+            
             train.stops.forEach(s => {
-                html += `<tr><td style="text-align:left; padding-left:10px;">${s.station}</td><td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td><td class="col-time">${formatDisplayTime(s.departure)}</td><td></td><td class="col-trk">${safeVal(s.trackN)}</td></tr>`;
+                html += `<tr>
+                    <td style="text-align:left; padding-left:10px;">${s.station}</td>
+                    <td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td>
+                    <td class="col-time">${formatDisplayTime(s.departure)}</td><td></td>
+                    <td class="col-trk">${safeVal(s.trackN)}</td>
+                </tr>`;
             });
             html += `</tbody></table>`;
+            
             document.getElementById('modalTableContainer').innerHTML = html;
             document.getElementById('modalOverlay').style.display = 'flex';
         }
