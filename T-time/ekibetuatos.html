@@ -22,12 +22,11 @@
             font-weight: bold; color: var(--text-black);
         }
         
-        /* 表の左右に余白を設定 */
         #appContainer { 
             width: calc(100% - 20px); 
             max-width: 1200px; 
             margin: 0 auto; 
-            padding: 10px; /* 左右と上下に余白 */
+            padding: 10px;
         }
         
         .system-header {
@@ -61,7 +60,6 @@
             font-weight: bold; 
         }
 
-        /* 線別（上り下り）セルの背景色を他と同じに統一 */
         .td-line-side { 
             background-color: var(--row-gray); 
             border-right: 2px solid #888; 
@@ -76,7 +74,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.5.1</div>
+        <div class="header-title">Mobile ATOS App Ver2.5.2</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -124,18 +122,20 @@
         }
 
         /**
-         * 動力の自動判定ロジック
-         * 1. JSONに動力(power)がある場合はそれを優先
-         * 2. 列車番号末尾が M, T, H 等の場合は EC/DC 判定
+         * 動力の判定
+         * 1. JSONのpowerに値があればそれを尊重
+         * 2. 末尾にアルファベットがなければ EL
+         * 3. アルファベットがあれば EC/DC 判定
          */
         function autoDeterminePower(train) {
-            if (train.power && train.power.trim() !== "") return train.power;
+            const p = safeVal(train.power);
+            if (p !== "") return p; // 元データを尊重
             
             const tNo = safeVal(train.trainNumber).toUpperCase();
-            if (tNo.endsWith('M') || tNo.endsWith('T') || tNo.endsWith('H') || tNo.endsWith('S')) return "EC";
+            if (!tNo.match(/[A-Z]$/)) return "EL"; // アルファベットがない
+            
             if (tNo.endsWith('D')) return "DC";
-            if (tNo.match(/[A-Z]$/)) return "EC"; // その他アルファベット末尾は基本EC
-            return ""; 
+            return "EC"; // M, T, H 等
         }
 
         function parseTimeValue(timeStr) {
@@ -186,6 +186,7 @@
             const targetDateStr = dateVal.replace(/-/g, '/');
             const targetDayType = getDayType(targetDate);
 
+            // 線区・駅が一致するデータを抽出
             const candidates = rawTimetableData.filter(train => {
                 return train.line === line && train.stops.some(s => s.station === station);
             });
@@ -195,16 +196,32 @@
 
             uniqueTrainNumbers.forEach(tNo => {
                 const versions = candidates.filter(v => v.trainNumber === tNo);
+                
+                // 1. 特定日ダイヤ（施行日とstartDateが一致）を最優先
                 const specialDay = versions.find(v => v.startDate === targetDateStr);
                 
                 if (specialDay) {
                     trainMap.set(tNo, specialDay);
                 } else {
+                    // 2. 所定ダイヤの抽出
+                    // 施行日以前の startDate で、かつ「平日/土休日」が一致するか「空欄」のもの
                     const validVersions = versions.filter(v => {
-                        const start = new Date(v.startDate);
-                        return start <= targetDate && (v.dayType === targetDayType || v.dayType === "" || v.dayType === undefined);
+                        const vDate = new Date(v.startDate);
+                        const isPastOrToday = vDate <= targetDate;
+                        
+                        // dayTypeが空欄なら無条件、あれば曜日一致を確認
+                        const dType = safeVal(v.dayType);
+                        const isDayMatch = (dType === "" || dType === targetDayType);
+                        
+                        // startDateが施行日と一致しない特定日データ（dayTypeが日付などになっているもの）を除外
+                        // ここでは dayType が "平日", "土休日", "" 以外は「特定日」とみなす
+                        const isRegular = (dType === "" || dType === "平日" || dType === "土休日");
+                        
+                        return isPastOrToday && isDayMatch && isRegular;
                     });
+
                     if (validVersions.length > 0) {
+                        // 最も新しい(施行日に近い)startDateを採用
                         validVersions.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                         trainMap.set(tNo, validVersions[0]);
                     }
