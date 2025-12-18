@@ -14,17 +14,17 @@
             --border-white: #ffffff;
 
             /* 横幅固定設定 */
-            --w-line-side: 75px;
-            --w-train-no: 95px;   
-            --w-type: 110px;      
-            --w-power: 55px;
-            --w-station: 130px;   
-            --w-time-plan: 85px;  
+            --w-line-side: 75px;  /* 線別 */
+            --w-train-no: 95px;   /* 列車番号 */
+            --w-type: 110px;      /* 列車種別 */
+            --w-power: 55px;      /* 動力 */
+            /* 駅名列は削除 */
+            --w-time-plan: 90px;  
             --w-time-act: 45px;   
             --w-track: 65px;      
             --w-op-info: 60px;    
             --w-op-no: 95px;      
-            --w-dest: 110px;      
+            --w-dest: 115px;      
 
             --atos-row-height: 28px;
         }
@@ -50,6 +50,16 @@
             background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
             gap: 12px; border-bottom: 1px solid #999;
         }
+        
+        /* 選択内容のサマリー表示エリア */
+        .selection-summary {
+            background-color: #f9f9f9;
+            padding: 5px 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #ccc;
+            color: #333;
+        }
+
         select, input {
             border: 1px solid #999; padding: 2px 4px; font-size: 15px;
             height: 26px; border-radius: 2px; font-weight: bold; font-family: var(--atos-font);
@@ -67,7 +77,6 @@
         .w-tno { width: var(--w-train-no); }
         .w-type { width: var(--w-type); }
         .w-pwr { width: var(--w-power); }
-        .w-st { width: var(--w-station); }
         .w-time { width: var(--w-time-plan); }
         .w-act { width: var(--w-time-act); }
         .w-trk { width: var(--w-track); }
@@ -75,7 +84,7 @@
         .w-opn { width: var(--w-op-no); }
         .w-dst { width: var(--w-dest); }
 
-        .col-type, .col-st, .col-dst { text-align: left; padding-left: 6px; }
+        .col-type, .col-dst { text-align: left; padding-left: 6px; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
         
@@ -101,6 +110,10 @@
             <div>駅名：<select id="stationSelect"><option value="">(選択)</option></select></div>
         </div>
 
+        <div class="selection-summary">
+            線区：【<span id="summaryLine"></span>】駅名：【<span id="summaryStation"></span>】
+        </div>
+
         <div class="monitor-table-container">
             <div id="loadingMsg" class="hidden">データを読み込んでいます...</div>
             <table>
@@ -110,7 +123,6 @@
                         <th class="w-tno" rowspan="2">列車番号</th>
                         <th class="w-type" rowspan="2">列車種別</th>
                         <th class="w-pwr" rowspan="2">動力</th>
-                        <th class="w-st" rowspan="2">駅名</th>
                         <th colspan="2">着時刻</th>
                         <th colspan="2">発時刻</th>
                         <th class="w-trk" rowspan="2">番線</th>
@@ -156,26 +168,42 @@
                 const stations = new Set();
                 rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
                 document.getElementById('stationSelect').innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
+                updateSummary();
                 render();
             };
         }
 
-        // 線別の自動判別ロジック
         function getNsLabel(train) {
-            // 1. JSONに値がある場合はそれを使用
             const dict = {"A":"上り","B":"下り","N":"北行","S":"南行","U":"内回り","O":"外回り"};
-            if (train.ns && dict[train.ns]) {
-                return dict[train.ns];
-            }
-
-            // 2. 値がない場合、列車番号から推測 (末尾が偶数＝上り、奇数＝下り)
-            // 数値部分のみを抽出
+            if (train.ns && dict[train.ns]) return dict[train.ns];
             const numMatch = train.trainNumber.match(/\d+/);
             if (numMatch) {
-                const num = parseInt(numMatch[0], 10);
-                return (num % 2 === 0) ? "上り" : "下り";
+                return (parseInt(numMatch[0], 10) % 2 === 0) ? "上り" : "下り";
             }
             return "－";
+        }
+
+        // 動力(power)の自動判定
+        function getPowerLabel(train) {
+            // 1. JSONに直接指定がある場合は優先
+            if (train.power) return train.power;
+
+            // 2. 列車番号のアルファベットによる判定
+            const tNo = train.trainNumber;
+            // 末尾または途中にアルファベットがあるか確認
+            const alphaMatch = tNo.match(/[A-Z]/g);
+            if (alphaMatch) {
+                // アルファベットが 'D' を含む場合は DC
+                if (tNo.includes('D')) return "DC";
+                // それ以外のアルファベットがついている場合は EC
+                return "EC";
+            }
+            return ""; 
+        }
+
+        function updateSummary() {
+            document.getElementById('summaryLine').innerText = document.getElementById('lineSelect').value || "";
+            document.getElementById('summaryStation').innerText = document.getElementById('stationSelect').value || "";
         }
 
         function render() {
@@ -185,9 +213,10 @@
             const tbody = document.getElementById('timetableBody');
             tbody.innerHTML = '';
 
-            // 初期状態（選択されていない場合）はメッセージを表示
+            updateSummary();
+
             if (!line || !station) {
-                tbody.innerHTML = '<tr><td colspan="13">線区と駅名を選択してください。</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12">線区と駅名を選択してください。</td></tr>';
                 return;
             }
 
@@ -196,7 +225,6 @@
             const isWeekend = (dObj.getDay() === 0 || dObj.getDay() === 6); 
             const targetDayType = isWeekend ? "土休日" : "平日";
 
-            // 候補抽出
             let candidates = rawTimetableData.filter(train => {
                 const hasStation = train.stops.some(s => s.station === station);
                 if (!hasStation || train.line !== line) return false;
@@ -206,7 +234,6 @@
                 return isAfterRevision && isCorrectDayType;
             });
 
-            // 重複排除 (特定日優先)
             const trainMap = new Map();
             candidates.forEach(train => {
                 const existing = trainMap.get(train.trainNumber);
@@ -219,8 +246,6 @@
             
             if (finalData.length > 0) {
                 updateClock(targetDateStr);
-
-                // 【修正】着時刻を最優先、着時刻がない場合は発時刻でソート
                 finalData.sort((a,b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
@@ -234,7 +259,6 @@
                     const stopIdx = train.stops.findIndex(st => st.station === station);
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
-
                     const tr = document.createElement('tr');
                     
                     let opText = "";
@@ -251,8 +275,7 @@
                         <td>${getNsLabel(train)}</td>
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
-                        <td>${train.power || ""}</td>
-                        <td class="col-st">${s.station}</td>
+                        <td>${getPowerLabel(train)}</td>
                         <td class="col-time">${s.arrival || '…'}</td>
                         <td class="col-act"></td>
                         <td class="col-time">${s.departure==='='?'=':(s.departure||'…')}</td>
@@ -265,7 +288,7 @@
                     tbody.appendChild(tr);
                 });
             } else {
-                tbody.innerHTML = '<tr><td colspan="13">該当するデータがありません。</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12">該当するデータがありません。</td></tr>';
             }
         }
 
@@ -281,14 +304,8 @@
         document.getElementById('stationSelect').onchange = render;
         
         window.onload = () => {
-            // 初期状態の設定
             const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, '0');
-            const d = String(today.getDate()).padStart(2, '0');
-            document.getElementById('dateInput').value = `${y}-${m}-${d}`;
-            
-            // 線区・駅名はデフォルト「(選択)」の状態
+            document.getElementById('dateInput').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
             loadData();
         };
     </script>
