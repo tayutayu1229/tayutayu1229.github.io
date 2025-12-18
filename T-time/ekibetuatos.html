@@ -14,11 +14,10 @@
             --border-white: #ffffff;
 
             /* 横幅固定設定 */
-            --w-line-side: 75px;  /* 線別 */
-            --w-train-no: 95px;   /* 列車番号 */
-            --w-type: 110px;      /* 列車種別 */
-            --w-power: 55px;      /* 動力 */
-            /* 駅名列は削除 */
+            --w-line-side: 75px;
+            --w-train-no: 95px;   
+            --w-type: 110px;      
+            --w-power: 55px;      
             --w-time-plan: 90px;  
             --w-time-act: 45px;   
             --w-track: 65px;      
@@ -51,13 +50,9 @@
             gap: 12px; border-bottom: 1px solid #999;
         }
         
-        /* 選択内容のサマリー表示エリア */
         .selection-summary {
-            background-color: #f9f9f9;
-            padding: 5px 10px;
-            font-size: 16px;
-            border-bottom: 1px solid #ccc;
-            color: #333;
+            background-color: #f9f9f9; padding: 5px 10px; font-size: 16px;
+            border-bottom: 1px solid #ccc; color: #333;
         }
 
         select, input {
@@ -88,11 +83,6 @@
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
         
-        #loadingMsg { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; 
-            z-index: 10; font-size: 18px;
-        }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -153,7 +143,7 @@
                 rawTimetableData = await response.json();
                 populateLines();
             } catch (e) {
-                console.error("JSON fetch error:", e);
+                console.error("JSON Error:", e);
             } finally {
                 loadingMsg.classList.add('hidden');
             }
@@ -177,27 +167,15 @@
             const dict = {"A":"上り","B":"下り","N":"北行","S":"南行","U":"内回り","O":"外回り"};
             if (train.ns && dict[train.ns]) return dict[train.ns];
             const numMatch = train.trainNumber.match(/\d+/);
-            if (numMatch) {
-                return (parseInt(numMatch[0], 10) % 2 === 0) ? "上り" : "下り";
-            }
+            if (numMatch) return (parseInt(numMatch[0], 10) % 2 === 0) ? "上り" : "下り";
             return "－";
         }
 
-        // 動力(power)の自動判定
         function getPowerLabel(train) {
-            // 1. JSONに直接指定がある場合は優先
             if (train.power) return train.power;
-
-            // 2. 列車番号のアルファベットによる判定
             const tNo = train.trainNumber;
-            // 末尾または途中にアルファベットがあるか確認
-            const alphaMatch = tNo.match(/[A-Z]/g);
-            if (alphaMatch) {
-                // アルファベットが 'D' を含む場合は DC
-                if (tNo.includes('D')) return "DC";
-                // それ以外のアルファベットがついている場合は EC
-                return "EC";
-            }
+            if (tNo.includes('D')) return "DC";
+            if (tNo.match(/[A-Z]/)) return "EC";
             return ""; 
         }
 
@@ -212,7 +190,6 @@
             const station = document.getElementById('stationSelect').value;
             const tbody = document.getElementById('timetableBody');
             tbody.innerHTML = '';
-
             updateSummary();
 
             if (!line || !station) {
@@ -237,15 +214,15 @@
             const trainMap = new Map();
             candidates.forEach(train => {
                 const existing = trainMap.get(train.trainNumber);
-                if (!existing || train.startDate === targetDateStr) {
-                    trainMap.set(train.trainNumber, train);
-                }
+                if (!existing || train.startDate === targetDateStr) trainMap.set(train.trainNumber, train);
             });
 
             const finalData = Array.from(trainMap.values());
             
             if (finalData.length > 0) {
                 updateClock(targetDateStr);
+
+                // 並び替え：着時刻(優先) または 発時刻 で昇順
                 finalData.sort((a,b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
@@ -259,10 +236,14 @@
                     const stopIdx = train.stops.findIndex(st => st.station === station);
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
+                    
                     const tr = document.createElement('tr');
                     
-                    let opText = "";
-                    let opNo = "";
+                    // 通過判定：着時刻が空なら通過とみなし、着時刻欄を空にする
+                    const arrivalDisp = s.arrival || ""; 
+                    const departureDisp = s.departure || "…";
+
+                    let opText = ""; let opNo = "";
                     if (isFirst) {
                         opText = train.tt1 === 'k' ? '継送' : (train.tt1 === 'o' ? '折返' : '');
                         opNo = train.tr1 || "";
@@ -276,9 +257,9 @@
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
                         <td>${getPowerLabel(train)}</td>
-                        <td class="col-time">${s.arrival || '…'}</td>
+                        <td class="col-time">${arrivalDisp}</td>
                         <td class="col-act"></td>
-                        <td class="col-time">${s.departure==='='?'=':(s.departure||'…')}</td>
+                        <td class="col-time">${departureDisp === '=' ? '=' : departureDisp}</td>
                         <td class="col-act"></td>
                         <td class="col-trk">${s.trackN}</td>
                         <td>${opText}</td>
