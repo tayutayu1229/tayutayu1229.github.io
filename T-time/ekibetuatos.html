@@ -22,7 +22,13 @@
             font-weight: bold; color: var(--text-black);
         }
         
-        #appContainer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 5px; }
+        /* 表の左右に余白を設定 */
+        #appContainer { 
+            width: calc(100% - 20px); 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 10px; /* 左右と上下に余白 */
+        }
         
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
@@ -33,19 +39,35 @@
         .clock-area { font-size: 15px; min-width: 220px; text-align: right; }
 
         .filter-bar {
-            background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
-            gap: 12px; border-bottom: 1px solid #999;
+            background-color: #e0e0e0; padding: 12px; display: flex; align-items: center;
+            gap: 12px; border-bottom: 1px solid #999; border-radius: 4px;
         }
         
-        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; }
+        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 10px; }
         table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
+        
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
             padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
         }
-        td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; font-family: var(--atos-font); font-weight: bold; }
+        
+        td { 
+            border: 1px solid var(--border-white); 
+            background-color: var(--row-gray); 
+            height: var(--atos-row-height); 
+            text-align: center; 
+            font-size: 16px; 
+            font-family: var(--atos-font); 
+            font-weight: bold; 
+        }
 
-        .td-line-side { background-color: #f0f0f0; border-right: 2px solid #888; vertical-align: middle; }
+        /* 線別（上り下り）セルの背景色を他と同じに統一 */
+        .td-line-side { 
+            background-color: var(--row-gray); 
+            border-right: 2px solid #888; 
+            vertical-align: middle; 
+        }
+
         .row-boundary td { border-top: 3px solid #333; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
@@ -54,7 +76,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.5.0</div>
+        <div class="header-title">Mobile ATOS App Ver2.5.1</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -94,11 +116,26 @@
                 const response = await fetch('timetables.json');
                 rawTimetableData = await response.json();
                 populateLines();
-            } catch (e) { console.error("Data Load Error:", e); }
+            } catch (e) { console.error(e); }
         }
 
         function safeVal(val) {
             return (val === undefined || val === null) ? "" : String(val).trim();
+        }
+
+        /**
+         * 動力の自動判定ロジック
+         * 1. JSONに動力(power)がある場合はそれを優先
+         * 2. 列車番号末尾が M, T, H 等の場合は EC/DC 判定
+         */
+        function autoDeterminePower(train) {
+            if (train.power && train.power.trim() !== "") return train.power;
+            
+            const tNo = safeVal(train.trainNumber).toUpperCase();
+            if (tNo.endsWith('M') || tNo.endsWith('T') || tNo.endsWith('H') || tNo.endsWith('S')) return "EC";
+            if (tNo.endsWith('D')) return "DC";
+            if (tNo.match(/[A-Z]$/)) return "EC"; // その他アルファベット末尾は基本EC
+            return ""; 
         }
 
         function parseTimeValue(timeStr) {
@@ -132,9 +169,8 @@
             };
         }
 
-        // 曜日判定関数
         function getDayType(dateObj) {
-            const day = dateObj.getDay(); // 0:日, 6:土
+            const day = dateObj.getDay();
             return (day === 0 || day === 6) ? "土休日" : "平日";
         }
 
@@ -146,38 +182,29 @@
             tbody.innerHTML = '';
             if (!line || !station || !dateVal) return;
 
-            const targetDate = new Date(dateVal); // ユーザーが選択した施行日
-            const targetDateStr = dateVal.replace(/-/g, '/'); // "2025/03/15" 形式
+            const targetDate = new Date(dateVal);
+            const targetDateStr = dateVal.replace(/-/g, '/');
             const targetDayType = getDayType(targetDate);
 
-            // 1. まず全データから該当線区・駅の列車を抽出
             const candidates = rawTimetableData.filter(train => {
                 return train.line === line && train.stops.some(s => s.station === station);
             });
 
-            // 2. 列車番号ごとに最適なデータ（リビジョン）を選別
             const trainMap = new Map();
             const uniqueTrainNumbers = [...new Set(candidates.map(t => t.trainNumber))];
 
             uniqueTrainNumbers.forEach(tNo => {
                 const versions = candidates.filter(v => v.trainNumber === tNo);
-                
-                // A: 特定日ダイヤ（startDateが施行日と完全一致）を探す
                 const specialDay = versions.find(v => v.startDate === targetDateStr);
                 
                 if (specialDay) {
                     trainMap.set(tNo, specialDay);
                 } else {
-                    // B: 所定ダイヤ（startDateが今日以前、かつDayTypeが一致、または空欄）
                     const validVersions = versions.filter(v => {
                         const start = new Date(v.startDate);
-                        const isPastOrToday = start <= targetDate;
-                        const isCorrectDay = (v.dayType === targetDayType || v.dayType === "" || v.dayType === undefined);
-                        return isPastOrToday && isCorrectDay;
+                        return start <= targetDate && (v.dayType === targetDayType || v.dayType === "" || v.dayType === undefined);
                     });
-
                     if (validVersions.length > 0) {
-                        // 最も新しいstartDateを持つものを採用
                         validVersions.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                         trainMap.set(tNo, validVersions[0]);
                     }
@@ -186,7 +213,6 @@
 
             const finalData = Array.from(trainMap.values());
 
-            // 3. グルーピングとソート
             const grouped = {};
             finalData.forEach(t => {
                 const label = (safeVal(t.trainNumber).match(/\d+/) && parseInt(t.trainNumber.match(/\d+/)[0]) % 2 === 0) ? "上り" : "下り";
@@ -218,21 +244,18 @@
                         tr.appendChild(tdLine);
                     }
 
-                    const opText = (stopIdx === 0 && train.tt1 === 'k') ? '継送' : (isLast && train.tt2 === 'k' ? '継送' : '');
-                    const opNo = (stopIdx === 0) ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "");
-
                     tr.innerHTML += `
                         <td class="link-text">${safeVal(train.trainNumber)}</td>
-                        <td>${safeVal(train.type)}</td>
-                        <td>${safeVal(train.power)}</td>
+                        <td style="text-align:left; padding-left:4px;">${safeVal(train.type)}</td>
+                        <td>${autoDeterminePower(train)}</td>
                         <td class="col-time">${formatDisplayTime(s.arrival)}</td>
                         <td></td>
                         <td class="col-time">${formatDisplayTime(s.departure)}</td>
                         <td></td>
                         <td class="col-trk">${safeVal(s.trackN)}</td>
-                        <td>${opText}</td>
-                        <td class="link-text">${opNo}</td>
-                        <td class="col-dst">${safeVal(train.destination)}</td>
+                        <td>${(stopIdx === 0 && train.tt1 === 'k') ? '継送' : (isLast && train.tt2 === 'k' ? '継送' : '')}</td>
+                        <td class="link-text">${(stopIdx === 0) ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "")}</td>
+                        <td style="text-align:left; padding-left:4px;">${safeVal(train.destination)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
