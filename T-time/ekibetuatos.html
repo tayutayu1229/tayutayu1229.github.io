@@ -14,7 +14,7 @@
             --border-white: #ffffff;
 
             /* 横幅固定設定 */
-            --w-line-side: 75px;
+            --w-line-side: 60px;  /* 線別 (結合用) */
             --w-train-no: 95px;   
             --w-type: 110px;      
             --w-power: 55px;      
@@ -55,28 +55,35 @@
             border-bottom: 1px solid #ccc; color: #333;
         }
 
-        /* セクション区切り（上り・下り） */
-        .direction-divider {
-            background-color: #444;
-            color: white;
-            padding: 4px 15px;
-            font-size: 16px;
-            margin-top: 15px;
-            border-radius: 4px 4px 0 0;
-        }
-
         select, input {
             border: 1px solid #999; padding: 2px 4px; font-size: 15px;
             height: 26px; border-radius: 2px; font-weight: bold; font-family: var(--atos-font);
         }
 
-        .monitor-table-container { width: 100%; overflow-x: auto; margin-bottom: 20px; position: relative; }
+        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; position: relative; }
         table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
+        
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
             padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
         }
+        
         td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; }
+
+        /* セル結合（線別）の特別スタイル */
+        .td-line-side {
+            background-color: #f0f0f0; 
+            border-right: 2px solid #666; 
+            writing-mode: vertical-rl; /* 縦書きにするとより「結合」感が出ます */
+            text-orientation: upright;
+            letter-spacing: 0.1em;
+            font-size: 14px;
+        }
+
+        /* 方向が変わる際の境界線（太線） */
+        .row-boundary td {
+            border-top: 3px solid #333;
+        }
 
         .w-line-side { width: var(--w-line-side); }
         .w-tno { width: var(--w-train-no); }
@@ -99,7 +106,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.3.0</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.0</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -114,9 +121,26 @@
             線区：【<span id="summaryLine"></span>】駅名：【<span id="summaryStation"></span>】
         </div>
 
-        <div id="loadingMsg" class="hidden" style="text-align: center; padding: 20px;">データを読み込んでいます...</div>
-        
-        <div id="timetableResultArea"></div>
+        <div class="monitor-table-container">
+            <div id="loadingMsg" class="hidden" style="text-align: center; padding: 20px;">データを読み込んでいます...</div>
+            <table id="mainTable">
+                <thead>
+                    <tr>
+                        <th class="w-line-side" rowspan="2">線別</th>
+                        <th class="w-tno" rowspan="2">列車番号</th>
+                        <th class="w-type" rowspan="2">列車種別</th>
+                        <th class="w-pwr" rowspan="2">動力</th>
+                        <th colspan="2">着時刻</th><th colspan="2">発時刻</th>
+                        <th class="w-trk" rowspan="2">番線</th><th class="w-opi" rowspan="2">運用<br>情報</th>
+                        <th class="w-opn" rowspan="2">運用列番</th><th class="w-dst" rowspan="2">行先</th>
+                    </tr>
+                    <tr>
+                        <th class="w-time">計画</th><th class="w-act">到着</th><th class="w-time">計画</th><th class="w-act">発車</th>
+                    </tr>
+                </thead>
+                <tbody id="timetableBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -171,8 +195,8 @@
             const dateVal = document.getElementById('dateInput').value;
             const line = document.getElementById('lineSelect').value;
             const station = document.getElementById('stationSelect').value;
-            const resultArea = document.getElementById('timetableResultArea');
-            resultArea.innerHTML = '';
+            const tbody = document.getElementById('timetableBody');
+            tbody.innerHTML = '';
             updateSummary();
 
             if (!line || !station) return;
@@ -182,14 +206,13 @@
             const isWeekend = (dObj.getDay() === 0 || dObj.getDay() === 6); 
             const targetDayType = isWeekend ? "土休日" : "平日";
 
-            // 1. 候補抽出と特定日優先処理
+            // 1. 抽出と特定日優先
             let candidates = rawTimetableData.filter(train => {
                 const hasStation = train.stops.some(s => s.station === station);
                 if (!hasStation || train.line !== line) return false;
                 if (train.startDate === targetDateStr) return true;
                 const isAfterRevision = new Date(train.startDate) <= dObj;
-                const isCorrectDayType = (train.dayType === targetDayType || train.dayType === "" || !train.dayType);
-                return isAfterRevision && isCorrectDayType;
+                return isAfterRevision && (train.dayType === targetDayType || !train.dayType || train.dayType === "");
             });
 
             const trainMap = new Map();
@@ -200,59 +223,52 @@
 
             const finalData = Array.from(trainMap.values());
             if (finalData.length === 0) {
-                resultArea.innerHTML = '<p style="padding:20px;">該当するデータがありません。</p>';
+                tbody.innerHTML = '<tr><td colspan="12">該当するデータがありません。</td></tr>';
                 return;
             }
 
             updateClock(targetDateStr);
 
-            // 2. データを「線別（上り・下り）」でグループ化
+            // 2. 分類とソート
             const grouped = {};
-            finalData.forEach(train => {
-                const label = getNsLabel(train);
+            finalData.forEach(t => {
+                const label = getNsLabel(t);
                 if (!grouped[label]) grouped[label] = [];
-                grouped[label].push(train);
+                grouped[label].push(t);
             });
 
-            // 3. 各グループ内で時間順にソートしてテーブル生成
-            // 日本の慣習に合わせ、上り(A)→下り(B)などの順で表示するための順序定義
             const sortOrder = ["上り", "下り", "北行", "南行", "内回り", "外回り", "その他"];
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
-            sortedLabels.forEach(label => {
-                const labelTitle = document.createElement('div');
-                labelTitle.className = 'direction-divider';
-                labelTitle.innerText = `━━━━━ ${label} ━━━━━`;
-                resultArea.appendChild(labelTitle);
-
-                const tableContainer = document.createElement('div');
-                tableContainer.className = 'monitor-table-container';
-                
-                // 時間順ソート
+            // 3. 表示生成（セル結合ロジック）
+            sortedLabels.forEach((label, groupIdx) => {
+                // そのグループ内での時間順ソート
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
                     return (sa.arrival || sa.departure).localeCompare(sb.arrival || sb.departure);
                 });
 
-                let tableHtml = `<table><thead><tr>
-                    <th class="w-line-side" rowspan="2">線別</th>
-                    <th class="w-tno" rowspan="2">列車番号</th>
-                    <th class="w-type" rowspan="2">列車種別</th>
-                    <th class="w-pwr" rowspan="2">動力</th>
-                    <th colspan="2">着時刻</th><th colspan="2">発時刻</th>
-                    <th class="w-trk" rowspan="2">番線</th><th class="w-opi" rowspan="2">運用<br>情報</th>
-                    <th class="w-opn" rowspan="2">運用列番</th><th class="w-dst" rowspan="2">行先</th>
-                </tr><tr>
-                    <th class="w-time">計画</th><th class="w-act">到着</th><th class="w-time">計画</th><th class="w-act">発車</th>
-                </tr></thead><tbody>`;
-
-                grouped[label].forEach(train => {
+                grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => st.station === station);
                     const stopIdx = train.stops.findIndex(st => st.station === station);
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
                     
+                    const tr = document.createElement('tr');
+                    
+                    // グループの最初の行に境界線（上端）
+                    if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
+
+                    // --- セル結合(Rowspan) ---
+                    if (rowIdx === 0) {
+                        const tdLine = document.createElement('td');
+                        tdLine.className = 'td-line-side';
+                        tdLine.rowSpan = grouped[label].length;
+                        tdLine.innerText = label;
+                        tr.appendChild(tdLine);
+                    }
+
                     let opText = ""; let opNo = "";
                     if (isFirst) {
                         opText = train.tt1 === 'k' ? '継送' : (train.tt1 === 'o' ? '折返' : '');
@@ -262,8 +278,7 @@
                         opNo = train.tr2 || "";
                     }
 
-                    tableHtml += `<tr>
-                        <td>${label}</td>
+                    tr.innerHTML += `
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
                         <td>${getPowerLabel(train)}</td>
@@ -275,12 +290,9 @@
                         <td>${opText}</td>
                         <td class="link-text">${opNo}</td>
                         <td class="col-dst">${train.destination}</td>
-                    </tr>`;
+                    `;
+                    tbody.appendChild(tr);
                 });
-
-                tableHtml += `</tbody></table>`;
-                tableContainer.innerHTML = tableHtml;
-                resultArea.appendChild(tableContainer);
             });
         }
 
