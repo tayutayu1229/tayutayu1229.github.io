@@ -13,7 +13,7 @@
             --text-black: #222;
             --border-white: #ffffff;
 
-            /* 横幅固定設定 */
+            /* 幅設定 */
             --w-line-side: 70px;
             --w-train-no: 95px;   
             --w-type: 110px;      
@@ -81,7 +81,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.4</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.5</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -132,30 +132,33 @@
         }
 
         /**
-         * 時刻文字列を解析。
-         * 空白・… 等は同一視してソート順を最後(999999)にする。
-         * 有効な時刻のみ hh:mm:ss 形式に整形して表示。
+         * 時刻文字列の解析
+         * データがない場合は null を返す（数値を返さない）
          */
-        function parseTime(timeStr) {
-            // 空白、null、undefined、または「…」「=」等の記号を「データなし」と判定
+        function parseTimeValue(timeStr) {
             if (!timeStr || timeStr.trim() === "" || timeStr === "…" || timeStr === "=") {
-                return { seconds: 999999, display: timeStr || "" };
+                return null; 
             }
-
             const parts = timeStr.split(':');
             let h = parseInt(parts[0], 10);
             let m = parseInt(parts[1], 10);
             let s = parseInt(parts[2], 10) || 0;
+            if (isNaN(h) || isNaN(m)) return null;
+            return (h * 3600) + (m * 60) + s;
+        }
 
-            // 数字として妥当でない場合もデータなし扱い
-            if (isNaN(h) || isNaN(m)) {
-                return { seconds: 999999, display: timeStr };
-            }
-
-            const totalSeconds = (h * 3600) + (m * 60) + s;
-            const displayStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        /**
+         * 表示用文字列の生成
+         * データがない場合は加工せずそのまま、時刻がある場合のみ hh:mm:ss に。
+         */
+        function formatDisplayTime(timeStr) {
+            const totalSec = parseTimeValue(timeStr);
+            if (totalSec === null) return timeStr || "";
             
-            return { seconds: totalSeconds, display: displayStr };
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
         function populateLines() {
@@ -241,15 +244,15 @@
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
-                // グループ内ソート
+                // 時刻があるもののみ「早い順」に。ないものはそのまま。
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
-                    
-                    const timeA = parseTime(sa.arrival || sa.departure);
-                    const timeB = parseTime(sb.arrival || sb.departure);
-                    
-                    return timeA.seconds - timeB.seconds;
+                    const valA = parseTimeValue(sa.arrival || sa.departure);
+                    const valB = parseTimeValue(sb.arrival || sb.departure);
+
+                    if (valA !== null && valB !== null) return valA - valB;
+                    return 0; // 値がない場合は順序を入れ替えない
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
@@ -258,9 +261,6 @@
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
                     
-                    const arrivalInfo = parseTime(s.arrival);
-                    const departureInfo = parseTime(s.departure);
-
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -285,9 +285,9 @@
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
                         <td>${getPowerLabel(train)}</td>
-                        <td class="col-time">${arrivalInfo.display}</td>
+                        <td class="col-time">${formatDisplayTime(s.arrival)}</td>
                         <td class="col-act"></td>
-                        <td class="col-time">${departureInfo.display}</td>
+                        <td class="col-time">${formatDisplayTime(s.departure)}</td>
                         <td class="col-act"></td>
                         <td class="col-trk">${s.trackN}</td>
                         <td>${opText}</td>
