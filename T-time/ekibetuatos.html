@@ -18,7 +18,7 @@
             --w-train-no: 95px;   
             --w-type: 110px;      
             --w-power: 55px;      
-            --w-time-plan: 90px;  /* 時刻表示幅 */
+            --w-time-plan: 90px;  
             --w-time-act: 45px;   
             --w-track: 65px;      
             --w-op-info: 60px;    
@@ -33,6 +33,7 @@
             background-color: var(--bg-white);
             margin: 0; padding: 0;
             font-weight: bold; color: var(--text-black);
+            -webkit-text-size-adjust: 100%;
         }
         
         #appContainer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 5px; }
@@ -71,17 +72,6 @@
         .td-line-side { background-color: #f0f0f0; border-right: 2px solid #888; vertical-align: middle; }
         .row-boundary td { border-top: 3px solid #333; }
 
-        .w-line-side { width: var(--w-line-side); }
-        .w-tno { width: var(--w-train-no); }
-        .w-type { width: var(--w-type); }
-        .w-pwr { width: var(--w-power); }
-        .w-time { width: var(--w-time-plan); }
-        .w-act { width: var(--w-time-act); }
-        .w-trk { width: var(--w-track); }
-        .w-opi { width: var(--w-op-info); }
-        .w-opn { width: var(--w-op-no); }
-        .w-dst { width: var(--w-dest); }
-
         .col-type, .col-dst { text-align: left; padding-left: 6px; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
@@ -91,7 +81,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.3</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.4</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -111,16 +101,16 @@
             <table id="mainTable">
                 <thead>
                     <tr>
-                        <th class="w-line-side" rowspan="2">線別</th>
-                        <th class="w-tno" rowspan="2">列車番号</th>
-                        <th class="w-type" rowspan="2">列車種別</th>
-                        <th class="w-pwr" rowspan="2">動力</th>
+                        <th style="width:70px;" rowspan="2">線別</th>
+                        <th style="width:95px;" rowspan="2">列車番号</th>
+                        <th style="width:110px;" rowspan="2">列車種別</th>
+                        <th style="width:55px;" rowspan="2">動力</th>
                         <th colspan="2">着時刻</th><th colspan="2">発時刻</th>
-                        <th class="w-trk" rowspan="2">番線</th><th class="w-opi" rowspan="2">運用<br>情報</th>
-                        <th class="w-opn" rowspan="2">運用列番</th><th class="w-dst" rowspan="2">行先</th>
+                        <th style="width:65px;" rowspan="2">番線</th><th style="width:60px;" rowspan="2">運用<br>情報</th>
+                        <th style="width:95px;" rowspan="2">運用列番</th><th style="width:115px;" rowspan="2">行先</th>
                     </tr>
                     <tr>
-                        <th class="w-time">計画</th><th class="w-act">到着</th><th class="w-time">計画</th><th class="w-act">発車</th>
+                        <th style="width:90px;">計画</th><th style="width:45px;">到着</th><th style="width:90px;">計画</th><th style="width:45px;">発車</th>
                     </tr>
                 </thead>
                 <tbody id="timetableBody"></tbody>
@@ -142,18 +132,25 @@
         }
 
         /**
-         * 時刻文字列を整形し、比較用の秒数と表示用の文字列を返す
-         * @param {string} timeStr - "11:41" や "11:41:05"
-         * @returns {Object} { seconds: 数値, display: "hh:mm:ss" }
+         * 時刻文字列を解析。
+         * 空白・… 等は同一視してソート順を最後(999999)にする。
+         * 有効な時刻のみ hh:mm:ss 形式に整形して表示。
          */
         function parseTime(timeStr) {
-            if (!timeStr || timeStr === "=" || timeStr === "…") {
+            // 空白、null、undefined、または「…」「=」等の記号を「データなし」と判定
+            if (!timeStr || timeStr.trim() === "" || timeStr === "…" || timeStr === "=") {
                 return { seconds: 999999, display: timeStr || "" };
             }
+
             const parts = timeStr.split(':');
-            let h = parseInt(parts[0], 10) || 0;
-            let m = parseInt(parts[1], 10) || 0;
+            let h = parseInt(parts[0], 10);
+            let m = parseInt(parts[1], 10);
             let s = parseInt(parts[2], 10) || 0;
+
+            // 数字として妥当でない場合もデータなし扱い
+            if (isNaN(h) || isNaN(m)) {
+                return { seconds: 999999, display: timeStr };
+            }
 
             const totalSeconds = (h * 3600) + (m * 60) + s;
             const displayStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
@@ -244,7 +241,7 @@
             const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
-                // グループ内ソートの強化
+                // グループ内ソート
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
@@ -284,14 +281,13 @@
                         opNo = train.tr2 || "";
                     }
 
-                    // 表示部分で秒数を補完した display 文字列を使用
                     tr.innerHTML += `
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
                         <td>${getPowerLabel(train)}</td>
                         <td class="col-time">${arrivalInfo.display}</td>
                         <td class="col-act"></td>
-                        <td class="col-time">${departureInfo.display === '=' ? '=' : (departureInfo.display || "…")}</td>
+                        <td class="col-time">${departureInfo.display}</td>
                         <td class="col-act"></td>
                         <td class="col-trk">${s.trackN}</td>
                         <td>${opText}</td>
