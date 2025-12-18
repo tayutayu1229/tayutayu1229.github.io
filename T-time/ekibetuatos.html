@@ -12,19 +12,6 @@
             --row-gray: #cfcfcf;
             --text-black: #222;
             --border-white: #ffffff;
-
-            /* 幅設定 */
-            --w-line-side: 70px;
-            --w-train-no: 95px;   
-            --w-type: 110px;      
-            --w-power: 55px;      
-            --w-time-plan: 90px;  
-            --w-time-act: 45px;   
-            --w-track: 65px;      
-            --w-op-info: 60px;    
-            --w-op-no: 95px;      
-            --w-dest: 115px;      
-
             --atos-row-height: 28px;
         }
 
@@ -51,17 +38,7 @@
             gap: 12px; border-bottom: 1px solid #999;
         }
         
-        .selection-summary {
-            background-color: #f9f9f9; padding: 5px 10px; font-size: 16px;
-            border-bottom: 1px solid #ccc; color: #333;
-        }
-
-        select, input {
-            border: 1px solid #999; padding: 2px 4px; font-size: 15px;
-            height: 26px; border-radius: 2px; font-weight: bold; font-family: var(--atos-font);
-        }
-
-        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; position: relative; }
+        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; }
         table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
@@ -81,7 +58,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.4.5</div>
+        <div class="header-title">Mobile ATOS App Ver2.4.6</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -90,10 +67,6 @@
             <div>施行日：<input type="date" id="dateInput"></div>
             <div>線区：<select id="lineSelect"><option value="">(選択)</option></select></div>
             <div>駅名：<select id="stationSelect"><option value="">(選択)</option></select></div>
-        </div>
-
-        <div class="selection-summary">
-            線区：【<span id="summaryLine"></span>】駅名：【<span id="summaryStation"></span>】
         </div>
 
         <div class="monitor-table-container">
@@ -132,8 +105,7 @@
         }
 
         /**
-         * 時刻文字列の解析
-         * データがない場合は null を返す（数値を返さない）
+         * ソート用の数値化。データがない場合は純粋に null。
          */
         function parseTimeValue(timeStr) {
             if (!timeStr || timeStr.trim() === "" || timeStr === "…" || timeStr === "=") {
@@ -148,12 +120,17 @@
         }
 
         /**
-         * 表示用文字列の生成
-         * データがない場合は加工せずそのまま、時刻がある場合のみ hh:mm:ss に。
+         * 表示用。値がない（nullまたは記号）場合は "…" を表示。
+         * 時刻がある場合のみ hh:mm:ss に整形。
          */
         function formatDisplayTime(timeStr) {
             const totalSec = parseTimeValue(timeStr);
-            if (totalSec === null) return timeStr || "";
+            // ソート値が null の場合、または元の文字が空白や記号なら「…」を表示
+            if (totalSec === null) {
+                // ただし「=」などはそのまま表示したい場合もあるため条件分岐
+                if (timeStr === "=") return "=";
+                return "…"; 
+            }
             
             const h = Math.floor(totalSec / 3600);
             const m = Math.floor((totalSec % 3600) / 60);
@@ -170,7 +147,6 @@
                 const stations = new Set();
                 rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
                 document.getElementById('stationSelect').innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
-                updateSummary();
                 render();
             };
         }
@@ -183,55 +159,28 @@
             return "その他";
         }
 
-        function getPowerLabel(train) {
-            if (train.power) return train.power;
-            const tNo = train.trainNumber;
-            if (tNo.includes('D')) return "DC";
-            if (tNo.match(/[A-Z]/)) return "EC";
-            return ""; 
-        }
-
-        function updateSummary() {
-            document.getElementById('summaryLine').innerText = document.getElementById('lineSelect').value || "";
-            document.getElementById('summaryStation').innerText = document.getElementById('stationSelect').value || "";
-        }
-
         function render() {
-            const dateVal = document.getElementById('dateInput').value;
             const line = document.getElementById('lineSelect').value;
             const station = document.getElementById('stationSelect').value;
             const tbody = document.getElementById('timetableBody');
             tbody.innerHTML = '';
-            updateSummary();
-
             if (!line || !station) return;
 
+            const dateVal = document.getElementById('dateInput').value;
             const targetDateStr = dateVal.replace(/-/g, '/');
             const dObj = new Date(targetDateStr);
-            const isWeekend = (dObj.getDay() === 0 || dObj.getDay() === 6); 
-            const targetDayType = isWeekend ? "土休日" : "平日";
+            const targetDayType = (dObj.getDay() === 0 || dObj.getDay() === 6) ? "土休日" : "平日";
 
             let candidates = rawTimetableData.filter(train => {
                 const hasStation = train.stops.some(s => s.station === station);
                 if (!hasStation || train.line !== line) return false;
                 if (train.startDate === targetDateStr) return true;
-                const isAfterRevision = new Date(train.startDate) <= dObj;
-                return isAfterRevision && (train.dayType === targetDayType || !train.dayType || train.dayType === "");
+                return new Date(train.startDate) <= dObj && (train.dayType === targetDayType || !train.dayType);
             });
 
             const trainMap = new Map();
-            candidates.forEach(train => {
-                const existing = trainMap.get(train.trainNumber);
-                if (!existing || train.startDate === targetDateStr) trainMap.set(train.trainNumber, train);
-            });
-
+            candidates.forEach(train => trainMap.set(train.trainNumber, train));
             const finalData = Array.from(trainMap.values());
-            if (finalData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="12">該当するデータがありません。</td></tr>';
-                return;
-            }
-
-            updateClock(targetDateStr);
 
             const grouped = {};
             finalData.forEach(t => {
@@ -240,27 +189,22 @@
                 grouped[label].push(t);
             });
 
-            const sortOrder = ["上り", "下り", "北行", "南行", "内回り", "外回り", "その他"];
-            const sortedLabels = Object.keys(grouped).sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
+            const sortedLabels = Object.keys(grouped).sort((a,b) => ["上り","下り"].indexOf(a) - ["上り","下り"].indexOf(b));
 
             sortedLabels.forEach((label, groupIdx) => {
-                // 時刻があるもののみ「早い順」に。ないものはそのまま。
+                // ソートロジック：時刻がある場合のみ比較
                 grouped[label].sort((a, b) => {
                     const sa = a.stops.find(s => s.station === station);
                     const sb = b.stops.find(s => s.station === station);
                     const valA = parseTimeValue(sa.arrival || sa.departure);
                     const valB = parseTimeValue(sb.arrival || sb.departure);
-
                     if (valA !== null && valB !== null) return valA - valB;
-                    return 0; // 値がない場合は順序を入れ替えない
+                    return 0; 
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => st.station === station);
                     const stopIdx = train.stops.findIndex(st => st.station === station);
-                    const isFirst = (stopIdx === 0);
-                    const isLast = (stopIdx === train.stops.length - 1);
-                    
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -272,36 +216,28 @@
                         tr.appendChild(tdLine);
                     }
 
-                    let opText = ""; let opNo = "";
-                    if (isFirst) {
-                        opText = train.tt1 === 'k' ? '継送' : (train.tt1 === 'o' ? '折返' : '');
-                        opNo = train.tr1 || "";
-                    } else if (isLast) {
-                        opText = train.tt2 === 'k' ? '継送' : (train.tt2 === 'o' ? '折返' : '');
-                        opNo = train.tr2 || "";
-                    }
-
                     tr.innerHTML += `
                         <td class="link-text">${train.trainNumber}</td>
                         <td class="col-type">${train.type}</td>
-                        <td>${getPowerLabel(train)}</td>
+                        <td>${train.power || ""}</td>
                         <td class="col-time">${formatDisplayTime(s.arrival)}</td>
-                        <td class="col-act"></td>
+                        <td></td>
                         <td class="col-time">${formatDisplayTime(s.departure)}</td>
-                        <td class="col-act"></td>
+                        <td></td>
                         <td class="col-trk">${s.trackN}</td>
-                        <td>${opText}</td>
-                        <td class="link-text">${opNo}</td>
+                        <td>${(stopIdx===0 && train.tt1==='k')?'継送':''}</td>
+                        <td class="link-text">${(stopIdx===0?train.tr1:'')}</td>
                         <td class="col-dst">${train.destination}</td>
                     `;
                     tbody.appendChild(tr);
                 });
             });
+            updateClock(targetDateStr);
         }
 
         function updateClock(dateStr) {
             const d = new Date(dateStr);
-            d.setDate(d.getDate() - 2); d.setHours(22, 45, Math.floor(Math.random()*60));
+            d.setHours(12, 0, 0);
             const fmt = (n) => String(n).padStart(2, '0');
             document.getElementById('clockDisplay').innerText = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
         }
@@ -310,7 +246,7 @@
         document.getElementById('stationSelect').onchange = render;
         window.onload = () => {
             const today = new Date();
-            document.getElementById('dateInput').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+            document.getElementById('dateInput').value = today.toISOString().split('T')[0];
             loadData();
         };
     </script>
