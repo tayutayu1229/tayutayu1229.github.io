@@ -57,9 +57,7 @@
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
 
-        /* ==================================================
-            【新規】オーバーレイ（モーダル）スタイル
-           ================================================== */
+        /* --- オーバーレイ（モーダル）スタイル --- */
         #modalOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000;
@@ -83,7 +81,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.5.7</div>
+        <div class="header-title">Mobile ATOS App</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -183,6 +181,9 @@
             };
         }
 
+        // ==================================================
+        // ロジック：選択した施行日(startDate)と完全一致のみ表示
+        // ==================================================
         function render() {
             const line = document.getElementById('lineSelect').value;
             const station = document.getElementById('stationSelect').value;
@@ -191,37 +192,17 @@
             tbody.innerHTML = '';
             if (!line || !station || !dateVal) return;
 
-            const targetDate = new Date(dateVal);
             const targetDateStr = dateVal.replace(/-/g, '/');
-            const targetDayType = (targetDate.getDay() === 0 || targetDate.getDay() === 6) ? "土休日" : "平日";
 
-            const candidates = rawTimetableData.filter(t => t.line === line && t.stops.some(s => s.station === station));
-            const trainMap = new Map();
-            const uniqueNos = [...new Set(candidates.map(t => t.trainNumber))];
+            // 施行日が完全一致するデータのみを抽出
+            const filteredData = rawTimetableData.filter(t => 
+                t.line === line && 
+                t.startDate === targetDateStr && 
+                t.stops.some(s => s.station === station)
+            );
 
-            uniqueNos.forEach(tNo => {
-                const versions = candidates.filter(v => v.trainNumber === tNo);
-                let match = versions.find(v => v.startDate === targetDateStr);
-                
-                if (!match) {
-                    const regulars = versions.filter(v => {
-                        const isPast = new Date(v.startDate) <= targetDate;
-                        const dType = safeVal(v.dayType);
-                        const isDayMatch = (dType === "" || dType === targetDayType);
-                        const isRegular = (dType === "" || dType === "平日" || dType === "土休日");
-                        return isPast && isDayMatch && isRegular;
-                    });
-                    if (regulars.length > 0) {
-                        regulars.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-                        match = regulars[0];
-                    }
-                }
-                if (match) trainMap.set(tNo, match);
-            });
-
-            const finalData = Array.from(trainMap.values());
             const grouped = {};
-            finalData.forEach(t => {
+            filteredData.forEach(t => {
                 const label = (parseInt(safeVal(t.trainNumber).match(/\d+/)) % 2 === 0) ? "上り" : "下り";
                 if (!grouped[label]) grouped[label] = [];
                 grouped[label].push(t);
@@ -267,7 +248,7 @@
         }
 
         // ==================================================
-        // オーバーレイ表示機能（修正版：添付画像の構成を再現）
+        // 全停車駅時刻表オーバーレイ（計画・到着/発車 形式）
         // ==================================================
         function showOverlay(tNo, sDate) {
             const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
@@ -276,7 +257,6 @@
             document.getElementById('modalTrainInfo').innerHTML = 
                 `列車番号: ${train.trainNumber} / 列車種別: ${train.type} / 運転区間: ${train.origin} ～ ${train.destination}`;
             
-            // 添付画像の「計画・到着/発車・番線」形式を再現
             let html = `<table><thead>
                 <tr>
                     <th rowspan="2" style="width:120px;">駅名</th>
