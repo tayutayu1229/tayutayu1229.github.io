@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile ATOS App</title>
     <style>
-        /* ===========================================================
-         【 数値調整エリア 】強制的に幅を固定する設定
-         ===========================================================
-        */
         :root {
             --atos-font: "MS PGothic", "ＭＳ Ｐゴシック", sans-serif;
             --atos-table-header: #1A968A; 
@@ -17,18 +13,18 @@
             --text-black: #222;
             --border-white: #ffffff;
 
-            /* 横幅設定 (ここを書き換えると確実に反映されます) */
-            --w-ns: 75px;         /* 区分 */
-            --w-train-no: 95px;   /* 列車番号 */
-            --w-type: 110px;      /* 列車種別 */
-            --w-power: 50px;      /* 動力 */
-            --w-station: 130px;   /* 駅名 */
-            --w-time-plan: 85px;  /* 計画時刻 */
-            --w-time-act: 45px;   /* 到着・発車の実績枠 */
-            --w-track: 65px;      /* 番線 */
-            --w-op-info: 60px;    /* 運用情報 */
-            --w-op-no: 95px;      /* 運用列番 */
-            --w-dest: 110px;      /* 行先 */
+            /* 横幅固定設定 */
+            --w-line-side: 75px;   /* 線別 */
+            --w-train-no: 95px;   
+            --w-type: 110px;      
+            --w-power: 55px;       /* 動力表示用 */
+            --w-station: 130px;   
+            --w-time-plan: 85px;  
+            --w-time-act: 45px;   
+            --w-track: 65px;      
+            --w-op-info: 60px;    
+            --w-op-no: 95px;      
+            --w-dest: 110px;      
 
             --atos-row-height: 28px;
         }
@@ -36,33 +32,21 @@
         body {
             font-family: var(--atos-font);
             background-color: var(--bg-white);
-            margin: 0;
-            padding: 0;
-            font-weight: bold;
-            color: var(--text-black);
+            margin: 0; padding: 0;
+            font-weight: bold; color: var(--text-black);
         }
         
-        #appContainer {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto; 
-            padding: 0 5px; 
-        }
+        #appContainer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 5px; }
         
-        /* --- Header --- */
+        /* Header & Filter */
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
-            padding: 8px 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #999;
-            height: 32px;
+            padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #999; height: 32px;
         }
         .header-title { font-size: 16px; flex-grow: 1; text-align: center; color: #444; }
         .clock-area { font-size: 15px; min-width: 220px; text-align: right; }
 
-        /* --- Filter Bar --- */
         .filter-bar {
             background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
             gap: 12px; border-bottom: 1px solid #999;
@@ -72,45 +56,15 @@
             height: 26px; border-radius: 2px; font-weight: bold; font-family: var(--atos-font);
         }
 
-        /* --- Main Table --- */
-        .monitor-table-container { 
-            width: 100%; 
-            overflow-x: auto; 
-            margin-top: 5px; 
-        }
-        
-        table {
-            border-collapse: collapse;
-            table-layout: fixed; 
-            width: auto; 
-            min-width: 100%;
-        }
-
+        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 5px; position: relative; }
+        table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
         th {
-            background-color: var(--atos-table-header); 
-            color: white;
-            border: 1px solid var(--border-white); 
-            padding: 0 2px;
-            font-size: 15px;
-            height: var(--atos-row-height);
-            white-space: nowrap;
+            background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
+            padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
         }
-        
-        td {
-            border: 1px solid var(--border-white); 
-            background-color: var(--row-gray);
-            height: var(--atos-row-height);
-            text-align: center;
-            white-space: nowrap; 
-            overflow: hidden;
-            font-size: 16px; 
-        }
+        td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; }
 
-        /* 文字サイズ調整：到着・発車の「到着」「発車」の文字 */
-        .col-act { font-size: 16px; }
-
-        /* 幅のクラス設定 */
-        .w-ns { width: var(--w-ns); }
+        .w-line-side { width: var(--w-line-side); }
         .w-tno { width: var(--w-train-no); }
         .w-type { width: var(--w-type); }
         .w-pwr { width: var(--w-power); }
@@ -124,10 +78,14 @@
 
         .col-type, .col-st, .col-dst { text-align: left; padding-left: 6px; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
-
         .link-text { color: blue; text-decoration: underline; cursor: pointer; }
-        .footer-legend { padding: 10px; font-size: 15px; }
-        .loading-overlay { padding: 20px; font-size: 18px; text-align: center; }
+        
+        #loadingMsg { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; 
+            z-index: 10; font-size: 18px;
+        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -145,11 +103,11 @@
         </div>
 
         <div class="monitor-table-container">
-            <div id="loadingMsg" class="loading-overlay hidden">データを読み込んでいます...</div>
+            <div id="loadingMsg" class="hidden">データを読み込んでいます...</div>
             <table>
                 <thead>
                     <tr>
-                        <th class="w-ns" rowspan="2">区分</th>
+                        <th class="w-line-side" rowspan="2">線別</th>
                         <th class="w-tno" rowspan="2">列車番号</th>
                         <th class="w-type" rowspan="2">列車種別</th>
                         <th class="w-pwr" rowspan="2">動力</th>
@@ -168,164 +126,149 @@
                         <th class="w-act">発車</th>
                     </tr>
                 </thead>
-                <tbody id="timetableBody">
-                    <tr><td colspan="13">線区と駅名を選択してください。</td></tr>
-                </tbody>
+                <tbody id="timetableBody"></tbody>
             </table>
-        </div>
-
-        <div class="footer-legend">
-            「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止
         </div>
     </div>
 
     <script>
         let rawTimetableData = [];
 
-        // 外部JSONの読み込み
-        async function loadJsonData() {
+        async function loadData() {
             const loadingMsg = document.getElementById('loadingMsg');
             loadingMsg.classList.remove('hidden');
             try {
+                // 同じ階層の timetables.json を取得
                 const response = await fetch('timetables.json');
-                if (!response.ok) throw new Error('JSONファイルの読み込みに失敗しました。');
                 rawTimetableData = await response.json();
-                console.log('Data loaded:', rawTimetableData.length, 'records');
-                initLineSelect();
-            } catch (error) {
-                console.error(error);
-                alert('エラー: timetables.json が見つからないか、形式が正しくありません。');
+                populateLines();
+            } catch (e) {
+                console.error("JSON fetch error:", e);
             } finally {
-                loadingMsg.classList.add('hidden');
+                loadingMsg.classList.add('hidden'); // 読み込み完了後に非表示
             }
         }
 
-        const dateInput = document.getElementById('dateInput');
-        const lineSelect = document.getElementById('lineSelect');
-        const stationSelect = document.getElementById('stationSelect');
-        const timetableBody = document.getElementById('timetableBody');
-
-        window.onload = () => {
-            // 初期日付（今日）
-            const today = new Date();
-            dateInput.value = today.toISOString().split('T')[0];
-            
-            // JSON読み込み開始
-            loadJsonData();
-        };
-
-        function initLineSelect() {
+        function populateLines() {
             const lines = [...new Set(rawTimetableData.map(d => d.line))].sort();
+            const lineSelect = document.getElementById('lineSelect');
             lineSelect.innerHTML = '<option value="">(選択)</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
             
             lineSelect.onchange = () => {
-                const selectedLine = lineSelect.value;
                 const stations = new Set();
-                rawTimetableData.filter(d => d.line === selectedLine).forEach(d => {
-                    d.stops.forEach(s => stations.add(s.station));
-                });
-                
-                stationSelect.innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
+                rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
+                document.getElementById('stationSelect').innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
                 render();
             };
-
-            stationSelect.onchange = render;
-            dateInput.onchange = render;
-        }
-
-        // 施行日の2日前の22時45分（ランダム秒）に設定
-        function updateFixedClock(baseDateStr) {
-            if (!baseDateStr) return;
-            const d = new Date(baseDateStr);
-            d.setDate(d.getDate() - 2); 
-            d.setHours(22, 45);
-            const randomSec = Math.floor(Math.random() * 60);
-            d.setSeconds(randomSec);
-
-            const fmt = (n) => String(n).padStart(2, '0');
-            const str = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
-            document.getElementById('clockDisplay').innerText = str;
         }
 
         function getNsLabel(ns) {
-            const labels = {"A": "上り", "B": "下り", "N": "北行", "S": "南行", "S_OUT": "外回り", "U": "内回り"};
-            // JSONのSを南行とするか外回りとするかは適宜調整してください
-            if (ns === "S") return "南行"; 
-            return labels[ns] || "－";
-        }
-
-        function getOpText(code) {
-            return code === "k" ? "継送" : (code === "o" ? "折返" : "");
+            const dict = {"A":"上り","B":"下り","N":"北行","S":"南行","U":"内回り","O":"外回り"};
+            return dict[ns] || "－";
         }
 
         function render() {
-            const line = lineSelect.value;
-            const station = stationSelect.value;
-            const selectedDate = dateInput.value;
-            
-            timetableBody.innerHTML = '';
-            if (!line || !station) {
-                timetableBody.innerHTML = '<tr><td colspan="13">線区と駅名を選択してください。</td></tr>';
-                document.getElementById('clockDisplay').innerText = "----/--/-- --:--:-- 現在";
-                return;
-            }
+            const dateVal = document.getElementById('dateInput').value;
+            if(!dateVal) return;
+            const targetDateStr = dateVal.replace(/-/g, '/');
+            const line = document.getElementById('lineSelect').value;
+            const station = document.getElementById('stationSelect').value;
+            const tbody = document.getElementById('timetableBody');
+            tbody.innerHTML = '';
 
-            const filtered = rawTimetableData.filter(train => {
-                return train.line === line && train.stops.some(s => s.station === station);
-            });
+            if (!line || !station) return;
 
-            if (filtered.length > 0) {
-                updateFixedClock(selectedDate);
-            } else {
-                timetableBody.innerHTML = '<tr><td colspan="13">該当するデータがありません。</td></tr>';
-                return;
-            }
+            const dObj = new Date(targetDateStr);
+            const isWeekend = (dObj.getDay() === 0 || dObj.getDay() === 6); 
+            const targetDayType = isWeekend ? "土休日" : "平日";
 
-            // 表示用データの構築とソート
-            const rows = filtered.map(train => {
-                const stopIdx = train.stops.findIndex(s => s.station === station);
-                return { 
-                    train, 
-                    stop: train.stops[stopIdx], 
-                    isFirst: stopIdx === 0, 
-                    isLast: stopIdx === train.stops.length - 1 
-                };
-            });
+            // 1. 候補抽出 (期間・曜日・特定日判定)
+            let candidates = rawTimetableData.filter(train => {
+                const hasStation = train.stops.some(s => s.station === station);
+                if (!hasStation || train.line !== line) return false;
 
-            rows.sort((a, b) => (a.stop.departure || a.stop.arrival).localeCompare(b.stop.departure || b.stop.arrival));
+                // 特定日データがあれば最優先(後で重複排除)
+                if (train.startDate === targetDateStr) return true;
 
-            rows.forEach(r => {
-                const tr = document.createElement('tr');
-                const power = r.train.trainNumber.includes('M') ? 'EC' : 'EL';
+                // 所定ダイヤ判定: 開始日以降 かつ (曜日一致 or 指定なし)
+                const isAfterRevision = new Date(train.startDate) <= dObj;
+                const isCorrectDayType = (train.dayType === targetDayType || train.dayType === "" || !train.dayType);
                 
-                let opText = "";
-                let opNo = "";
-                if (r.isFirst) {
-                    opText = getOpText(r.train.tt1);
-                    opNo = r.train.tr1 || "";
-                } else if (r.isLast) {
-                    opText = getOpText(r.train.tt2);
-                    opNo = r.train.tr2 || "";
-                }
-
-                tr.innerHTML = `
-                    <td>${getNsLabel(r.train.ns)}</td>
-                    <td class="link-text">${r.train.trainNumber}</td>
-                    <td class="col-type">${r.train.type}</td>
-                    <td>${power}</td>
-                    <td class="col-st">${r.stop.station}</td>
-                    <td class="col-time">${r.stop.arrival || '…'}</td>
-                    <td class="col-act"></td>
-                    <td class="col-time">${r.stop.departure === '=' ? '=' : (r.stop.departure || '…')}</td>
-                    <td class="col-act"></td>
-                    <td class="col-trk">${r.stop.trackN}</td>
-                    <td>${opText}</td>
-                    <td class="link-text">${opNo}</td>
-                    <td class="col-dst">${r.train.destination}</td>
-                `;
-                timetableBody.appendChild(tr);
+                return isAfterRevision && isCorrectDayType;
             });
+
+            // 2. 重複排除 (特定日 > 所定ダイヤ)
+            const trainMap = new Map();
+            candidates.forEach(train => {
+                const existing = trainMap.get(train.trainNumber);
+                if (!existing || train.startDate === targetDateStr) {
+                    trainMap.set(train.trainNumber, train);
+                }
+            });
+
+            const finalData = Array.from(trainMap.values());
+            
+            if (finalData.length > 0) {
+                updateClock(targetDateStr);
+                finalData.sort((a,b) => {
+                    const sa = a.stops.find(s => s.station === station);
+                    const sb = b.stops.find(s => s.station === station);
+                    return (sa.departure || sa.arrival).localeCompare(sb.departure || sb.arrival);
+                });
+
+                finalData.forEach(train => {
+                    const s = train.stops.find(st => st.station === station);
+                    const stopIdx = train.stops.findIndex(st => st.station === station);
+                    const isFirst = (stopIdx === 0);
+                    const isLast = (stopIdx === train.stops.length - 1);
+
+                    const tr = document.createElement('tr');
+                    
+                    // 動力(power)をJSONから直接取得。なければ空文字。
+                    const powerDisp = train.power || "";
+
+                    // 運用情報判定
+                    let opText = "";
+                    let opNo = "";
+                    if (isFirst) {
+                        opText = train.tt1 === 'k' ? '継送' : (train.tt1 === 'o' ? '折返' : '');
+                        opNo = train.tr1 || "";
+                    } else if (isLast) {
+                        opText = train.tt2 === 'k' ? '継送' : (train.tt2 === 'o' ? '折返' : '');
+                        opNo = train.tr2 || "";
+                    }
+
+                    tr.innerHTML = `
+                        <td>${getNsLabel(train.ns)}</td>
+                        <td class="link-text">${train.trainNumber}</td>
+                        <td class="col-type">${train.type}</td>
+                        <td>${powerDisp}</td>
+                        <td class="col-st">${s.station}</td>
+                        <td class="col-time">${s.arrival || '…'}</td>
+                        <td class="col-act"></td>
+                        <td class="col-time">${s.departure==='='?'=':(s.departure||'…')}</td>
+                        <td class="col-act"></td>
+                        <td class="col-trk">${s.trackN}</td>
+                        <td>${opText}</td>
+                        <td class="link-text">${opNo}</td>
+                        <td class="col-dst">${train.destination}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
         }
+
+        function updateClock(dateStr) {
+            const d = new Date(dateStr);
+            d.setDate(d.getDate() - 2);
+            d.setHours(22, 45, Math.floor(Math.random()*60));
+            const fmt = (n) => String(n).padStart(2, '0');
+            document.getElementById('clockDisplay').innerText = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+        }
+
+        document.getElementById('dateInput').onchange = render;
+        document.getElementById('stationSelect').onchange = render;
+        window.onload = loadData;
     </script>
 </body>
 </html>
