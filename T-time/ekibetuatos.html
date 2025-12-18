@@ -3,79 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile ATOS App</title>
+    <title>Mobile ATOS App Ver2.5.0</title>
     <style>
         :root {
-            --atos-font: "MS PGothic", "ＭＳ Ｐゴシック", sans-serif;
             --atos-table-header: #1A968A; 
             --bg-white: #ffffff;
             --row-gray: #cfcfcf;
             --text-black: #222;
             --border-white: #ffffff;
-            --atos-row-height: 28px;
+            --error-red: #ff0000;
+            --time-status-width: 20px; 
+            --time-plan-width: 90px;
+            --atos-row-height: 26px;
         }
 
         body {
-            font-family: var(--atos-font);
+            font-family: "MS Gothic", "MS PGothic", sans-serif;
             background-color: var(--bg-white);
-            margin: 0; padding: 0;
-            font-weight: bold; color: var(--text-black);
+            margin: 0; padding: 0; font-size: 15px; color: var(--text-black);
+            overflow-x: hidden; font-weight: bold;
         }
         
-        #appContainer { width: calc(100% - 20px); max-width: 1200px; margin: 0 auto; padding: 10px; }
+        #appContainer { max-width: 1000px; margin: 0 auto; padding: 0 5px; }
         
+        /* --- Header & Filter (変更なし) --- */
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
             padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #999; height: 32px;
+            border-bottom: 1px solid #999; height: 30px;
         }
-        .header-title { font-size: 16px; flex-grow: 1; text-align: center; color: #444; }
-        .clock-area { font-size: 15px; min-width: 220px; text-align: right; }
+        .header-title { font-size: 16px; flex-grow: 1; text-align: center; }
+        .clock-area { font-size: 15px; min-width: 180px; text-align: right; }
+        .filter-bar { background-color: #e0e0e0; padding: 8px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #999; }
+        select, input { border: 1px solid #999; padding: 2px 4px; font-size: 15px; height: 24px; font-weight: bold; }
 
-        .filter-bar {
-            background-color: #e0e0e0; padding: 12px; display: flex; align-items: center;
-            gap: 12px; border-bottom: 1px solid #999; border-radius: 4px;
-        }
-        
-        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 10px; }
-        table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
-        
-        th {
-            background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
-            padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
-        }
-        
-        td { 
-            border: 1px solid var(--border-white); 
-            background-color: var(--row-gray); 
-            height: var(--atos-row-height); 
-            text-align: center; font-size: 16px; font-weight: bold; 
-        }
-
-        .td-line-side { background-color: var(--row-gray); border-right: 2px solid #888; vertical-align: middle; }
-        .row-boundary td { border-top: 3px solid #333; }
-        .col-time, .col-trk { text-align: right; padding-right: 6px; }
-        .link-text { color: blue; text-decoration: underline; cursor: pointer; }
+        /* --- Main Table --- */
+        .monitor-table-container { width: 100%; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white); height: var(--atos-row-height); font-size: 14px; }
+        td { border: 1px solid var(--border-white); background-color: var(--row-gray); height: var(--atos-row-height); text-align: center; font-size: 16px; }
+        .col-align-left { text-align: left !important; padding-left: 8px !important; }
+        .col-align-right { text-align: right !important; padding-right: 5px !important; }
+        .link-text { color: #0000EE; text-decoration: underline; cursor: pointer; }
 
         /* ==================================================
-           【新規】オーバーレイ（モーダル）スタイル
+           【新規】オーバーレイ（時刻表）スタイル
            ================================================== */
         #modalOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000;
+            background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000;
         }
         .modal-content {
-            background: var(--bg-white); width: 95%; max-width: 900px; max-height: 85vh;
-            overflow-y: auto; border: 3px solid #333; position: relative; padding: 5px;
+            background: var(--bg-white); width: 95%; max-width: 850px; max-height: 90vh;
+            border: 3px solid #333; overflow-y: auto; position: relative;
         }
         .modal-header {
-            background: var(--atos-table-header); color: white; padding: 8px 12px;
+            background: #444; color: white; padding: 10px; font-size: 16px;
             display: flex; justify-content: space-between; align-items: center;
-            font-size: 16px; border-bottom: 2px solid #333;
         }
-        .close-btn { cursor: pointer; font-size: 24px; font-weight: bold; line-height: 1; }
-        .modal-body { padding: 5px 0; }
-        .modal-train-info { padding: 8px; font-size: 15px; border-bottom: 1px solid #999; background: #f9f9f9; margin-bottom: 5px; }
+        .close-btn { cursor: pointer; font-size: 24px; padding: 0 10px; }
+        .modal-body { padding: 10px; }
+        .modal-train-info { background: #eee; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; font-size: 15px; }
+        
+        /* オーバーレイ内のテーブル幅調整 */
+        .modal-table th:nth-child(1) { width: 150px; } /* 駅名 */
+        .modal-table th:nth-child(2), .modal-table th:nth-child(4) { width: 100px; } /* 時間 */
+        .modal-table th:nth-child(3), .modal-table th:nth-child(5) { width: 30px; } /* 実績 */
+        .modal-table th:nth-child(6) { width: 60px; } /* 番線 */
 
         .hidden { display: none !important; }
     </style>
@@ -83,232 +77,153 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.5.7</div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.5.0</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
     <div id="appContainer">
         <div class="filter-bar">
-            <div>施行日：<input type="date" id="dateInput"></div>
-            <div>線区：<select id="lineSelect"><option value="">(選択)</option></select></div>
-            <div>駅名：<select id="stationSelect"><option value="">(選択)</option></select></div>
+            <span>線区：<select id="lineSelect" onchange="performSearch()"></select></span>
+            <span>施行日：<input type="date" id="dateInput" onchange="performSearch()"></span>
+            <span>列番：<input type="text" id="trainNoInput" style="width:70px; background:#fff9c4;" oninput="performSearch()"></span>
         </div>
 
-        <div class="monitor-table-container">
-            <table id="mainTable">
-                <thead>
-                    <tr>
-                        <th style="width:70px;" rowspan="2">線別</th>
-                        <th style="width:95px;" rowspan="2">列車番号</th>
-                        <th style="width:110px;" rowspan="2">列車種別</th>
-                        <th style="width:55px;" rowspan="2">動力</th>
-                        <th colspan="2">着時刻</th><th colspan="2">発時刻</th>
-                        <th style="width:65px;" rowspan="2">番線</th><th style="width:60px;" rowspan="2">運用<br>情報</th>
-                        <th style="width:95px;" rowspan="2">運用列番</th><th style="width:115px;" rowspan="2">行先</th>
-                    </tr>
-                    <tr>
-                        <th style="width:90px;">計画</th><th style="width:45px;">到着</th><th style="width:90px;">計画</th><th style="width:45px;">発車</th>
-                    </tr>
-                </thead>
-                <tbody id="timetableBody"></tbody>
-            </table>
+        <div id="messageArea" class="error-msg hidden"></div>
+        <div id="contentArea" class="hidden">
+            <div class="train-summary" id="trainSummary" style="background:#eee; padding:8px; border-bottom:1px solid #ccc;"></div>
+            <div class="monitor-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width:80px;">列車種別</th><th rowspan="2" style="width:40px;">抑止</th><th rowspan="2">駅名</th>
+                            <th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2" style="width:60px;">番線</th>
+                            <th rowspan="2" style="width:50px;">運用</th><th rowspan="2" style="width:80px;">運用列番</th>
+                        </tr>
+                        <tr>
+                            <th style="width:90px;">時間</th><th style="width:20px;">着</th><th style="width:90px;">時間</th><th style="width:20px;">発</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <div id="modalOverlay" onclick="closeModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span id="modalTitle">全停車駅時刻表</span>
+                <span>列車別ダイヤモニタ (全停車駅)</span>
                 <span class="close-btn" onclick="closeModal()">×</span>
             </div>
             <div class="modal-body">
-                <div class="modal-train-info" id="modalTrainInfo"></div>
-                <div class="monitor-table-container" id="modalTableContainer"></div>
+                <div class="modal-train-info" id="modalTrainSummary"></div>
+                <div class="monitor-table-container">
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2">番線</th>
+                            </tr>
+                            <tr>
+                                <th>計画</th><th>到着</th><th>計画</th><th>発車</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalTableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        let rawTimetableData = [];
+        let rawJsonData = [];
+        const PERIOD_START = new Date('2025/03/15');
+        const PERIOD_END = new Date('2026/03/13');
 
         async function loadData() {
             try {
-                const response = await fetch('timetables.json');
-                rawTimetableData = await response.json();
+                const res = await fetch('timetables.json');
+                rawJsonData = await res.json();
                 populateLines();
-            } catch (e) { console.error(e); }
+                performSearch();
+            } catch (e) { console.error("Data load error", e); }
         }
 
-        function safeVal(val) {
-            return (val === undefined || val === null) ? "" : String(val).trim();
-        }
-
-        function autoDeterminePower(train) {
-            const p = safeVal(train.power);
-            if (p !== "" && p !== "…") return p;
-            const tNo = safeVal(train.trainNumber).toUpperCase();
-            if (!tNo.match(/[A-Z]$/)) return "EL";
-            if (tNo.endsWith('D')) return "DC";
-            return "EC";
-        }
-
-        function parseTimeValue(timeStr) {
-            const s = safeVal(timeStr);
-            if (s === "" || s === "…" || s === "=") return null;
-            const parts = s.split(':');
-            const h = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10);
-            const sec = parseInt(parts[2], 10) || 0;
-            return isNaN(h) || isNaN(m) ? null : (h * 3600) + (m * 60) + sec;
-        }
-
-        function formatDisplayTime(timeStr) {
-            const val = parseTimeValue(timeStr);
-            if (val === null) return safeVal(timeStr) === "=" ? "=" : "…";
-            const h = Math.floor(val / 3600);
-            const m = Math.floor((val % 3600) / 60);
-            const sec = val % 60;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-        }
-
-        function populateLines() {
-            const lines = [...new Set(rawTimetableData.map(d => d.line))].sort();
-            const lineSelect = document.getElementById('lineSelect');
-            lineSelect.innerHTML = '<option value="">(選択)</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
-            lineSelect.onchange = () => {
-                const stations = new Set();
-                rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
-                document.getElementById('stationSelect').innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
-                render();
-            };
-        }
-
-        // ==================================================
-        // 特定日・施行日の厳密特定ロジック
-        // ==================================================
-        function render() {
+        function performSearch() {
             const line = document.getElementById('lineSelect').value;
-            const station = document.getElementById('stationSelect').value;
-            const dateVal = document.getElementById('dateInput').value;
-            const tbody = document.getElementById('timetableBody');
-            tbody.innerHTML = '';
-            if (!line || !station || !dateVal) return;
+            const dateUI = document.getElementById('dateInput').value;
+            const trainNo = document.getElementById('trainNoInput').value.toUpperCase();
+            if (!line || !dateUI || !trainNo) return;
 
-            const targetDate = new Date(dateVal);
-            const targetDateStr = dateVal.replace(/-/g, '/');
-            const targetDayType = (targetDate.getDay() === 0 || targetDate.getDay() === 6) ? "土休日" : "平日";
+            const searchDate = new Date(dateUI);
+            const dateJSON = dateUI.replace(/-/g, '/');
+            
+            // 1. 施行日完全一致 (特定日) を検索
+            let result = rawJsonData.find(d => d.line === line && d.trainNumber === trainNo && d.startDate === dateJSON);
+            
+            // 2. なければ所定ダイヤを検索
+            if (!result && searchDate >= PERIOD_START && searchDate <= PERIOD_END) {
+                const dayType = (searchDate.getDay() === 0 || searchDate.getDay() === 6) ? "土休日" : "平日";
+                result = rawJsonData.find(d => d.line === line && d.trainNumber === trainNo && (d.dayType === "" || d.dayType === dayType));
+            }
 
-            const candidates = rawTimetableData.filter(t => t.line === line && t.stops.some(s => s.station === station));
-            const trainMap = new Map();
-            const uniqueNos = [...new Set(candidates.map(t => t.trainNumber))];
-
-            uniqueNos.forEach(tNo => {
-                const versions = candidates.filter(v => v.trainNumber === tNo);
-                // 1. 施行日とstartDateが完全一致（特定日）を最優先
-                let match = versions.find(v => v.startDate === targetDateStr);
-                
-                if (!match) {
-                    // 2. 所定ダイヤの抽出（以前の日付で、かつ平日/土休日が一致、かつ特定日データでないもの）
-                    const regulars = versions.filter(v => {
-                        const isPast = new Date(v.startDate) <= targetDate;
-                        const dType = safeVal(v.dayType);
-                        const isDayMatch = (dType === "" || dType === targetDayType);
-                        const isRegular = (dType === "" || dType === "平日" || dType === "土休日");
-                        return isPast && isDayMatch && isRegular;
-                    });
-                    if (regulars.length > 0) {
-                        regulars.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-                        match = regulars[0];
-                    }
-                }
-                if (match) trainMap.set(tNo, match);
-            });
-
-            const finalData = Array.from(trainMap.values());
-            const grouped = {};
-            finalData.forEach(t => {
-                const label = (parseInt(safeVal(t.trainNumber).match(/\d+/)) % 2 === 0) ? "上り" : "下り";
-                if (!grouped[label]) grouped[label] = [];
-                grouped[label].push(t);
-            });
-
-            Object.keys(grouped).sort().forEach((label, groupIdx) => {
-                grouped[label].sort((a, b) => {
-                    const sa = a.stops.find(s => s.station === station);
-                    const sb = b.stops.find(s => s.station === station);
-                    return (parseTimeValue(sa.arrival) || parseTimeValue(sa.departure) || 0) - (parseTimeValue(sb.arrival) || parseTimeValue(sb.departure) || 0);
-                });
-
-                grouped[label].forEach((train, rowIdx) => {
-                    const s = train.stops.find(st => st.station === station);
-                    const stopIdx = train.stops.findIndex(st => st.station === station);
-                    const isLast = (stopIdx === train.stops.length - 1);
-                    const tr = document.createElement('tr');
-                    if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
-
-                    if (rowIdx === 0) {
-                        const tdLine = document.createElement('td');
-                        tdLine.className = 'td-line-side';
-                        tdLine.rowSpan = grouped[label].length;
-                        tdLine.innerText = label;
-                        tr.appendChild(tdLine);
-                    }
-
-                    tr.innerHTML += `
-                        <td class="link-text" onclick="showOverlay('${train.trainNumber}', '${train.startDate}')">${safeVal(train.trainNumber)}</td>
-                        <td style="text-align:left; padding-left:4px;">${safeVal(train.type)}</td>
-                        <td>${autoDeterminePower(train)}</td>
-                        <td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td>
-                        <td class="col-time">${formatDisplayTime(s.departure)}</td><td></td>
-                        <td class="col-trk">${safeVal(s.trackN)}</td>
-                        <td>${(stopIdx === 0 && train.tt1 === 'k') ? '継送' : (isLast && train.tt2 === 'k' ? '継送' : '')}</td>
-                        <td class="link-text">${(stopIdx === 0) ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "")}</td>
-                        <td style="text-align:left; padding-left:4px;">${safeVal(train.destination)}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            });
-            updateClock(targetDateStr);
+            const content = document.getElementById('contentArea');
+            const msg = document.getElementById('messageArea');
+            if (result) {
+                content.classList.remove('hidden'); msg.classList.add('hidden');
+                document.getElementById('trainSummary').innerHTML = `■${line} 施行日:${dateJSON}<br>運転区間:${result.origin}～${result.destination} 列車番号: <span class="link-text" onclick="showFullTimetable()">${result.trainNumber}</span>`;
+                renderTable(result);
+                window.currentTrainData = result; // オーバーレイ用に保持
+            } else {
+                content.classList.add('hidden'); msg.classList.remove('hidden');
+                msg.innerText = "該当するダイヤが見つかりません。";
+            }
         }
 
-        // ==================================================
-        // オーバーレイ表示機能
-        // ==================================================
-        function showOverlay(tNo, sDate) {
-            const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
-            if (!train) return;
-
-            document.getElementById('modalTrainInfo').innerHTML = 
-                `列車番号: ${train.trainNumber} / 列車種別: ${train.type} / 運転区間: ${train.origin} ～ ${train.destination}`;
-            
-            let html = `<table><thead><tr>
-                <th style="width:120px;">駅名</th><th style="width:90px;">着時刻</th><th style="width:90px;">発時刻</th><th style="width:50px;">番線</th>
-                </tr></thead><tbody>`;
-            
-            train.stops.forEach(s => {
-                html += `<tr>
-                    <td style="text-align:left; padding-left:10px;">${s.station}</td>
-                    <td class="col-time">${formatDisplayTime(s.arrival)}</td>
-                    <td class="col-time">${formatDisplayTime(s.departure)}</td>
-                    <td class="col-trk">${safeVal(s.trackN)}</td>
-                </tr>`;
+        function renderTable(data) {
+            const tbody = document.getElementById('scheduleBody');
+            tbody.innerHTML = '';
+            data.stops.forEach((s, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-align-left">${i === 0 ? data.type : ''}</td><td></td>
+                    <td class="col-align-left">${s.station}</td>
+                    <td class="col-align-right">${s.arrival || '…'}</td><td></td>
+                    <td class="col-align-right">${s.departure || '…'}</td><td></td>
+                    <td class="col-align-right">${s.trackN || ''}</td>
+                    <td>${(i === 0 && data.tt1 === 'k') ? '継送' : (i === data.stops.length-1 && data.tt2 === 'k' ? '継送' : '')}</td>
+                    <td class="link-text">${(i === 0) ? (data.tr1 || '') : (i === data.stops.length-1 ? (data.tr2 || '') : '')}</td>
+                `;
+                tbody.appendChild(tr);
             });
-            html += `</tbody></table>`;
-            
-            document.getElementById('modalTableContainer').innerHTML = html;
+        }
+
+        // --- オーバーレイ表示機能 ---
+        function showFullTimetable() {
+            const data = window.currentTrainData;
+            if (!data) return;
+            document.getElementById('modalTrainSummary').innerText = `■${data.line} ${data.trainNumber} (${data.type}) 運転区間:${data.origin}～${data.destination}`;
+            const tbody = document.getElementById('modalTableBody');
+            tbody.innerHTML = '';
+            data.stops.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-align-left">${s.station}</td>
+                    <td class="col-align-right">${s.arrival || '…'}</td><td></td>
+                    <td class="col-align-right">${s.departure || '…'}</td><td></td>
+                    <td class="col-align-right">${s.trackN || ''}</td>
+                `;
+                tbody.appendChild(tr);
+            });
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
         function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
 
-        function updateClock(dateStr) {
-            const d = new Date();
-            const fmt = (n) => String(n).padStart(2, '0');
-            document.getElementById('clockDisplay').innerText = `${dateStr} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+        function populateLines() {
+            const lines = [...new Set(rawJsonData.map(d => d.line))];
+            document.getElementById('lineSelect').innerHTML = lines.map(l => `<option value="${l}">${l}</option>`).join('');
         }
 
-        document.getElementById('dateInput').onchange = render;
-        document.getElementById('stationSelect').onchange = render;
         window.onload = () => {
             document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
             loadData();
