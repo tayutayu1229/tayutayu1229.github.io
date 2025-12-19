@@ -2,435 +2,270 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>時刻表データ作成ツール</title>
+  <title>時刻表作成ツール [Ultimate Edition v2]</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    table, th, td { border: 1px solid #999; border-collapse: collapse; padding: 5px; }
-    textarea { width: 100%; height: 200px; }
-    input, select, button { margin: 5px; padding: 5px; }
-    label { display: inline-block; margin: 5px 0; }
-    .error { color: red; font-weight: bold; margin-left: 10px; }
-    .stop-buttons button { margin: 0 2px; }
-    .move-btn { 
-        padding: 2px 5px; 
-        font-size: 10px;
-        line-height: 1;
-        cursor: pointer;
-    }
-    .duration { font-weight: bold; color: #0066cc; }
-    /* 編集可能なセル用のスタイル */
-    .editable { cursor: pointer; min-width: 50px; } 
-    .editable input { width: 90%; border: 1px solid #ccc; padding: 3px; box-sizing: border-box; }
+    :root { --primary: #2563eb; --next: #059669; --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0; }
+    body { font-family: sans-serif; padding: 10px; background-color: var(--bg); font-size: 12px; color: #334155; }
+    h1 { font-size: 1.1rem; margin: 0 0 10px 0; }
+    h2 { font-size: 0.85rem; margin: 0 0 5px 0; border-left: 3px solid var(--primary); padding-left: 6px; }
+    
+    .btn-group { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+    button { padding: 6px 14px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; }
+    .btn-blue { background: var(--primary); color: white; }
+    .btn-green { background: var(--next); color: white; }
+    .btn-gray { background: #64748b; color: white; }
+    .btn-red { background: #ef4444; color: white; padding: 2px 6px; }
+    button:hover { opacity: 0.8; }
+
+    .flex-container { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .section { background: var(--card); padding: 10px; border-radius: 6px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex: 1; min-width: 320px; }
+    
+    .grid-info { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .grid-info span { display: block; font-size: 10px; color: #64748b; margin-bottom: 1px; }
+
+    input { padding: 5px 8px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; width: 100%; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+    th, td { border: 1px solid var(--border); padding: 4px; text-align: left; }
+    th { background: #f1f5f9; font-weight: 600; font-size: 11px; }
+
+    /* JSON表示欄を大きく確保 */
+    textarea { width: 100%; height: 400px; font-family: "Consolas", "Monaco", monospace; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; margin-top: 10px; background: #272822; color: #f8f8f2; padding: 10px; line-height: 1.5; }
+    .hint-msg { font-size: 11px; color: var(--next); font-weight: bold; }
+    .status-msg { font-size: 10px; color: #94a3b8; margin-left: auto; }
   </style>
 </head>
 <body>
-  <div id="main-content" style="display: none;"> 
-    <h1>○時刻表データ作成ツール</h1>
-    <p>モバイルATOSに準ずる時刻表データを作成します。</p>
 
-<h2>データ操作</h2>
-<input type="file" id="importFile" accept="application/json">
-<button onclick="importJson()">💾 インポート</button>
-<button onclick="copyJson()">📋 JSONをコピー</button>
-<span id="validationError" class="error"></span>
-<hr>
+<h1>📅 時刻表データ作成ツール</h1>
 
-<h2>列車基本情報</h2>
-<form id="trainInfoForm">
-  <label>列車番号: <input id="trainNumber" type="text" onchange="updateJSON()"></label>
-  <label>種別: <input id="type" type="text" onchange="updateJSON()"></label>
-  <label>平日/土休日: 
-    <select id="dayType" onchange="updateJSON()">
-      <option value="平日">平日</option>
-      <option value="土休日">土休日</option>
-    </select>
-  </label>
-  <label>始発駅発日: <input id="startDate" type="date" onchange="updateJSON()"></label><br>
-  <label>始発駅: <input id="origin" type="text" onchange="updateJSON()"></label>
-  <label>終着駅: <input id="destination" type="text" onchange="updateJSON()"></label>
-  <label>路線名: <input id="line" type="text" onchange="updateJSON()"></label>
-  <label>速度種別: <input id="speed" type="text" onchange="updateJSON()"></label>
-  <label>列車名: <input id="name" type="text" onchange="updateJSON()"></label>
-</form>
-<hr>
-
-<h2>停車駅の編集と追加</h2>
-<table style="width: 100%;">
-  <thead>
-    <tr><th>順</th><th>駅名</th><th>着</th><th>発</th><th>番線</th><th>所要時間</th><th>操作</th></tr>
-  </thead>
-  <tbody id="stopsTable">
-    </tbody>
-</table>
-
-<div id="addStopForm">
-  <label>駅名: <input id="station" type="text" maxlength="5" placeholder="例: 大　宮"></label>
-  <label>着: <input id="arrival" type="text" placeholder="hh:mm:ss"></label>
-  <label>発(通): <input id="departure" type="text" placeholder="hh:mm:ss"></label>
-  <label>番線: <input id="trackN" type="text" placeholder="例: １０番"></label>
-  <button onclick="addStop()">追加</button>
+<div class="btn-group">
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+  <button class="btn-gray" onclick="document.getElementById('importFile').click()">💾 インポート</button>
+  <button class="btn-blue" onclick="copyJson()">📋 JSONコピー</button>
+  <button class="btn-green" onclick="prepareNextSection()">➡ 次の区間を作成</button>
+  <span id="actionMessage" class="hint-msg"></span>
+  <span id="loadStatus" class="status-msg">Master: 読み込み中...</span>
 </div>
-<hr>
 
-<h2>出力JSON</h2>
-<textarea id="jsonOutput" readonly></textarea>
+<div class="flex-container">
+  <div class="section">
+    <h2>1. 基本情報</h2>
+    <div class="grid-info">
+      <label><span>列車番号</span><input id="trainNumber" type="text" oninput="updateJSON()"></label>
+      <label><span>種別</span><input id="type" type="text" oninput="updateJSON()"></label>
+      <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
+      <label><span>始発駅発日</span><input id="startDate" type="date" oninput="updateJSON()"></label>
+      <label><span>路線名</span><input id="line" type="text" oninput="updateJSON()"></label>
+      <label><span>列車名(任意)</span><input id="name" type="text" oninput="updateJSON()"></label>
+      <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
+      <label><span>終着駅</span><input id="destination" type="text" oninput="updateJSON()"></label>
+    </div>
+  </div>
 
-<br><br>
-<h3>【書き方（モバイルATOS準拠）】</h3>
-<ul>
-  <li>駅名が２文字の場合は **全角スペース１つ** を開けてください。入力時に自動で挿入を試みます。</li>
-  <li>着発番線では、数字は**全角**で入力してください。入力時に半角は全角に自動変換されます。</li>
-</ul>
+  <div class="section">
+    <h2>2. 継走・接続 (Kid)</h2>
+    <table>
+      <thead><tr><th>方向</th><th>tt</th><th>tr</th><th>kid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>前(1)</strong></td><td><input id="tt1" type="text" oninput="updateJSON()"></td><td><input id="tr1" type="text" oninput="updateJSON()"></td><td><input id="kid1" type="text" oninput="updateJSON()"></td></tr>
+        <tr><td><strong>次(2)</strong></td><td><input id="tt2" type="text" oninput="updateJSON()"></td><td><input id="tr2" type="text" oninput="updateJSON()"></td><td><input id="kid2" type="text" oninput="updateJSON()"></td></tr>
+      </tbody>
+    </table>
+    <p style="margin: 5px 0 0 0; font-size: 10px; color: #64748b;">
+      ※継走情報は必須ではありませんが、あったらモバイルATOS上で継走が見れます。
+    </p>
+  </div>
+</div>
+
+<div class="section">
+  <h2>3. 停車駅リスト</h2>
+  <table>
+    <thead><tr><th style="width:30%">駅名</th><th style="width:20%">着</th><th style="width:20%">発</th><th style="width:20%">番線</th><th style="width:10%">削</th></tr></thead>
+    <tbody id="stopsBody"></tbody>
+  </table>
+  <div style="display: flex; gap: 4px; margin-top: 8px; background: #f1f5f9; padding: 8px; border-radius: 4px;">
+    <input id="in_station" type="text" placeholder="駅名" list="stationList" oninput="updateTrackSuggestions()">
+    <input id="in_arrival" type="text" placeholder="着">
+    <input id="in_departure" type="text" placeholder="発">
+    <input id="in_track" type="text" placeholder="番線" list="trackSuggestions">
+    <button class="btn-blue" onclick="addStop()">追加</button>
+  </div>
+</div>
+
+<div class="section">
+    <h2>出力JSON (スクロール可能)</h2>
+    <textarea id="jsonOutput" readonly onclick="this.select()"></textarea>
+</div>
+
+<datalist id="stationList"></datalist>
+<datalist id="trackSuggestions"></datalist>
 
 <script>
   let stops = [];
+  let masterData = [];
 
-  // === ユーティリティ関数 ===
-
-  function isValidTime(timeStr) {
-    if (!timeStr) return true;
-    return /^([0-9]{2}):([0-5][0-9]):([0-5][0-9])$/.test(timeStr);
-  }
-
-  function timeToSeconds(timeStr) {
-    if (!timeStr || !isValidTime(timeStr)) return -1;
-    const [h, m, s] = timeStr.split(':').map(Number);
-    return h * 3600 + m * 60 + s;
-  }
-
-  function toZenkaku(str) {
-    if (!str) return '';
-    return str.replace(/[0-9]/g, function(s) {
-        return String.fromCharCode(s.charCodeAt(0) + 0xFEE0);
-    });
-  }
-
-  // 時刻の前後関係（逆走）チェック
-  function checkTimeConsistency() {
-    let lastDepartureSec = -1;
-    for (let i = 0; i < stops.length; i++) {
-        const stop = stops[i];
-        
-        const currentArrivalSec = timeToSeconds(stop.arrival);
-        const currentDepartureSec = timeToSeconds(stop.departure);
-
-        // 1. 駅内のチェック：着時刻 > 発時刻はNG
-        if (currentArrivalSec !== -1 && currentDepartureSec !== -1 && currentArrivalSec > currentDepartureSec) {
-            return `【警告】${stop.station} で発時刻が着時刻より早いです。`;
-        }
-
-        // 2. 駅間のチェック：前の駅の発時刻 > 現在の駅の着/発時刻はNG (逆走)
-        if (lastDepartureSec !== -1) {
-            if (currentArrivalSec !== -1 && currentArrivalSec < lastDepartureSec) {
-                return `【警告】${stop.station} の着時刻が前の駅の発時刻より早いです。`;
-            }
-            if (currentDepartureSec !== -1 && currentDepartureSec < lastDepartureSec) {
-                return `【警告】${stop.station} の発時刻が前の駅の発時刻より早いです。`;
-            }
-        }
-        
-        if (currentDepartureSec !== -1) {
-             lastDepartureSec = currentDepartureSec;
-        } else if (currentArrivalSec !== -1 && i !== stops.length - 1) { 
-             lastDepartureSec = currentArrivalSec;
-        }
-    }
-    return null;
-  }
-
-  function validateAndNormalizeStop(station, arrival, departure, trackN, checkDuplicateIndex = -1) {
-    let normStation = station.trim();
-    let normTrackN = trackN.trim();
-    
-    if (!normStation) return { error: "駅名を入力してください。" };
-    
-    // 駅名の入力補助/チェック
-    if (normStation.length === 2 && !normStation.includes('　')) {
-        normStation = normStation[0] + '　' + normStation[1];
-    }
-    if (normStation.length > 5) {
-         return { error: "駅名は5文字（全角スペース込み）以下にしてください。" };
-    }
-
-    // 番線の全角数字チェック/変換
-    normTrackN = toZenkaku(normTrackN);
-
-    // 時刻のバリデーション
-    if (arrival && !isValidTime(arrival)) {
-      return { error: "着時刻がhh:mm:ss形式ではありません。" };
-    }
-    if (departure && !isValidTime(departure)) {
-      return { error: "発時刻がhh:mm:ss形式ではありません。" };
-    }
-    
-    // 駅名重複チェック (現在のリストに対して)
-    if (stops.some((stop, i) => i !== checkDuplicateIndex && stop.station === normStation)) {
-        // 重複は警告するが、強制はしない (インライン編集時はダイアログを出さない)
-        // return { error: `駅名 "${normStation}" は既に追加されています。` };
-    }
-
-    return {
-      stop: {
-        station: normStation,
-        arrival: arrival.trim(),
-        departure: departure.trim(),
-        trackN: normTrackN
-      }
-    };
-  }
-
-  // === 停車駅データの操作 ===
-
-  function addStop() {
-    const stationEl = document.getElementById("station");
-    const arrivalEl = document.getElementById("arrival");
-    const departureEl = document.getElementById("departure");
-    const trackNEl = document.getElementById("trackN");
-    const errorSpan = document.getElementById("validationError");
-
-    const result = validateAndNormalizeStop(
-        stationEl.value, 
-        arrivalEl.value, 
-        departureEl.value, 
-        trackNEl.value, 
-        -1 // 新規追加のためチェック対象外インデックスなし
-    );
-    
-    if (result.error) {
-        errorSpan.textContent = result.error;
-        return;
-    }
-    
-    // 重複チェックは addStop の場合はダイアログで確認
-    if (stops.some(stop => stop.station === result.stop.station)) {
-        if (!confirm(`【警告】駅名 "${result.stop.station}" は既に追加されています。続行しますか？`)) {
-            return;
-        }
-    }
-    
-    stops.push(result.stop);
-
-    stationEl.value = "";
-    arrivalEl.value = "";
-    departureEl.value = "";
-    trackNEl.value = "";
-
-    updateTable();
-    updateJSON();
-    stationEl.focus();
-  }
-
-  function moveStop(index, direction) {
-    if ((direction === 'up' && index > 0) || (direction === 'down' && index < stops.length - 1)) {
-      const newIndex = direction === 'up' ? index - 1 : index + 1;
-      [stops[index], stops[newIndex]] = [stops[newIndex], stops[index]];
-      
-      const consistencyError = checkTimeConsistency();
-      if (consistencyError) {
-        [stops[newIndex], stops[index]] = [stops[index], stops[newIndex]]; // 逆転したら元に戻す
-        alert(consistencyError + "\n順番を元に戻しました。時刻を修正してください。");
-      }
-      
-      updateTable();
-      updateJSON();
-    }
-  }
-
-  function removeStop(index) {
-    stops.splice(index, 1);
-    updateTable();
-    updateJSON();
-  }
-
-  // === インライン編集処理 ===
-  
-  function handleEdit(event, index, field) {
-    const cell = event.currentTarget;
-    const currentValue = stops[index][field];
-    
-    // 既に編集中の場合は何もしない
-    if (cell.querySelector('input')) return;
-
-    cell.innerHTML = '';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = currentValue;
-    input.focus();
-    
-    // 確定処理
-    const commitChange = () => {
-        const newValue = input.value.trim();
-        const oldStop = stops[index];
-        
-        // 変更後のデータを検証
-        const result = validateAndNormalizeStop(
-            field === 'station' ? newValue : oldStop.station,
-            field === 'arrival' ? newValue : oldStop.arrival,
-            field === 'departure' ? newValue : oldStop.departure,
-            field === 'trackN' ? newValue : oldStop.trackN,
-            index // 自身のインデックスを除外して重複チェック
-        );
-        
-        const errorSpan = document.getElementById("validationError");
-        if (result.error) {
-            errorSpan.textContent = `編集エラー (${field}): ${result.error}`;
-            // 変更前の値で再描画
-            cell.innerHTML = currentValue; 
-            return;
-        }
-        
-        // 変更を適用
-        stops[index] = result.stop; 
-
-        // 時刻逆転チェック
-        const consistencyError = checkTimeConsistency();
-        if (consistencyError) {
-            errorSpan.textContent = consistencyError;
-        } else {
-            errorSpan.textContent = "";
-        }
-
-        updateTable();
-        updateJSON();
-    };
-
-    input.addEventListener('blur', commitChange);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            commitChange();
-            e.preventDefault();
-        }
-        if (e.key === 'Escape') {
-             // 変更を破棄して元の値に戻す
-             cell.innerHTML = currentValue; 
-             e.preventDefault();
-        }
-    });
-
-    cell.appendChild(input);
-  }
-
-  // === UI更新とデータ出力 ===
-
-  function updateTable() {
-    const tbody = document.getElementById("stopsTable");
-    tbody.innerHTML = "";
-    
-    let lastTimeSec = -1; 
-    
-    stops.forEach((stop, i) => {
-      let durationDisplay = "";
-      const currentTimeSec = timeToSeconds(stop.arrival || stop.departure);
-
-      if (i === 0) {
-          lastTimeSec = timeToSeconds(stop.departure);
-      } else if (currentTimeSec !== -1 && lastTimeSec !== -1) {
-          let durationSec = currentTimeSec - lastTimeSec;
-          const h = Math.floor(durationSec / 3600);
-          durationSec %= 3600;
-          const m = Math.floor(durationSec / 60);
-          const s = durationSec % 60;
-          
-          durationDisplay = `(+${h}h ${m}m ${s}s)`;
-          lastTimeSec = timeToSeconds(stop.departure || stop.arrival);
+  // 1. 外部マスタの読み込み (T-time/timetables.json)
+  window.onload = async function() {
+    const status = document.getElementById('loadStatus');
+    try {
+      const res = await fetch('T-time/timetables.json');
+      if(res.ok) {
+        masterData = await res.json();
+        const list = document.getElementById('stationList');
+        const stations = [...new Set(masterData.flatMap(t => t.stops.map(s => s.station)))];
+        stations.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          list.appendChild(opt);
+        });
+        status.innerText = "Master: 読込済 (" + stations.length + "駅)";
+        status.style.color = "#059669";
       } else {
-           lastTimeSec = timeToSeconds(stop.departure || stop.arrival);
+        throw new Error();
       }
+    } catch(e) {
+      status.innerText = "Master: 未読込 (手動入力可能)";
+      status.style.color = "#ef4444";
+    }
+  };
 
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${i + 1}</td>
-        <td class="editable station" onclick="handleEdit(event, ${i}, 'station')">${stop.station}</td>
-        <td class="editable time" onclick="handleEdit(event, ${i}, 'arrival')">${stop.arrival}</td>
-        <td class="editable time" onclick="handleEdit(event, ${i}, 'departure')">${stop.departure}</td>
-        <td class="editable track" onclick="handleEdit(event, ${i}, 'trackN')">${stop.trackN}</td>
-        <td class="duration">${durationDisplay}</td>
-        <td class="stop-buttons">
-          <button class="move-btn" onclick="moveStop(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>▲ 上へ</button>
-          <button class="move-btn" onclick="moveStop(${i}, 'down')" ${i === stops.length - 1 ? 'disabled' : ''}>▼ 下へ</button>
-          <button onclick="removeStop(${i})">削除</button>
-        </td>
-      `;
-      tbody.appendChild(row);
+  // 2. 駅名入力時に、その駅で過去に使われた番線を抽出
+  function updateTrackSuggestions() {
+    const station = document.getElementById('in_station').value;
+    const list = document.getElementById('trackSuggestions');
+    list.innerHTML = "";
+    if(!station) return;
+
+    // 駅名が完全一致する過去データの番線(trackN)を取得
+    const tracks = [...new Set(masterData.flatMap(t => 
+      t.stops.filter(s => s.station === station).map(s => s.trackN)
+    ))].filter(Boolean);
+
+    tracks.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      list.appendChild(opt);
     });
-
-    const overallError = checkTimeConsistency();
-    document.getElementById("validationError").textContent = overallError || "";
   }
 
+  // --- JSON更新 ---
   function updateJSON() {
-    const output = {
+    const rawDate = document.getElementById("startDate").value;
+    const data = {
       trainNumber: document.getElementById("trainNumber").value,
       type: document.getElementById("type").value,
       dayType: document.getElementById("dayType").value,
-      startDate: document.getElementById("startDate").value,
+      startDate: rawDate ? rawDate.replace(/-/g, '/') : "",
       origin: document.getElementById("origin").value,
       destination: document.getElementById("destination").value,
-      speed: document.getElementById("speed").value,
+      speed: "",
       name: document.getElementById("name").value,
       line: document.getElementById("line").value,
+      tt1: document.getElementById("tt1").value,
+      tt2: document.getElementById("tt2").value,
+      tr1: document.getElementById("tr1").value,
+      tr2: document.getElementById("tr2").value,
+      kid1: document.getElementById("kid1").value,
+      kid2: document.getElementById("kid2").value,
       stops: stops
     };
-    document.getElementById("jsonOutput").value = JSON.stringify(output, null, 2);
+    document.getElementById("jsonOutput").value = JSON.stringify(data, null, 2);
   }
 
-  // === データI/O機能 ===
-
-  function copyJson() {
-    const jsonText = document.getElementById("jsonOutput").value;
-    if (jsonText) {
-      navigator.clipboard.writeText(jsonText)
-        .then(() => alert("JSONをコピーしました！"))
-        .catch(err => console.error('コピー失敗:', err));
-    } else {
-      alert("JSONが空です。");
-    }
-  }
-
-  function importJson() {
-    const fileInput = document.getElementById('importFile');
-    const file = fileInput.files[0];
-    if (!file) {
-      alert("ファイルを選択してください。");
-      return;
-    }
-
+  // --- インポート ---
+  function handleImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
-        const data = JSON.parse(e.target.result);
+        const d = JSON.parse(e.target.result);
+        const setVal = (id, val) => document.getElementById(id).value = val || "";
         
-        document.getElementById("trainNumber").value = data.trainNumber || '';
-        document.getElementById("type").value = data.type || '';
-        document.getElementById("dayType").value = data.dayType || '平日';
-        document.getElementById("startDate").value = data.startDate || '';
-        document.getElementById("origin").value = data.origin || '';
-        document.getElementById("destination").value = data.destination || '';
-        document.getElementById("speed").value = data.speed || '';
-        document.getElementById("name").value = data.name || '';
-        document.getElementById("line").value = data.line || '';
-
-        stops = Array.isArray(data.stops) ? data.stops : [];
-
-        alert("データのインポートが完了しました。");
-        updateTable();
-        updateJSON();
-      } catch (error) {
-        alert("JSONファイルの解析に失敗しました。ファイル形式を確認してください。");
-        console.error("Import Error:", error);
-      }
+        setVal("trainNumber", d.trainNumber);
+        setVal("type", d.type);
+        setVal("dayType", d.dayType);
+        if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
+        setVal("line", d.line);
+        setVal("name", d.name);
+        setVal("origin", d.origin);
+        setVal("destination", d.destination);
+        setVal("tt1", d.tt1);
+        setVal("tt2", d.tt2);
+        setVal("tr1", d.tr1);
+        setVal("tr2", d.tr2);
+        setVal("kid1", d.kid1);
+        setVal("kid2", d.kid2);
+        
+        stops = Array.isArray(d.stops) ? d.stops : [];
+        updateUI();
+        event.target.value = "";
+      } catch (err) { alert("JSON解析エラー"); }
     };
     reader.readAsText(file);
   }
 
+  // --- 次区間作成 (スライド) ---
+  function prepareNextSection() {
+    const curTrain = document.getElementById("trainNumber").value;
+    const nxtTrain = document.getElementById("tr2").value;
+    const nxtKid1 = document.getElementById("kid2").value;
+    const nxtTt1 = document.getElementById("tt2").value;
+    const nxtOrigin = document.getElementById("destination").value;
 
-  // 初期ロード
-  document.addEventListener('DOMContentLoaded', updateJSON);
-</script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    if (!nxtTrain && !nxtKid1) { alert("次列車情報(tr2/kid2)が必要です。"); return; }
+
+    document.getElementById("trainNumber").value = nxtTrain;
+    document.getElementById("tr1").value = curTrain;
+    document.getElementById("kid1").value = nxtKid1;
+    document.getElementById("tt1").value = nxtTt1;
+    document.getElementById("origin").value = nxtOrigin;
+
+    ["destination", "tr2", "kid2", "tt2", "line"].forEach(id => document.getElementById(id).value = "");
+    stops = []; updateUI();
     
-    <script src="auth_guard.js"></script> 
+    const msg = document.getElementById("actionMessage");
+    msg.innerText = "✨ スライドしました";
+    setTimeout(() => { msg.innerText = ""; }, 3000);
+  }
+
+  // --- 停車駅操作 ---
+  function addStop() {
+    const s = document.getElementById("in_station").value;
+    if(!s) return;
+    stops.push({
+      station: s,
+      arrival: document.getElementById("in_arrival").value,
+      departure: document.getElementById("in_departure").value,
+      trackN: document.getElementById("in_track").value
+    });
+    ["in_station", "in_arrival", "in_departure", "in_track"].forEach(id => document.getElementById(id).value = "");
+    updateUI();
+  }
+
+  function updateUI() {
+    const tbody = document.getElementById("stopsBody");
+    tbody.innerHTML = "";
+    stops.forEach((stop, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="text" value="${stop.station}" oninput="stops[${i}].station=this.value;updateJSON()"></td>
+        <td><input type="text" value="${stop.arrival}" oninput="stops[${i}].arrival=this.value;updateJSON()"></td>
+        <td><input type="text" value="${stop.departure}" oninput="stops[${i}].departure=this.value;updateJSON()"></td>
+        <td><input type="text" value="${stop.trackN}" oninput="stops[${i}].trackN=this.value;updateJSON()"></td>
+        <td><button class="btn-red" onclick="stops.splice(${i},1);updateUI()">×</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    updateJSON();
+  }
+
+  function copyJson() {
+    const area = document.getElementById("jsonOutput");
+    area.select();
+    document.execCommand("copy");
+    alert("コピーしました");
+  }
+</script>
 </body>
 </html>
