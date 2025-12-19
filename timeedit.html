@@ -15,8 +15,9 @@
     .btn-green { background: var(--next); color: white; }
     .btn-gray { background: #64748b; color: white; }
     .btn-orange { background: #f59e0b; color: white; }
-    .btn-purple { background: #8b5cf6; color: white; } /* 反転ボタン用 */
-    .btn-red { background: #ef4444; color: white; padding: 3px 8px; }
+    .btn-purple { background: #8b5cf6; color: white; }
+    .btn-red { background: #ef4444; color: white; }
+    .btn-del { background: #b91c1c; color: white; } /* 一括削除用 */
     button:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
     .flex-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
@@ -35,8 +36,7 @@
     textarea { width: 100%; height: 600px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; border: 1px solid #333; border-radius: 6px; margin-top: 10px; background: #1e1e1e; color: #dcdcdc; padding: 15px; line-height: 1.6; resize: vertical; }
     
     .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: auto; font-weight: bold; }
-    .hint-msg { font-size: 12px; color: var(--next); font-weight: bold; animation: fade 3s forwards; }
-    @keyframes fade { from {opacity: 1;} to {opacity: 0;} }
+    .hint-msg { font-size: 12px; color: var(--next); font-weight: bold; }
   </style>
 </head>
 <body>
@@ -50,6 +50,7 @@
   <button class="btn-green" onclick="prepareNextSection()">➡ 次区間へスライド</button>
   <button class="btn-orange" onclick="quoteLineTemplate()">🔍 路線から駅を引用</button>
   <button class="btn-purple" onclick="reverseStops()">🔃 駅順を反転</button>
+  <button class="btn-del" onclick="clearAllStops()">🗑️ 駅リストを全削除</button>
   <span id="actionMessage"></span>
   <span id="loadStatus" class="status-badge" style="background:#fee2e2; color:#ef4444;">Master: Waiting...</span>
 </div>
@@ -62,7 +63,9 @@
       <label><span>種別</span><input id="type" type="text" oninput="updateJSON()"></label>
       <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
       <label><span>始発駅発日</span><input id="startDate" type="date" oninput="updateJSON()"></label>
-      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="updateJSON()"></label>
+      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="updateJSON()">
+             <p style="font-size:9px; color:#94a3b8; margin:2px 0 0 0;">※路線名を入れてオレンジのボタンを押すと駅リストが出ます</p>
+      </label>
       <label><span>列車名</span><input id="name" type="text" oninput="updateJSON()"></label>
       <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
       <label><span>終着駅</span><input id="destination" type="text" oninput="updateJSON()"></label>
@@ -89,8 +92,8 @@
   </table>
   <div style="display: flex; gap: 5px; margin-top: 10px; background: #eff6ff; padding: 10px; border-radius: 6px; border: 1px dashed var(--primary);">
     <input id="in_station" type="text" placeholder="駅名" list="stationList" oninput="updateTrackSuggestions('in_station', 'trackSuggestions')">
-    <input id="in_arrival" type="text" placeholder="着 (12:00:00)">
-    <input id="in_departure" type="text" placeholder="発 (12:05:00)">
+    <input id="in_arrival" type="text" placeholder="着">
+    <input id="in_departure" type="text" placeholder="発">
     <input id="in_track" type="text" placeholder="番線" list="trackSuggestions">
     <button class="btn-blue" onclick="addStop()">追加</button>
   </div>
@@ -109,65 +112,60 @@
   let stops = [];
   let masterData = [];
 
-  // マスターデータ読み込み
   window.onload = async function() {
     const status = document.getElementById('loadStatus');
     try {
       const res = await fetch('T-time/timetables.json');
       if(res.ok) {
         masterData = await res.json();
-        const lines = [...new Set(masterData.map(t => t.line))].filter(Boolean);
+        const lines = [...new Set(masterData.map(t => t.line))].filter(Boolean).sort();
         const lineL = document.getElementById('lineList');
         lines.forEach(l => lineL.appendChild(new Option(l, l)));
-        const stations = [...new Set(masterData.flatMap(t => t.stops.map(s => s.station)))];
+        const stations = [...new Set(masterData.flatMap(t => t.stops.map(s => s.station)))].sort();
         const stationL = document.getElementById('stationList');
         stations.forEach(s => stationL.appendChild(new Option(s, s)));
         status.innerText = "Master: Loaded (" + lines.length + " lines)";
         status.style.background = "#dcfce7";
         status.style.color = "#166534";
       }
-    } catch(e) {
-      status.innerText = "Master: Offline";
-    }
+    } catch(e) { status.innerText = "Master: Offline"; }
   };
 
-  // 路線から駅構成を引用
+  // 駅一括削除
+  function clearAllStops() {
+    if (confirm("現在の停車駅リストをすべて削除しますか？")) {
+      stops = [];
+      updateUI();
+      showActionMsg("🗑️ リストを空にしました");
+    }
+  }
+
+  // 路線から引用（ロジックを最適化：最も停車駅が多い列車を優先）
   function quoteLineTemplate() {
     const lineName = document.getElementById('line').value;
     if(!lineName) return;
     const trains = masterData.filter(t => t.line === lineName);
-    if(trains.length === 0) { alert("該当路線のデータがありません"); return; }
-    if(confirm(`路線「${lineName}」の駅リストを引用しますか？`)) {
+    if(trains.length === 0) { alert("その路線のデータは見つかりませんでした"); return; }
+    if(confirm(`路線「${lineName}」から駅構成を引用しますか？`)) {
       const base = trains.reduce((p, c) => (p.stops.length > c.stops.length) ? p : c);
       stops = base.stops.map(s => ({ station: s.station, arrival: "", departure: "", trackN: s.trackN || "" }));
       document.getElementById("origin").value = base.origin || "";
       document.getElementById("destination").value = base.destination || "";
       updateUI();
-      showActionMsg("📋 テンプレートを適用しました");
+      showActionMsg("📋 フルスジ構成を引用しました");
     }
   }
 
-  // ★ 駅順を反転させる機能
   function reverseStops() {
     if (stops.length === 0) return;
-    if (confirm("駅の順序を反転させますか？（着時刻と発時刻も入れ替わります）")) {
-      // 1. stops配列を反転させつつ、着発をスワップ
+    if (confirm("駅順を反転させますか？")) {
       stops.reverse();
-      stops = stops.map(s => ({
-        station: s.station,
-        arrival: s.departure, // 前の出発を到着に
-        departure: s.arrival, // 前の到着を出発に
-        trackN: s.trackN
-      }));
-
-      // 2. 始発駅と終着駅の表示を入れ替え
+      stops = stops.map(s => ({ station: s.station, arrival: s.departure, departure: s.arrival, trackN: s.trackN }));
       const oldOrigin = document.getElementById("origin").value;
-      const oldDest = document.getElementById("destination").value;
-      document.getElementById("origin").value = oldDest;
+      document.getElementById("origin").value = document.getElementById("destination").value;
       document.getElementById("destination").value = oldOrigin;
-
       updateUI();
-      showActionMsg("🔃 駅順を反転しました");
+      showActionMsg("🔃 反転完了");
     }
   }
 
@@ -188,11 +186,11 @@
       const trackDlId = `dl_track_${i}`;
       tr.innerHTML = `
         <td><input type="text" value="${stop.station}" list="stationList" oninput="stops[${i}].station=this.value;updateJSON()"></td>
-        <td><input type="text" value="${stop.arrival}" placeholder="--:--:--" oninput="stops[${i}].arrival=this.value;updateJSON()"></td>
-        <td><input type="text" value="${stop.departure}" placeholder="--:--:--" oninput="stops[${i}].departure=this.value;updateJSON()"></td>
+        <td><input type="text" value="${stop.arrival}" oninput="stops[${i}].arrival=this.value;updateJSON()"></td>
+        <td><input type="text" value="${stop.departure}" oninput="stops[${i}].departure=this.value;updateJSON()"></td>
         <td><input type="text" value="${stop.trackN}" list="${trackDlId}" onfocus="createDynamicDatalist(${i}, '${stop.station}')" oninput="stops[${i}].trackN=this.value;updateJSON()">
             <datalist id="${trackDlId}"></datalist></td>
-        <td><button class="btn-red" onclick="stops.splice(${i},1);updateUI()">×</button></td>
+        <td><button class="btn-red" style="padding:2px 6px;" onclick="stops.splice(${i},1);updateUI()">×</button></td>
       `;
       tbody.appendChild(tr);
     });
@@ -240,19 +238,15 @@
 
   function prepareNextSection() {
     const nextTr = document.getElementById("tr2").value;
-    if (!nextTr) { alert("次列車番号(tr2)を入力してください"); return; }
-    const curTr = document.getElementById("trainNumber").value;
-    const nextKid1 = document.getElementById("kid2").value;
-    const nextTt1 = document.getElementById("tt2").value;
-    const nextOrigin = document.getElementById("destination").value;
+    if (!nextTr) { alert("次列車番号を入力してください"); return; }
+    document.getElementById("origin").value = document.getElementById("destination").value;
     document.getElementById("trainNumber").value = nextTr;
-    document.getElementById("tr1").value = curTr;
-    document.getElementById("kid1").value = nextKid1;
-    document.getElementById("tt1").value = nextTt1;
-    document.getElementById("origin").value = nextOrigin;
+    document.getElementById("tr1").value = document.getElementById("trainNumber").value;
+    document.getElementById("kid1").value = document.getElementById("kid2").value;
+    document.getElementById("tt1").value = document.getElementById("tt2").value;
     ["destination", "tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
     stops = []; updateUI();
-    showActionMsg("➡ データをスライドしました");
+    showActionMsg("➡ スライドしました");
   }
 
   function handleImport(event) {
@@ -267,7 +261,7 @@
         if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
         stops = Array.isArray(d.stops) ? d.stops : [];
         updateUI();
-        showActionMsg("💾 インポートしました");
+        showActionMsg("💾 インポート完了");
       } catch (err) { alert("JSON解析エラー"); }
     };
     reader.readAsText(file);
@@ -276,11 +270,11 @@
   function showActionMsg(msg) {
     const el = document.getElementById("actionMessage");
     el.innerHTML = `<span class="hint-msg">${msg}</span>`;
+    setTimeout(() => { el.innerHTML = ""; }, 3000);
   }
 
   function copyJson() {
-    const area = document.getElementById("jsonOutput");
-    area.select();
+    document.getElementById("jsonOutput").select();
     document.execCommand("copy");
     alert("コピー完了");
   }
