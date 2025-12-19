@@ -16,8 +16,7 @@
     .btn-gray { background: #64748b; color: white; }
     .btn-orange { background: #f59e0b; color: white; }
     .btn-purple { background: #8b5cf6; color: white; }
-    .btn-red { background: #ef4444; color: white; }
-    .btn-del { background: #b91c1c; color: white; } /* 一括削除用 */
+    .btn-del { background: #b91c1c; color: white; }
     button:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
     .flex-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
@@ -33,7 +32,8 @@
     th, td { border: 1px solid var(--border); padding: 6px; text-align: left; }
     th { background: #f8fafc; font-weight: 600; font-size: 11px; color: #64748b; }
 
-    textarea { width: 100%; height: 600px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; border: 1px solid #333; border-radius: 6px; margin-top: 10px; background: #1e1e1e; color: #dcdcdc; padding: 15px; line-height: 1.6; resize: vertical; }
+    /* JSON出力エリア：ホワイトモードに変更 */
+    textarea { width: 100%; height: 600px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; margin-top: 10px; background: #ffffff; color: #1e1e1e; padding: 15px; line-height: 1.6; resize: vertical; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
     
     .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: auto; font-weight: bold; }
     .hint-msg { font-size: 12px; color: var(--next); font-weight: bold; }
@@ -63,9 +63,7 @@
       <label><span>種別</span><input id="type" type="text" oninput="updateJSON()"></label>
       <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
       <label><span>始発駅発日</span><input id="startDate" type="date" oninput="updateJSON()"></label>
-      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="updateJSON()">
-             <p style="font-size:9px; color:#94a3b8; margin:2px 0 0 0;">※路線名を入れてオレンジのボタンを押すと駅リストが出ます</p>
-      </label>
+      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="updateJSON()"></label>
       <label><span>列車名</span><input id="name" type="text" oninput="updateJSON()"></label>
       <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
       <label><span>終着駅</span><input id="destination" type="text" oninput="updateJSON()"></label>
@@ -75,7 +73,14 @@
   <div class="section">
     <h2>2. 継走・接続設定 (Kid)</h2>
     <table>
-      <thead><tr><th>前後>前後>ぜ<th>tt (k or o)</th><th>tr (列番)</th><th>kid (ID)</th></tr></thead>
+      <thead>
+        <tr>
+          <th>前後>前後>ぜ</th>
+          <th>tt (k or o)</th>
+          <th>tr (列番)</th>
+          <th>kid (ID)</th>
+        </tr>
+      </thead>
       <tbody>
         <tr><td><strong>前(1)</strong></td><td><input id="tt1" type="text" oninput="updateJSON()"></td><td><input id="tr1" type="text" oninput="updateJSON()"></td><td><input id="kid1" type="text" oninput="updateJSON()"></td></tr>
         <tr><td><strong>次(2)</strong></td><td><input id="tt2" type="text" oninput="updateJSON()"></td><td><input id="tr2" type="text" oninput="updateJSON()"></td><td><input id="kid2" type="text" oninput="updateJSON()"></td></tr>
@@ -131,7 +136,6 @@
     } catch(e) { status.innerText = "Master: Offline"; }
   };
 
-  // 駅一括削除
   function clearAllStops() {
     if (confirm("現在の停車駅リストをすべて削除しますか？")) {
       stops = [];
@@ -140,7 +144,6 @@
     }
   }
 
-  // 路線から引用（ロジックを最適化：最も停車駅が多い列車を優先）
   function quoteLineTemplate() {
     const lineName = document.getElementById('line').value;
     if(!lineName) return;
@@ -148,11 +151,10 @@
     if(trains.length === 0) { alert("その路線のデータは見つかりませんでした"); return; }
     if(confirm(`路線「${lineName}」から駅構成を引用しますか？`)) {
       const base = trains.reduce((p, c) => (p.stops.length > c.stops.length) ? p : c);
+      // 始発駅・終着駅の自動補填を禁止（現状の値を保持）
       stops = base.stops.map(s => ({ station: s.station, arrival: "", departure: "", trackN: s.trackN || "" }));
-      document.getElementById("origin").value = base.origin || "";
-      document.getElementById("destination").value = base.destination || "";
       updateUI();
-      showActionMsg("📋 フルスジ構成を引用しました");
+      showActionMsg("📋 駅リストを引用しました（始発・終着は維持）");
     }
   }
 
@@ -161,9 +163,7 @@
     if (confirm("駅順を反転させますか？")) {
       stops.reverse();
       stops = stops.map(s => ({ station: s.station, arrival: s.departure, departure: s.arrival, trackN: s.trackN }));
-      const oldOrigin = document.getElementById("origin").value;
-      document.getElementById("origin").value = document.getElementById("destination").value;
-      document.getElementById("destination").value = oldOrigin;
+      // 始発駅と終着駅の自動入れ替えも行わない（ユーザーが手動で管理）
       updateUI();
       showActionMsg("🔃 反転完了");
     }
@@ -239,14 +239,20 @@
   function prepareNextSection() {
     const nextTr = document.getElementById("tr2").value;
     if (!nextTr) { alert("次列車番号を入力してください"); return; }
-    document.getElementById("origin").value = document.getElementById("destination").value;
+    
+    const curTr = document.getElementById("trainNumber").value;
+    const nextKid1 = document.getElementById("kid2").value;
+    const nextTt1 = document.getElementById("tt2").value;
+
+    // 始発駅・終着駅はスライドしても上書きせずそのまま保持する
     document.getElementById("trainNumber").value = nextTr;
-    document.getElementById("tr1").value = document.getElementById("trainNumber").value;
-    document.getElementById("kid1").value = document.getElementById("kid2").value;
-    document.getElementById("tt1").value = document.getElementById("tt2").value;
-    ["destination", "tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("tr1").value = curTr;
+    document.getElementById("kid1").value = nextKid1;
+    document.getElementById("tt1").value = nextTt1;
+
+    ["tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
     stops = []; updateUI();
-    showActionMsg("➡ スライドしました");
+    showActionMsg("➡ スライドしました（始発・終着は維持）");
   }
 
   function handleImport(event) {
