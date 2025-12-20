@@ -78,7 +78,7 @@
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App</div>
+        <div class="header-title">Mobile ATOS App Ver2.5.7</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -178,6 +178,18 @@
             };
         }
 
+        // 運用情報のラベル判定ロジック
+        function getUnyouStatus(train, isFirst, isLast) {
+            let status = "";
+            let code = "";
+            if (isFirst) code = train.tt1;
+            else if (isLast) code = train.tt2;
+
+            if (code === 'k') status = "継送";
+            else if (code === 'o') status = "折返";
+            return status;
+        }
+
         function render() {
             const line = document.getElementById('lineSelect').value;
             const station = document.getElementById('stationSelect').value;
@@ -197,20 +209,18 @@
             uniqueNos.forEach(tNo => {
                 const versions = candidates.filter(v => v.trainNumber === tNo);
                 
-                // 1. 【特定日・施行日】startDateが完全一致 かつ dayTypeが空("") のものを最優先
+                // 1. 特定日優先 (日付一致かつdayType空)
                 let match = versions.find(v => v.startDate === targetDateStr && v.dayType === "");
                 
-                // 2. なければ【所定ダイヤ】を判定
+                // 2. 所定ダイヤ検索
                 if (!match) {
                     const regulars = versions.filter(v => {
                         const vDate = new Date(v.startDate);
                         const isPastOrToday = vDate <= targetDate;
-                        // 指定の曜日区分と一致、またはdayType空（毎日）
                         const isDayMatch = (v.dayType === targetDayType || v.dayType === "");
                         return isPastOrToday && isDayMatch;
                     });
                     if (regulars.length > 0) {
-                        // 期間内（startDateが選択日以前）で、最も新しい定義を採用
                         regulars.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                         match = regulars[0];
                     }
@@ -237,7 +247,9 @@
                 grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => st.station === station);
                     const stopIdx = train.stops.findIndex(st => st.station === station);
+                    const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
+                    
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -256,8 +268,8 @@
                         <td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td>
                         <td class="col-time">${formatDisplayTime(s.departure)}</td><td></td>
                         <td class="col-trk">${safeVal(s.trackN)}</td>
-                        <td>${(stopIdx === 0 && train.tt1 === 'k') ? '継送' : (isLast && train.tt2 === 'k' ? '継送' : '')}</td>
-                        <td class="link-text">${(stopIdx === 0) ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "")}</td>
+                        <td>${getUnyouStatus(train, isFirst, isLast)}</td>
+                        <td class="link-text">${isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "")}</td>
                         <td style="text-align:left; padding-left:4px;">${safeVal(train.destination)}</td>
                     `;
                     tbody.appendChild(tr);
@@ -266,7 +278,6 @@
             updateClock(targetDateStr);
         }
 
-        // --- 全停車駅時刻表オーバーレイ (計画・実績 分離形式) ---
         function showOverlay(tNo, sDate) {
             const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
             if (!train) return;
