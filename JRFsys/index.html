@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JRF-GTFS 運行指令システム (Google Drive 連携版)</title>
+    <title>JRF 継走列車解析システム</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,47 +11,46 @@
     
     <style>
         :root { --jrf-red: #d32f2f; --jrf-dark: #000033; --console-bg: #1a1a1a; }
-        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #444; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); display: flex; justify-content: space-between; align-items: center; }
+        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #333; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); }
         .system-title { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
 
         #layout { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
         
-        /* 左パネル: 検索とリスト */
-        #side { width: 320px; background: #ccc; color: #000; border: 2px inset #fff; display: flex; flex-direction: column; }
+        /* 検索パネル */
+        #side { width: 350px; background: #ccc; color: #000; border: 2px inset #fff; display: flex; flex-direction: column; }
         .panel-label { background: var(--jrf-dark); color: #fff; padding: 4px 8px; font-size: 11px; }
-        .search-area { padding: 10px; background: #bbb; }
-        #q_input { width: 100%; padding: 8px; border: 2px inset #fff; box-sizing: border-box; }
+        .search-area { padding: 10px; background: #bbb; border-bottom: 2px solid #888; }
+        #q_input { width: 100%; padding: 10px; border: 2px inset #fff; box-sizing: border-box; font-size: 16px; font-weight: bold; background: #fff; }
         
-        #trip-list { flex: 1; overflow-y: scroll; background: white; border-top: 1px solid #999; }
-        .trip-row { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 13px; }
-        .trip-row:hover { background: #ffffaa; }
-        .trip-row.active { background: var(--jrf-dark); color: white; }
+        #trip-list { flex: 1; overflow-y: scroll; background: #fff; }
+        .trip-row { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 12px; line-height: 1.4; }
+        .trip-row:hover { background: #eef; }
+        .trip-row.active { background: var(--jrf-dark); color: #fff; }
+        .trip-tag { background: #eee; border: 1px solid #999; padding: 1px 4px; border-radius: 3px; font-size: 10px; color: #333; margin-right: 4px; }
 
-        /* 右パネル: 地図とログ */
+        /* メインビュー */
         #main-view { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        #map { flex: 1; border: 2px inset #fff; background: #cad7d0; }
-        #console { height: 160px; background: var(--console-bg); color: #00ff00; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; }
+        #map { flex: 1; border: 2px inset #fff; }
+        #console { height: 180px; background: var(--console-bg); color: #0f0; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; border-top: 5px solid #555; }
         
-        .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
     </style>
 </head>
 <body>
 
 <div id="loading" class="loading-overlay">
-    <div style="font-size:20px; color:white; margin-bottom:10px;">Python処理中...</div>
-    <div style="color:white;">Google Driveから高精度形状を読み込んでいます</div>
+    <div style="font-size:20px; color:#0f0; margin-bottom:10px;">>> ANALYZING FREIGHT CHAIN...</div>
+    <div style="color:white; font-family:monospace;">Fetching High-Precision Shapes from Cloud Storage</div>
 </div>
 
 <header>
-    <div class="system-title">■ JR-FREIGHT HIGH-PRECISION MONITORING SYSTEM</div>
-    <div id="status" style="font-size:12px;">Initializing Python...</div>
+    <div class="system-title">■ JRF-GTFS MULTI-TRIP ANALYZER [継走列車対応型]</div>
 </header>
 
 <div id="layout">
     <div id="side">
-        <div class="panel-label">列車検索 (TRIP_ID)</div>
+        <div class="panel-label">列車番号検索 (例: 2072, 50, 4091)</div>
         <div class="search-area">
             <input type="text" id="q_input" placeholder="列車番号を入力...">
         </div>
@@ -60,38 +59,53 @@
 
     <div id="main-view">
         <div id="map"></div>
-        <div class="panel-label">PYTHON CONSOLE OUTPUT</div>
+        <div class="panel-label">FREIGHT-LOG PARSER (Python 3.x)</div>
         <div id="console"></div>
     </div>
 </div>
 
 <script>
-    // 1. 地図初期化
     const map = L.map('map').setView([38, 138], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     let drawLayer = L.layerGroup().addTo(map);
 
     let tripsData = [];
 
-    // 2. 初期データ(trips.txt)読み込み
+    // 初期データロード
     async function initTrips() {
-        const res = await fetch('trips.txt');
-        const text = await res.text();
-        tripsData = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
-        renderList("");
+        try {
+            const res = await fetch('trips.txt');
+            const text = await res.text();
+            tripsData = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
+            renderList("");
+        } catch (e) {
+            console.error("trips.txtが見つかりません");
+        }
     }
 
+    // 検索ロジック: 継走列車IDのどの部分にヒットしても表示する
     function renderList(filter) {
         const list = document.getElementById('trip-list');
         list.innerHTML = '';
-        tripsData.filter(t => t.trip_id.includes(filter)).forEach(t => {
+        if (!filter) return;
+
+        const filtered = tripsData.filter(t => t.trip_id.includes(filter));
+
+        filtered.forEach(t => {
             const div = document.createElement('div');
             div.className = 'trip-row';
-            div.innerHTML = `<strong>${t.trip_id}</strong><br><small>${t.trip_headsign}方面</small>`;
+            // IDを分解して見やすく表示
+            const parts = t.trip_id.split('_');
+            const chainText = parts.slice(1).join(' → ');
+            
+            div.innerHTML = `
+                <div style="font-weight:bold; color:#d32f2f;">${t.trip_id}</div>
+                <div style="margin-top:4px;"><span class="trip-tag">継走</span>${chainText}</div>
+            `;
+            
             div.onclick = () => {
                 document.querySelectorAll('.trip-row').forEach(r => r.classList.remove('active'));
                 div.classList.add('active');
-                // Python関数を呼び出し
                 const pyFunc = pyscript.interpreter.globals.get('analyze_freight_data');
                 pyFunc(t.trip_id);
             };
@@ -101,14 +115,13 @@
 
     document.getElementById('q_input').oninput = (e) => renderList(e.target.value);
 
-    // Pythonから呼ばれる描画関数
     window.update_map_route = (points_json) => {
         const points = JSON.parse(points_json);
         drawLayer.clearLayers();
         if (points.length > 0) {
-            const poly = L.polyline(points, {color: '#d32f2f', weight: 5, opacity: 0.8}).addTo(drawLayer);
-            points.forEach(p => L.circleMarker(p, {radius: 4, color: '#003', fillOpacity: 1}).addTo(drawLayer));
-            map.fitBounds(poly.getBounds(), {padding: [50, 50]});
+            const poly = L.polyline(points, {color: '#ff0000', weight: 4, opacity: 0.9}).addTo(drawLayer);
+            points.forEach(p => L.circleMarker(p, {radius: 3, color: '#000', fillOpacity: 1}).addTo(drawLayer));
+            map.fitBounds(poly.getBounds(), {padding: [40, 40]});
         }
         document.getElementById('loading').style.display = 'none';
     };
@@ -121,9 +134,8 @@ import js
 import json
 from pyodide.http import pyfetch
 
-# 【重要】ここにGoogle DriveのファイルIDを入れてください
-# 例: 1a2b3c4d5e6f...
-GOOGLE_DRIVE_FILE_ID = "2uumDK-VYglG26_33nkMhcVjfUaFLdrE"
+# Google Drive ID
+GOOGLE_DRIVE_FILE_ID = "YOUR_GOOGLE_DRIVE_FILE_ID_HERE"
 SHAPES_URL = f"https://docs.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
 
 async def analyze_freight_data(trip_id):
@@ -133,31 +145,32 @@ async def analyze_freight_data(trip_id):
     
     def log(msg):
         div = js.document.createElement("div")
-        div.innerText = f">> [PY] {msg}"
+        div.innerText = f">> {msg}"
         console_el.appendChild(div)
         console_el.scrollTop = console_el.scrollHeight
 
-    log(f"分析開始: {trip_id}")
+    # 継走解析
+    log(f"PARSING MULTI-TRIP ID: {trip_id}")
+    chain_parts = trip_id.split('_')
+    log(f"DETECTED {len(chain_parts)} SEGMENTS IN CHAIN.")
+    
+    # 列車番号の抽出を試みる（207200 -> 2072レ等）
+    train_nums = [p for p in chain_parts if p.isdigit() or len(p) > 2]
+    log(f"TRAIN NUMBER SEQUENCE: {' -> '.join(train_nums)}")
 
     try:
-        # 1. trips.txt の読み込み (JSからデータを借りる)
         trips = js.tripsData.to_py()
         target = next((t for t in trips if t['trip_id'] == trip_id), None)
         
-        if not target or 'shape_id' not in target:
-            log("ERROR: shape_idが見つかりません。")
+        if not target:
+            log("ERROR: DATA NOT FOUND")
             loading_el.style.display = "none"
             return
 
         sid = target['shape_id']
-        log(f"Shape ID: {sid} をGoogle Driveからスキャン中...")
+        log(f"FETCHING SHAPE_ID: {sid} FROM CLOUD...")
 
-        # 2. Google Driveからshapesを取得
         res = await pyfetch(SHAPES_URL)
-        if not res.ok:
-            raise Exception("Google Driveへの接続に失敗しました。共有設定を確認してください。")
-            
-        # 巨大ファイルを1行ずつ処理してメモリ節約
         text = await res.string()
         lines = text.strip().split('\n')
         header = [x.strip() for x in lines[0].split(',')]
@@ -180,14 +193,14 @@ async def analyze_freight_data(trip_id):
         coords.sort(key=lambda x: x['seq'])
         final_list = [[p['lat'], p['lon']] for p in coords]
         
-        log(f"完了: {len(final_list)} 地点を描画します。")
+        log(f"SUCCESS: {len(final_list)} COORDINATES LOADED.")
         js.window.update_map_route(json.dumps(final_list))
 
     except Exception as e:
         log(f"CRITICAL ERROR: {str(e)}")
         loading_el.style.display = "none"
 
-js.document.getElementById("status").innerText = "SYSTEM READY (Python Engine Online)"
+log("PYTHON ENGINE LOADED. WAITING FOR COMMAND.")
 </py-script>
 
 </body>
