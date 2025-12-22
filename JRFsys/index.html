@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v9.6</title>
+    <title>WB-OCC 運行管理 v9.7</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,7 +12,7 @@
         :root { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
         body.light-mode { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { margin: 0; font-family: "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); }
         #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
         .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
@@ -35,15 +35,15 @@
             body * { visibility: hidden; background: #fff !important; color: #000 !important; }
             #modal-op, #modal-op * { visibility: visible; }
             #modal-op { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
-            .op-sheet { width: 100%; border: none; box-shadow: none; font-size: 0.6rem !important; color: #000; padding: 0; }
-            .op-sheet h2 { border-bottom: 2px solid #000; font-size: 1.2rem; margin-bottom: 10px; }
+            .op-sheet { width: 100%; font-size: 0.6rem !important; color: #000; padding: 0; }
+            .op-sheet h2 { border-bottom: 2px solid #000; font-size: 1.1rem; }
             .op-sheet table { width: 100%; border-collapse: collapse; font-size: 0.6rem !important; }
-            .op-sheet th, .op-sheet td { border: 1px solid #000; padding: 4px; }
+            .op-sheet th, .op-sheet td { border: 1px solid #000; padding: 3px; }
             .no-print { display: none !important; }
         }
         #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px; overflow-y: auto; }
-        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 20mm; min-height: 297mm; }
-        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; }
+        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; }
         #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
         .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
         button { padding: 8px 12px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-size: 12px; border-radius: 4px; }
@@ -54,7 +54,7 @@
 <div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.6</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.7</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -98,12 +98,12 @@
 
 <div id="modal-dic">
     <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b>駅コード一覧</b><button onclick="toggleDic()">×</button></div>
-    <input type="text" id="dic_search" placeholder="駅名で絞り込み..." style="width:100%;" oninput="filterDic()">
+    <input type="text" id="dic_search" placeholder="絞り込み..." style="width:100%;" oninput="filterDic()">
     <div id="dic-list"></div>
 </div>
 
 <div id="modal-op">
-    <div class="no-print" style="max-width:210mm; margin: 0 auto 15px auto; text-align:right;">
+    <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; text-align:right;">
         <button onclick="window.print()" style="background:#2ecc71;">印刷 / PDF保存</button>
         <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c;">閉じる</button>
     </div>
@@ -134,42 +134,44 @@
     async function init() {
         document.getElementById("loader").style.display = "block";
         document.getElementById('base_date').valueAsDate = new Date();
-        const [tr, st, s, rt] = await Promise.all([
-            fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
-            fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
-        ]);
-        Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
-            if(r.route_id) {
-                window.gtfsDB.routes[r.route_id] = r;
-                const opt = document.createElement('option'); opt.value = r.route_id; opt.innerText = r.route_long_name;
-                document.getElementById('route_filter').appendChild(opt);
-            }
-        });
-        window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
-        Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
-        Papa.parse(st.trim(), { header: true }).data.forEach(x => {
-            if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
-            window.gtfsDB.stopTimes[x.trip_id].push(x);
-        });
-        createDic(); renderTrips("");
+        try {
+            const [tr, st, s, rt] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
+                fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
+            ]);
+            Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
+                if(r.route_id) {
+                    window.gtfsDB.routes[r.route_id] = r;
+                    const opt = document.createElement('option'); opt.value = r.route_id; opt.innerText = r.route_long_name;
+                    document.getElementById('route_filter').appendChild(opt);
+                }
+            });
+            window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
+            Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
+            Papa.parse(st.trim(), { header: true }).data.forEach(x => {
+                if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
+                window.gtfsDB.stopTimes[x.trip_id].push(x);
+            });
+            createDic(); renderTrips("");
+        } catch (e) { console.error("データ読み込み失敗:", e); }
         document.getElementById("loader").style.display = "none";
     }
 
-    // 💡 列車番号解析：0削り・便/レ判定
-    function formatTripNo(no, isFirst, stopName) {
+    // 💡 列車番号解析：bを便に置換 / ORS判定
+    function formatTripNo(no, stopName) {
         let clean = no.replace(/^0+/, ''); 
         if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
         
-        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所") || no.endsWith('b');
-        if (isRoad) return clean + "便";
-        return clean + "レ";
+        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所") || no.includes('b');
+        let finalNo = clean.replace('b', '');
+        return isRoad ? finalNo + "便" : finalNo + "レ";
     }
 
     function parseRelay(tid, timeline) {
         const parts = tid.split('_').slice(2);
         return parts.map((p, i) => {
-            const stopName = timeline[i]?.name || "";
-            return formatTripNo(p, i === 0, stopName);
+            const sName = (i === 0 && timeline && timeline.length > 0) ? timeline[0].name : "";
+            return formatTripNo(p, sName);
         }).join("〜");
     }
 
@@ -177,7 +179,8 @@
         const list = document.getElementById("trip-list");
         list.innerHTML = "";
         const rf = document.getElementById('route_filter').value;
-        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(f.toLowerCase()))
+        const q = f.toLowerCase();
+        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(q))
         .slice(0, 50).forEach(t => {
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
@@ -194,8 +197,13 @@
     async function loadTrip(t) {
         currentTripId = t.trip_id;
         document.getElementById("loader").style.display = "block";
-        const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
-        window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
+        try {
+            const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
+            window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
+        } catch (e) { 
+            console.error("Shapeデータ読み込み失敗:", e);
+            document.getElementById("loader").style.display = "none";
+        }
     }
 
     window.updateUI = (geo_s, time_s) => {
@@ -203,73 +211,71 @@
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
 
-        // 💡 時刻表示の修正：C/T をそのまま行として維持し、確実に時刻を出す
-        currentTimeline = timeRaw.map(s => {
-            return {
-                ...s,
-                arrP: formatTime(s.arr, bDate),
-                depP: formatTime(s.dep, bDate)
-            };
-        });
+        currentTimeline = timeRaw.map(s => ({
+            ...s,
+            arrDisp: formatTime(s.arr, bDate),
+            depDisp: formatTime(s.dep, bDate)
+        }));
 
         document.getElementById("relay-text").innerText = parseRelay(currentTripId, currentTimeline);
 
-        // 地図描画
+        // 地図描画（重なり防止ロジック）
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
         
-        // 基本のShape線
-        L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
-        L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
-        
-        // 道路区間ハイライト（継走番号に「便」が含まれる区間を強調）
-        const relayParts = parseRelay(currentTripId, currentTimeline).split("〜");
-        for(let i=0; i<currentTimeline.length-1; i++){
-            const s=currentTimeline[i], e=currentTimeline[i+1];
-            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || relayParts.some(p => p.includes("便"));
-            if(isRoad) {
-                L.polyline([[s.lat, s.lon], [e.lat, e.lon]], { color: '#0078d4', weight: 8, opacity: 0.6 }).addTo(map);
-            }
+        const isOverallRoad = document.getElementById("relay-text").innerText.includes("便");
+
+        if (isOverallRoad) {
+            // 道路区間の描画（青太線）
+            L.polyline(geoPoints, { color: '#0078d4', weight: 8, opacity: 0.7 }).addTo(map);
+        } else {
+            // 線路区間の描画（黒白点線）
+            L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
+            L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
         }
         
         currentTimeline.forEach(s => L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map).bindPopup(`${s.code}: ${s.name}`));
         map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
         
+        // 時刻表の描画
         document.getElementById("st-body").innerHTML = currentTimeline.map(s => `
             <tr>
                 <td style="font-family:monospace;">${s.code}</td>
                 <td><b>${s.name}</b></td>
-                <td style="text-align:center;">${s.code.startsWith('C') ? s.arrP : ' - '}</td>
-                <td style="text-align:center;">${s.code.startsWith('T') ? s.depP : ' - '}</td>
+                <td style="text-align:center;">${s.code.startsWith('C') ? s.arrDisp : ' - '}</td>
+                <td style="text-align:center;">${s.code.startsWith('T') ? s.depDisp : ' - '}</td>
             </tr>`).join("");
         
         document.getElementById("loader").style.display = "none";
     };
 
     function formatTime(t, base) {
-        if(!t || t.includes("undefined") || t === "None") return " - ";
-        let [h, m] = t.split(':').map(Number);
+        if(!t || t === "None" || t === "null" || t.includes("undefined")) return " - ";
+        const parts = t.split(':');
+        if (parts.length < 2) return " - ";
+        let h = parseInt(parts[0], 10);
+        let m = parts[1];
         let d = Math.floor(h/24);
-        let timeStr = `${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        let timeStr = `${String(h%24).padStart(2,'0')}:${m}`;
         return (d > 0 ? `+${d}d ` : "") + timeStr;
     }
 
     function showOpSheet() {
-        const info = parseRelay(currentTripId, currentTimeline);
+        const info = document.getElementById("relay-text").innerText;
         const content = document.getElementById("op-content");
         content.innerHTML = `
-            <div style="text-align:right; font-size:0.5rem;">出力: ${new Date().toLocaleString()}</div>
+            <div style="text-align:right; font-size:0.5rem;">WB-OCC v9.7 / ${new Date().toLocaleString()}</div>
             <h2 style="text-align:center;">貨物列車 運行順序表</h2>
-            <div style="margin-bottom:10px; border:1px solid #000; padding:10px;">
-                <b>継走列車:</b> ${info} | <b>基準日:</b> ${document.getElementById("base_date").value}
+            <div style="margin-bottom:10px; border:1px solid #000; padding:8px; font-size:0.7rem;">
+                <b>継走番号:</b> ${info} &nbsp;&nbsp; <b>基準日:</b> ${document.getElementById("base_date").value}
             </div>
             <table>
-                <thead><tr style="background:#eee;"><th>駅コード</th><th>停車駅名</th><th>着時刻</th><th>発時刻</th><th>備考</th></tr></thead>
+                <thead><tr style="background:#eee;"><th>駅コード</th><th>停車駅</th><th>着時刻</th><th>発時刻</th><th>記事</th></tr></thead>
                 <tbody>${currentTimeline.map(s => `
                     <tr>
                         <td style="text-align:center;">${s.code}</td>
                         <td><b>${s.name}</b></td>
-                        <td style="text-align:center;">${s.code.startsWith('C') ? s.arrP : '-'}</td>
-                        <td style="text-align:center;">${s.code.startsWith('T') ? s.depP : '-'}</td>
+                        <td style="text-align:center;">${s.code.startsWith('C') ? s.arrDisp : '-'}</td>
+                        <td style="text-align:center;">${s.code.startsWith('T') ? s.depDisp : '-'}</td>
                         <td></td>
                     </tr>`).join("")}</tbody>
             </table>
@@ -313,17 +319,20 @@ async def process(event):
         timeline = []
         for r in st_list:
             s = stops.get(r['stop_id'], {})
+            # 明示的に arrival/departure を取得し、なければ "None" を入れる
+            arr = r.get('arrival_time')
+            dep = r.get('departure_time')
             timeline.append({
-                "name": s.get('stop_name', "-"), 
-                "code": s.get('stop_code', "-"),
-                "arr": str(r.get('arrival_time', "None")),
-                "dep": str(r.get('departure_time', "None")),
+                "name": str(s.get('stop_name', "-")), 
+                "code": str(s.get('stop_code', "-")),
+                "arr": str(arr) if arr is not None else "None",
+                "dep": str(dep) if dep is not None else "None",
                 "lat": float(s.get('stop_lat', 0)), 
                 "lon": float(s.get('stop_lon', 0))
             })
         js.window.updateUI(data['geo'], json.dumps(timeline))
     except Exception as e:
-        js.console.error(str(e))
+        js.console.error(f"Python Error: {str(e)}")
         js.document.getElementById("loader").style.display = "none"
 
 js.window.addEventListener("py-process", create_proxy(process))
