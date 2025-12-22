@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Strategic Railway Terminal v6.2</title>
+    <title>WB-OCC Tactical Terminal v6.3</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -42,26 +42,26 @@
     </style>
 </head>
 <body>
-<div id="loader"><div class="spinner"></div><div style="margin-top:20px;">CLOUDFETCH IN PROGRESS...</div></div>
+<div id="loader"><div class="spinner"></div><div style="margin-top:20px;">BYPASSING CLOUD SECURITY...</div></div>
 <header>
-    <div class="logo">WB-OCC v6.2</div>
+    <div class="logo">WB-OCC v6.3</div>
     <div id="clock" style="font-size: 18px; font-weight: bold; color: var(--accent-active);">00:00:00</div>
 </header>
 <div id="container-main">
     <div id="panel-left">
-        <div class="section-header">TRIP SELECTOR</div>
+        <div class="section-header">TRIP INDEX (GTFS)</div>
         <div style="padding:10px;"><input type="text" id="q_input" placeholder="SEARCH ID..."></div>
         <div id="trip-list"></div>
     </div>
     <div id="panel-map"><div id="map" style="height:100%;"></div></div>
     <div id="panel-right">
-        <div class="section-header">STATION FEED</div>
+        <div class="section-header">STATION TIMELINE</div>
         <div id="timeline-view"></div>
     </div>
 </div>
 <div id="footer">
     <div id="stats-box">AWAITING SELECTION...</div>
-    <div id="log-box">System Initializing...</div>
+    <div id="log-box">System Booting...</div>
 </div>
 
 <script>
@@ -87,7 +87,7 @@
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
             }
             renderTrips("");
-            log("Core files ready.");
+            log("Core GTFS resources online.");
         } catch (e) { log("INIT ERROR: " + e.message, true); }
     }
 
@@ -96,30 +96,38 @@
         list.innerHTML = "";
         window.gtfsDB.trips.filter(t => t.trip_id.includes(filter)).slice(0, 100).forEach(t => {
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
-            let route = "Unknown";
+            let route = "---";
             if(st.length > 0) {
-                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name;
-                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name;
+                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "始発";
+                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "終着";
                 route = `${start} 〜 ${end}`;
             }
             const card = document.createElement("div");
             card.className = "trip-card";
             card.innerHTML = `<div style="color:var(--accent-active); font-weight:bold;">${t.trip_id}</div><div class="trip-route">${route}</div>`;
             card.onclick = async () => {
+                document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
+                card.classList.add("active");
                 document.getElementById("loader").style.display = "flex";
-                log(`Fetching shape for: ${t.trip_id}`);
                 
-                // --- JavaScript側で shapes.txt を取得 (CORS回避) ---
                 const fileID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x";
-                const targetUrl = `https://drive.google.com/uc?export=download&id=${fileID}`;
+                // ⚠️ パラメータ confirm=t を追加してウイルス警告をスキップ
+                const targetUrl = `https://drive.google.com/uc?export=download&id=${fileID}&confirm=t`;
                 const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
                 
+                log(`Bypassing Google scan for: ${t.trip_id}`);
                 try {
                     const res = await fetch(proxyUrl);
-                    const csvData = await res.text();
-                    window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, csv: csvData } }));
+                    const rawText = await res.text();
+                    
+                    // HTMLが返ってきていないか最終チェック
+                    if (rawText.includes("<!DOCTYPE html>") || rawText.includes("<script")) {
+                        throw new Error("Security bypass failed. Still receiving HTML instead of CSV.");
+                    }
+                    
+                    window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, csv: rawText } }));
                 } catch (e) {
-                    log("Fetch Error: " + e.message, true);
+                    log("Cloud Error: " + e.message, true);
                     document.getElementById("loader").style.display = "none";
                 }
             };
@@ -143,8 +151,9 @@
             view.appendChild(d);
             L.circleMarker([s.lat, s.lon], { radius: 6, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
         });
-        document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM`;
+        document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM<br>SHAPE_ID: ${stats.sid}`;
         document.getElementById("loader").style.display = "none";
+        log(`Mapping Success: ${stats.id}`);
     };
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -173,11 +182,22 @@ async def start_analysis(event):
             s_info = next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), None)
             timeline.append({"name": s_info['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(s_info['stop_lat']), "lon": float(s_info['stop_lon'])})
 
-        # 2. Parse CSV (Passed from JS)
+        # 2. Parse CSV (Robust Header Matching)
         lines = csv_content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
+        
+        # ヘッダーの空白や非表示文字を徹底排除
         header = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in lines[0].split(',')]
         
-        idx = { 'id': header.index('shape_id'), 'lat': header.index('shape_pt_lat'), 'lon': header.index('shape_pt_lon'), 'seq': header.index('shape_pt_sequence') }
+        # インデックス取得（もし見つからなければエラーログを出す）
+        try:
+            idx = { 
+                'id': header.index('shape_id'), 
+                'lat': header.index('shape_pt_lat'), 
+                'lon': header.index('shape_pt_lon'), 
+                'seq': header.index('shape_pt_sequence') 
+            }
+        except ValueError:
+            raise Exception(f"Header mismatch. Found columns: {header}")
         
         geo = []
         for l in lines[1:]:
@@ -195,14 +215,14 @@ async def start_analysis(event):
             a = math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2
             d += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d}))
+        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d, "sid": sid}))
 
     except Exception as e:
-        js.log(f"PY ERROR: {str(e)}", True)
+        js.log(f"ANALYSIS ERROR: {str(e)}", True)
         js.document.getElementById('loader').style.display = 'none'
 
 js.window.addEventListener("py-process", create_proxy(start_analysis))
-js.log("Analyzer Engine v6.2 Standby.")
+js.log("OCC Engine v6.3: Tactical Standby.")
 </py-script>
 </body>
 </html>
