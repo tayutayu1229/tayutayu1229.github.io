@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Master v8.0</title>
+    <title>WB-OCC Master v8.1 (Lightweight)</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -19,77 +19,64 @@
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: var(--font-main); background: var(--bg-base); color: var(--text-silver); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        header { height: 60px; background: #001b33; border-bottom: 2px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 1000; }
-        #main-layout { display: grid; grid-template-columns: 380px 1fr 420px; flex: 1; overflow: hidden; gap: 4px; background: var(--border-primary); }
+        header { height: 50px; background: #001b33; border-bottom: 2px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 1000; }
+        #main-layout { display: grid; grid-template-columns: 350px 1fr 380px; flex: 1; overflow: hidden; gap: 2px; background: var(--border-primary); }
         .panel { background: var(--bg-base); display: flex; flex-direction: column; overflow: hidden; }
         
-        /* 検索周り */
-        .search-box { padding: 10px; background: var(--panel-bg); display: flex; flex-direction: column; gap: 8px; }
-        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 10px; border-radius: 4px; outline: none; }
-        .filter-info { font-size: 10px; color: var(--accent-warning); padding: 0 5px; }
-
-        /* リスト */
-        #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { padding: 12px; border-bottom: 1px solid rgba(0, 77, 153, 0.3); cursor: pointer; position: relative; }
-        .trip-card.active { background: #002244; border-left: 5px solid var(--accent-danger); }
+        .search-box { padding: 10px; background: var(--panel-bg); }
+        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 8px; border-radius: 4px; outline: none; font-size: 13px; }
         
-        /* 運行表モーダル */
-        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; padding: 40px; }
-        .op-sheet { background: #fff; color: #000; height: 100%; max-width: 800px; margin: 0 auto; padding: 40px; font-family: "MS Mincho", "serif"; box-shadow: 0 0 20px rgba(0,255,204,0.3); position: relative; overflow-y: auto; }
-        .op-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .op-table th, .op-table td { border: 1px solid #000; padding: 8px; text-align: center; }
-        .op-header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
-        
-        /* 右パネル：操作ボタン */
-        .action-bar { padding: 10px; display: flex; gap: 5px; background: #000; }
-        .act-btn { flex: 1; padding: 10px; background: var(--border-primary); border: none; color: #fff; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 4px; }
-        .act-btn:hover { background: var(--accent-danger); }
+        #trip-list { flex: 1; overflow-y: auto; will-change: transform; }
+        .trip-card { padding: 10px; border-bottom: 1px solid rgba(0, 77, 153, 0.2); cursor: pointer; font-size: 13px; }
+        .trip-card:hover { background: rgba(0, 255, 204, 0.05); }
+        .trip-card.active { background: #002244; border-left: 4px solid var(--accent-danger); }
 
+        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; padding: 20px; }
+        .op-sheet { background: #fff; color: #000; height: 100%; max-width: 800px; margin: 0 auto; padding: 30px; font-family: "MS Mincho", serif; overflow-y: auto; }
+        .op-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .op-table th, .op-table td { border: 1px solid #000; padding: 5px; text-align: center; }
+
+        .action-bar { padding: 8px; display: flex; gap: 4px; background: #000; }
+        .act-btn { flex: 1; padding: 8px; background: var(--border-primary); border: none; color: #fff; cursor: pointer; font-size: 11px; border-radius: 3px; }
+        
         #timeline-view { flex: 1; overflow-y: auto; padding: 15px; }
-        .station-node { border-left: 2px solid var(--border-primary); margin-left: 10px; padding: 0 0 20px 25px; position: relative; }
-        .station-node::before { content: ""; position: absolute; left: -7px; top: 0; width: 12px; height: 12px; background: var(--accent-active); border-radius: 50%; }
+        .station-node { border-left: 2px solid var(--border-primary); margin-left: 10px; padding: 0 0 15px 20px; position: relative; font-size: 13px; }
+        .station-node::before { content: ""; position: absolute; left: -6px; top: 0; width: 10px; height: 10px; background: var(--accent-active); border-radius: 50%; }
 
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 5000; display: none; justify-content: center; align-items: center; color: var(--accent-active); }
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 5000; display: none; justify-content: center; align-items: center; color: var(--accent-active); font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="loader"><div>LOADING...</div></div>
+<div id="loader"><div id="load-msg">最適化中...</div></div>
 
 <div id="modal-op">
-    <div style="margin-bottom: 10px; text-align: right;">
-        <button class="act-btn" onclick="window.print()" style="max-width: 100px;">印刷/PDF</button>
+    <div style="margin-bottom: 10px; text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="act-btn" onclick="window.print()" style="max-width: 100px;">PDF出力</button>
         <button class="act-btn" onclick="document.getElementById('modal-op').style.display='none'" style="max-width: 100px; background:#444;">閉じる</button>
     </div>
-    <div class="op-sheet" id="op-content">
-        </div>
+    <div class="op-sheet" id="op-content"></div>
 </div>
 
 <header>
-    <div style="font-size: 20px; font-weight: 900; color: var(--accent-danger);">WB-OCC v8.0</div>
-    <div id="clock" style="font-family: Consolas; color: var(--accent-active); font-size: 20px;">00:00:00</div>
+    <div style="font-weight: 900; color: var(--accent-danger);">WB-OCC v8.1</div>
+    <div id="clock" style="font-family: Consolas; color: var(--accent-active);">00:00:00</div>
 </header>
 
 <div id="main-layout">
     <div class="panel">
         <div class="search-box">
-            <input type="text" id="q_input" placeholder="ID or Station or Code...">
-            <div class="filter-info">※駅名入力でその駅を通る列車を抽出</div>
+            <input type="text" id="q_input" placeholder="ID / 駅名 / 駅コードで検索...">
         </div>
         <div id="trip-list"></div>
     </div>
-
-    <div class="panel">
-        <div id="map" style="height: 100%;"></div>
-    </div>
-
+    <div class="panel"><div id="map" style="height: 100%;"></div></div>
     <div class="panel">
         <div class="action-bar">
-            <button class="act-btn" onclick="showOpSheet()">運行表 (PDF風) 表示</button>
-            <button class="act-btn" onclick="exportData()">データ保存(JSON)</button>
+            <button class="act-btn" onclick="showOpSheet()">運行表 表示</button>
+            <button class="act-btn" onclick="exportData()">データ保存</button>
         </div>
-        <div id="relay-display" style="padding:10px; background:#001b33; font-family:Consolas; border-bottom:1px solid var(--border-primary);">
+        <div id="relay-display" style="padding:8px; background:#001b33; font-size:12px; border-bottom:1px solid var(--border-primary);">
             RELAY: <span id="relay-text" style="color:var(--accent-active)">--</span>
         </div>
         <div id="timeline-view"></div>
@@ -97,22 +84,56 @@
 </div>
 
 <script>
-    const map = L.map('map', { zoomControl: false }).setView([36.5, 138], 6);
+    const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
     let routeGroup = L.layerGroup().addTo(map);
     let markerGroup = L.layerGroup().addTo(map);
 
-    window.gtfsDB = { trips: [], stops: [], stop_times: [] };
+    // 💡 インデックス化されたデータベース
+    window.gtfsDB = {
+        trips: [],
+        stops: {},      // stop_idをキーにした辞書
+        stopTimes: {},  // trip_idをキーにした、駅時刻の配列辞書
+        stopToTrips: {} // stop_name/codeをキーにした、関連するtrip_idのMap
+    };
     let currentTripData = null;
+    let currentTripId = "";
 
     async function init() {
-        const files = ['trips', 'stops', 'stop_times'];
-        for(const f of files) {
-            const res = await fetch(`./${f}.txt`);
-            const data = await res.text();
-            window.gtfsDB[f] = Papa.parse(data.trim(), { header: true }).data;
-        }
-        renderTrips("");
+        document.getElementById("loader").style.display = "flex";
+        try {
+            const [tText, sText, stText] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()),
+                fetch('./stops.txt').then(r => r.text()),
+                fetch('./stop_times.txt').then(r => r.text())
+            ]);
+
+            window.gtfsDB.trips = Papa.parse(tText.trim(), { header: true }).data;
+            
+            // Stopsを辞書化
+            Papa.parse(sText.trim(), { header: true }).data.forEach(s => {
+                window.gtfsDB.stops[s.stop_id] = s;
+            });
+
+            // StopTimesをTripごとにインデックス化（ここが最重要の軽量化）
+            Papa.parse(stText.trim(), { header: true }).data.forEach(st => {
+                if (!window.gtfsDB.stopTimes[st.trip_id]) window.gtfsDB.stopTimes[st.trip_id] = [];
+                window.gtfsDB.stopTimes[st.trip_id].push(st);
+                
+                // 逆引き用インデックス
+                const sObj = window.gtfsDB.stops[st.stop_id];
+                if(sObj) {
+                    const keys = [sObj.stop_name, sObj.stop_code];
+                    keys.forEach(k => {
+                        if(!window.gtfsDB.stopToTrips[k]) window.gtfsDB.stopToTrips[k] = new Set();
+                        window.gtfsDB.stopToTrips[k].add(st.trip_id);
+                    });
+                }
+            });
+
+            renderTrips("");
+        } catch (e) { console.error(e); }
+        document.getElementById("loader").style.display = "none";
     }
 
     function renderTrips(filter) {
@@ -120,109 +141,91 @@
         list.innerHTML = "";
         const f = filter.toLowerCase();
 
-        // 💡 特定の駅を「経由する」列車の抽出ロジック
+        // 💡 高速フィルタリング
         const filtered = window.gtfsDB.trips.filter(t => {
-            const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id);
-            const passStops = st.map(s => {
-                const stopObj = window.gtfsDB.stops.find(so => so.stop_id === s.stop_id);
-                return (stopObj?.stop_name + stopObj?.stop_code).toLowerCase();
-            });
-            const hasStation = passStops.some(name => name.includes(f));
-            const hasID = t.trip_id.toLowerCase().includes(f);
-            return hasID || hasStation;
+            if (!f) return true;
+            if (t.trip_id.toLowerCase().includes(f)) return true;
+            // 逆引きインデックスから検索
+            return Object.keys(window.gtfsDB.stopToTrips).some(k => k.includes(f) && window.gtfsDB.stopToTrips[k].has(t.trip_id));
         }).slice(0, 50);
 
+        const fragment = document.createDocumentFragment();
         filtered.forEach(t => {
-            const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b)=>a.stop_sequence-b.stop_sequence);
-            const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id)?.stop_name || "??";
-            const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id)?.stop_name || "??";
+            const st = window.gtfsDB.stopTimes[t.trip_id]?.sort((a,b)=>a.stop_sequence-b.stop_sequence) || [];
+            const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "??";
+            const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "??";
             
             const card = document.createElement("div");
             card.className = "trip-card";
-            card.innerHTML = `<div style="font-size:11px; color:var(--accent-active);">${t.trip_id}</div><b>${sName} ▶ ${eName}</b>`;
+            card.innerHTML = `<div style="color:var(--accent-active); font-size:10px;">${t.trip_id}</div><b>${sName} ▶ ${eName}</b>`;
             card.onclick = () => loadTrip(t);
-            list.appendChild(card);
+            fragment.appendChild(card);
         });
+        list.appendChild(fragment);
     }
 
     async function loadTrip(t) {
+        currentTripId = t.trip_id;
         document.getElementById("loader").style.display = "flex";
         const shardKey = t.shape_id.substring(0, 2);
         const res = await fetch(`./shapes_shards/shard_${shardKey}.json`);
         const shard = await res.json();
         
+        // 継走パース
+        const relays = t.trip_id.split('_').slice(2).filter(p => p.length >= 4).map(p => p.substring(0,4) + "レ");
+        document.getElementById("relay-text").innerText = relays.join(" 〜 ");
+
         window.dispatchEvent(new CustomEvent("py-process", { 
             detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } 
         }));
     }
 
-    window.updateUI = (geo_s, time_s, stat_s) => {
+    window.updateUI = (geo_s, time_s) => {
         const time = JSON.parse(time_s); currentTripData = time;
         const geo = JSON.parse(geo_s);
         routeGroup.clearLayers(); markerGroup.clearLayers();
-        L.polyline(geo, {color: 'var(--accent-danger)', weight: 4}).addTo(routeGroup);
-        map.fitBounds(L.polyline(geo).getBounds());
+        
+        L.polyline(geo, {color: 'var(--accent-danger)', weight: 3}).addTo(routeGroup);
+        map.fitBounds(L.polyline(geo).getBounds(), {padding: [20,20]});
 
         const view = document.getElementById("timeline-view");
         view.innerHTML = "";
         time.forEach(s => {
             const node = document.createElement("div");
             node.className = "station-node";
-            node.innerHTML = `<div>${s.name} (${s.code})</div><div style="font-size:12px; color:var(--accent-warning)">${s.arr} / ${s.dep}</div>`;
+            node.innerHTML = `<div>${s.name} (${s.code})</div><div style="font-size:11px; color:var(--accent-warning)">着 ${s.arr} / 発 ${s.dep}</div>`;
             view.appendChild(node);
-            L.circleMarker([s.lat, s.lon], {radius: 4, color: '#00ffcc'}).addTo(markerGroup);
+            L.circleMarker([s.lat, s.lon], {radius: 4, color: '#00ffcc', fillOpacity: 1}).addTo(markerGroup);
         });
         document.getElementById("loader").style.display = "none";
     };
 
-    // 💡 運行表（PDF風）生成
     function showOpSheet() {
-        if(!currentTripData) return alert("列車を選択してください");
+        if(!currentTripData) return;
         const modal = document.getElementById("modal-op");
         const content = document.getElementById("op-content");
-        
-        let rows = currentTripData.map(s => `
-            <tr>
-                <td>${s.code}</td>
-                <td style="text-align:left; padding-left:20px;">${s.name}</td>
-                <td>${s.arr}</td>
-                <td>${s.dep}</td>
-                <td></td>
-            </tr>
-        `).join("");
-
-        content.innerHTML = `
-            <div class="op-header">
-                <div style="font-size:24px; font-weight:bold;">貨物列車運行時刻表（仕業表）</div>
-                <div style="text-align:right;">Trip ID: ${document.getElementById("st-id")?.innerText || ""}</div>
-            </div>
-            <p>下記区間の運転時刻を指定する。</p>
-            <table class="op-table">
-                <thead>
-                    <tr><th>駅コード</th><th>駅名</th><th>着時刻</th><th>発時刻</th><th>備考</th></tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-            <div style="margin-top:30px; font-size:12px; text-align:right;">WB-OCC STRATEGIC SYSTEM v8.0</div>
-        `;
+        let rows = currentTripData.map(s => `<tr><td>${s.code}</td><td style="text-align:left;">${s.name}</td><td>${s.arr}</td><td>${s.dep}</td><td></td></tr>`).join("");
+        content.innerHTML = `<h3>貨物列車運行時刻表</h3><p>Trip ID: ${currentTripId}</p><table class="op-table"><thead><tr><th>コード</th><th>駅名</th><th>着</th><th>発</th><th>備考</th></tr></thead><tbody>${rows}</tbody></table>`;
         modal.style.display = "block";
     }
 
     function exportData() {
         if(!currentTripData) return;
-        const blob = new Blob([JSON.stringify(currentTripData, null, 2)], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "trip_data.json"; a.click();
+        const blob = new Blob([JSON.stringify(currentTripData)], {type: "application/json"});
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${currentTripId}.json`; a.click();
     }
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
     init();
-    document.getElementById("q_input").oninput = (e) => renderTrips(e.target.value);
+    let timeout;
+    document.getElementById("q_input").oninput = (e) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => renderTrips(e.target.value), 200); // 入力負荷軽減
+    };
 </script>
 
 <py-script>
-import js, json, math
+import js, json
 from pyodide.ffi import create_proxy
 
 async def process(event):
@@ -231,21 +234,12 @@ async def process(event):
     tid = data['tid']
     try:
         db = js.window.gtfsDB
-        st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
-        stops = {s['stop_id']: s for s in db.stops.to_py()}
+        st = sorted(db.stopTimes[tid].to_py(), key=lambda x: int(x['stop_sequence']))
         timeline = []
         for r in st:
-            s_obj = stops[r['stop_id']]
-            timeline.append({
-                "name": s_obj['stop_name'],
-                "code": s_obj['stop_code'],
-                "arr": r['arrival_time'],
-                "dep": r['departure_time'],
-                "lat": float(s_obj['stop_lat']),
-                "lon": float(s_obj['stop_lon'])
-            })
-        
-        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid}))
+            s = db.stops[r['stop_id']]
+            timeline.append({"name": s['stop_name'], "code": s['stop_code'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(s['stop_lat']), "lon": float(s['stop_lon'])})
+        js.window.updateUI(json.dumps(coords), json.dumps(timeline))
     except Exception as e:
         js.console.error(str(e))
         js.document.getElementById('loader').style.display = 'none'
