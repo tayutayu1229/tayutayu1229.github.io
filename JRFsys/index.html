@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Tactical Terminal v6.3</title>
+    <title>WB-OCC Tactical Terminal v6.4</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -20,37 +20,50 @@
         body { margin: 0; font-family: var(--font-main); background: var(--bg-base); color: var(--text-silver); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         header { height: 60px; background: linear-gradient(180deg, #002b5c 0%, #001b33 100%); border-bottom: 3px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 25px; z-index: 1000; }
         .logo { font-size: 22px; font-weight: 900; color: var(--accent-danger); border: 2px solid var(--accent-danger); padding: 4px 10px; }
+        
         #container-main { display: flex; flex: 1; gap: 10px; padding: 10px; overflow: hidden; }
         #panel-left { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); display: flex; flex-direction: column; }
-        #panel-map { flex: 1; background: #000; border: 1px solid var(--border-primary); }
+        #panel-map { flex: 1; background: #000; border: 1px solid var(--border-primary); position: relative; }
         #panel-right { width: 400px; background: var(--panel-bg); border: 1px solid var(--border-primary); display: flex; flex-direction: column; }
+        
         .section-header { background: var(--border-primary); padding: 10px; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
         #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 12px; outline: none; box-sizing: border-box; }
         #trip-list { flex: 1; overflow-y: auto; }
         .trip-card { padding: 15px; border-bottom: 1px solid rgba(0, 77, 153, 0.4); cursor: pointer; }
         .trip-card.active { background: #003366; border-left: 8px solid var(--accent-danger); }
         .trip-route { font-size: 12px; color: #fff; margin-top: 5px; font-weight: bold; }
+        
         #timeline-view { flex: 1; overflow-y: auto; padding: 20px; }
         .station-node { position: relative; padding-left: 35px; padding-bottom: 25px; border-left: 2px solid var(--border-primary); margin-left: 10px; }
         .station-node::before { content: ""; position: absolute; left: -10px; top: 0; width: 16px; height: 16px; background: var(--bg-base); border: 2px solid var(--accent-active); border-radius: 50%; }
+        
         #footer { height: 150px; display: flex; gap: 10px; padding: 0 10px 10px 10px; }
         #stats-box { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); padding: 15px; }
         #log-box { flex: 1; background: #000; border: 1px solid var(--border-primary); padding: 10px; overflow-y: auto; font-size: 11px; color: var(--accent-active); }
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
         .spinner { width: 50px; height: 50px; border: 4px solid #111; border-top: 4px solid var(--accent-danger); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-<div id="loader"><div class="spinner"></div><div style="margin-top:20px;">BYPASSING CLOUD SECURITY...</div></div>
+
+<div id="loader">
+    <div class="spinner"></div>
+    <div style="margin-top:20px;">ESTABLISHING CLOUD CONNECTION...</div>
+    <div id="error-display" style="color: var(--accent-danger); font-size: 12px; margin-top: 10px; max-width: 80%;"></div>
+    <button id="close-loader" style="display:none; margin-top:15px; background:var(--accent-danger); color:white; border:none; padding:8px 15px; cursor:pointer;">CLOSE</button>
+</div>
+
 <header>
-    <div class="logo">WB-OCC v6.3</div>
+    <div class="logo">WB-OCC v6.4</div>
     <div id="clock" style="font-size: 18px; font-weight: bold; color: var(--accent-active);">00:00:00</div>
 </header>
+
 <div id="container-main">
     <div id="panel-left">
         <div class="section-header">TRIP INDEX (GTFS)</div>
-        <div style="padding:10px;"><input type="text" id="q_input" placeholder="SEARCH ID..."></div>
+        <div style="padding:10px;"><input type="text" id="q_input" placeholder="TRIP ID..."></div>
         <div id="trip-list"></div>
     </div>
     <div id="panel-map"><div id="map" style="height:100%;"></div></div>
@@ -59,9 +72,10 @@
         <div id="timeline-view"></div>
     </div>
 </div>
+
 <div id="footer">
     <div id="stats-box">AWAITING SELECTION...</div>
-    <div id="log-box">System Booting...</div>
+    <div id="log-box">Ready.</div>
 </div>
 
 <script>
@@ -87,8 +101,8 @@
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
             }
             renderTrips("");
-            log("Core GTFS resources online.");
-        } catch (e) { log("INIT ERROR: " + e.message, true); }
+            log("Core GTFS loaded.");
+        } catch (e) { log("LOAD ERROR: " + e.message, true); }
     }
 
     function renderTrips(filter) {
@@ -98,42 +112,49 @@
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
             let route = "---";
             if(st.length > 0) {
-                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "始発";
-                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "終着";
+                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "START";
+                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "END";
                 route = `${start} 〜 ${end}`;
             }
             const card = document.createElement("div");
             card.className = "trip-card";
             card.innerHTML = `<div style="color:var(--accent-active); font-weight:bold;">${t.trip_id}</div><div class="trip-route">${route}</div>`;
             card.onclick = async () => {
-                document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
-                card.classList.add("active");
-                document.getElementById("loader").style.display = "flex";
+                const loader = document.getElementById("loader");
+                const errBox = document.getElementById("error-display");
+                const closeBtn = document.getElementById("close-loader");
+                
+                loader.style.display = "flex";
+                errBox.innerText = "";
+                closeBtn.style.display = "none";
                 
                 const fileID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x";
-                // ⚠️ パラメータ confirm=t を追加してウイルス警告をスキップ
-                const targetUrl = `https://drive.google.com/uc?export=download&id=${fileID}&confirm=t`;
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                // 💡 プロキシを "corsproxy.io" に変更 (alloriginsが不安定なため)
+                const targetUrl = encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileID}&confirm=t`);
+                const proxyUrl = `https://corsproxy.io/?${targetUrl}`;
                 
-                log(`Bypassing Google scan for: ${t.trip_id}`);
+                log(`Attempting secure fetch via corsproxy.io...`);
                 try {
                     const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`HTTP Error ${res.status}: Proxy unavailable.`);
                     const rawText = await res.text();
                     
-                    // HTMLが返ってきていないか最終チェック
-                    if (rawText.includes("<!DOCTYPE html>") || rawText.includes("<script")) {
-                        throw new Error("Security bypass failed. Still receiving HTML instead of CSV.");
-                    }
+                    if (rawText.includes("<!DOCTYPE html>")) throw new Error("Google Drive blocked the request with an HTML page.");
                     
                     window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, csv: rawText } }));
                 } catch (e) {
-                    log("Cloud Error: " + e.message, true);
-                    document.getElementById("loader").style.display = "none";
+                    log("CONNECTION FAILED: " + e.message, true);
+                    errBox.innerText = `CORS/NETWORK ERROR: ${e.message}\nTry checking your Internet or if the file is truly Public.`;
+                    closeBtn.style.display = "block";
                 }
             };
             list.appendChild(card);
         });
     }
+
+    document.getElementById("close-loader").onclick = () => {
+        document.getElementById("loader").style.display = "none";
+    };
 
     window.updateUI = (geo_s, time_s, stat_s) => {
         const geo = JSON.parse(geo_s); const time = JSON.parse(time_s); const stats = JSON.parse(stat_s);
@@ -151,7 +172,7 @@
             view.appendChild(d);
             L.circleMarker([s.lat, s.lon], { radius: 6, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
         });
-        document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM<br>SHAPE_ID: ${stats.sid}`;
+        document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM`;
         document.getElementById("loader").style.display = "none";
         log(`Mapping Success: ${stats.id}`);
     };
@@ -167,9 +188,7 @@ from pyodide.ffi import create_proxy
 
 async def start_analysis(event):
     data = event.detail.to_py()
-    tid = data['tid']
-    csv_content = data['csv']
-    
+    tid, csv_content = data['tid'], data['csv']
     try:
         db = js.window.gtfsDB
         trip = next((t for t in db.trips.to_py() if t['trip_id'] == tid), None)
@@ -177,52 +196,26 @@ async def start_analysis(event):
 
         # 1. Timeline
         st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
-        timeline = []
-        for r in st:
-            s_info = next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), None)
-            timeline.append({"name": s_info['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(s_info['stop_lat']), "lon": float(s_info['stop_lon'])})
+        timeline = [{"name": (next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_name')), "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_lat',0)), "lon": float(next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_lon',0))} for r in st]
 
-        # 2. Parse CSV (Robust Header Matching)
+        # 2. CSV Parse
         lines = csv_content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
+        h = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in lines[0].split(',')]
+        idx = {'id': h.index('shape_id'), 'lat': h.index('shape_pt_lat'), 'lon': h.index('shape_pt_lon'), 'seq': h.index('shape_pt_sequence')}
         
-        # ヘッダーの空白や非表示文字を徹底排除
-        header = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in lines[0].split(',')]
-        
-        # インデックス取得（もし見つからなければエラーログを出す）
-        try:
-            idx = { 
-                'id': header.index('shape_id'), 
-                'lat': header.index('shape_pt_lat'), 
-                'lon': header.index('shape_pt_lon'), 
-                'seq': header.index('shape_pt_sequence') 
-            }
-        except ValueError:
-            raise Exception(f"Header mismatch. Found columns: {header}")
-        
-        geo = []
-        for l in lines[1:]:
-            c = [col.strip() for col in l.split(',')]
-            if len(c) > idx['id'] and c[idx['id']] == sid:
-                geo.append([float(c[idx['lat']]), float(c[idx['lon']]), int(c[idx['seq']])])
-        
-        geo.sort(key=lambda x: x[2])
+        geo = sorted([[float(c[idx['lat']]), float(c[idx['lon']]), int(c[idx['seq']])] for l in lines[1:] if (c := [col.strip() for col in l.split(',')])[idx['id']] == sid], key=lambda x: x[2])
         coords = [[p[0], p[1]] for p in geo]
 
         # 3. Distance
-        d = 0
-        for i in range(len(coords)-1):
-            p1, p2 = coords[i], coords[i+1]
-            a = math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2
-            d += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        d = sum(6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)) for i in range(len(coords)-1) if (a := math.sin(math.radians(coords[i+1][0]-coords[i][0])/2)**2 + math.cos(math.radians(coords[i][0]))*math.cos(math.radians(coords[i+1][0]))*math.sin(math.radians(coords[i+1][1]-coords[i][1])/2)**2) >= 0)
 
-        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d, "sid": sid}))
-
+        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d}))
     except Exception as e:
         js.log(f"ANALYSIS ERROR: {str(e)}", True)
         js.document.getElementById('loader').style.display = 'none'
 
 js.window.addEventListener("py-process", create_proxy(start_analysis))
-js.log("OCC Engine v6.3: Tactical Standby.")
+js.log("OCC System Final Ready.")
 </py-script>
 </body>
 </html>
