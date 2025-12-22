@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v11.1 [Strict Logic Edition]</title>
+    <title>WB-OCC 運行管理 v11.2</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -32,18 +32,24 @@
         .weather-btn { font-size: 10px; background: #2ecc71; color: white; border: none; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; }
         #weather-toast { display: none; position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 2000; border: 2px solid var(--accent); min-width: 250px; text-align: center; }
         #modal-op { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto; padding: 20px; }
-        .op-container { background: white; width: 210mm; margin: 0 auto; min-height: 297mm; padding: 15mm; position: relative; color: #000; }
-        #log-panel { display: none; height: 120px; background: #000; color: #00ff00; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); white-space: pre-wrap; }
+        .op-container { background: white; width: 210mm; margin: 0 auto; min-height: 297mm; padding: 15mm; position: relative; color: #000; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #log-panel { display: none; height: 120px; background: #111; color: #ffffff; font-family: 'Consolas', monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); white-space: pre-wrap; line-height: 1.4; }
+        @media print {
+            body { background: white !important; overflow: visible !important; }
+            #main-layout, header, .no-print { display: none !important; }
+            #modal-op { position: static; display: block; background: white; padding: 0; }
+            .op-container { box-shadow: none; border: none; width: 100%; padding: 0; margin: 0; }
+        }
     </style>
 </head>
 <body class="light-mode">
 <div id="loader" style="position:fixed; top:60px; right:20px; background:#f1c40f; color:#000; padding:6px 12px; display:none; z-index:10001; font-weight:bold; border-radius:4px;">データ処理中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v11.1</span>
-        <button id="log-toggle-btn" onclick="toggleLog()" style="background:#444;">ログ表示</button>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v11.2</span>
+        <button id="log-toggle-btn" class="no-print" onclick="toggleLog()" style="background:#444;">ログ表示</button>
     </div>
-    <div style="display:flex; gap:15px; align-items:center;">
+    <div class="no-print" style="display:flex; gap:15px; align-items:center;">
         <select id="map-mode" onchange="updateMapLayers()">
             <option value="standard">通常地図 (Carto)</option>
             <option value="gsi">国土地理院 (標準)</option>
@@ -90,14 +96,14 @@
 
 <div id="modal-op">
     <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; display: flex; justify-content: flex-end; gap: 10px;">
-        <button onclick="window.print()" style="background:#2ecc71; font-weight: bold; color:white;">印刷 / PDF保存</button>
-        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c; font-weight: bold; color:white;">閉じる</button>
+        <button onclick="window.print()" style="background:#2ecc71; font-weight: bold; color:white; padding:8px 15px;">印刷 / PDF保存</button>
+        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c; font-weight: bold; color:white; padding:8px 15px;">閉じる</button>
     </div>
     <div class="op-container"><div id="op-content"></div></div>
 </div>
 
 <script>
-    // --- 1. 全機能統合用定数 ---
+    // --- 1. 定数データ (方面・天気142地点) ---
     const masterRoutes = [
         {id:"11", name:"北海道-北海道"}, {id:"12", name:"北海道-東北"}, {id:"13", name:"北海道-関東"}, {id:"14", name:"北海道-東海"}, {id:"15", name:"北海道-関西"}, {id:"16", name:"北海道-九州"},
         {id:"22", name:"東北-東北"}, {id:"23", name:"東北-関東"}, {id:"24", name:"東北-東海"}, {id:"25", name:"東北-関西"}, {id:"26", name:"東北-九州"}, {id:"33", name:"関東-関東"},
@@ -171,24 +177,23 @@
     let currentTripId = "";
     let currentTimeline = [];
 
+    // 💡 ログを改行付き、白文字で出力
     function logger(msg) {
         const p = document.getElementById('log-panel');
         if(!p) return;
         const now = new Date().toLocaleTimeString();
         p.innerText += `[${now}] ${msg}\n`;
         p.scrollTop = p.scrollHeight;
-        console.log(`[LOG] ${msg}`);
     }
 
     async function init() {
         document.getElementById("loader").style.display = "block";
-        logger("システム初期化：データ読み込み中...");
+        logger("SYSTEM INITIALIZED - LOADING DATA...");
         document.getElementById('base_date').valueAsDate = new Date();
         const rf = document.getElementById("route_filter");
         masterRoutes.forEach(r => {
             const opt = document.createElement("option"); opt.value = r.id; opt.textContent = r.name; rf.appendChild(opt);
         });
-
         try {
             const [tr, st, s] = await Promise.all([
                 fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()), fetch('./stops.txt').then(r => r.text())
@@ -199,26 +204,23 @@
                 if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
                 window.gtfsDB.stopTimes[x.trip_id].push(x);
             });
-            logger("GTFSデータの展開に成功しました。");
+            logger("SUCCESS: GTFS DATA LOADED.");
             renderTrips("");
-        } catch(e) { logger(`致命的エラー: ${e.message}`); }
+        } catch(e) { logger(`ERROR: ${e.message}`); }
         document.getElementById("loader").style.display = "none";
     }
 
-    // --- 2. 厳格な「レ/便」および「線路/道路」判定 ---
-    function isRoadStop(name) {
-        return roadKeywords.some(kw => name.includes(kw));
-    }
+    // 💡 レ/便の厳格判定（道路が絡めば「便」）
+    function isRoad(name) { return roadKeywords.some(kw => name.includes(kw)); }
 
-    function formatTripNo(no, stationName) {
+    function formatTripNo(no, currentStationName) {
         let clean = no.replace(/^0+/, '').replace('b','');
         if (clean.length > 4) clean = clean.substring(0, clean.length - 2);
-        // 駅名にORS等が含まれる場合は「便」、そうでなければ「レ」
-        return isRoadStop(stationName) ? clean + "便" : clean + "レ";
+        return isRoad(currentStationName) ? clean + "便" : clean + "レ";
     }
 
     async function fetchWeather(lat, lon, stationName) {
-        logger(`${stationName} の最寄気象台を検索...`);
+        logger(`WEATHER REQUEST: ${stationName}`);
         let minD = Infinity, cityId = "130010";
         weatherStations.forEach(s => {
             const d = Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2));
@@ -229,16 +231,10 @@
             const data = await res.json();
             const f = data.forecasts[0];
             const toast = document.getElementById('weather-toast');
-            toast.innerHTML = `
-                <div style="font-size:10px;">観測：${data.location.city}</div>
-                <div style="font-weight:bold;">${stationName}</div>
-                <img src="${f.image.url}" width="36"><span style="font-size:16px;">${f.telop}</span>
-                <div style="font-size:11px;">気温:${f.temperature.max.celsius||'--'}℃ / 降水:${f.chanceOfRain.T12_18}</div>
-                <button onclick="this.parentElement.style.display='none'" style="font-size:10px; margin-top:5px;">閉じる</button>
-            `;
+            toast.innerHTML = `<div style="font-size:10px;">観測局: ${data.location.city}</div><b>${stationName}</b><br><img src="${f.image.url}" width="36"><span style="font-size:16px;">${f.telop}</span><div style="font-size:11px;">Max:${f.temperature.max.celsius||'--'}℃</div><button onclick="this.parentElement.style.display='none'">閉じる</button>`;
             toast.style.display = 'block';
-            logger(`${stationName} の天気を取得しました。`);
-        } catch(e) { logger("天気取得エラー"); }
+            logger(`WEATHER UPDATED FOR ${stationName}`);
+        } catch(e) { logger("WEATHER FETCH FAILED."); }
     }
 
     function renderTrips(f) {
@@ -252,7 +248,6 @@
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
             const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "-";
-            // 継走全体を「レ/便」判定して表示
             const displayNo = t.trip_id.split('_').slice(2).map(p => formatTripNo(p, sName)).join('〜');
             const card = document.createElement("div"); card.className = "trip-card" + (t.trip_id === currentTripId ? " active" : "");
             card.innerHTML = `<div class="card-relay">${displayNo}</div><div class="card-range">${sName} 〜 ${eName}</div>`;
@@ -263,12 +258,12 @@
 
     async function loadTrip(t) {
         currentTripId = t.trip_id; document.getElementById("loader").style.display = "block";
-        logger(`選択：${t.trip_id}`);
+        logger(`TRIP SELECTED: ${t.trip_id}`);
         const sid = t.shape_id ? t.shape_id.substring(0, 2) : "00";
         try {
             const shard = await fetch(`./shapes_shards/shard_${sid}.json`).then(r => r.json());
             window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id] || []) } }));
-        } catch(e) { logger("Shape読込エラー"); }
+        } catch(e) { logger("SHAPE DATA NOT FOUND."); }
     }
 
     window.updateUI = (geo_s, time_s) => {
@@ -284,40 +279,33 @@
         });
         currentTimeline = consolidated.map(s => ({ ...s, arrD: formatTime(s.arr), depD: formatTime(s.dep) }));
         
-        // ヘッダーの継走テキスト更新
-        document.getElementById("relay-text").innerText = currentTripId.split('_').slice(2).map(p=>formatTripNo(p, currentTimeline[0]?.name||"")).join('〜');
+        // 💡 継走表示における便/レ判定の修正
+        const isTripRoad = currentTimeline.some(s => isRoad(s.name));
+        document.getElementById("relay-text").innerText = currentTripId.split('_').slice(2).map(p => {
+            let clean = p.replace(/^0+/, '').replace('b','');
+            if (clean.length > 4) clean = clean.substring(0, clean.length - 2);
+            return isTripRoad ? clean + "便" : clean + "レ";
+        }).join('〜');
         
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // --- 厳格な線路/道路の描き分け ---
+        // 💡 道路（水色）と線路の描き分け
         for (let i = 0; i < currentTimeline.length - 1; i++) {
             const s = currentTimeline[i], e = currentTimeline[i+1], seg = extractSegment(geoPoints, s, e);
-            // どちらかの駅がORS/営業所なら道路区間
-            const isRoadSection = isRoadStop(s.name) || isRoadStop(e.name);
-            
-            if (isRoadSection) {
-                L.polyline(seg, { color: '#00c3ff', weight: 8, opacity: 0.8, lineCap: 'round' }).addTo(map); 
+            if (isRoad(s.name) || isRoad(e.name)) {
+                L.polyline(seg, { color: '#00c3ff', weight: 8, opacity: 0.8 }).addTo(map); 
             } else {
                 L.polyline(seg, { color: '#000', weight: 6 }).addTo(map); 
                 L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map); 
             }
         }
-
         currentTimeline.forEach(s => {
             L.circleMarker([s.lat, s.lon], { radius: 5, color: '#fff', weight:2, fillColor: '#000', fillOpacity: 1 }).addTo(map)
              .bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気取得</button>`);
         });
-
         if(geoPoints.length > 0) map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
-        
-        // 駅リスト更新（天気ボタン維持）
-        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr>
-            <td>${s.code}</td>
-            <td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td>
-            <td style="text-align:center;">${s.arrD}</td><td style="text-align:center;">${s.depD}</td>
-        </tr>`).join("");
-        
-        logger("UI・地図描画完了。");
+        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr><td>${s.code}</td><td><b>${s.name}</b><button class="weather-btn no-print" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td><td style="text-align:center;">${s.arrD}</td><td style="text-align:center;">${s.depD}</td></tr>`).join("");
+        logger("UI RENDERED SUCCESSFULLY.");
         document.getElementById("loader").style.display = "none";
     };
 
@@ -340,18 +328,22 @@
         Object.values(tiles).forEach(t => map.removeLayer(t));
         if (mode === 'sat') tiles.sat.addTo(map); else if (mode === 'osm') tiles.osm.addTo(map); else if (mode === 'gsi') tiles.gsi.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
     }
+    // 💡 印刷崩れの修正：不要な要素を除去しテーブルを整理
     function showOpSheet() {
         if(!currentTimeline.length) return;
         document.getElementById("op-content").innerHTML = `
-            <div style="text-align:right; font-size:10px;">WB-OCC v11.1 / ${document.getElementById("base_date").value}</div>
-            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
-            <div style="margin: 15px 0;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
-            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-                <thead><tr style="background:#f0f0f0;"><th style="border:1px solid #000; padding:8px;">駅コード</th><th style="border:1px solid #000; padding:8px;">停車駅</th><th style="border:1px solid #000; padding:8px;">到着</th><th style="border:1px solid #000; padding:8px;">出発</th></tr></thead>
-                <tbody>${currentTimeline.map(s => `<tr><td style="border:1px solid #000; padding:8px; text-align:center;">${s.code}</td><td style="border:1px solid #000; padding:8px;">${s.name}</td><td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td><td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td></tr>`).join("")}</tbody>
-            </table>
+            <div style="padding: 20px; color: #000;">
+                <div style="text-align:right; font-size:10px;">WB-OCC v11.2 / Date: ${document.getElementById("base_date").value}</div>
+                <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
+                <div style="margin: 20px 0; font-size:16px;"><b>継走列車：</b> ${document.getElementById("relay-text").innerText}</div>
+                <table style="width:100%; border-collapse:collapse; font-size:13px; border: 2px solid #000;">
+                    <thead><tr style="background:#eee;"><th style="border:1px solid #000; padding:10px;">駅コード</th><th style="border:1px solid #000; padding:10px;">停車駅</th><th style="border:1px solid #000; padding:10px;">到着</th><th style="border:1px solid #000; padding:10px;">出発</th></tr></thead>
+                    <tbody>${currentTimeline.map(s => `<tr><td style="border:1px solid #000; padding:10px; text-align:center;">${s.code}</td><td style="border:1px solid #000; padding:10px;">${s.name}</td><td style="border:1px solid #000; padding:10px; text-align:center;">${s.arrD}</td><td style="border:1px solid #000; padding:10px; text-align:center;">${s.depD}</td></tr>`).join("")}</tbody>
+                </table>
+            </div>
         `;
         document.getElementById("modal-op").style.display = "block";
+        logger("OP SHEET GENERATED.");
     }
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
     init();
