@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.1</title>
+    <title>WB-OCC 運行管理 v10.2</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,8 +12,8 @@
         :root { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
         body.dark-mode { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background 0.3s; }
-        header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); }
+        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); flex-shrink: 0; }
         #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
         .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
         .panel-title { background: rgba(0,0,0,0.05); padding: 8px 12px; font-size: 13px; font-weight: bold; border-bottom: 1px solid var(--border); }
@@ -22,7 +22,7 @@
         #trip-list { flex: 1; overflow-y: auto; }
         .trip-card { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 4px solid transparent; }
         .trip-card:hover { background: rgba(0,90,158,0.1); }
-        .trip-card.active { background: var(--accent); color: #fff; border-left-color: var(--accent); }
+        .trip-card.active { background: var(--accent); color: #fff; }
         .card-relay { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
         .card-range { font-size: 11px; color: #3498db; }
         .relay-area { padding: 12px; background: rgba(0,90,158,0.05); border-bottom: 1px solid var(--border); }
@@ -30,8 +30,22 @@
         .st-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .st-table th { background: rgba(0,0,0,0.05); position: sticky; top: 0; padding: 10px 8px; text-align: left; }
         .st-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+        
+        /* システムログ */
+        #log-panel { height: 100px; background: #000; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
+
+        /* モーダル & 印刷 */
         #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px; overflow-y: auto; }
-        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #modal-op, #modal-op * { visibility: visible; }
+            #modal-op { position: absolute; left: 0; top: 0; width: 100%; background: none; padding: 0; margin: 0; }
+            .no-print { display: none !important; }
+            .op-sheet { box-shadow: none; border: none; width: 100%; margin: 0; padding: 0; }
+        }
+
         #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
         .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
@@ -43,13 +57,15 @@
 <div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.1</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.2</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
         <select id="map-mode" onchange="updateMapLayers()">
-            <option value="standard">通常地図</option>
-            <option value="sat">衛星写真</option>
+            <option value="standard">通常地図 (Carto)</option>
+            <option value="gsi">国土地理院 (標準)</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="sat">衛星写真 (ESRI)</option>
         </select>
         <button onclick="toggleTheme()">背景色切替 (白/黒)</button>
         <div id="clock">00:00:00</div>
@@ -69,6 +85,11 @@
     <div class="panel">
         <div class="panel-title">位置モニタ (道路/線路 排他描画)</div>
         <div id="map" style="flex:1;"></div>
+        <div id="log-panel">
+            [System Log]<br>
+            > Initializing system...<br>
+            > Ready.
+        </div>
     </div>
     <div class="panel">
         <div class="panel-title">運行計画・継走情報</div>
@@ -80,7 +101,7 @@
             </table>
         </div>
         <div style="padding:12px; border-top:1px solid var(--border);">
-            <button style="width:100%" onclick="showOpSheet()">運行順序表 (PDF) 生成</button>
+            <button style="width:100%" onclick="showOpSheet()">輸送列車順序資料 (PDF) 生成</button>
         </div>
     </div>
 </div>
@@ -104,7 +125,9 @@
     const tiles = {
         dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
         light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
-        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        gsi: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: "国土地理院" })
     };
     tiles.light.addTo(map);
 
@@ -112,15 +135,28 @@
     let currentTripId = "";
     let currentTimeline = [];
 
+    function addLog(msg) {
+        const log = document.getElementById('log-panel');
+        const time = new Date().toLocaleTimeString();
+        log.innerHTML += `> [${time}] ${msg}<br>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
     function toggleTheme() { 
         document.body.classList.toggle('dark-mode'); 
         updateMapLayers(); 
     }
+
     function updateMapLayers() {
         const isDark = document.body.classList.contains('dark-mode');
-        const m = document.getElementById('map-mode').value;
+        const mode = document.getElementById('map-mode').value;
         Object.values(tiles).forEach(t => map.removeLayer(t));
-        if (m === 'sat') tiles.sat.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
+        
+        if (mode === 'sat') tiles.sat.addTo(map);
+        else if (mode === 'osm') tiles.osm.addTo(map);
+        else if (mode === 'gsi') tiles.gsi.addTo(map);
+        else tiles[isDark ? 'dark' : 'light'].addTo(map);
+        addLog(`Map layer changed to: ${mode}`);
     }
 
     async function init() {
@@ -145,7 +181,8 @@
                 window.gtfsDB.stopTimes[x.trip_id].push(x);
             });
             createDic(); renderTrips("");
-        } catch(e) { console.error("Data Load Error", e); }
+            addLog("System data loaded successfully.");
+        } catch(e) { addLog(`Error loading data: ${e}`); }
         document.getElementById("loader").style.display = "none";
     }
 
@@ -187,6 +224,7 @@
 
     async function loadTrip(t) {
         currentTripId = t.trip_id;
+        addLog(`Loading TripID: ${t.trip_id}`);
         document.getElementById("loader").style.display = "block";
         const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
         window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
@@ -213,7 +251,7 @@
 
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // 💡 修正：全経路描画を廃止し、区間ごとに排他的にのみ描画する
+        // 排他描画ロジック維持
         for (let i = 0; i < currentTimeline.length - 1; i++) {
             const s = currentTimeline[i], e = currentTimeline[i+1];
             const segmentPoints = extractSegment(geoPoints, s, e);
@@ -238,6 +276,7 @@
                 <td style="text-align:center;">${s.depD}</td>
             </tr>`).join("");
         document.getElementById("loader").style.display = "none";
+        addLog(`Trip UI updated. Stops: ${currentTimeline.length}`);
     };
 
     function extractSegment(points, start, end) {
@@ -261,11 +300,14 @@
 
     function showOpSheet() {
         if(!currentTimeline.length) return;
+        addLog("Generating Transport Train Sequence Data (PDF)...");
         const content = document.getElementById("op-content");
         content.innerHTML = `
-            <div style="text-align:right; font-size:10px;">WB-OCC v10.1 / ${new Date().toLocaleString()}</div>
-            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">貨物列車 運行順序表</h2>
-            <p><b>継走番号:</b> ${document.getElementById("relay-text").innerText}</p>
+            <div style="text-align:right; font-size:10px;">WB-OCC v10.2 / 基準日: ${document.getElementById("base_date").value}</div>
+            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px; margin-top:0;">輸送列車順序資料</h2>
+            <div style="margin: 15px 0; font-size: 14px;">
+                <b>継走列車:</b> ${document.getElementById("relay-text").innerText}
+            </div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
                 <thead><tr style="background:#eee;">
                     <th style="border:1px solid #000; padding:8px;">駅コード</th>
@@ -275,12 +317,13 @@
                 </tr></thead>
                 <tbody>${currentTimeline.map(s => `
                     <tr>
-                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.code}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center; font-family:monospace;">${s.code}</td>
                         <td style="border:1px solid #000; padding:8px;"><b>${s.name}</b></td>
                         <td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td>
                         <td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td>
                     </tr>`).join("")}</tbody>
             </table>
+            <div style="margin-top:20px; font-size:10px; color:#666; text-align:center;">--- 本資料は WB-OCC システムにより生成されました ---</div>
         `;
         document.getElementById("modal-op").style.display = "block";
     }
