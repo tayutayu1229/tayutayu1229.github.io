@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Strategic Terminal v6.5</title>
+    <title>WB-OCC Strategic Terminal v6.9</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -29,7 +29,8 @@
         .section-header { background: var(--border-primary); padding: 10px; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
         #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 12px; outline: none; box-sizing: border-box; }
         #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { padding: 15px; border-bottom: 1px solid rgba(0, 77, 153, 0.4); cursor: pointer; }
+        .trip-card { padding: 15px; border-bottom: 1px solid rgba(0, 77, 153, 0.4); cursor: pointer; transition: 0.2s; }
+        .trip-card:hover { background: rgba(0, 255, 204, 0.1); }
         .trip-card.active { background: #003366; border-left: 8px solid var(--accent-danger); }
         .trip-route { font-size: 12px; color: #fff; margin-top: 5px; font-weight: bold; }
         
@@ -41,20 +42,17 @@
         #stats-box { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); padding: 15px; }
         #log-box { flex: 1; background: #000; border: 1px solid var(--border-primary); padding: 10px; overflow-y: auto; font-size: 11px; color: var(--accent-active); }
         
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        .spinner { width: 50px; height: 50px; border: 4px solid #111; border-top: 4px solid var(--accent-danger); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 40px; height: 40px; border: 3px solid #111; border-top: 3px solid var(--accent-danger); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="loader">
-    <div class="spinner"></div>
-    <div style="margin-top:20px; letter-spacing: 2px;">BYPASSING CLOUD SECURITY...</div>
-</div>
+<div id="loader"><div class="spinner"></div><div style="margin-top:15px; font-size:12px; letter-spacing:2px;">LOADING SHARD...</div></div>
 
 <header>
-    <div class="logo">WB-OCC v6.5</div>
+    <div class="logo">WB-OCC v6.9</div>
     <div id="clock" style="font-size: 18px; font-weight: bold; color: var(--accent-active);">00:00:00</div>
 </header>
 
@@ -73,7 +71,7 @@
 
 <div id="footer">
     <div id="stats-box">AWAITING SELECTION...</div>
-    <div id="log-box">System Online.</div>
+    <div id="log-box">Shard Engine v6.9 Online.</div>
 </div>
 
 <script>
@@ -99,8 +97,8 @@
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
             }
             renderTrips("");
-            log("Local GTFS resources synced.");
-        } catch (e) { log("LOAD ERROR: " + e.message, true); }
+            log("Core Data Loaded.");
+        } catch (e) { log("BOOT ERROR: " + e.message, true); }
     }
 
     function renderTrips(filter) {
@@ -110,19 +108,40 @@
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
             let route = "---";
             if(st.length > 0) {
-                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "??";
-                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "??";
-                route = `${start} 〜 ${end}`;
+                const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "??";
+                const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "??";
+                route = `${sName} 〜 ${eName}`;
             }
             const card = document.createElement("div");
             card.className = "trip-card";
             card.innerHTML = `<div style="color:var(--accent-active); font-weight:bold;">${t.trip_id}</div><div class="trip-route">${route}</div>`;
-            card.onclick = () => {
+            
+            card.onclick = async () => {
                 document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
                 card.classList.add("active");
                 document.getElementById("loader").style.display = "flex";
-                log(`Direct Cloud Request for: ${t.trip_id}`);
-                window.dispatchEvent(new CustomEvent("trigger-py", { detail: t.trip_id }));
+                
+                const sid = t.shape_id;
+                // 頭2文字でシャードファイルを特定 (例: 1012... -> shard_10.json)
+                const shardKey = sid.substring(0, 2); 
+                
+                try {
+                    log(`Accessing Shard: shard_${shardKey}.json`);
+                    const res = await fetch(`./shapes_shards/shard_${shardKey}.json`);
+                    if(!res.ok) throw new Error(`Shard ${shardKey} not found on server.`);
+                    
+                    const shardData = await res.json();
+                    const geoData = shardData[sid];
+                    
+                    if(!geoData) throw new Error(`Shape ID ${sid} missing in shard.`);
+
+                    window.dispatchEvent(new CustomEvent("py-process", { 
+                        detail: { tid: t.trip_id, geo: JSON.stringify(geoData) } 
+                    }));
+                } catch (e) {
+                    log(`ERROR: ${e.message}`, true);
+                    document.getElementById("loader").style.display = "none";
+                }
             };
             list.appendChild(card);
         });
@@ -144,8 +163,9 @@
             view.appendChild(d);
             L.circleMarker([s.lat, s.lon], { radius: 6, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
         });
-        document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM`;
+        document.getElementById("stats-box").innerHTML = `TRIP: ${stats.id}<br>DISTANCE: ${stats.dist.toFixed(2)} KM`;
         document.getElementById("loader").style.display = "none";
+        log(`Mapping Success: ${stats.id}`);
     };
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -154,60 +174,35 @@
 </script>
 
 <py-script>
-import js, json, math, re
-from pyodide.http import pyfetch
+import js, json, math
 from pyodide.ffi import create_proxy
 
-# --- FINAL CLOUD STRATEGY ---
-FILE_ID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x"
-# プロキシを通さず、Googleの「直接出力」モードを使用
-DIRECT_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-
-async def analyze(event):
-    tid = event.detail
+async def process_data(event):
+    data = event.detail.to_py()
+    tid = data['tid']
+    coords = json.loads(data['geo'])
+    
     try:
         db = js.window.gtfsDB
-        trip = next((t for t in db.trips.to_py() if t['trip_id'] == tid), None)
-        sid = trip.get('shape_id')
-
-        # 1. Timeline logic (Fast Map)
+        # 1. Station Timeline
         st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
         stops_map = {s['stop_id']: s for s in db.stops.to_py()}
         timeline = [{"name": stops_map[r['stop_id']]['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(stops_map[r['stop_id']]['stop_lat']), "lon": float(stops_map[r['stop_id']]['stop_lon'])} for r in st]
 
-        # 2. Geometry (Pyfetch is more robust for direct drive links)
-        js.log("Requesting geometry stream...")
-        response = await pyfetch(DIRECT_URL)
-        if not response.ok:
-            raise Exception(f"Cloud Error: {response.status}")
-        
-        csv_content = await response.string()
-        if "<!DOCTYPE html>" in csv_content:
-            raise Exception("Access Denied: Google Drive is showing a warning page. Check file sharing settings.")
-
-        # 3. Flexible Parsing
-        lines = csv_content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
-        h = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in lines[0].split(',')]
-        idx = {'id': h.index('shape_id'), 'lat': h.index('shape_pt_lat'), 'lon': h.index('shape_pt_lon'), 'seq': h.index('shape_pt_sequence')}
-        
-        geo = sorted([[float(c[idx['lat']]), float(c[idx['lon']]), int(c[idx['seq']])] for l in lines[1:] if (c := l.split(','))[idx['id']].strip() == sid], key=lambda x: x[2])
-        coords = [[p[0], p[1]] for p in geo]
-
-        # 4. Calculation
-        d = 0
+        # 2. Distance
+        dist = 0
         for i in range(len(coords)-1):
             p1, p2 = coords[i], coords[i+1]
             a = math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2
-            d += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+            dist += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d}))
+        js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": dist}))
 
     except Exception as e:
-        js.log(f"ENGINE ERROR: {str(e)}", True)
+        js.log(f"PY_ENGINE ERROR: {str(e)}", True)
         js.document.getElementById('loader').style.display = 'none'
 
-js.window.addEventListener("trigger-py", create_proxy(analyze))
-js.log("WB-OCC Tactical Terminal: v6.5 Ready.")
+js.window.addEventListener("py-process", create_proxy(process_data))
 </py-script>
 </body>
 </html>
