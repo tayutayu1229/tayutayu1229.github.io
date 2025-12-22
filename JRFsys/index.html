@@ -8,103 +8,54 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    
     <style>
         :root {
             --sys-bg: #000a16; --sys-panel: #001f3f; --sys-border: #004080;
             --sys-accent: #ff3366; --sys-text: #e0f2f7; --sys-active: #00ffcc;
-            --sys-warn: #ffcc00; --sys-font: "Consolas", "Roboto Mono", monospace;
+            --sys-font: "Consolas", "Roboto Mono", monospace;
         }
-
-        body {
-            margin: 0; font-family: var(--sys-font); background: var(--sys-bg);
-            color: var(--sys-text); display: flex; flex-direction: column;
-            height: 100vh; overflow: hidden;
-        }
-        
-        header {
-            height: 50px; background: var(--sys-panel); border-bottom: 2px solid var(--sys-border);
-            display: flex; justify-content: space-between; align-items: center; padding: 0 20px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 1000;
-        }
-        .sys-logo { font-size: 22px; font-weight: bold; color: var(--sys-accent); letter-spacing: 2px; }
-        #live-clock { font-size: 14px; color: var(--sys-active); }
-        #kernel-status { font-size: 11px; background: var(--sys-border); padding: 4px 10px; border-radius: 2px; }
-
+        body { margin: 0; font-family: var(--sys-font); background: var(--sys-bg); color: var(--sys-text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { height: 50px; background: var(--sys-panel); border-bottom: 2px solid var(--sys-border); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
         #main-container { display: flex; flex: 1; overflow: hidden; gap: 6px; padding: 6px; }
-
-        /* 左パネル：検索・一覧 */
         #left-panel { width: 320px; background: var(--sys-panel); display: flex; flex-direction: column; border: 1px solid var(--sys-border); }
         .panel-header { background: var(--sys-border); padding: 8px 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-        .search-area { padding: 10px; background: rgba(0,0,0,0.3); }
-        #q_input { width: 100%; background: #000; border: 1px solid var(--sys-border); color: var(--sys-active); padding: 8px; outline: none; box-sizing: border-box; }
+        #q_input { width: 100%; background: #000; border: 1px solid var(--sys-border); color: var(--sys-active); padding: 10px; outline: none; box-sizing: border-box; }
         #trip-list { flex: 1; overflow-y: auto; }
-        .trip-row { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; }
-        .trip-row:hover { background: rgba(0,255,204,0.1); }
+        .trip-row { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
         .trip-row.active { background: var(--sys-border); border-left: 5px solid var(--sys-accent); }
-
-        /* 中央パネル：地図 */
+        .route-span { color: var(--sys-active); font-size: 11px; margin-top: 4px; display: block; }
         #center-panel { flex: 1; border: 1px solid var(--sys-border); position: relative; }
         #map { height: 100%; width: 100%; background: #000; }
-        .map-coords { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: var(--sys-active); padding: 5px; font-size: 11px; z-index: 1000; border: 1px solid var(--sys-border); }
-
-        /* 右パネル：解析データ */
         #right-panel { width: 360px; background: var(--sys-panel); display: flex; flex-direction: column; border: 1px solid var(--sys-border); }
         #station-timeline { flex: 1; overflow-y: auto; padding: 15px; background: rgba(0,0,0,0.2); }
-        .st-entry { position: relative; padding-left: 25px; padding-bottom: 18px; border-left: 2px dashed rgba(255,255,255,0.1); margin-left: 10px; cursor: pointer; }
-        .st-entry::before { content: ""; position: absolute; left: -9px; top: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--sys-border); border: 2px solid var(--sys-panel); }
-        .st-entry.active::before { background: var(--sys-accent); box-shadow: 0 0 10px var(--sys-accent); }
-        .st-name { font-weight: bold; color: #fff; font-size: 14px; }
-        .st-time { font-size: 12px; color: var(--sys-active); }
-
-        #metrics-display { height: 160px; background: rgba(0,0,0,0.4); padding: 12px; border-top: 1px solid var(--sys-border); font-size: 12px; line-height: 1.7; }
-        .metric-label { color: #888; }
-        .metric-value { color: var(--sys-active); font-weight: bold; }
-
-        /* コンソール：ログモニター */
+        .st-entry { position: relative; padding-left: 25px; padding-bottom: 18px; border-left: 2px dashed rgba(255,255,255,0.1); margin-left: 10px; }
+        .st-entry::before { content: ""; position: absolute; left: -9px; top: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--sys-border); }
+        #metrics-display { height: 160px; background: rgba(0,0,0,0.4); padding: 12px; border-top: 1px solid var(--sys-border); font-size: 12px; }
         #console-log { height: 140px; background: #000; color: var(--sys-active); font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--sys-border); }
-        .log-error { color: var(--sys-accent); }
-        
-        /* ローダー */
         #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         .spinner { width: 50px; height: 50px; border: 5px solid #111; border-top: 5px solid var(--sys-accent); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-
-<div id="loader">
-    <div class="spinner"></div>
-    <div style="margin-top:20px; letter-spacing: 2px;">SYNCHRONIZING TELEMETRY...</div>
-</div>
-
-<header>
-    <div class="header-left"><span class="sys-logo">WB-OCC</span><span> v4.6 COMMAND TERMINAL</span></div>
-    <div class="header-right"><span id="live-clock">00:00:00</span><span id="kernel-status">PY-KERNEL: BOOTING</span></div>
-</header>
-
+<div id="loader"><div class="spinner"></div><div style="margin-top:20px;">LOADING TELEMETRY...</div></div>
+<header><div><span style="color:var(--sys-accent); font-weight:bold;">WB-OCC</span> v4.7</div><div id="live-clock">00:00:00</div></header>
 <div id="main-container">
     <div id="left-panel">
         <div class="panel-header">Target Acquisition</div>
-        <div class="search-area"><input type="text" id="q_input" placeholder="Search Trip ID..."></div>
+        <input type="text" id="q_input" placeholder="Search Trip ID...">
         <div id="trip-list"></div>
     </div>
-    <div id="center-panel">
-        <div id="map"></div>
-        <div id="map-coords" class="map-coords">LAT: -- LON: --</div>
-    </div>
+    <div id="center-panel"><div id="map"></div></div>
     <div id="right-panel">
         <div class="panel-header">Station Timeline</div>
         <div id="station-timeline"></div>
-        <div class="panel-header">Performance Metrics</div>
-        <div id="metrics-display">SYSTEM STANDBY.</div>
+        <div id="metrics-display">READY.</div>
     </div>
 </div>
-
 <div id="console-log"></div>
 
 <script>
-    // --- JavaScript Implementation ---
     const map = L.map('map', { zoomControl: false }).setView([36, 138], 5);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
     let routeLayer = L.layerGroup().addTo(map);
@@ -112,35 +63,33 @@
 
     window.gtfsDB = { trips: [], stops: [], stop_times: [] };
 
-    function writeLog(msg, level="info") {
-        const con = document.getElementById("console-log");
-        const div = document.createElement("div");
-        if(level === "error") div.className = "log-error";
-        div.innerText = `[${new Date().toLocaleTimeString()}] [${level.toUpperCase()}] ${msg}`;
-        con.appendChild(div); con.scrollTop = con.scrollHeight;
-    }
-
     async function init() {
-        writeLog("Starting system boot sequence...");
         try {
-            const files = ['trips', 'stops', 'stop_times'];
-            for(const f of files) {
+            for(const f of ['trips', 'stops', 'stop_times']) {
                 const res = await fetch(`./${f}.txt`);
                 const text = await res.text();
                 window.gtfsDB[f] = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
-                writeLog(`Resource '${f}.txt' indexed.`);
             }
             renderTripList("");
-        } catch (e) { writeLog("System Init Error: " + e.message, "error"); }
+        } catch (e) { console.error(e); }
     }
 
     function renderTripList(q) {
         const list = document.getElementById('trip-list');
         list.innerHTML = '';
         window.gtfsDB.trips.filter(t => t.trip_id.includes(q)).slice(0, 50).forEach(t => {
+            // 運転区間（始発〜終着）を取得
+            const myStops = window.gtfsDB.stop_times.filter(st => st.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
+            let routeName = "Unknown Section";
+            if(myStops.length > 0) {
+                const startStop = window.gtfsDB.stops.find(s => s.stop_id === myStops[0].stop_id);
+                const endStop = window.gtfsDB.stops.find(s => s.stop_id === myStops[myStops.length-1].stop_id);
+                routeName = `${startStop?.stop_name || '??'} 〜 ${endStop?.stop_name || '??'}`;
+            }
+
             const div = document.createElement('div');
             div.className = 'trip-row';
-            div.innerHTML = `<strong>${t.trip_id}</strong><br><small style="color:#666">${t.trip_headsign || ''}</small>`;
+            div.innerHTML = `<strong>${t.trip_id}</strong><span class="route-span">${routeName}</span>`;
             div.onclick = () => {
                 document.querySelectorAll('.trip-row').forEach(r => r.classList.remove('active'));
                 div.classList.add('active');
@@ -151,42 +100,37 @@
         });
     }
 
-    document.getElementById('q_input').oninput = (e) => renderTripList(e.target.value);
-    
     window.updateUI = (coords_json, stations_json, stats_json) => {
         const coords = JSON.parse(coords_json);
         const stations = JSON.parse(stations_json);
         const stats = JSON.parse(stats_json);
-
         routeLayer.clearLayers(); markerLayer.clearLayers();
         if(coords.length > 0) {
-            const poly = L.polyline(coords, {color: '#ff3366', weight: 4, opacity: 0.8}).addTo(routeLayer);
-            map.fitBounds(poly.getBounds(), {padding: [50,50]});
+            const poly = L.polyline(coords, {color: '#ff3366', weight: 4}).addTo(routeLayer);
+            map.fitBounds(poly.getBounds());
         }
-
         const timeline = document.getElementById('station-timeline');
         timeline.innerHTML = '';
         stations.forEach(s => {
             const entry = document.createElement('div');
-            entry.className = 'st-entry active';
-            entry.innerHTML = `<div class="st-name">${s.name}</div><div class="st-time">ARR: ${s.arr} / DEP: ${s.dep}</div>`;
-            entry.onclick = () => map.flyTo([s.lat, s.lon], 14);
+            entry.className = 'st-entry';
+            entry.innerHTML = `<div class="st-name">${s.name}</div><div class="st-time">${s.arr} / ${s.dep}</div>`;
             timeline.appendChild(entry);
-            L.circleMarker([s.lat, s.lon], {radius: 5, color: '#00ffcc', fillOpacity: 1}).addTo(markerLayer);
+            L.circleMarker([s.lat, s.lon], {radius: 5, color: '#00ffcc'}).addTo(markerLayer);
         });
-
-        document.getElementById('metrics-display').innerHTML = `
-            TRIP_ID: <span class="metric-value">${stats.id}</span><br>
-            DISTANCE: <span class="metric-value">${stats.dist.toFixed(2)} km</span><br>
-            NODES: <span class="metric-value">${stats.count}</span> stations<br>
-            STATUS: <span class="metric-value">SUCCESS</span>
-        `;
+        document.getElementById('metrics-display').innerHTML = `TRIP: ${stats.id}<br>DISTANCE: ${stats.dist.toFixed(2)} km<br>STATIONS: ${stats.count}`;
         document.getElementById('loader').style.display = 'none';
-        writeLog(`Analysis for ${stats.id} completed.`);
     };
 
+    document.getElementById('q_input').oninput = (e) => renderTripList(e.target.value);
     setInterval(() => { document.getElementById('live-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
     init();
+
+    window.writeLog = (msg, level) => {
+        const con = document.getElementById("console-log");
+        con.innerHTML += `[${level}] ${msg}<br>`;
+        con.scrollTop = con.scrollHeight;
+    };
 </script>
 
 <py-script>
@@ -194,83 +138,60 @@ import js, json, math
 from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 
-# --- Configuration ---
 GD_ID = "12uumDK-VYglG26_33nkMhcVjfUaFLdrE"
 SHAPES_URL = f"https://docs.google.com/spreadsheets/d/{GD_ID}/export?format=csv"
 
-def pylog(msg, level="info"):
-    js.writeLog(f"[PY] {msg}", level)
-
-def get_dist(p1, p2):
-    R = 6371
-    lat1, lon1 = math.radians(p1[0]), math.radians(p1[1])
-    lat2, lon2 = math.radians(p2[0]), math.radians(p2[1])
-    dlat, dlon = lat2-lat1, lon2-lon1
-    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    return R * 2 * math.asin(math.sqrt(a))
-
 async def handle_analyze(event):
     trip_id = event.detail
-    pylog(f"Analyzing trajectory: {trip_id}")
     try:
         db = js.window.gtfsDB
-        trips = db.trips.to_py()
-        stops = db.stops.to_py()
-        stop_times = db.stop_times.to_py()
-
-        target = next((t for t in trips if t['trip_id'] == trip_id), None)
-        if not target: raise Exception(f"Trip {trip_id} not found")
+        target = next((t for t in db.trips.to_py() if t['trip_id'] == trip_id), None)
         sid = target.get('shape_id')
 
         # 1. Timeline
-        my_st = sorted([s for s in stop_times if s['trip_id'] == trip_id], key=lambda x: int(x['stop_sequence']))
+        my_st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == trip_id], key=lambda x: int(x['stop_sequence']))
         timeline = []
         for ms in my_st:
-            st = next((s for s in stops if s['stop_id'] == ms['stop_id']), None)
-            if st:
-                timeline.append({"name": st['stop_name'], "arr": ms['arrival_time'], "dep": ms['departure_time'], "lat": float(st['stop_lat']), "lon": float(st['stop_lon'])})
+            st = next((s for s in db.stops.to_py() if s['stop_id'] == ms['stop_id']), None)
+            timeline.append({"name": st['stop_name'], "arr": ms['arrival_time'], "dep": ms['departure_time'], "lat": float(st['stop_lat']), "lon": float(st['stop_lon'])})
 
-        # 2. Shapes (堅牢なパース処理)
-        pylog(f"Requesting geometry for SID: {sid}")
+        # 2. Shapes (超堅牢パース)
         res = await pyfetch(SHAPES_URL)
         raw = await res.string()
-        
-        # 改行コードを正規化して分割
         lines = raw.replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
-        header = [x.strip().lower() for x in lines[0].split(',')]
         
-        idx = {
-            'id': header.index('shape_id'),
-            'lat': header.index('shape_pt_lat'),
-            'lon': header.index('shape_pt_lon'),
-            'seq': header.index('shape_pt_sequence')
-        }
+        # ヘッダーからBOMや空白を徹底除去
+        header = [x.strip().lower().lstrip('\ufeff') for x in lines[0].split(',')]
+        js.writeLog(f"Headers detected: {header}", "DEBUG")
+        
+        # インデックス取得
+        idx_id = header.index('shape_id')
+        idx_lat = header.index('shape_pt_lat')
+        idx_lon = header.index('shape_pt_lon')
+        idx_seq = header.index('shape_pt_sequence')
         
         coords = []
         for line in lines[1:]:
             cols = [c.strip() for c in line.split(',')]
-            if len(cols) > idx['id'] and cols[idx['id']] == sid:
-                coords.append([float(cols[idx['lat']]), float(cols[idx['lon']]), int(cols[idx['seq']])])
+            if len(cols) > idx_id and cols[idx_id] == sid:
+                coords.append([float(cols[idx_lat]), float(cols[idx_lon]), int(cols[idx_seq])])
         
         coords.sort(key=lambda x: x[2])
         final_coords = [[c[0], c[1]] for c in coords]
 
         # 3. Stats
         d = 0
-        if len(final_coords) > 1:
-            for i in range(len(final_coords)-1): d += get_dist(final_coords[i], final_coords[i+1])
-        
+        for i in range(len(final_coords)-1):
+            p1, p2 = final_coords[i], final_coords[i+1]
+            d += 6371 * 2 * math.asin(math.sqrt(math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2))
+
         js.window.updateUI(json.dumps(final_coords), json.dumps(timeline), json.dumps({"id": trip_id, "count": len(timeline), "dist": d}))
-        pylog("Telemetry acquisition complete.")
 
     except Exception as e:
-        pylog(f"Error: {str(e)}", "error")
+        js.writeLog(f"Critical Error: {str(e)}", "ERROR")
         js.document.getElementById('loader').style.display = 'none'
 
 js.window.addEventListener("analyze", create_proxy(handle_analyze))
-js.document.getElementById("kernel-status").innerText = "PY-KERNEL: ONLINE"
-pylog("System modules fully operational.")
 </py-script>
-
 </body>
 </html>
