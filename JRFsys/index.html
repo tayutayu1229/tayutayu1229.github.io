@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Strategic Terminal v7.1</title>
+    <title>WB-OCC Logistics Master v7.5</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -14,61 +14,81 @@
     <style>
         :root {
             --bg-base: #000814; --panel-bg: #001b33; --border-primary: #004d99;
-            --accent-danger: #ff2b56; --accent-active: #00ffcc; --text-silver: #e0f2f7;
-            --accent-warning: #ffcc00; --lane-bg: #002244;
-            --font-main: "Segoe UI", "Meiryo", sans-serif;
+            --accent-danger: #ff2b56; --accent-active: #00ffcc; --accent-warning: #ffcc00;
+            --text-silver: #e0f2f7; --lane-bg: #001b33;
+            --font-main: "Segoe UI", "Meiryo", "Consolas", sans-serif;
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: var(--font-main); background: var(--bg-base); color: var(--text-silver); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         header { height: 65px; background: linear-gradient(180deg, #002b5c 0%, #001b33 100%); border-bottom: 3px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 1000; }
-        .logo { font-size: 24px; font-weight: 900; color: var(--accent-danger); border: 3px solid var(--accent-danger); padding: 2px 12px; }
+        .logo { font-size: 24px; font-weight: 900; color: var(--accent-danger); border: 2px solid var(--accent-danger); padding: 2px 12px; }
         
         #main-layout { display: grid; grid-template-columns: 380px 1fr 420px; flex: 1; overflow: hidden; gap: 4px; background: var(--border-primary); }
         .panel { background: var(--bg-base); display: flex; flex-direction: column; overflow: hidden; }
         
-        /* 検索エリア */
-        .search-box { padding: 15px; background: var(--panel-bg); }
-        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 12px; border-radius: 4px; outline: none; }
-        #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { padding: 16px; border-bottom: 1px solid rgba(0, 77, 153, 0.3); cursor: pointer; }
-        .trip-card.active { background: #002244; border-left: 5px solid var(--accent-danger); }
-        .lane-info { font-size: 11px; color: var(--accent-warning); margin-top: 4px; font-weight: bold; }
+        /* Left Panel */
+        .search-box { padding: 15px; background: var(--panel-bg); display: flex; flex-direction: column; gap: 10px; }
+        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 10px; border-radius: 4px; outline: none; }
+        .dict-btn { background: var(--border-primary); color: white; border: none; padding: 5px; cursor: pointer; font-size: 11px; border-radius: 4px; }
         
-        /* 地図エリア */
+        #trip-list { flex: 1; overflow-y: auto; }
+        .trip-card { padding: 14px; border-bottom: 1px solid rgba(0, 77, 153, 0.3); cursor: pointer; }
+        .trip-card.active { background: #002244; border-left: 5px solid var(--accent-danger); }
+        .area-badge { font-size: 10px; background: #555; padding: 1px 5px; border-radius: 3px; color: #fff; margin-bottom: 5px; display: inline-block; }
+
+        /* Middle: Map */
         #map { height: 100%; width: 100%; }
         .map-tools { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; }
         .t-btn { background: #001b33; border: 1px solid var(--border-primary); color: white; padding: 5px 10px; cursor: pointer; font-size: 11px; }
 
-        /* タイムライン（運行系統表示追加） */
-        .lane-banner { background: var(--lane-bg); padding: 10px; border-bottom: 2px solid var(--accent-danger); font-family: 'Consolas', monospace; }
-        .lane-seq { font-size: 18px; color: var(--accent-active); text-align: center; letter-spacing: 1px; }
+        /* Right Panel: Relay Bar & Timeline */
+        .relay-bar { background: #000; border-bottom: 2px solid var(--accent-danger); padding: 10px; }
+        .relay-item { display: inline-block; font-size: 12px; color: var(--accent-active); font-weight: bold; background: #002244; padding: 3px 8px; border-radius: 4px; margin-right: 5px; border: 1px solid var(--border-primary); }
+        
         #timeline-view { flex: 1; overflow-y: auto; padding: 20px; }
         .station-node { position: relative; padding-left: 35px; padding-bottom: 25px; border-left: 2px solid var(--border-primary); margin-left: 10px; }
-        .station-node::before { content: ""; position: absolute; left: -9px; top: 0; width: 16px; height: 16px; background: var(--bg-base); border: 3px solid var(--accent-active); border-radius: 50%; }
+        .station-node::before { content: ""; position: absolute; left: -9px; top: 0; width: 16px; height: 16px; background: var(--bg-base); border: 3px solid var(--accent-active); border-radius: 50%; box-shadow: 0 0 8px var(--accent-active); }
         
-        /* フッター */
+        /* Modal for Dictionary */
+        #modal-dict { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; padding: 50px; }
+        .modal-content { background: var(--panel-bg); height: 100%; border: 2px solid var(--border-primary); display: flex; flex-direction: column; }
+        .modal-header { padding: 15px; background: var(--border-primary); display: flex; justify-content: space-between; }
+        #dict-list { flex: 1; overflow-y: auto; padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+
         footer { height: 150px; display: grid; grid-template-columns: 380px 1fr; gap: 10px; padding: 10px; background: #000; border-top: 2px solid var(--border-primary); }
-        .stats { padding: 10px; font-size: 13px; line-height: 1.6; }
         #log-box { background: rgba(0,0,0,0.5); padding: 10px; font-size: 11px; color: #88aaee; overflow-y: auto; font-family: 'Consolas', monospace; }
 
         #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
         .spinner { width: 40px; height: 40px; border: 4px solid #111; border-top-color: var(--accent-danger); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="loader"><div class="spinner"></div><div style="margin-top:20px; color:var(--accent-danger);">PARSING LOGISTICS LANE...</div></div>
+<div id="loader"><div class="spinner"></div><div style="margin-top:20px; color:var(--accent-danger);">ANALYZING RELAY SEQUENCES...</div></div>
+
+<div id="modal-dict">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>STATION DICTIONARY</span>
+            <button onclick="document.getElementById('modal-dict').style.display='none'">CLOSE</button>
+        </div>
+        <div id="dict-list"></div>
+    </div>
+</div>
 
 <header>
-    <div class="logo">WB-OCC v7.1</div>
+    <div class="logo">WB-OCC v7.5</div>
     <div id="clock" style="font-size: 24px; font-weight: 900; color: var(--accent-active);">00:00:00</div>
 </header>
 
 <div id="main-layout">
     <div class="panel">
-        <div class="search-box"><input type="text" id="q_input" placeholder="Search Trip ID / Station..."></div>
+        <div class="search-box">
+            <button class="dict-btn" onclick="openDict()">駅コード辞典を開く</button>
+            <input type="text" id="q_input" placeholder="Search Trip / Station / Code...">
+        </div>
         <div id="trip-list"></div>
     </div>
 
@@ -81,21 +101,21 @@
     </div>
 
     <div class="panel">
-        <div id="lane-display" class="lane-banner">
-            <div style="font-size: 10px; color: #8af;">RUNNING LANE SYSTEM</div>
-            <div id="lane-text" class="lane-seq">--</div>
+        <div class="relay-bar" id="relay-container">
+            <div style="font-size:10px; color:#446688; margin-bottom:5px;">继走列車シーケンス</div>
+            <div id="relay-content">--</div>
         </div>
         <div id="timeline-view"></div>
     </div>
 </div>
 
 <footer>
-    <div class="stats" id="stats-area">
-        <div>TRIP: <span id="st-id" style="color:var(--accent-active)">---</span></div>
+    <div style="padding:10px; font-size:13px;">
+        <div>SELECTED: <span id="st-id" style="color:var(--accent-active)">---</span></div>
         <div>DIST: <span id="st-dist" style="color:var(--accent-active)">0.0 KM</span></div>
-        <div id="st-google" style="margin-top:5px;"></div>
+        <div id="st-google" style="margin-top:10px;"></div>
     </div>
-    <div id="log-box">Logistics Terminal Standby.</div>
+    <div id="log-box">Logistics Engine Standby.</div>
 </footer>
 
 <script>
@@ -109,24 +129,32 @@
 
     function toggleMap(k) { Object.values(layers).forEach(l => map.removeLayer(l)); layers[k].addTo(map); }
 
-    // 💡 Trip IDから「運行系統（Lanes）」を抽出する関数
-    function parseLane(id) {
+    // 💡 列車番号パースロジック v7.5
+    function parseTripRelay(id) {
         const parts = id.split('_');
-        const lanes = parts.filter(p => {
-            // 3050(レ), 6091(レ)のような4桁数字、または 1b, 22b(便)のような数字+bを抽出
-            return /^\d{3,4}$/.test(p) || /^\d+b$/.test(p);
-        }).map(p => {
-            if(p.endsWith('b')) return p.replace('b', '便');
-            return p + 'レ';
-        });
-        return lanes.length > 0 ? lanes.join(' 〜 ') : '直通運航';
+        const relayLanes = [];
+        
+        // 最初の2ブロックをスキップし、3ブロック目以降を解析
+        for (let i = 2; i < parts.length; i++) {
+            const p = parts[i];
+            if (p.length === 6 && /^\d+$/.test(p)) {
+                // 6桁数字：最初の4桁を列車番号、後ろ2桁を枝番とする
+                relayLanes.push(p.substring(0, 4) + 'レ');
+            } else if (/^\d{3,4}$/.test(p)) {
+                relayLanes.push(p + 'レ');
+            } else if (/^\d+b$/.test(p)) {
+                relayLanes.push(p.replace('b', '便'));
+            }
+        }
+        return relayLanes;
     }
 
-    window.gtfsDB = { trips: [], stops: [], stop_times: [] };
+    window.gtfsDB = { trips: [], stops: [], stop_times: [], routes: [] };
 
     async function init() {
         try {
-            for(const t of ['trips', 'stops', 'stop_times']) {
+            const files = ['trips', 'stops', 'stop_times', 'routes'];
+            for(const t of files) {
                 const res = await fetch(`./${t}.txt`);
                 const data = await res.text();
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
@@ -142,27 +170,39 @@
 
         window.gtfsDB.trips.filter(t => {
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
-            const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id)?.stop_name || "";
-            const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id)?.stop_name || "";
-            return t.trip_id.toLowerCase().includes(f) || sName.includes(f) || eName.includes(f);
+            const s = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id);
+            const e = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id);
+            const match = t.trip_id.toLowerCase().includes(f) || 
+                          (s?.stop_name + s?.stop_code).includes(f) || 
+                          (e?.stop_name + e?.stop_code).includes(f);
+            return match;
         }).slice(0, 100).forEach(t => {
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
-            const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id)?.stop_name || "??";
-            const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id)?.stop_name || "??";
-            const lane = parseLane(t.trip_id);
+            const s = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id);
+            const e = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id);
+            const route = window.gtfsDB.routes.find(r => r.route_id === t.route_id);
+            
+            const relays = parseTripRelay(t.trip_id);
 
             const card = document.createElement("div");
             card.className = "trip-card";
             card.innerHTML = `
-                <div style="font-size:12px; color:var(--accent-active);">${t.trip_id}</div>
-                <div style="font-weight:bold;">${sName} ▶ ${eName}</div>
-                <div class="lane-info">${lane}</div>
+                ${route ? `<div class="area-badge">${route.route_long_name}</div>` : ''}
+                <div style="font-size:11px; color:var(--accent-active);">${t.trip_id}</div>
+                <div style="font-weight:bold; font-size:14px;">
+                    ${s?.stop_name}(${s?.stop_code}) ▶ ${e?.stop_name}(${e?.stop_code})
+                </div>
+                <div style="font-size:11px; color:var(--accent-warning); margin-top:5px;">継走: ${relays.join(' 〜 ')}</div>
             `;
+            
             card.onclick = async () => {
                 document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
                 card.classList.add("active");
                 document.getElementById("loader").style.display = "flex";
-                document.getElementById("lane-text").innerText = lane;
+                
+                // 継走バーの更新
+                const relayHtml = relays.map(r => `<span class="relay-item">${r}</span>`).join(' <span style="font-size:10px">▶</span> ');
+                document.getElementById("relay-content").innerHTML = relayHtml;
                 
                 const shardKey = t.shape_id.substring(0, 2);
                 const res = await fetch(`./shapes_shards/shard_${shardKey}.json`);
@@ -174,6 +214,20 @@
             };
             list.appendChild(card);
         });
+    }
+
+    function openDict() {
+        const modal = document.getElementById("modal-dict");
+        const list = document.getElementById("dict-list");
+        list.innerHTML = "";
+        window.gtfsDB.stops.sort((a,b) => a.stop_code - b.stop_code).forEach(s => {
+            const item = document.createElement("div");
+            item.style.padding = "5px";
+            item.style.borderBottom = "1px solid #113355";
+            item.innerHTML = `<span style="color:var(--accent-active)">${s.stop_code}</span>: ${s.stop_name}`;
+            list.appendChild(item);
+        });
+        modal.style.display = "block";
     }
 
     window.updateUI = (geo_s, time_s, stat_s) => {
@@ -188,14 +242,16 @@
         time.forEach(s => {
             const d = document.createElement("div");
             d.className = "station-node";
-            d.innerHTML = `<div style="font-weight:bold;">${s.name}</div><div style="color:var(--accent-warning); font-size:12px;">${s.arr} / ${s.dep}</div>`;
+            const sInfo = window.gtfsDB.stops.find(st => st.stop_name === s.name);
+            d.innerHTML = `
+                <div style="font-weight:bold;">${s.name}${sInfo ? `(${sInfo.stop_code})` : ''}</div>
+                <div style="color:var(--accent-warning); font-size:12px;">着 ${s.arr} / 発 ${s.dep}</div>
+            `;
             view.appendChild(d);
             L.circleMarker([s.lat, s.lon], { radius: 5, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
         });
         document.getElementById("st-id").innerText = stats.id;
         document.getElementById("st-dist").innerText = stats.dist.toFixed(2) + " KM";
-        const last = time[time.length-1];
-        document.getElementById("st-google").innerHTML = `<a href="https://www.google.com/maps?q=${last.lat},${last.lon}" target="_blank" style="color:var(--accent-active); text-decoration:none;">[ 地図で到着地を確認 ]</a>`;
         document.getElementById("loader").style.display = "none";
     };
 
