@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v9.5</title>
+    <title>WB-OCC 運行管理 v9.6</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,11 +12,11 @@
         :root { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
         body.light-mode { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); }
-        #main-layout { display: grid; grid-template-columns: 350px 1fr 400px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
+        #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
         .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
-        .panel-title { background: rgba(0,0,0,0.1); padding: 8px 12px; font-size: 12px; font-weight: bold; border-bottom: 1px solid var(--border); }
+        .panel-title { background: rgba(0,0,0,0.1); padding: 8px 12px; font-size: 13px; font-weight: bold; border-bottom: 1px solid var(--border); }
         .control-box { padding: 10px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
         input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px; font-size: 13px; border-radius: 4px; }
         #trip-list { flex: 1; overflow-y: auto; }
@@ -35,8 +35,8 @@
             body * { visibility: hidden; background: #fff !important; color: #000 !important; }
             #modal-op, #modal-op * { visibility: visible; }
             #modal-op { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
-            .op-sheet { width: 100%; border: none; box-shadow: none; font-size: 0.6rem !important; color: #000; }
-            .op-sheet h2 { border-bottom: 2px solid #000; font-size: 1.2rem; }
+            .op-sheet { width: 100%; border: none; box-shadow: none; font-size: 0.6rem !important; color: #000; padding: 0; }
+            .op-sheet h2 { border-bottom: 2px solid #000; font-size: 1.2rem; margin-bottom: 10px; }
             .op-sheet table { width: 100%; border-collapse: collapse; font-size: 0.6rem !important; }
             .op-sheet th, .op-sheet td { border: 1px solid #000; padding: 4px; }
             .no-print { display: none !important; }
@@ -47,14 +47,14 @@
         #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
         .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
         button { padding: 8px 12px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-size: 12px; border-radius: 4px; }
-        #loader { position: fixed; top: 60px; right: 20px; background: #f1c40f; color: #000; padding: 6px 12px; display: none; z-index: 10001; font-weight: bold; }
+        #loader { position: fixed; top: 60px; right: 20px; background: #f1c40f; color: #000; padding: 6px 12px; display: none; z-index: 10001; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body>
-<div id="loader">MAP GENERATING...</div>
+<div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.5</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.6</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -78,25 +78,27 @@
         <div id="trip-list"></div>
     </div>
     <div class="panel">
-        <div class="panel-title">地図モニタ (高精度Shape)</div>
+        <div class="panel-title">位置モニタ (Shape再現)</div>
         <div id="map" style="flex:1;"></div>
     </div>
     <div class="panel">
-        <div class="panel-title">運行計画 (C:着 / T:発)</div>
+        <div class="panel-title">運行計画・継走情報</div>
         <div class="relay-area"><div id="relay-text" class="relay-text">-</div></div>
         <div style="flex:1; overflow-y:auto;">
             <table class="st-table">
-                <thead><tr><th>コード</th><th>停車駅</th><th>着時刻</th><th>発時刻</th></tr></thead>
+                <thead><tr><th>駅コード</th><th>停車駅</th><th>到着時刻</th><th>出発時刻</th></tr></thead>
                 <tbody id="st-body"></tbody>
             </table>
         </div>
-        <div style="padding:12px;"><button style="width:100%" onclick="showOpSheet()">運行順序表 (PDF) 生成</button></div>
+        <div style="padding:12px; border-top:1px solid var(--border);">
+            <button style="width:100%" onclick="showOpSheet()">運行順序表 (PDF) 生成</button>
+        </div>
     </div>
 </div>
 
 <div id="modal-dic">
     <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b>駅コード一覧</b><button onclick="toggleDic()">×</button></div>
-    <input type="text" id="dic_search" placeholder="駅名フィルタ..." style="width:100%;" oninput="filterDic()">
+    <input type="text" id="dic_search" placeholder="駅名で絞り込み..." style="width:100%;" oninput="filterDic()">
     <div id="dic-list"></div>
 </div>
 
@@ -153,12 +155,13 @@
         document.getElementById("loader").style.display = "none";
     }
 
-    // 💡 列車番号解析ロジック（ゼロ削り、ORS便判定）
+    // 💡 列車番号解析：0削り・便/レ判定
     function formatTripNo(no, isFirst, stopName) {
-        let clean = no.replace(/^0+/, ''); // 先頭の0を削る
-        if (clean.length > 4) clean = clean.substring(0, clean.length - 2); // 枝番除去
-        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所");
-        if (isRoad || (isFirst && isRoad)) return clean + "便";
+        let clean = no.replace(/^0+/, ''); 
+        if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
+        
+        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所") || no.endsWith('b');
+        if (isRoad) return clean + "便";
         return clean + "レ";
     }
 
@@ -179,7 +182,7 @@
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
             const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "-";
-            const relay = t.trip_id.split('_').slice(2).map((p,i) => formatTripNo(p, i===0, sName)).join("〜");
+            const relay = parseRelay(t.trip_id, [{name: sName}]);
             const card = document.createElement("div");
             card.className = "trip-card" + (t.trip_id === currentTripId ? " active" : "");
             card.innerHTML = `<div class="card-relay">${relay}</div><div class="card-range">${sName} 〜 ${eName}</div>`;
@@ -200,58 +203,75 @@
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
 
-        // 💡 C/T集約ロジック
-        const stationMap = new Map();
-        timeRaw.forEach(s => {
-            const baseCode = s.code.substring(1); // C1234 -> 1234
-            if(!stationMap.has(baseCode)) stationMap.set(baseCode, { name: s.name, code: baseCode, arr: " - ", dep: " - ", lat: s.lat, lon: s.lon });
-            const entry = stationMap.get(baseCode);
-            if(s.code.startsWith('C')) entry.arr = formatTime(s.arr, bDate);
-            if(s.code.startsWith('T')) entry.dep = formatTime(s.dep, bDate);
+        // 💡 時刻表示の修正：C/T をそのまま行として維持し、確実に時刻を出す
+        currentTimeline = timeRaw.map(s => {
+            return {
+                ...s,
+                arrP: formatTime(s.arr, bDate),
+                depP: formatTime(s.dep, bDate)
+            };
         });
-        currentTimeline = Array.from(stationMap.values());
 
         document.getElementById("relay-text").innerText = parseRelay(currentTripId, currentTimeline);
 
         // 地図描画
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
-        L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
-        L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '10, 10' }).addTo(map);
         
-        // 道路区間（ORS）のハイライト
+        // 基本のShape線
+        L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
+        L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
+        
+        // 道路区間ハイライト（継走番号に「便」が含まれる区間を強調）
+        const relayParts = parseRelay(currentTripId, currentTimeline).split("〜");
         for(let i=0; i<currentTimeline.length-1; i++){
             const s=currentTimeline[i], e=currentTimeline[i+1];
-            if(s.name.includes("オフレール") || e.name.includes("オフレール")) {
+            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || relayParts.some(p => p.includes("便"));
+            if(isRoad) {
                 L.polyline([[s.lat, s.lon], [e.lat, e.lon]], { color: '#0078d4', weight: 8, opacity: 0.6 }).addTo(map);
             }
         }
         
-        currentTimeline.forEach(s => L.circleMarker([s.lat, s.lon], { radius: 5, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map).bindPopup(s.name));
+        currentTimeline.forEach(s => L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map).bindPopup(`${s.code}: ${s.name}`));
         map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
-        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr><td>${s.code}</td><td><b>${s.name}</b></td><td>${s.arr}</td><td>${s.dep}</td></tr>`).join("");
+        
+        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `
+            <tr>
+                <td style="font-family:monospace;">${s.code}</td>
+                <td><b>${s.name}</b></td>
+                <td style="text-align:center;">${s.code.startsWith('C') ? s.arrP : ' - '}</td>
+                <td style="text-align:center;">${s.code.startsWith('T') ? s.depP : ' - '}</td>
+            </tr>`).join("");
+        
         document.getElementById("loader").style.display = "none";
     };
 
     function formatTime(t, base) {
-        if(!t || t.includes("undefined")) return " - ";
+        if(!t || t.includes("undefined") || t === "None") return " - ";
         let [h, m] = t.split(':').map(Number);
         let d = Math.floor(h/24);
-        return (d > 0 ? `+${d}日 ` : "") + `${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        let timeStr = `${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        return (d > 0 ? `+${d}d ` : "") + timeStr;
     }
 
     function showOpSheet() {
         const info = parseRelay(currentTripId, currentTimeline);
         const content = document.getElementById("op-content");
         content.innerHTML = `
-            <div style="text-align:right; font-size:0.6rem;">発行日: ${new Date().toLocaleDateString()}</div>
+            <div style="text-align:right; font-size:0.5rem;">出力: ${new Date().toLocaleString()}</div>
             <h2 style="text-align:center;">貨物列車 運行順序表</h2>
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; border:1px solid #000; padding:10px;">
-                <div><b>継走:</b> ${info}</div>
-                <div><b>始発日:</b> ${document.getElementById("base_date").value}</div>
+            <div style="margin-bottom:10px; border:1px solid #000; padding:10px;">
+                <b>継走列車:</b> ${info} | <b>基準日:</b> ${document.getElementById("base_date").value}
             </div>
             <table>
-                <thead><tr style="background:#eee;"><th>コード</th><th>停車駅</th><th>到着時刻</th><th>出発時刻</th><th>備考</th></tr></thead>
-                <tbody>${currentTimeline.map(s => `<tr><td style="text-align:center">${s.code}</td><td><b>${s.name}</b></td><td style="text-align:center">${s.arr}</td><td style="text-align:center">${s.dep}</td><td></td></tr>`).join("")}</tbody>
+                <thead><tr style="background:#eee;"><th>駅コード</th><th>停車駅名</th><th>着時刻</th><th>発時刻</th><th>備考</th></tr></thead>
+                <tbody>${currentTimeline.map(s => `
+                    <tr>
+                        <td style="text-align:center;">${s.code}</td>
+                        <td><b>${s.name}</b></td>
+                        <td style="text-align:center;">${s.code.startsWith('C') ? s.arrP : '-'}</td>
+                        <td style="text-align:center;">${s.code.startsWith('T') ? s.depP : '-'}</td>
+                        <td></td>
+                    </tr>`).join("")}</tbody>
             </table>
         `;
         document.getElementById("modal-op").style.display = "block";
@@ -259,17 +279,18 @@
 
     function createDic() {
         const list = document.getElementById("dic-list");
-        const codes = new Set();
-        Object.values(window.gtfsDB.stops).forEach(s => {
-            const c = s.stop_code?.substring(1);
-            if(c && !codes.has(c)) {
-                codes.add(c);
-                const div = document.createElement("div"); div.className = "dic-item";
-                div.innerHTML = `<b>${c}</b> <span>${s.stop_name}</span>`;
-                div.onclick = () => { document.getElementById("q_input").value = s.stop_name; renderTrips(s.stop_name); toggleDic(); };
-                list.appendChild(div);
-            }
+        const stops = Object.values(window.gtfsDB.stops).sort((a,b) => (a.stop_code||"").localeCompare(b.stop_code||""));
+        stops.forEach(s => {
+            if(!s.stop_code || s.stop_code === "undefined") return;
+            const div = document.createElement("div"); div.className = "dic-item";
+            div.innerHTML = `<b>${s.stop_code}</b> <span>${s.stop_name}</span>`;
+            div.onclick = () => { document.getElementById("q_input").value = s.stop_name; renderTrips(s.stop_name); toggleDic(); };
+            list.appendChild(div);
         });
+    }
+    function filterDic() {
+        const q = document.getElementById("dic_search").value.toLowerCase();
+        Array.from(document.getElementsByClassName("dic-item")).forEach(i => i.style.display = i.innerText.toLowerCase().includes(q) ? "flex" : "none");
     }
     function toggleDic() { const d = document.getElementById("modal-dic"); d.style.display = d.style.display === "block" ? "none" : "block"; }
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
@@ -295,8 +316,8 @@ async def process(event):
             timeline.append({
                 "name": s.get('stop_name', "-"), 
                 "code": s.get('stop_code', "-"),
-                "arr": str(r.get('arrival_time', "undefined")),
-                "dep": str(r.get('departure_time', "undefined")),
+                "arr": str(r.get('arrival_time', "None")),
+                "dep": str(r.get('departure_time', "None")),
                 "lat": float(s.get('stop_lat', 0)), 
                 "lon": float(s.get('stop_lon', 0))
             })
