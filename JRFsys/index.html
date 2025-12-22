@@ -2,8 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Master v8.2</title>
+    <title>WB-OCC OPERATIONAL TERMINAL v8.5</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -13,81 +12,124 @@
     
     <style>
         :root {
-            --bg-base: #000814; --panel-bg: #001b33; --border-primary: #004d99;
-            --accent-danger: #ff2b56; --accent-active: #00ffcc; --accent-warning: #ffcc00;
-            --text-silver: #e0f2f7; --font-main: "Segoe UI", "Meiryo", "Consolas", sans-serif;
+            --win-bg: #d4d0c8;
+            --win-fg: #000000;
+            --win-highlight: #ffffff;
+            --win-shadow: #808080;
+            --win-blue: #000080;
         }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: var(--font-main); background: var(--bg-base); color: var(--text-silver); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { height: 50px; background: #001b33; border-bottom: 2px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 1000; }
-        #main-layout { display: grid; grid-template-columns: 350px 1fr 380px; flex: 1; overflow: hidden; gap: 2px; background: var(--border-primary); }
-        .panel { background: var(--bg-base); display: flex; flex-direction: column; overflow: hidden; }
+        body { 
+            margin: 0; 
+            font-family: "MS UI Gothic", "Meiryo", monospace; 
+            background: #3a6ea5; 
+            color: var(--win-fg);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
         
-        /* 検索 */
-        .search-box { padding: 10px; background: var(--panel-bg); }
-        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 8px; border-radius: 4px; outline: none; }
-        #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { padding: 10px; border-bottom: 1px solid rgba(0, 77, 153, 0.2); cursor: pointer; }
-        .trip-card.active { background: #002244; border-left: 4px solid var(--accent-danger); }
+        .win-panel {
+            background: var(--win-bg);
+            border-top: 2px solid var(--win-highlight);
+            border-left: 2px solid var(--win-highlight);
+            border-right: 2px solid var(--win-shadow);
+            border-bottom: 2px solid var(--win-shadow);
+            margin: 2px;
+            display: flex;
+            flex-direction: column;
+        }
+        .win-header {
+            background: var(--win-blue);
+            color: white;
+            padding: 3px 5px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #main-layout { display: grid; grid-template-columns: 320px 1fr 380px; flex: 1; overflow: hidden; }
 
-        /* 視覚的リレーバー */
-        .relay-visualizer { background: #000; padding: 10px; border-bottom: 1px solid var(--border-primary); }
-        .relay-track { display: flex; height: 24px; background: #111; border-radius: 12px; overflow: hidden; margin-top: 5px; border: 1px solid #333; }
-        .relay-seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #000; border-right: 1px solid rgba(0,0,0,0.2); transition: 0.3s; }
-        .relay-seg:last-child { border-right: none; }
-        .relay-label { font-size: 11px; color: var(--accent-active); margin-bottom: 4px; font-family: Consolas; }
+        #trip-list { flex: 1; overflow-y: scroll; background: #fff; border: 2px inset var(--win-shadow); margin: 5px; }
+        .trip-card { padding: 4px; border-bottom: 1px solid #ddd; cursor: pointer; font-size: 12px; }
+        .trip-card:hover { background: #000080; color: #fff; }
+        .trip-card.active { background: #000080; color: #fff; }
 
-        #timeline-view { flex: 1; overflow-y: auto; padding: 15px; }
-        .station-node { border-left: 2px solid var(--border-primary); margin-left: 10px; padding: 0 0 15px 20px; position: relative; }
-        .station-node::before { content: ""; position: absolute; left: -6px; top: 0; width: 10px; height: 10px; background: var(--accent-active); border-radius: 50%; }
+        #relay-bar-ui { display: flex; height: 18px; border: 2px inset var(--win-shadow); background: #000; margin: 5px; }
+        .relay-seg { font-size: 10px; color: #fff; text-align: center; border-right: 1px solid #666; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 
-        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; padding: 20px; }
-        .op-sheet { background: #fff; color: #000; height: 100%; max-width: 800px; margin: 0 auto; padding: 30px; font-family: "MS Mincho", serif; overflow-y: auto; }
+        #timeline-view { flex: 1; overflow-y: auto; background: #fff; border: 2px inset var(--win-shadow); margin: 5px; }
+        .st-row { border-bottom: 1px solid #ccc; font-size: 11px; display: grid; grid-template-columns: 45px 1fr 50px 50px; padding: 2px; }
+        .st-head { background: #eee; font-weight: bold; border-bottom: 2px solid #888; position: sticky; top: 0; }
+
+        button {
+            background: var(--win-bg);
+            border-top: 1px solid var(--win-highlight);
+            border-left: 1px solid var(--win-highlight);
+            border-right: 1px solid var(--win-shadow);
+            border-bottom: 1px solid var(--win-shadow);
+            padding: 2px 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        button:active { border: 1px inset var(--win-shadow); }
+
+        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; padding: 20px; }
+        .op-sheet { background: #fff; border: 1px solid #000; width: 100%; height: 100%; padding: 40px; color: #000; overflow-y: auto; font-family: "MS Mincho", serif; }
         .op-table { width: 100%; border-collapse: collapse; }
-        .op-table th, .op-table td { border: 1px solid #000; padding: 5px; text-align: center; }
-
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 5000; display: none; justify-content: center; align-items: center; }
+        .op-table th, .op-table td { border: 1px solid #000; padding: 4px; text-align: center; font-size: 12px; }
+        
+        #loader { position: fixed; bottom: 5px; right: 5px; background: var(--win-bg); border: 1px solid #000; padding: 2px 10px; display: none; z-index: 10000; font-size: 11px; }
     </style>
 </head>
 <body>
 
-<div id="loader"><div style="color:var(--accent-active)">処理中...</div></div>
+<div id="loader">BUSY...</div>
 
-<div id="modal-op">
-    <div style="margin-bottom:10px; text-align:right;">
-        <button onclick="window.print()">PDF出力</button>
-        <button onclick="document.getElementById('modal-op').style.display='none'">閉じる</button>
+<header class="win-panel">
+    <div class="win-header">
+        <span>WB-OCC OPERATIONAL COMMAND TERMINAL</span>
+        <span id="clock">00:00:00</span>
     </div>
-    <div class="op-sheet" id="op-content"></div>
-</div>
-
-<header>
-    <div style="font-weight:900; color:var(--accent-danger);">WB-OCC v8.2</div>
-    <div id="clock">00:00:00</div>
 </header>
 
 <div id="main-layout">
-    <div class="panel">
-        <div class="search-box"><input type="text" id="q_input" placeholder="ID/駅名/コードで検索..."></div>
+    <div class="win-panel">
+        <div class="win-header">UNIT_QUERY</div>
+        <div style="padding:5px;"><input type="text" id="q_input" style="width:100%; border:2px inset;" placeholder="Search..."></div>
         <div id="trip-list"></div>
     </div>
-    <div class="panel"><div id="map" style="height:100%;"></div></div>
-    <div class="panel">
-        <div class="relay-visualizer">
-            <div class="relay-label">継走シーケンス: <span id="relay-text">--</span></div>
-            <div class="relay-track" id="relay-bar-ui"></div>
-        </div>
+
+    <div class="win-panel">
+        <div class="win-header">GEOGRAPHIC_MONITOR</div>
+        <div id="map" style="flex:1;"></div>
+    </div>
+
+    <div class="win-panel">
+        <div class="win-header">LANE_SEQUENCE</div>
+        <div id="relay-bar-ui"></div>
+        <div style="padding:2px 5px; font-size:11px; background:#eee; border-bottom:1px solid #888;">RELAY: <span id="relay-text">--</span></div>
         <div id="timeline-view"></div>
-        <div style="padding:10px; background:#000; display:flex; gap:5px;">
-            <button style="flex:1" onclick="showOpSheet()">運行表 表示</button>
-            <button style="flex:1" onclick="exportData()">データ保存</button>
+        <div style="padding:5px; display:flex; gap:2px; background:var(--win-bg);">
+            <button style="flex:1" onclick="showOpSheet()">VIEW_REPORT</button>
+            <button onclick="document.getElementById('modal-op').style.display='none'">EXIT</button>
         </div>
+    </div>
+</div>
+
+<div id="modal-op">
+    <div class="win-panel" style="height:100%;">
+        <div class="win-header">REPORT_PREVIEW <button onclick="document.getElementById('modal-op').style.display='none'" style="color:#000; padding:0 3px;">[X]</button></div>
+        <div class="op-sheet" id="op-content"></div>
     </div>
 </div>
 
 <script>
     const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png').addTo(map);
     let routeGroup = L.layerGroup().addTo(map);
     let markerGroup = L.layerGroup().addTo(map);
 
@@ -95,43 +137,39 @@
     let currentTripData = null;
     let currentTripId = "";
 
-    // 💡 強化されたリレーパースロジック
     function parseRelayLanes(id) {
-        const parts = id.split('_').slice(2); // 最初の2つをスキップ
-        const lanes = [];
-        parts.forEach(p => {
-            if (p.endsWith('b')) {
-                lanes.push(p.replace('b', '便'));
-            } else if (p.length === 6 && /^\d+$/.test(p)) {
-                lanes.push(p.substring(0, 4) + 'レ');
-            } else if (/^\d{2,4}$/.test(p)) { // 2桁(72など)〜4桁をカバー
-                lanes.push(p + 'レ');
-            }
-        });
-        return lanes;
+        const parts = id.split('_').slice(2);
+        return parts.map(p => {
+            if (p.endsWith('b')) return p.replace('b', '便');
+            if (p.length === 6 && /^\d+$/.test(p)) return p.substring(0, 4) + 'レ';
+            if (/^\d{2,4}$/.test(p)) return p + 'レ';
+            return p;
+        }).filter(p => p !== "");
     }
 
     async function init() {
-        document.getElementById("loader").style.display = "flex";
-        const [t, s, st] = await Promise.all([
-            fetch('./trips.txt').then(r => r.text()),
-            fetch('./stops.txt').then(r => r.text()),
-            fetch('./stop_times.txt').then(r => r.text())
-        ]);
-        window.gtfsDB.trips = Papa.parse(t.trim(), { header: true }).data;
-        Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
-        Papa.parse(st.trim(), { header: true }).data.forEach(x => {
-            if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
-            window.gtfsDB.stopTimes[x.trip_id].push(x);
-            const sobj = window.gtfsDB.stops[x.stop_id];
-            if(sobj){
-                [sobj.stop_name, sobj.stop_code].forEach(k => {
-                    if(!window.gtfsDB.stopToTrips[k]) window.gtfsDB.stopToTrips[k] = new Set();
-                    window.gtfsDB.stopToTrips[k].add(x.trip_id);
-                });
-            }
-        });
-        renderTrips("");
+        document.getElementById("loader").style.display = "block";
+        try {
+            const [t, s, st] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()),
+                fetch('./stops.txt').then(r => r.text()),
+                fetch('./stop_times.txt').then(r => r.text())
+            ]);
+            window.gtfsDB.trips = Papa.parse(t.trim(), { header: true }).data;
+            Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
+            Papa.parse(st.trim(), { header: true }).data.forEach(x => {
+                if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
+                window.gtfsDB.stopTimes[x.trip_id].push(x);
+                const sobj = window.gtfsDB.stops[x.stop_id];
+                if(sobj) {
+                    [sobj.stop_name, sobj.stop_code].forEach(k => {
+                        if(!window.gtfsDB.stopToTrips[k]) window.gtfsDB.stopToTrips[k] = new Set();
+                        window.gtfsDB.stopToTrips[k].add(x.trip_id);
+                    });
+                }
+            });
+            renderTrips("");
+        } catch (e) { console.error(e); }
         document.getElementById("loader").style.display = "none";
     }
 
@@ -139,19 +177,17 @@
         const list = document.getElementById("trip-list");
         list.innerHTML = "";
         const f = filter.toLowerCase();
-        const filtered = window.gtfsDB.trips.filter(t => {
+        window.gtfsDB.trips.filter(t => {
             if (!f) return true;
             if (t.trip_id.toLowerCase().includes(f)) return true;
             return Object.keys(window.gtfsDB.stopToTrips).some(k => k.includes(f) && window.gtfsDB.stopToTrips[k].has(t.trip_id));
-        }).slice(0, 50);
-
-        filtered.forEach(t => {
-            const st = window.gtfsDB.stopTimes[t.trip_id]?.sort((a,b)=>a.stop_sequence-b.stop_sequence) || [];
+        }).slice(0, 50).forEach(t => {
+            const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "??";
             const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "??";
             const card = document.createElement("div");
             card.className = "trip-card";
-            card.innerHTML = `<div style="color:var(--accent-active); font-size:10px;">${t.trip_id}</div><b>${sName} ▶ ${eName}</b>`;
+            card.innerHTML = `<div style="font-size:10px;">ID:${t.trip_id}</div>${sName} -> ${eName}`;
             card.onclick = () => loadTrip(t);
             list.appendChild(card);
         });
@@ -159,22 +195,19 @@
 
     async function loadTrip(t) {
         currentTripId = t.trip_id;
-        document.getElementById("loader").style.display = "flex";
+        document.getElementById("loader").style.display = "block";
         const shardKey = t.shape_id.substring(0, 2);
         const shard = await fetch(`./shapes_shards/shard_${shardKey}.json`).then(r => r.json());
         
-        // 継走の表示・描画
         const lanes = parseRelayLanes(t.trip_id);
-        document.getElementById("relay-text").innerText = lanes.join(" 〜 ");
-        
+        document.getElementById("relay-text").innerText = lanes.join(" - ");
         const bar = document.getElementById("relay-bar-ui");
         bar.innerHTML = "";
-        const colors = ['#00ffcc', '#ffcc00', '#ff2b56', '#aa88ff', '#55ff55'];
         lanes.forEach((l, i) => {
             const seg = document.createElement("div");
             seg.className = "relay-seg";
             seg.style.width = `${100 / lanes.length}%`;
-            seg.style.backgroundColor = colors[i % colors.length];
+            seg.style.backgroundColor = (l.includes('レ')) ? '#444' : '#004488';
             seg.innerText = l;
             bar.appendChild(seg);
         });
@@ -185,19 +218,31 @@
     }
 
     window.updateUI = (geo_s, time_s) => {
-        const time = JSON.parse(time_s); currentTripData = time;
+        const time = JSON.parse(time_s); 
+        currentTripData = time;
         const geo = JSON.parse(geo_s);
         routeGroup.clearLayers(); markerGroup.clearLayers();
-        L.polyline(geo, {color: 'var(--accent-danger)', weight: 3}).addTo(routeGroup);
-        map.fitBounds(L.polyline(geo).getBounds(), {padding: [20,20]});
+
+        // 💡 列車種別による描き分け
+        const isTrack = parseRelayLanes(currentTripId).some(l => l.includes('便'));
+        if (isTrack) {
+            L.polyline(geo, { color: '#0044aa', weight: 5, opacity: 0.8 }).addTo(routeGroup);
+        } else {
+            // 線路風（白黒点線）
+            L.polyline(geo, { color: '#000', weight: 4 }).addTo(routeGroup);
+            L.polyline(geo, { color: '#fff', weight: 2, dashArray: '5, 10' }).addTo(routeGroup);
+        }
+
+        map.fitBounds(L.polyline(geo).getBounds(), { padding: [30,30] });
+        
         const view = document.getElementById("timeline-view");
-        view.innerHTML = "";
+        view.innerHTML = `<div class="st-row st-head"><div>CODE</div><div>STATION</div><div>ARR</div><div>DEP</div></div>`;
         time.forEach(s => {
-            const node = document.createElement("div");
-            node.className = "station-node";
-            node.innerHTML = `<div>${s.name} (${s.code})</div><div style="font-size:11px; color:var(--accent-warning)">着 ${s.arr} / 発 ${s.dep}</div>`;
-            view.appendChild(node);
-            L.circleMarker([s.lat, s.lon], {radius: 4, color: '#00ffcc', fillOpacity: 1}).addTo(markerGroup);
+            const row = document.createElement("div");
+            row.className = "st-row";
+            row.innerHTML = `<div>${s.code}</div><div>${s.name}</div><div>${s.arr}</div><div>${s.dep}</div>`;
+            view.appendChild(row);
+            L.circleMarker([s.lat, s.lon], { radius: 3, color: '#000', fillOpacity: 1 }).addTo(markerGroup);
         });
         document.getElementById("loader").style.display = "none";
     };
@@ -207,14 +252,17 @@
         const modal = document.getElementById("modal-op");
         const content = document.getElementById("op-content");
         let rows = currentTripData.map(s => `<tr><td>${s.code}</td><td style="text-align:left;">${s.name}</td><td>${s.arr}</td><td>${s.dep}</td><td></td></tr>`).join("");
-        content.innerHTML = `<h3>貨物列車運行時刻表</h3><p>Trip ID: ${currentTripId}</p><p>継走: ${document.getElementById("relay-text").innerText}</p><table class="op-table"><thead><tr><th>コード</th><th>駅名</th><th>着</th><th>発</th><th>備考</th></tr></thead><tbody>${rows}</tbody></table>`;
+        content.innerHTML = `
+            <div style="text-align:center; border-bottom:2px solid #000; margin-bottom:10px;">
+                <h2 style="margin:0;">貨物運行指示書</h2>
+                <p style="text-align:right;">Trip ID: ${currentTripId}</p>
+            </div>
+            <table class="op-table">
+                <thead><tr><th>駅コード</th><th>駅名称</th><th>到着時刻</th><th>出発時刻</th><th>備考</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
         modal.style.display = "block";
-    }
-
-    function exportData() {
-        if(!currentTripData) return;
-        const blob = new Blob([JSON.stringify(currentTripData)], {type: "application/json"});
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${currentTripId}.json`; a.click();
     }
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -232,14 +280,28 @@ async def process(event):
     tid = data['tid']
     try:
         db = js.window.gtfsDB
-        st = sorted(db.stopTimes[tid].to_py(), key=lambda x: int(x['stop_sequence']))
+        # JS辞書からデータを取得する際のアクセス方法を修正
+        st_raw = db.stopTimes.get(tid)
+        if not st_raw:
+            return
+            
+        st_list = st_raw.to_py()
+        st_sorted = sorted(st_list, key=lambda x: int(x['stop_sequence']))
+        
         timeline = []
-        for r in st:
-            s = db.stops[r['stop_id']]
-            timeline.append({"name": s['stop_name'], "code": s['stop_code'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(s['stop_lat']), "lon": float(s['stop_lon'])})
+        for r in st_sorted:
+            s = db.stops.get(r['stop_id']).to_py()
+            timeline.append({
+                "name": s['stop_name'],
+                "code": s['stop_code'],
+                "arr": r['arrival_time'],
+                "dep": r['departure_time'],
+                "lat": float(s['stop_lat']),
+                "lon": float(s['stop_lon'])
+            })
         js.window.updateUI(json.dumps(coords), json.dumps(timeline))
     except Exception as e:
-        js.console.error(str(e))
+        js.console.error("Python Error: " + str(e))
         js.document.getElementById('loader').style.display = 'none'
 
 js.window.addEventListener("py-process", create_proxy(process))
