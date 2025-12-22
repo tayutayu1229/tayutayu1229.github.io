@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JRF 継走列車解析システム</title>
+    <title>JRF-GTFS 運行管理指令システム</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -10,123 +10,164 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     
     <style>
-        :root { --jrf-red: #d32f2f; --jrf-dark: #000033; --console-bg: #1a1a1a; }
-        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #333; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); }
-        .system-title { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
+        :root { --jrf-red: #d32f2f; --jrf-blue: #003366; --bg-dark: #121212; --panel-bg: #2a2a2a; --text-green: #00ff41; }
+        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: var(--bg-dark); color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* ヘッダー */
+        header { background: var(--jrf-red); padding: 5px 20px; border-bottom: 3px solid var(--jrf-blue); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.5); z-index: 100; }
+        .sys-status { font-size: 12px; background: rgba(0,0,0,0.3); padding: 2px 10px; border-radius: 10px; }
 
-        #layout { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
+        #container { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
         
-        /* 検索パネル */
-        #side { width: 350px; background: #ccc; color: #000; border: 2px inset #fff; display: flex; flex-direction: column; }
-        .panel-label { background: var(--jrf-dark); color: #fff; padding: 4px 8px; font-size: 11px; }
-        .search-area { padding: 10px; background: #bbb; border-bottom: 2px solid #888; }
-        #q_input { width: 100%; padding: 10px; border: 2px inset #fff; box-sizing: border-box; font-size: 16px; font-weight: bold; background: #fff; }
-        
-        #trip-list { flex: 1; overflow-y: scroll; background: #fff; }
-        .trip-row { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 12px; line-height: 1.4; }
-        .trip-row:hover { background: #eef; }
-        .trip-row.active { background: var(--jrf-dark); color: #fff; }
-        .trip-tag { background: #eee; border: 1px solid #999; padding: 1px 4px; border-radius: 3px; font-size: 10px; color: #333; margin-right: 4px; }
+        /* 左：検索・選択パネル */
+        #side-nav { width: 300px; background: var(--panel-bg); display: flex; flex-direction: column; border-right: 1px solid #444; }
+        .panel-header { background: #444; padding: 5px 10px; font-size: 11px; font-weight: bold; color: #aaa; border-bottom: 1px solid #555; }
+        .search-box { padding: 10px; }
+        #q_input { width: 100%; background: #000; border: 1px solid #666; color: var(--text-green); padding: 8px; font-size: 14px; }
+        #trip-list { flex: 1; overflow-y: auto; background: #1a1a1a; }
+        .trip-row { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; transition: 0.2s; }
+        .trip-row:hover { background: #333; }
+        .trip-row.active { border-left: 5px solid var(--jrf-red); background: #222; }
 
-        /* メインビュー */
-        #main-view { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        #map { flex: 1; border: 2px inset #fff; }
-        #console { height: 180px; background: var(--console-bg); color: #0f0; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; border-top: 5px solid #555; }
-        
-        .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        /* 中央：地図 */
+        #main-map { flex: 1; position: relative; border: 1px solid #444; }
+        #map { height: 100%; width: 100%; }
+
+        /* 右：駅タイムライン */
+        #timeline-panel { width: 320px; background: var(--panel-bg); display: flex; flex-direction: column; border-left: 1px solid #444; }
+        #station-list { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; }
+        .station-node { position: relative; padding-left: 25px; padding-bottom: 15px; border-left: 2px dotted #555; margin-left: 10px; }
+        .station-node::before { content: ""; position: absolute; left: -6px; top: 0; width: 10px; height: 10px; border-radius: 50%; background: #999; border: 2px solid var(--panel-bg); }
+        .station-node.active::before { background: var(--jrf-red); box-shadow: 0 0 8px var(--jrf-red); }
+        .time-label { color: var(--text-green); font-family: monospace; font-size: 13px; }
+
+        /* 下：コンソール */
+        #console-area { height: 120px; background: #000; color: var(--text-green); font-family: 'Courier New', monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid #444; }
+
+        /* ローディング */
+        .loader { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--jrf-red); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="loading" class="loading-overlay">
-    <div style="font-size:20px; color:#0f0; margin-bottom:10px;">>> ANALYZING FREIGHT CHAIN...</div>
-    <div style="color:white; font-family:monospace;">Fetching High-Precision Shapes from Cloud Storage</div>
+<div id="loading" class="loader">
+    <div class="spinner"></div>
+    <div style="margin-top:20px; letter-spacing: 2px;">DATA ANALYZING...</div>
 </div>
 
 <header>
-    <div class="system-title">■ JRF-GTFS MULTI-TRIP ANALYZER [継走列車対応型]</div>
+    <div style="display:flex; align-items:center; gap:15px;">
+        <span style="font-size:20px; font-weight:heavy;">JRF</span>
+        <span class="sys-title">貨物列車運行管理コンソール <small>v3.0 (OCC Standard)</small></span>
+    </div>
+    <div id="clock" class="sys-status">LOADING PYTHON...</div>
 </header>
 
-<div id="layout">
-    <div id="side">
-        <div class="panel-label">列車番号検索 (例: 2072, 50, 4091)</div>
-        <div class="search-area">
-            <input type="text" id="q_input" placeholder="列車番号を入力...">
+<div id="container">
+    <div id="side-nav">
+        <div class="panel-header">TRAIN SEARCH</div>
+        <div class="search-box">
+            <input type="text" id="q_input" placeholder="列車番号 / 継走ID 入力...">
         </div>
         <div id="trip-list"></div>
     </div>
 
-    <div id="main-view">
+    <div id="main-map">
         <div id="map"></div>
-        <div class="panel-label">FREIGHT-LOG PARSER (Python 3.x)</div>
-        <div id="console"></div>
+    </div>
+
+    <div id="timeline-panel">
+        <div class="panel-header">STATION TIMELINE</div>
+        <div id="station-list">
+            <div style="padding:20px; color:#666; text-align:center;">列車を選択してください</div>
+        </div>
+        <div class="panel-header">TRAIN STATS</div>
+        <div id="stats-box" style="padding:10px; font-size:11px; height:80px; background:#1a1a1a;">
+            --
+        </div>
     </div>
 </div>
 
+<div id="console-area"></div>
+
 <script>
-    const map = L.map('map').setView([38, 138], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const map = L.map('map', { zoomControl: false }).setView([38, 138], 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map); // 業務アプリ向けのダークタイル
     let drawLayer = L.layerGroup().addTo(map);
 
-    let tripsData = [];
+    let db = { trips: [], stops: [], stop_times: [] };
 
-    // 初期データロード
-    async function initTrips() {
+    // データロード
+    async function init() {
         try {
-            const res = await fetch('trips.txt');
-            const text = await res.text();
-            tripsData = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
+            const files = ['trips', 'stops', 'stop_times'];
+            for(const f of files) {
+                const res = await fetch(`${f}.txt`);
+                const text = await res.text();
+                db[f] = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
+            }
+            document.getElementById('clock').innerText = "SYSTEM ONLINE";
             renderList("");
-        } catch (e) {
-            console.error("trips.txtが見つかりません");
-        }
+        } catch (e) { alert("GTFSファイルの読み込みに失敗しました。"); }
     }
 
-    // 検索ロジック: 継走列車IDのどの部分にヒットしても表示する
-    function renderList(filter) {
+    function renderList(q) {
         const list = document.getElementById('trip-list');
         list.innerHTML = '';
-        if (!filter) return;
-
-        const filtered = tripsData.filter(t => t.trip_id.includes(filter));
-
-        filtered.forEach(t => {
-            const div = document.createElement('div');
-            div.className = 'trip-row';
-            // IDを分解して見やすく表示
-            const parts = t.trip_id.split('_');
-            const chainText = parts.slice(1).join(' → ');
-            
-            div.innerHTML = `
-                <div style="font-weight:bold; color:#d32f2f;">${t.trip_id}</div>
-                <div style="margin-top:4px;"><span class="trip-tag">継走</span>${chainText}</div>
-            `;
-            
-            div.onclick = () => {
+        db.trips.filter(t => t.trip_id.includes(q)).slice(0, 50).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'trip-row';
+            row.innerHTML = `<strong>${t.trip_id}</strong><br><small style="color:#888;">${t.trip_headsign} 方面</small>`;
+            row.onclick = () => {
                 document.querySelectorAll('.trip-row').forEach(r => r.classList.remove('active'));
-                div.classList.add('active');
-                const pyFunc = pyscript.interpreter.globals.get('analyze_freight_data');
-                pyFunc(t.trip_id);
+                row.classList.add('active');
+                pyscript.interpreter.globals.get('analyze_freight_data')(t.trip_id);
             };
-            list.appendChild(div);
+            list.appendChild(row);
         });
     }
 
     document.getElementById('q_input').oninput = (e) => renderList(e.target.value);
 
-    window.update_map_route = (points_json) => {
-        const points = JSON.parse(points_json);
+    // Pythonから呼ばれるUI更新関数
+    window.update_ui = (coords_json, stations_json, stats) => {
+        const coords = JSON.parse(coords_json);
+        const stations = JSON.parse(stations_json);
+        
+        // 地図更新
         drawLayer.clearLayers();
-        if (points.length > 0) {
-            const poly = L.polyline(points, {color: '#ff0000', weight: 4, opacity: 0.9}).addTo(drawLayer);
-            points.forEach(p => L.circleMarker(p, {radius: 3, color: '#000', fillOpacity: 1}).addTo(drawLayer));
-            map.fitBounds(poly.getBounds(), {padding: [40, 40]});
-        }
+        const poly = L.polyline(coords, {color: '#d32f2f', weight: 4, opacity: 1}).addTo(drawLayer);
+        coords.forEach(p => L.circleMarker(p, {radius: 3, color: '#fff', fillOpacity: 1}).addTo(drawLayer));
+        map.fitBounds(poly.getBounds(), {padding: [50, 50]});
+
+        // タイムライン更新
+        const list = document.getElementById('station-list');
+        list.innerHTML = '';
+        stations.forEach(s => {
+            const div = document.createElement('div');
+            div.className = 'station-node active';
+            div.innerHTML = `
+                <div class="time-label">${s.arr || '--:--'} / ${s.dep || '--:--'}</div>
+                <div style="font-weight:bold; font-size:14px;">${s.name}</div>
+            `;
+            div.onclick = () => map.setView([s.lat, s.lon], 13);
+            list.appendChild(div);
+        });
+
+        // 統計更新
+        document.getElementById('stats-box').innerHTML = `
+            駅数: ${stats.count} 箇所<br>
+            始発: ${stations[0].dep}<br>
+            終着: ${stations[stations.length-1].arr}<br>
+            解析: High-Precision Shape Model
+        `;
+
         document.getElementById('loading').style.display = 'none';
     };
 
-    initTrips();
+    init();
 </script>
 
 <py-script>
@@ -134,96 +175,73 @@ import js
 import json
 from pyodide.http import pyfetch
 
-# Google Drive ID (ここを実際のIDに書き換えてください)
+# Google Drive ID (実際のIDに書き換えてください)
 GOOGLE_DRIVE_FILE_ID = "YOUR_GOOGLE_DRIVE_FILE_ID_HERE"
-# uc?export=download は直リンクとして動作します
 SHAPES_URL = f"https://docs.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
 
-# --- log関数を外に出すことで、どこからでも呼べるように修正 ---
 def log(msg):
-    console_el = js.document.getElementById("console")
-    if console_el:
-        div = js.document.createElement("div")
-        div.innerText = f">> {msg}"
-        console_el.appendChild(div)
-        console_el.scrollTop = console_el.scrollHeight
+    con = js.document.getElementById("console-area")
+    div = js.document.createElement("div")
+    div.innerText = f"> {msg}"
+    con.appendChild(div)
+    con.scrollTop = con.scrollHeight
 
 async def analyze_freight_data(trip_id):
-    loading_el = js.document.getElementById("loading")
-    loading_el.style.display = "flex"
-    
-    # 継走解析のログ表示
-    log(f"PARSING MULTI-TRIP ID: {trip_id}")
-    chain_parts = trip_id.split('_')
-    log(f"DETECTED {len(chain_parts)} SEGMENTS IN CHAIN.")
-    
-    # 列車番号の抽出を試みる（207200 -> 2072レ等）
-    train_nums = [p for p in chain_parts if p.isdigit() or len(p) > 2]
-    log(f"TRAIN NUMBER SEQUENCE: {' -> '.join(train_nums)}")
+    js.document.getElementById("loading").style.display = "flex"
+    log(f"COMMAND RECEIVED: ANALYZE_TRIP({trip_id})")
 
     try:
-        # tripsDataはJavaScript側のグローバル変数から取得
-        trips = js.tripsData.to_py()
-        target = next((t for t in trips if t['trip_id'] == trip_id), None)
+        trips = js.db.trips.to_py()
+        stops = js.db.stops.to_py()
+        stop_times = js.db.stop_times.to_py()
+
+        target_trip = next((t for t in trips if t['trip_id'] == trip_id), None)
+        sid = target_trip.get('shape_id')
+
+        # 1. タイムラインデータの作成
+        my_stimes = [s for s in stop_times if s['trip_id'] == trip_id]
+        my_stimes.sort(key=lambda x: int(x['stop_sequence']))
         
-        if not target:
-            log("ERROR: DATA NOT FOUND IN trips.txt")
-            loading_el.style.display = "none"
-            return
+        station_info = []
+        for ms in my_stimes:
+            st = next((s for s in stops if s['stop_id'] == ms['stop_id']), None)
+            if st:
+                station_info.append({
+                    "name": st['stop_name'],
+                    "arr": ms['arrival_time'],
+                    "dep": ms['departure_time'],
+                    "lat": float(st['stop_lat']),
+                    "lon": float(st['stop_lon'])
+                })
 
-        sid = target.get('shape_id')
-        if not sid:
-            log("ERROR: この列車には shape_id が設定されていません。")
-            loading_el.style.display = "none"
-            return
-
-        log(f"FETCHING SHAPE_ID: {sid} FROM GOOGLE DRIVE...")
-
-        # Google Driveからデータを取得
+        # 2. 形状データの取得 (Google Drive)
+        log(f"FETCHING GEOMETRY: SHAPE_ID({sid})")
         res = await pyfetch(SHAPES_URL)
-        if not res.ok:
-            log(f"ERROR: Google Driveへのアクセス失敗 (Status: {res.status})")
-            loading_el.style.display = "none"
-            return
-
         text = await res.string()
         lines = text.strip().split('\n')
-        header = [x.strip() for x in lines[0].split(',')]
+        h = [x.strip() for x in lines[0].split(',')]
         
-        # 各カラムのインデックスを特定
-        idx_id = header.index('shape_id')
-        idx_lat = header.index('shape_pt_lat')
-        idx_lon = header.index('shape_pt_lon')
-        idx_seq = header.index('shape_pt_sequence')
+        idx_id, idx_lat, idx_lon, idx_seq = h.index('shape_id'), h.index('shape_pt_lat'), h.index('shape_pt_lon'), h.index('shape_pt_sequence')
 
         coords = []
         for line in lines[1:]:
             cols = line.split(',')
-            # shape_id が一致する行だけを抽出
             if len(cols) > idx_id and cols[idx_id] == sid:
-                coords.append({
-                    'lat': float(cols[idx_lat]),
-                    'lon': float(cols[idx_lon]),
-                    'seq': int(cols[idx_seq])
-                })
-
-        # 順序通りにソートしてリスト化
-        coords.sort(key=lambda x: x['seq'])
-        final_list = [[p['lat'], p['lon']] for p in coords]
+                coords.append({"lat": float(cols[idx_lat]), "lon": float(cols[idx_lon]), "seq": int(cols[idx_seq])})
         
-        if len(final_list) == 0:
-            log(f"WARNING: shape_id {sid} に一致する座標が shapes.txt 内に見つかりません。")
-        else:
-            log(f"SUCCESS: {len(final_list)} COORDINATES LOADED.")
-            # JavaScriptの地図更新関数を呼び出し
-            js.window.update_map_route(json.dumps(final_list))
+        coords.sort(key=lambda x: x['seq'])
+        final_coords = [[p['lat'], p['lon']] for p in coords]
+
+        # 3. UIへの反映
+        stats = {"count": len(station_info)}
+        js.window.update_ui(json.dumps(final_coords), json.dumps(station_info), stats)
+        log("ANALYSIS COMPLETE. MONITORING STARTED.")
 
     except Exception as e:
-        log(f"CRITICAL ERROR: {str(e)}")
-        loading_el.style.display = "none"
+        log(f"CRITICAL SYSTEM ERROR: {str(e)}")
+        js.document.getElementById("loading").style.display = "none"
 
-# 起動時のメッセージ（log関数が外にあるので正常に動作します）
-log("PYTHON ENGINE LOADED. WAITING FOR COMMAND.")
+log("JRF OCC-OS KERNEL LOADED.")
 </py-script>
 
 </body>
