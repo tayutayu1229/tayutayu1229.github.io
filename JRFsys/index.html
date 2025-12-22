@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>JR貨物 運行管理エクスプローラー</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root { --primary: #c62828; --accent: #1565c0; --bg: #f5f5f5; }
+        body { margin: 0; font-family: 'Segoe UI', Meiryo, sans-serif; display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
+        
+        header { background: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        #main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* サイドバー：列車検索 */
+        #sidebar { width: 300px; background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
+        .search-box { padding: 15px; border-bottom: 1px solid #eee; }
+        .search-box input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        #trip-list { flex: 1; overflow-y: auto; }
+        .trip-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
+        .trip-item:hover { background: #f0f7ff; }
+        .trip-item.active { background: #e3f2fd; border-left: 4px solid var(--accent); }
+
+        /* 右側：マップとテーブル */
+        #content { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #map { flex: 2; min-height: 300px; }
+        
+        /* 下部：時刻表エリア */
+        #details-panel { flex: 1; background: white; border-top: 2px solid #ccc; overflow-y: auto; padding: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th { background: #f8f9fa; position: sticky; top: 0; padding: 10px; border-bottom: 2px solid #ddd; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        tr:hover { background: #f1f1f1; cursor: pointer; }
+
+        .loading { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+    </style>
+</head>
+<body>
+
+<div id="loader" class="loading">データ読み込み中...</div>
+
+<header>
+    <div style="font-size: 1.2em; font-weight: bold;">JR貨物 リアルタイム検索パネル</div>
+    <div id="date-info" style="font-size: 0.9em;"></div>
+</header>
+
+<div id="main-container">
+    <div id="sidebar">
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="列車番号(trip_id)で検索...">
+        </div>
+        <div id="trip-list"></div>
+    </div>
+
+    <div id="content">
+        <div id="map"></div>
+        <div id="details-panel">
+            <h3 id="detail-title" style="margin:0 0 10px 0;">列車を選択してください</h3>
+            <table id="timetable">
+                <thead>
+                    <tr>
+                        <th>順序</th>
+                        <th>駅名 (Stop ID)</th>
+                        <th>着時刻</th>
+                        <th>発時刻</th>
+                        <th>駅の位置 (緯度, 経度)</th>
+                    </tr>
+                </thead>
+                <tbody id="timetable-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let rawData = { trips:[], stop_times:[], stops:[], calendar:[], routes:[] };
+    const map = L.map('map').setView([43.5, 143.5], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    let currentLayers = L.layerGroup().addTo(map);
+
+    // 1. データ読み込み
+    async function loadData() {
+        const files = ['trips', 'stop_times', 'stops', 'calendar', 'routes'];
+        for (const file of files) {
+            const res = await fetch(`${file}.txt`);
+            const text = await res.text();
+            rawData[file] = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
+        }
+        document.getElementById('loader').style.display = 'none';
+        initApp();
+    }
+
+    function initApp() {
+        // カレンダー情報表示
+        if(rawData.calendar.length > 0) {
+            const c = rawData.calendar[0];
+            document.getElementById('date-info').innerText = `有効期間: ${c.start_date} ～ ${c.end_date}`;
+        }
+        renderTripList();
+        
+        document.getElementById('search-input').addEventListener('input', renderTripList);
+    }
+
+    // 2. 列車リスト表示（検索機能付き）
+    function renderTripList() {
+        const filter = document.getElementById('search-input').value.toLowerCase();
+        const listEl = document.getElementById('trip-list');
+        listEl.innerHTML = '';
+
+        const filteredTrips = rawData.trips.filter(t => t.trip_id.toLowerCase().includes(filter));
+
+        filteredTrips.forEach(trip => {
+            const div = document.createElement('div');
+            div.className = 'trip-item';
+            div.innerHTML = `
+                <div style="font-weight:bold;">${trip.trip_id}</div>
+                <div style="font-size:0.85em; color:#666;">${trip.trip_headsign} 行</div>
+            `;
+            div.onclick = () => selectTrip(trip, div);
+            listEl.appendChild(div);
+        });
+    }
+
+    // 3. 列車選択時の挙動（地図描画 ＆ テーブル更新）
+    function selectTrip(trip, element) {
+        // UI更新
+        document.querySelectorAll('.trip-item').forEach(el => el.classList.remove('active'));
+        element.classList.add('active');
+        document.getElementById('detail-title').innerText = `運行詳細: ${trip.trip_id} (${trip.trip_headsign}行)`;
+
+        currentLayers.clearLayers();
+        const tableBody = document.getElementById('timetable-body');
+        tableBody.innerHTML = '';
+
+        // stop_timesからこの列車の全駅を取得
+        const schedule = rawData.stop_times
+            .filter(st => st.trip_id === trip.trip_id)
+            .sort((a, b) => parseInt(a.stop_sequence) - parseInt(b.stop_sequence));
+
+        const pathPoints = [];
+
+        schedule.forEach(entry => {
+            const stop = rawData.stops.find(s => s.stop_id === entry.stop_id);
+            if (!stop) return;
+
+            const latlng = [parseFloat(stop.stop_lat), parseFloat(stop.stop_lon)];
+            pathPoints.push(latlng);
+
+            // テーブル行作成
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${entry.stop_sequence}</td>
+                <td style="font-weight:bold;">${stop.stop_name}</td>
+                <td>${entry.arrival_time || '---'}</td>
+                <td>${entry.departure_time || '---'}</td>
+                <td style="color:#1565c0;">${stop.stop_lat}, ${stop.stop_lon}</td>
+            `;
+            // 行クリックで地図をその駅へ
+            tr.onclick = () => map.setView(latlng, 12);
+            tableBody.appendChild(tr);
+
+            // マーカー設置
+            L.marker(latlng).addTo(currentLayers)
+                .bindPopup(`<b>${stop.stop_name}</b><br>順序: ${entry.stop_sequence}<br>発着: ${entry.arrival_time} - ${entry.departure_time}`);
+        });
+
+        // 経路を描画
+        if (pathPoints.length > 1) {
+            const line = L.polyline(pathPoints, {color: 'red', weight: 4, opacity: 0.7, dashArray: '5, 10'}).addTo(currentLayers);
+            map.fitBounds(line.getBounds(), {padding: [50, 50]});
+        }
+    }
+
+    loadData();
+</script>
+</body>
+</html>
