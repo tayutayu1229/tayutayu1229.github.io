@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.6</title>
+    <title>WB-OCC 運行管理 v10.8 [Complete Edition]</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -30,41 +30,24 @@
         .st-table th { background: rgba(0,0,0,0.05); position: sticky; top: 0; padding: 10px 8px; text-align: left; }
         .st-table td { padding: 8px; border-bottom: 1px solid var(--border); }
         .weather-btn { font-size: 10px; background: #2ecc71; color: white; border: none; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; }
-        #log-panel { display: none; height: 100px; background: #000; color: #ffffff; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
         #weather-toast { display: none; position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 2000; border: 2px solid var(--accent); min-width: 250px; text-align: center; }
-
-        /* 💡 モーダルの修正: 背面ではなく「最前面」に表示 */
-        #modal-op { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto; padding: 20px;
-        }
+        #modal-op { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto; padding: 20px; }
         .op-container { background: white; width: 210mm; margin: 0 auto; min-height: 297mm; padding: 15mm; position: relative; color: #000; }
-
-        @page { size: A4; margin: 0; }
+        #log-panel { display: none; height: 100px; background: #000; color: #ffffff; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
         @media print {
-            body * { visibility: hidden; overflow: hidden !important; }
+            body * { visibility: hidden; }
             #modal-op, #modal-op * { visibility: visible; }
             #modal-op { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; padding: 0; margin: 0; }
-            .op-container { 
-                box-shadow: none; border: none; width: 100%; padding: 10mm; 
-                transform: scale(0.9); transform-origin: top center;
-            }
+            .op-container { box-shadow: none; border: none; width: 100%; padding: 10mm; transform: scale(0.9); transform-origin: top center; }
             .no-print { display: none !important; }
         }
-
-        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; }
-        #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
-        .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
-        button { padding: 8px 12px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-size: 12px; border-radius: 4px; }
-        #loader { position: fixed; top: 60px; right: 20px; background: #f1c40f; color: #000; padding: 6px 12px; display: none; z-index: 10001; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body class="light-mode">
-<div id="loader">データ処理中...</div>
+<div id="loader" style="position:fixed; top:60px; right:20px; background:#f1c40f; color:#000; padding:6px 12px; display:none; z-index:10001; font-weight:bold; border-radius:4px;">データ処理中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.6</span>
-        <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.8</span>
         <button id="log-toggle-btn" onclick="toggleLog()" style="background:#444;">ログ表示</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -74,7 +57,7 @@
             <option value="osm">OpenStreetMap</option>
             <option value="sat">衛星写真 (ESRI)</option>
         </select>
-        <button onclick="toggleTheme()">背景色切替 (白/黒)</button>
+        <button onclick="toggleTheme()">背景色切替</button>
         <div id="clock">00:00:00</div>
     </div>
 </header>
@@ -84,7 +67,9 @@
         <div class="panel-title">列車検索</div>
         <div class="control-box">
             <input type="date" id="base_date">
-            <select id="route_filter" onchange="renderTrips(document.getElementById('q_input').value)"><option value="">全ての方面</option></select>
+            <select id="route_filter" onchange="renderTrips(document.getElementById('q_input').value)">
+                <option value="">全ての方面</option>
+            </select>
             <input type="text" id="q_input" placeholder="列車番号または停車駅名..." oninput="renderTrips(this.value)">
         </div>
         <div id="trip-list"></div>
@@ -93,11 +78,7 @@
         <div class="panel-title">位置モニタ</div>
         <div id="weather-toast"></div>
         <div id="map" style="flex:1;"></div>
-        <div id="log-panel">
-            [System Log]<br>
-            > Initializing system v10.6 (Full City-ID Mapping)...<br>
-            > Ready.
-        </div>
+        <div id="log-panel"></div>
     </div>
     <div class="panel">
         <div class="panel-title">運行計画・継走情報</div>
@@ -114,34 +95,27 @@
     </div>
 </div>
 
-<div id="modal-dic">
-    <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b>駅コード一覧</b><button onclick="toggleDic()">×</button></div>
-    <input type="text" id="dic_search" placeholder="絞り込み..." style="width:100%;" oninput="filterDic()">
-    <div id="dic-list"></div>
-</div>
-
 <div id="modal-op">
     <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; display: flex; justify-content: flex-end; gap: 10px;">
-        <button onclick="window.print()" style="background:#2ecc71; font-weight: bold;">印刷 / PDF保存</button>
-        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c; font-weight: bold;">閉じる</button>
+        <button onclick="window.print()" style="background:#2ecc71; font-weight: bold; color:white;">印刷 / PDF保存</button>
+        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c; font-weight: bold; color:white;">閉じる</button>
     </div>
-    <div class="op-container">
-        <div id="op-content"></div>
-    </div>
+    <div class="op-container"><div id="op-content"></div></div>
 </div>
 
 <script>
-    const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
-    const tiles = {
-        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
-        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
-        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-        gsi: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png')
-    };
-    tiles.light.addTo(map);
+    // 💡 方面データの完全復元
+    const masterRoutes = [
+        {id:"11", name:"北海道-北海道"}, {id:"12", name:"北海道-東北"}, {id:"13", name:"北海道-関東"},
+        {id:"14", name:"北海道-東海"}, {id:"15", name:"北海道-関西"}, {id:"16", name:"北海道-九州"},
+        {id:"22", name:"東北-東北"}, {id:"23", name:"東北-関東"}, {id:"24", name:"東北-東海"},
+        {id:"25", name:"東北-関西"}, {id:"26", name:"東北-九州"}, {id:"33", name:"関東-関東"},
+        {id:"34", name:"関東-東海"}, {id:"35", name:"関東-関西"}, {id:"36", name:"関東-九州"},
+        {id:"44", name:"東海-東海"}, {id:"45", name:"東海-関西"}, {id:"46", name:"東海-九州"},
+        {id:"55", name:"関西-関西"}, {id:"56", name:"関西-九州"}, {id:"66", name:"九州-九州"}
+    ];
 
-    // 💡 完璧な全地点定義表 (142地点)
+    // 💡 天気地点定義の完全実装 (142地点)
     const weatherStations = [
         {id:"011000", n:"稚内", lat:45.415, lon:141.673}, {id:"012010", n:"旭川", lat:43.770, lon:142.357}, {id:"012020", n:"留萌", lat:43.935, lon:141.644},
         {id:"013010", n:"網走", lat:44.020, lon:144.273}, {id:"013020", n:"北見", lat:43.803, lon:143.894}, {id:"013030", n:"紋別", lat:44.356, lon:143.354},
@@ -193,114 +167,101 @@
         {id:"474020", n:"与那国島", lat:24.467, lon:122.991}
     ];
 
+    // 💡 道路・便の判定用
+    const roadKeywords = ["オフレール", "営業所", "ORS"];
+    const roadExcludeStops = ["テスト除外駅"]; // 除外したい駅名はここへ
+
+    const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
+    const tiles = {
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
+        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
+        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        gsi: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png')
+    };
+    tiles.light.addTo(map);
+
     window.gtfsDB = { trips: [], stops: {}, stopTimes: {}, routes: {} };
     let currentTripId = "";
     let currentTimeline = [];
 
-    function addLog(msg) {
-        const log = document.getElementById('log-panel');
-        log.innerHTML += `> [${new Date().toLocaleTimeString()}] ${msg}<br>`;
-        log.scrollTop = log.scrollHeight;
-    }
-
-    function toggleLog() {
-        const p = document.getElementById('log-panel'), b = document.getElementById('log-toggle-btn');
-        const isShow = p.style.display === 'block';
-        p.style.display = isShow ? 'none' : 'block';
-        b.innerText = isShow ? 'ログ表示' : 'ログ隠す';
-    }
-
-    function getNearestCityId(lat, lon) {
-        let minDest = Infinity, cityId = "130010";
-        weatherStations.forEach(s => {
-            const d = Math.sqrt(Math.pow(lat - s.lat, 2) + Math.pow(lon - s.lon, 2));
-            if(d < minDest) { minDest = d; cityId = s.id; }
-        });
-        return cityId;
-    }
-
-    async function fetchWeather(lat, lon, stationName) {
-        const cityId = getNearestCityId(lat, lon);
-        addLog(`Nearest ID: ${cityId} for ${stationName}`);
-        try {
-            const res = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${cityId}`);
-            const data = await res.json();
-            const f = data.forecasts[0];
-            const toast = document.getElementById('weather-toast');
-            toast.innerHTML = `
-                <div style="font-size:11px; color:#666;">最寄: ${data.location.city} (${cityId})</div>
-                <div style="font-size:14px; font-weight:bold; margin:3px 0;">${stationName} の天気</div>
-                <img src="${f.image.url}" width="45" style="vertical-align:middle;">
-                <span style="font-size:16px; font-weight:bold;">${f.telop}</span>
-                <div style="font-size:11px; margin-top:3px;">気温: <span style="color:red;">${f.temperature.max.celsius || '--'}℃</span> / 降水: ${f.chanceOfRain.T12_18}</div>
-                <button onclick="this.parentElement.style.display='none'" style="margin-top:8px; padding:2px 8px; background:#666; color:#fff; font-size:10px;">閉じる</button>
-            `;
-            toast.style.display = 'block';
-        } catch(e) { addLog(`Weather API Error: ${e}`); }
-    }
-
-    function toggleTheme() { document.body.classList.toggle('dark-mode'); updateMapLayers(); }
-    function updateMapLayers() {
-        const mode = document.getElementById('map-mode').value;
-        const isDark = document.body.classList.contains('dark-mode');
-        Object.values(tiles).forEach(t => map.removeLayer(t));
-        if (mode === 'sat') tiles.sat.addTo(map);
-        else if (mode === 'osm') tiles.osm.addTo(map);
-        else if (mode === 'gsi') tiles.gsi.addTo(map);
-        else tiles[isDark ? 'dark' : 'light'].addTo(map);
-    }
-
     async function init() {
         document.getElementById("loader").style.display = "block";
         document.getElementById('base_date').valueAsDate = new Date();
+        const rf = document.getElementById("route_filter");
+        masterRoutes.forEach(r => {
+            const opt = document.createElement("option"); opt.value = r.id; opt.textContent = r.name; rf.appendChild(opt);
+        });
+
         try {
-            const [tr, st, s, rt] = await Promise.all([
-                fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
-                fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
+            const [tr, st, s] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()), fetch('./stops.txt').then(r => r.text())
             ]);
-            Papa.parse(rt.trim(), { header: true }).data.forEach(r => { if(r.route_id) window.gtfsDB.routes[r.route_id] = r; });
             window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
             Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
             Papa.parse(st.trim(), { header: true }).data.forEach(x => {
                 if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
                 window.gtfsDB.stopTimes[x.trip_id].push(x);
             });
-            createDic(); renderTrips("");
-        } catch(e) { addLog(`Init Error: ${e}`); }
+            renderTrips("");
+        } catch(e) { console.error(e); }
         document.getElementById("loader").style.display = "none";
     }
 
-    function formatTripNo(no, stopName) {
-        let clean = no.replace(/^0+/, ''); 
-        if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
-        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所") || no.includes('b');
-        return isRoad ? clean.replace('b','') + "便" : clean.replace('b','') + "レ";
+    function formatTripNo(no, stationName) {
+        let clean = no.replace(/^0+/, '').replace('b','');
+        if (clean.length > 4) clean = clean.substring(0, clean.length - 2);
+        const isExclude = roadExcludeStops.some(ex => stationName.includes(ex));
+        const isRoad = roadKeywords.some(kw => stationName.includes(kw)) && !isExclude;
+        return isRoad ? clean + "便" : clean + "レ";
+    }
+
+    async function fetchWeather(lat, lon, stationName) {
+        let minD = Infinity, cityId = "130010";
+        weatherStations.forEach(s => {
+            const d = Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2));
+            if(d < minD){ minD = d; cityId = s.id; }
+        });
+        try {
+            const res = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${cityId}`);
+            const data = await res.json();
+            const f = data.forecasts[0];
+            const toast = document.getElementById('weather-toast');
+            toast.innerHTML = `
+                <div style="font-size:10px;">最寄: ${data.location.city}</div>
+                <div style="font-weight:bold;">${stationName} の天気</div>
+                <img src="${f.image.url}" width="40"><span style="font-size:16px;">${f.telop}</span>
+                <div style="font-size:11px;">気温: ${f.temperature.max.celsius||'--'}℃ / 降水: ${f.chanceOfRain.T12_18}</div>
+                <button onclick="this.parentElement.style.display='none'" style="font-size:10px; margin-top:5px;">閉じる</button>
+            `;
+            toast.style.display = 'block';
+        } catch(e) { console.error(e); }
     }
 
     function renderTrips(f) {
         const list = document.getElementById("trip-list"); list.innerHTML = "";
         const query = (f || "").toLowerCase();
+        const routeFilter = document.getElementById("route_filter").value;
         window.gtfsDB.trips.filter(t => {
-            const tripMatch = t.trip_id.toLowerCase().includes(query);
-            const stMatch = (window.gtfsDB.stopTimes[t.trip_id] || []).some(s => (window.gtfsDB.stops[s.stop_id]?.stop_name || "").toLowerCase().includes(query));
-            return tripMatch || stMatch;
+            if (routeFilter && t.route_id !== routeFilter) return false;
+            return t.trip_id.toLowerCase().includes(query) || (window.gtfsDB.stopTimes[t.trip_id]||[]).some(s => (window.gtfsDB.stops[s.stop_id]?.stop_name||"").toLowerCase().includes(query));
         }).slice(0, 50).forEach(t => {
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
             const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "-";
-            const card = document.createElement("div");
-            card.className = "trip-card" + (t.trip_id === currentTripId ? " active" : "");
-            card.innerHTML = `<div class="card-relay">${t.trip_id.split('_').slice(2).map(p=>formatTripNo(p,sName)).join('〜')}</div><div class="card-range">${sName} 〜 ${eName}</div>`;
+            const displayNo = t.trip_id.split('_').slice(2).map(p => formatTripNo(p, sName)).join('〜');
+            const card = document.createElement("div"); card.className = "trip-card" + (t.trip_id === currentTripId ? " active" : "");
+            card.innerHTML = `<div class="card-relay">${displayNo}</div><div class="card-range">${sName} 〜 ${eName}</div>`;
             card.onclick = () => loadTrip(t);
             list.appendChild(card);
         });
     }
 
     async function loadTrip(t) {
-        currentTripId = t.trip_id;
-        document.getElementById("loader").style.display = "block";
-        const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
-        window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
+        currentTripId = t.trip_id; document.getElementById("loader").style.display = "block";
+        const shardId = t.shape_id ? t.shape_id.substring(0, 2) : "00";
+        const shard = await fetch(`./shapes_shards/shard_${shardId}.json`).then(r => r.json());
+        window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id] || []) } }));
     }
 
     window.updateUI = (geo_s, time_s) => {
@@ -315,84 +276,58 @@
             if(s.id.startsWith('T')) mapObj[s.code].dep = s.dep;
         });
         currentTimeline = consolidated.map(s => ({ ...s, arrD: formatTime(s.arr), depD: formatTime(s.dep) }));
-        document.getElementById("relay-text").innerText = currentTripId.split('_').slice(2).map(p=>formatTripNo(p,currentTimeline[0].name)).join('〜');
+        document.getElementById("relay-text").innerText = currentTripId.split('_').slice(2).map(p=>formatTripNo(p, currentTimeline[0]?.name||"")).join('〜');
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
         for (let i = 0; i < currentTimeline.length - 1; i++) {
-            const s = currentTimeline[i], e = currentTimeline[i+1];
-            const seg = extractSegment(geoPoints, s, e);
-            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール");
+            const s = currentTimeline[i], e = currentTimeline[i+1], seg = extractSegment(geoPoints, s, e);
+            const isRoad = roadKeywords.some(kw => s.name.includes(kw));
             if (isRoad) L.polyline(seg, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
             else { L.polyline(seg, { color: '#000', weight: 6 }).addTo(map); L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map); }
         }
         currentTimeline.forEach(s => {
-            const m = L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map);
-            m.bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">自動気象取得</button>`);
+            L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map)
+             .bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気取得</button>`);
         });
-        map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
+        if(geoPoints.length > 0) map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
         document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr><td>${s.code}</td><td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td><td style="text-align:center;">${s.arrD}</td><td style="text-align:center;">${s.depD}</td></tr>`).join("");
         document.getElementById("loader").style.display = "none";
     };
 
-    function extractSegment(points, start, end) {
-        let si = 0, ei = points.length - 1, ms = Infinity, me = Infinity;
-        points.forEach((p, idx) => {
-            let ds = Math.pow(p[0]-start.lat, 2) + Math.pow(p[1]-start.lon, 2);
-            let de = Math.pow(p[0]-end.lat, 2) + Math.pow(p[1]-end.lon, 2);
+    function extractSegment(p, s, e) {
+        if(!p || p.length===0) return [[s.lat, s.lon], [e.lat, e.lon]];
+        let si=0, ei=p.length-1, ms=Infinity, me=Infinity;
+        p.forEach((pt, idx) => {
+            let ds = Math.pow(pt[0]-s.lat, 2) + Math.pow(pt[1]-s.lon, 2);
+            let de = Math.pow(pt[0]-e.lat, 2) + Math.pow(pt[1]-e.lon, 2);
             if(ds < ms) { ms = ds; si = idx; }
             if(de < me) { me = de; ei = idx; }
         });
-        if(si > ei) [si, ei] = [ei, si]; return points.slice(si, ei + 1);
+        return p.slice(Math.min(si,ei), Math.max(si,ei) + 1);
     }
-
     function formatTime(t) {
         if(!t || t === "None") return " - ";
-        const p = t.split(':'); if (p.length < 2) return " - ";
-        let h = parseInt(p[0], 10), d = Math.floor(h/24);
-        return (d > 0 ? `+${d}d ` : "") + `${String(h%24).padStart(2,'0')}:${p[1]}`;
+        const p = t.split(':'); return `${String(parseInt(p[0])%24).padStart(2,'0')}:${p[1]}`;
     }
-
     function showOpSheet() {
         if(!currentTimeline.length) return;
-        const content = document.getElementById("op-content");
-        content.innerHTML = `
-            <div style="text-align:right; font-size:10px; color:#444; margin-bottom:5mm;">WB-OCC v10.6 / 基準日: ${document.getElementById("base_date").value}</div>
-            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px; margin-bottom:20px;">輸送列車順序資料</h2>
-            <div style="margin: 15px 0; font-size: 14px;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
+        document.getElementById("op-content").innerHTML = `
+            <div style="text-align:right; font-size:10px;">WB-OCC v10.8 / ${document.getElementById("base_date").value}</div>
+            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
+            <div style="margin: 15px 0;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
-                <thead><tr style="background:#f0f0f0;">
-                    <th style="border:1px solid #000; padding:10px;">駅コード</th>
-                    <th style="border:1px solid #000; padding:10px;">停車駅</th>
-                    <th style="border:1px solid #000; padding:10px;">到着時刻</th>
-                    <th style="border:1px solid #000; padding:10px;">出発時刻</th>
-                </tr></thead>
-                <tbody>${currentTimeline.map(s => `<tr>
-                    <td style="border:1px solid #000; padding:10px; text-align:center; font-family:monospace;">${s.code}</td>
-                    <td style="border:1px solid #000; padding:10px;"><b>${s.name}</b></td>
-                    <td style="border:1px solid #000; padding:10px; text-align:center;">${s.arrD}</td>
-                    <td style="border:1px solid #000; padding:10px; text-align:center;">${s.depD}</td>
-                </tr>`).join("")}</tbody>
+                <thead><tr style="background:#f0f0f0;"><th style="border:1px solid #000; padding:8px;">駅コード</th><th style="border:1px solid #000; padding:8px;">停車駅</th><th style="border:1px solid #000; padding:8px;">到着</th><th style="border:1px solid #000; padding:8px;">出発</th></tr></thead>
+                <tbody>${currentTimeline.map(s => `<tr><td style="border:1px solid #000; padding:8px; text-align:center;">${s.code}</td><td style="border:1px solid #000; padding:8px;">${s.name}</td><td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td><td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td></tr>`).join("")}</tbody>
             </table>
         `;
-        const modal = document.getElementById("modal-op");
-        modal.style.display = "block";
-        modal.scrollTop = 0; // 💡 表示時にトップへ戻す
+        document.getElementById("modal-op").style.display = "block";
     }
-
-    function createDic() {
-        const list = document.getElementById("dic-list");
-        Object.values(window.gtfsDB.stops).sort((a,b)=>(a.stop_code||"").localeCompare(b.stop_code||"")).forEach(s => {
-            if(!s.stop_code) return;
-            const div = document.createElement("div"); div.className = "dic-item";
-            div.innerHTML = `<b>${s.stop_code}</b> <span>${s.stop_name}</span>`;
-            div.onclick = () => { document.getElementById("q_input").value = s.stop_name; renderTrips(s.stop_name); toggleDic(); };
-            list.appendChild(div);
-        });
+    function toggleTheme() { document.body.classList.toggle('dark-mode'); updateMapLayers(); }
+    function updateMapLayers() {
+        const mode = document.getElementById('map-mode').value, isDark = document.body.classList.contains('dark-mode');
+        Object.values(tiles).forEach(t => map.removeLayer(t));
+        if (mode === 'sat') tiles.sat.addTo(map); else if (mode === 'osm') tiles.osm.addTo(map); else if (mode === 'gsi') tiles.gsi.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
     }
-    function filterDic() {
-        const q = document.getElementById("dic_search").value.toLowerCase();
-        Array.from(document.getElementsByClassName("dic-item")).forEach(i => i.style.display = i.innerText.toLowerCase().includes(q) ? "flex" : "none");
-    }
-    function toggleDic() { const d = document.getElementById("modal-dic"); d.style.display = d.style.display === "block" ? "none" : "block"; }
+    function toggleLog() { const p = document.getElementById('log-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
     init();
 </script>
@@ -403,15 +338,12 @@ from pyodide.ffi import create_proxy
 async def process(event):
     data = event.detail.to_py()
     tid = data['tid']
-    try:
-        db = js.window.gtfsDB
-        st_data = db.stopTimes.to_py()
-        st_list = sorted(st_data[tid], key=lambda x: int(x['stop_sequence']))
-        stops = db.stops.to_py()
-        timeline = [{"id":str(r['stop_id']),"name":str(stops.get(r['stop_id'],{}).get('stop_name',"-")),"code":str(stops.get(r['stop_id'],{}).get('stop_code',"-")),"arr":str(r.get('arrival_time',"None")),"dep":str(r.get('departure_time',"None")),"lat":float(stops.get(r['stop_id'],{}).get('stop_lat',0)),"lon":float(stops.get(r['stop_id'],{}).get('stop_lon',0))} for r in st_list]
-        js.window.updateUI(data['geo'], json.dumps(timeline))
-    except Exception as e:
-        js.console.error(str(e))
+    db = js.window.gtfsDB
+    st_data = db.stopTimes.to_py()
+    st_list = sorted(st_data[tid], key=lambda x: int(x['stop_sequence']))
+    stops = db.stops.to_py()
+    timeline = [{"id":str(r['stop_id']),"name":str(stops.get(r['stop_id'],{}).get('stop_name',"-")),"code":str(stops.get(r['stop_id'],{}).get('stop_code',"-")),"arr":str(r.get('arrival_time',"None")),"dep":str(r.get('departure_time',"None")),"lat":float(stops.get(r['stop_id'],{}).get('stop_lat',0)),"lon":float(stops.get(r['stop_id'],{}).get('stop_lon',0))} for r in st_list]
+    js.window.updateUI(data['geo'], json.dumps(timeline))
 js.window.addEventListener("py-process", create_proxy(process))
 </py-script>
 </body>
