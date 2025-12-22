@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v9.9</title>
+    <title>WB-OCC 運行管理 v10.0</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -43,7 +43,7 @@
 <div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.9</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.0</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -67,7 +67,7 @@
         <div id="trip-list"></div>
     </div>
     <div class="panel">
-        <div class="panel-title">位置モニタ (Shape高精度再現)</div>
+        <div class="panel-title">位置モニタ (排他的描画ロジック)</div>
         <div id="map" style="flex:1;"></div>
     </div>
     <div class="panel">
@@ -144,7 +144,6 @@
         document.getElementById("loader").style.display = "none";
     }
 
-    // 0削り、b→便、ORS判定機能保持
     function formatTripNo(no, stopName) {
         let clean = no.replace(/^0+/, ''); 
         if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
@@ -191,12 +190,12 @@
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
 
-        // 💡 同一駅（stop_code）の集約ロジック
+        // 駅集約
         const consolidated = [];
         const mapObj = {};
         timeRaw.forEach(s => {
             if(!mapObj[s.code]) {
-                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon };
+                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon, seq: s.seq };
                 consolidated.push(mapObj[s.code]);
             }
             if(s.id.startsWith('C')) mapObj[s.code].arr = s.arr;
@@ -208,17 +207,23 @@
 
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // 💡 Shapes経路を維持した描き分け
-        // 高精度の全経路を黒白点線で描き、その上に道路区間（青太線）を駅位置ベースで重ねる
-        L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
-        L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
-
+        // 💡 修正：道路と線路を被らせない描画ロジック
+        // 全経路を1区間ずつ判定して排他的に描画
         for (let i = 0; i < currentTimeline.length - 1; i++) {
-            const s = currentTimeline[i], e = currentTimeline[i+1];
-            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || s.name.includes("営業所") || e.name.includes("営業所");
+            const sNode = currentTimeline[i];
+            const eNode = currentTimeline[i+1];
+            
+            // Shapesデータからこの駅間に該当する座標を抽出（簡易的な距離計算によるスライス）
+            const segmentPoints = extractSegment(geoPoints, sNode, eNode);
+            const isRoad = sNode.name.includes("オフレール") || eNode.name.includes("オフレール") || sNode.name.includes("営業所") || eNode.name.includes("営業所");
+
             if (isRoad) {
-                // 道路区間は直線的に強調（または近傍点探索が必要だが業務上は強調で十分）
-                L.polyline([[s.lat, s.lon], [e.lat, e.lon]], { color: '#0078d4', weight: 8, opacity: 0.7 }).addTo(map);
+                // 道路区間：青太線のみ
+                L.polyline(segmentPoints, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
+            } else {
+                // 線路区間：黒白点線のみ
+                L.polyline(segmentPoints, { color: '#000', weight: 6 }).addTo(map);
+                L.polyline(segmentPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
             }
         }
         
@@ -234,6 +239,20 @@
             </tr>`).join("");
         document.getElementById("loader").style.display = "none";
     };
+
+    // 補助関数：Shapesから特定区間を抜き出す
+    function extractSegment(points, start, end) {
+        let startIndex = 0, endIndex = points.length - 1;
+        let minStart = Infinity, minEnd = Infinity;
+        points.forEach((p, idx) => {
+            let dStart = Math.pow(p[0]-start.lat, 2) + Math.pow(p[1]-start.lon, 2);
+            let dEnd = Math.pow(p[0]-end.lat, 2) + Math.pow(p[1]-end.lon, 2);
+            if(dStart < minStart) { minStart = dStart; startIndex = idx; }
+            if(dEnd < minEnd) { minEnd = dEnd; endIndex = idx; }
+        });
+        if(startIndex > endIndex) [startIndex, endIndex] = [endIndex, startIndex];
+        return points.slice(startIndex, endIndex + 1);
+    }
 
     function formatTime(t, base) {
         if(!t || t === "None" || t.includes("undefined")) return " - ";
@@ -280,7 +299,8 @@ async def process(event):
                 "arr": str(r.get('arrival_time', "None")),
                 "dep": str(r.get('departure_time', "None")),
                 "lat": float(s.get('stop_lat', 0)), 
-                "lon": float(s.get('stop_lon', 0))
+                "lon": float(s.get('stop_lon', 0)),
+                "seq": int(r['stop_sequence'])
             })
         js.window.updateUI(data['geo'], json.dumps(timeline))
     except Exception as e:
