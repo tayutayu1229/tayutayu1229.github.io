@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.5</title>
+    <title>WB-OCC 運行管理 v10.6</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,17 +33,23 @@
         #log-panel { display: none; height: 100px; background: #000; color: #ffffff; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
         #weather-toast { display: none; position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 2000; border: 2px solid var(--accent); min-width: 250px; text-align: center; }
 
-        /* 印刷設定: 1割縮小(scale 0.9) & スクロールバー非表示 */
+        /* 💡 モーダルの修正: 背面ではなく「最前面」に表示 */
+        #modal-op { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto; padding: 20px;
+        }
+        .op-container { background: white; width: 210mm; margin: 0 auto; min-height: 297mm; padding: 15mm; position: relative; color: #000; }
+
         @page { size: A4; margin: 0; }
         @media print {
             body * { visibility: hidden; overflow: hidden !important; }
             #modal-op, #modal-op * { visibility: visible; }
-            #modal-op { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: white; padding: 0; margin: 0; }
-            .no-print { display: none !important; }
-            .op-sheet { 
-                box-shadow: none; border: none; width: 210mm; margin: 0 auto; padding: 10mm; 
+            #modal-op { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; padding: 0; margin: 0; }
+            .op-container { 
+                box-shadow: none; border: none; width: 100%; padding: 10mm; 
                 transform: scale(0.9); transform-origin: top center;
             }
+            .no-print { display: none !important; }
         }
 
         #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; }
@@ -57,7 +63,7 @@
 <div id="loader">データ処理中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.5</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.6</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
         <button id="log-toggle-btn" onclick="toggleLog()" style="background:#444;">ログ表示</button>
     </div>
@@ -89,7 +95,7 @@
         <div id="map" style="flex:1;"></div>
         <div id="log-panel">
             [System Log]<br>
-            > Initializing system v10.5 (Auto-Weather enabled)...<br>
+            > Initializing system v10.6 (Full City-ID Mapping)...<br>
             > Ready.
         </div>
     </div>
@@ -115,11 +121,13 @@
 </div>
 
 <div id="modal-op">
-    <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; text-align:right;">
-        <button onclick="window.print()" style="background:#2ecc71;">印刷 / PDF保存</button>
-        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c;">閉じる</button>
+    <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; display: flex; justify-content: flex-end; gap: 10px;">
+        <button onclick="window.print()" style="background:#2ecc71; font-weight: bold;">印刷 / PDF保存</button>
+        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c; font-weight: bold;">閉じる</button>
     </div>
-    <div class="op-sheet" id="op-content"></div>
+    <div class="op-container">
+        <div id="op-content"></div>
+    </div>
 </div>
 
 <script>
@@ -133,20 +141,56 @@
     };
     tiles.light.addTo(map);
 
-    // 💡 地点定義表マッピング (提供されたXMLに基づく主要地点)
+    // 💡 完璧な全地点定義表 (142地点)
     const weatherStations = [
-        {id: "016010", name: "札幌", lat: 43.0641, lon: 141.3469},
-        {id: "020010", name: "青森", lat: 40.8243, lon: 140.74},
-        {id: "030010", name: "盛岡", lat: 39.7036, lon: 141.1525},
-        {id: "040010", name: "仙台", lat: 38.2682, lon: 140.8694},
-        {id: "110010", name: "さいたま", lat: 35.8617, lon: 139.6455},
-        {id: "130010", name: "東京", lat: 35.6895, lon: 139.6917},
-        {id: "140010", name: "横浜", lat: 35.4437, lon: 139.638},
-        {id: "230010", name: "名古屋", lat: 35.1815, lon: 136.9064},
-        {id: "270000", name: "大阪", lat: 34.6937, lon: 135.5023},
-        {id: "400010", name: "福岡", lat: 33.5904, lon: 130.4017},
-        {id: "400040", name: "久留米", lat: 33.3192, lon: 130.5083},
-        {id: "471010", name: "那覇", lat: 26.2124, lon: 127.6809}
+        {id:"011000", n:"稚内", lat:45.415, lon:141.673}, {id:"012010", n:"旭川", lat:43.770, lon:142.357}, {id:"012020", n:"留萌", lat:43.935, lon:141.644},
+        {id:"013010", n:"網走", lat:44.020, lon:144.273}, {id:"013020", n:"北見", lat:43.803, lon:143.894}, {id:"013030", n:"紋別", lat:44.356, lon:143.354},
+        {id:"014010", n:"根室", lat:43.330, lon:145.582}, {id:"014020", n:"釧路", lat:42.984, lon:144.381}, {id:"014030", n:"帯広", lat:42.923, lon:143.204},
+        {id:"015010", n:"室蘭", lat:42.315, lon:140.973}, {id:"015020", n:"浦河", lat:42.168, lon:142.771}, {id:"016010", n:"札幌", lat:43.064, lon:141.346},
+        {id:"016020", n:"岩見沢", lat:43.204, lon:141.759}, {id:"016030", n:"倶知安", lat:42.901, lon:140.758}, {id:"017010", n:"函館", lat:41.768, lon:140.729},
+        {id:"017020", n:"江差", lat:41.869, lon:140.127}, {id:"020010", n:"青森", lat:40.824, lon:140.740}, {id:"020020", n:"むつ", lat:41.292, lon:141.183},
+        {id:"020030", n:"八戸", lat:40.512, lon:141.488}, {id:"030010", n:"盛岡", lat:39.703, lon:141.152}, {id:"030020", n:"宮古", lat:39.641, lon:141.946},
+        {id:"030030", n:"大船渡", lat:39.081, lon:141.708}, {id:"040010", n:"仙台", lat:38.268, lon:140.869}, {id:"040020", n:"白石", lat:38.002, lon:140.619},
+        {id:"050010", n:"秋田", lat:39.718, lon:140.102}, {id:"050020", n:"横手", lat:39.311, lon:140.560}, {id:"060010", n:"山形", lat:38.255, lon:140.339},
+        {id:"060020", n:"米沢", lat:37.922, lon:140.116}, {id:"060030", n:"酒田", lat:38.914, lon:139.836}, {id:"060040", n:"新庄", lat:38.762, lon:140.301},
+        {id:"070010", n:"福島", lat:37.760, lon:140.474}, {id:"070020", n:"小名浜", lat:36.941, lon:140.858}, {id:"070030", n:"若松", lat:37.487, lon:139.929},
+        {id:"080010", n:"水戸", lat:36.365, lon:140.471}, {id:"080020", n:"土浦", lat:36.077, lon:140.205}, {id:"090010", n:"宇都宮", lat:36.555, lon:139.882},
+        {id:"090020", n:"大田原", lat:36.871, lon:140.016}, {id:"100010", n:"前橋", lat:36.389, lon:139.062}, {id:"100020", n:"みなかみ", lat:36.782, lon:138.972},
+        {id:"110010", n:"さいたま", lat:35.861, lon:139.645}, {id:"110020", n:"熊谷", lat:36.147, lon:139.388}, {id:"110030", n:"秩父", lat:35.998, lon:139.086},
+        {id:"120010", n:"千葉", lat:35.607, lon:140.123}, {id:"120020", n:"銚子", lat:35.734, lon:140.826}, {id:"120030", n:"館山", lat:34.996, lon:139.863},
+        {id:"130010", n:"東京", lat:35.689, lon:139.691}, {id:"130020", n:"大島", lat:34.750, lon:139.355}, {id:"130030", n:"八丈島", lat:33.114, lon:139.791},
+        {id:"130040", n:"父島", lat:27.094, lon:142.193}, {id:"140010", n:"横浜", lat:35.443, lon:139.638}, {id:"140020", n:"小田原", lat:35.256, lon:139.153},
+        {id:"150010", n:"新潟", lat:37.916, lon:139.036}, {id:"150020", n:"長岡", lat:37.446, lon:138.851}, {id:"150030", n:"高田", lat:37.109, lon:138.243},
+        {id:"150040", n:"相川", lat:38.031, lon:138.240}, {id:"160010", n:"富山", lat:36.695, lon:137.211}, {id:"160020", n:"伏木", lat:36.791, lon:137.054},
+        {id:"170010", n:"金沢", lat:36.561, lon:136.656}, {id:"170020", n:"輪島", lat:37.391, lon:136.899}, {id:"180010", n:"福井", lat:36.064, lon:136.222},
+        {id:"180020", n:"敦賀", lat:35.645, lon:136.061}, {id:"190010", n:"甲府", lat:35.662, lon:138.568}, {id:"190020", n:"河口湖", lat:35.498, lon:138.761},
+        {id:"200010", n:"長野", lat:36.648, lon:138.194}, {id:"200020", n:"松本", lat:36.233, lon:137.971}, {id:"200030", n:"飯田", lat:35.514, lon:137.821},
+        {id:"210010", n:"岐阜", lat:35.423, lon:136.760}, {id:"210020", n:"高山", lat:36.146, lon:137.252}, {id:"220010", n:"静岡", lat:34.975, lon:138.382},
+        {id:"220020", n:"網代", lat:35.044, lon:139.080}, {id:"220030", n:"三島", lat:35.118, lon:138.919}, {id:"220040", n:"浜松", lat:34.703, lon:137.733},
+        {id:"230010", n:"名古屋", lat:35.181, lon:136.906}, {id:"230020", n:"豊橋", lat:34.764, lon:137.387}, {id:"240010", n:"津", lat:34.717, lon:136.508},
+        {id:"240020", n:"尾鷲", lat:34.072, lon:136.191}, {id:"250010", n:"大津", lat:35.017, lon:135.854}, {id:"250020", n:"彦根", lat:35.274, lon:136.259},
+        {id:"260010", n:"京都", lat:35.011, lon:135.768}, {id:"260020", n:"舞鶴", lat:35.474, lon:135.385}, {id:"270000", n:"大阪", lat:34.693, lon:135.502},
+        {id:"280010", n:"神戸", lat:34.690, lon:135.195}, {id:"280020", n:"豊岡", lat:35.441, lon:134.819}, {id:"290010", n:"奈良", lat:34.685, lon:135.832},
+        {id:"290020", n:"風屋", lat:34.120, lon:135.815}, {id:"300010", n:"和歌山", lat:34.226, lon:135.167}, {id:"300020", n:"潮岬", lat:33.433, lon:135.758},
+        {id:"310010", n:"鳥取", lat:35.501, lon:134.235}, {id:"310020", n:"米子", lat:35.432, lon:133.328}, {id:"320010", n:"松江", lat:35.468, lon:133.048},
+        {id:"320020", n:"浜田", lat:34.899, lon:132.079}, {id:"320030", n:"西郷", lat:36.205, lon:133.333}, {id:"330010", n:"岡山", lat:34.661, lon:133.934},
+        {id:"330020", n:"津山", lat:35.060, lon:134.004}, {id:"340010", n:"広島", lat:34.385, lon:132.459}, {id:"340020", n:"庄原", lat:34.858, lon:133.017},
+        {id:"350010", n:"下関", lat:33.957, lon:130.941}, {id:"350020", n:"山口", lat:34.178, lon:131.474}, {id:"350030", n:"柳井", lat:33.963, lon:132.106},
+        {id:"350040", n:"萩", lat:34.408, lon:131.399}, {id:"360010", n:"徳島", lat:34.071, lon:134.551}, {id:"360020", n:"日和佐", lat:33.733, lon:134.533},
+        {id:"370000", n:"高松", lat:34.342, lon:134.046}, {id:"380010", n:"松山", lat:33.839, lon:132.765}, {id:"380020", n:"新居浜", lat:33.960, lon:133.283},
+        {id:"380030", n:"宇和島", lat:33.223, lon:132.558}, {id:"390010", n:"高知", lat:33.559, lon:133.531}, {id:"390020", n:"室戸岬", lat:33.246, lon:134.175},
+        {id:"390030", n:"清水", lat:32.775, lon:132.958}, {id:"400010", n:"福岡", lat:33.590, lon:130.401}, {id:"400020", n:"八幡", lat:33.856, lon:130.793},
+        {id:"400030", n:"飯塚", lat:33.645, lon:130.686}, {id:"400040", n:"久留米", lat:33.319, lon:130.508}, {id:"410010", n:"佐賀", lat:33.263, lon:130.300},
+        {id:"410020", n:"伊万里", lat:33.266, lon:129.879}, {id:"420010", n:"長崎", lat:32.750, lon:129.877}, {id:"420020", n:"佐世保", lat:33.179, lon:129.715},
+        {id:"420030", n:"厳原", lat:34.204, lon:129.288}, {id:"420040", n:"福江", lat:32.700, lon:128.841}, {id:"430010", n:"熊本", lat:32.803, lon:130.707},
+        {id:"430020", n:"阿蘇乙姫", lat:32.956, lon:131.025}, {id:"430030", n:"牛深", lat:32.193, lon:130.024}, {id:"430040", n:"人吉", lat:32.211, lon:130.755},
+        {id:"440010", n:"大分", lat:33.238, lon:131.612}, {id:"440020", n:"中津", lat:33.598, lon:131.188}, {id:"440030", n:"日田", lat:33.321, lon:130.941},
+        {id:"440040", n:"佐伯", lat:32.960, lon:131.899}, {id:"450010", n:"宮崎", lat:31.907, lon:131.420}, {id:"450020", n:"延岡", lat:32.582, lon:131.666},
+        {id:"450030", n:"都城", lat:31.720, lon:131.061}, {id:"450040", n:"高千穂", lat:32.711, lon:131.309}, {id:"460010", n:"鹿児島", lat:31.596, lon:130.557},
+        {id:"460020", n:"鹿屋", lat:31.378, lon:130.852}, {id:"460030", n:"種子島", lat:30.741, lon:130.983}, {id:"460040", n:"名瀬", lat:28.378, lon:129.492},
+        {id:"471010", n:"那覇", lat:26.212, lon:127.680}, {id:"471020", n:"名護", lat:26.591, lon:127.977}, {id:"471030", n:"久米島", lat:26.348, lon:126.772},
+        {id:"472000", n:"南大東", lat:25.847, lon:131.229}, {id:"473000", n:"宮古島", lat:24.797, lon:125.281}, {id:"474010", n:"石垣島", lat:24.341, lon:124.156},
+        {id:"474020", n:"与那国島", lat:24.467, lon:122.991}
     ];
 
     window.gtfsDB = { trips: [], stops: {}, stopTimes: {}, routes: {} };
@@ -166,9 +210,8 @@
         b.innerText = isShow ? 'ログ表示' : 'ログ隠す';
     }
 
-    // 💡 座標から最寄りの観測地点IDを自動計算
     function getNearestCityId(lat, lon) {
-        let minDest = Infinity, cityId = "130010"; // Default Tokyo
+        let minDest = Infinity, cityId = "130010";
         weatherStations.forEach(s => {
             const d = Math.sqrt(Math.pow(lat - s.lat, 2) + Math.pow(lon - s.lon, 2));
             if(d < minDest) { minDest = d; cityId = s.id; }
@@ -185,12 +228,12 @@
             const f = data.forecasts[0];
             const toast = document.getElementById('weather-toast');
             toast.innerHTML = `
-                <div style="font-size:12px; color:#666;">最寄地点: ${data.location.city} (${cityId})</div>
-                <div style="font-size:14px; font-weight:bold; margin:5px 0;">${stationName} 付近の天気</div>
-                <img src="${f.image.url}" width="50" style="vertical-align:middle;">
-                <span style="font-size:18px; font-weight:bold;">${f.telop}</span>
-                <div style="font-size:12px; margin-top:5px;">最高: <span style="color:red;">${f.temperature.max.celsius || '--'}℃</span> / 降水: ${f.chanceOfRain.T12_18}</div>
-                <button onclick="this.parentElement.style.display='none'" style="margin-top:10px; padding:3px 10px; background:#666; color:#fff;">閉じる</button>
+                <div style="font-size:11px; color:#666;">最寄: ${data.location.city} (${cityId})</div>
+                <div style="font-size:14px; font-weight:bold; margin:3px 0;">${stationName} の天気</div>
+                <img src="${f.image.url}" width="45" style="vertical-align:middle;">
+                <span style="font-size:16px; font-weight:bold;">${f.telop}</span>
+                <div style="font-size:11px; margin-top:3px;">気温: <span style="color:red;">${f.temperature.max.celsius || '--'}℃</span> / 降水: ${f.chanceOfRain.T12_18}</div>
+                <button onclick="this.parentElement.style.display='none'" style="margin-top:8px; padding:2px 8px; background:#666; color:#fff; font-size:10px;">閉じる</button>
             `;
             toast.style.display = 'block';
         } catch(e) { addLog(`Weather API Error: ${e}`); }
@@ -215,9 +258,7 @@
                 fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
                 fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
             ]);
-            Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
-                if(r.route_id) window.gtfsDB.routes[r.route_id] = r;
-            });
+            Papa.parse(rt.trim(), { header: true }).data.forEach(r => { if(r.route_id) window.gtfsDB.routes[r.route_id] = r; });
             window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
             Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
             Papa.parse(st.trim(), { header: true }).data.forEach(x => {
@@ -237,8 +278,7 @@
     }
 
     function renderTrips(f) {
-        const list = document.getElementById("trip-list");
-        list.innerHTML = "";
+        const list = document.getElementById("trip-list"); list.innerHTML = "";
         const query = (f || "").toLowerCase();
         window.gtfsDB.trips.filter(t => {
             const tripMatch = t.trip_id.toLowerCase().includes(query);
@@ -264,8 +304,7 @@
     }
 
     window.updateUI = (geo_s, time_s) => {
-        const timeRaw = JSON.parse(time_s);
-        const geoPoints = JSON.parse(geo_s);
+        const timeRaw = JSON.parse(time_s); const geoPoints = JSON.parse(geo_s);
         const consolidated = []; const mapObj = {};
         timeRaw.forEach(s => {
             if(!mapObj[s.code]) {
@@ -302,8 +341,7 @@
             if(ds < ms) { ms = ds; si = idx; }
             if(de < me) { me = de; ei = idx; }
         });
-        if(si > ei) [si, ei] = [ei, si];
-        return points.slice(si, ei + 1);
+        if(si > ei) [si, ei] = [ei, si]; return points.slice(si, ei + 1);
     }
 
     function formatTime(t) {
@@ -317,25 +355,27 @@
         if(!currentTimeline.length) return;
         const content = document.getElementById("op-content");
         content.innerHTML = `
-            <div style="text-align:right; font-size:10px;">WB-OCC v10.5 / 基準日: ${document.getElementById("base_date").value}</div>
-            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
-            <div style="margin: 15px 0;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
+            <div style="text-align:right; font-size:10px; color:#444; margin-bottom:5mm;">WB-OCC v10.6 / 基準日: ${document.getElementById("base_date").value}</div>
+            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px; margin-bottom:20px;">輸送列車順序資料</h2>
+            <div style="margin: 15px 0; font-size: 14px;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
-                <thead><tr style="background:#eee;">
-                    <th style="border:1px solid #000; padding:8px;">駅コード</th>
-                    <th style="border:1px solid #000; padding:8px;">停車駅</th>
-                    <th style="border:1px solid #000; padding:8px;">到着時刻</th>
-                    <th style="border:1px solid #000; padding:8px;">出発時刻</th>
+                <thead><tr style="background:#f0f0f0;">
+                    <th style="border:1px solid #000; padding:10px;">駅コード</th>
+                    <th style="border:1px solid #000; padding:10px;">停車駅</th>
+                    <th style="border:1px solid #000; padding:10px;">到着時刻</th>
+                    <th style="border:1px solid #000; padding:10px;">出発時刻</th>
                 </tr></thead>
                 <tbody>${currentTimeline.map(s => `<tr>
-                    <td style="border:1px solid #000; padding:8px; text-align:center; font-family:monospace;">${s.code}</td>
-                    <td style="border:1px solid #000; padding:8px;"><b>${s.name}</b></td>
-                    <td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td>
-                    <td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td>
+                    <td style="border:1px solid #000; padding:10px; text-align:center; font-family:monospace;">${s.code}</td>
+                    <td style="border:1px solid #000; padding:10px;"><b>${s.name}</b></td>
+                    <td style="border:1px solid #000; padding:10px; text-align:center;">${s.arrD}</td>
+                    <td style="border:1px solid #000; padding:10px; text-align:center;">${s.depD}</td>
                 </tr>`).join("")}</tbody>
             </table>
         `;
-        document.getElementById("modal-op").style.display = "block";
+        const modal = document.getElementById("modal-op");
+        modal.style.display = "block";
+        modal.scrollTop = 0; // 💡 表示時にトップへ戻す
     }
 
     function createDic() {
