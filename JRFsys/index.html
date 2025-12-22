@@ -134,22 +134,25 @@ import js
 import json
 from pyodide.http import pyfetch
 
-# Google Drive ID
+# Google Drive ID (ここを実際のIDに書き換えてください)
 GOOGLE_DRIVE_FILE_ID = "YOUR_GOOGLE_DRIVE_FILE_ID_HERE"
+# uc?export=download は直リンクとして動作します
 SHAPES_URL = f"https://docs.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
 
-async def analyze_freight_data(trip_id):
+# --- log関数を外に出すことで、どこからでも呼べるように修正 ---
+def log(msg):
     console_el = js.document.getElementById("console")
-    loading_el = js.document.getElementById("loading")
-    loading_el.style.display = "flex"
-    
-    def log(msg):
+    if console_el:
         div = js.document.createElement("div")
         div.innerText = f">> {msg}"
         console_el.appendChild(div)
         console_el.scrollTop = console_el.scrollHeight
 
-    # 継走解析
+async def analyze_freight_data(trip_id):
+    loading_el = js.document.getElementById("loading")
+    loading_el.style.display = "flex"
+    
+    # 継走解析のログ表示
     log(f"PARSING MULTI-TRIP ID: {trip_id}")
     chain_parts = trip_id.split('_')
     log(f"DETECTED {len(chain_parts)} SEGMENTS IN CHAIN.")
@@ -159,22 +162,35 @@ async def analyze_freight_data(trip_id):
     log(f"TRAIN NUMBER SEQUENCE: {' -> '.join(train_nums)}")
 
     try:
+        # tripsDataはJavaScript側のグローバル変数から取得
         trips = js.tripsData.to_py()
         target = next((t for t in trips if t['trip_id'] == trip_id), None)
         
         if not target:
-            log("ERROR: DATA NOT FOUND")
+            log("ERROR: DATA NOT FOUND IN trips.txt")
             loading_el.style.display = "none"
             return
 
-        sid = target['shape_id']
-        log(f"FETCHING SHAPE_ID: {sid} FROM CLOUD...")
+        sid = target.get('shape_id')
+        if not sid:
+            log("ERROR: この列車には shape_id が設定されていません。")
+            loading_el.style.display = "none"
+            return
 
+        log(f"FETCHING SHAPE_ID: {sid} FROM GOOGLE DRIVE...")
+
+        # Google Driveからデータを取得
         res = await pyfetch(SHAPES_URL)
+        if not res.ok:
+            log(f"ERROR: Google Driveへのアクセス失敗 (Status: {res.status})")
+            loading_el.style.display = "none"
+            return
+
         text = await res.string()
         lines = text.strip().split('\n')
         header = [x.strip() for x in lines[0].split(',')]
         
+        # 各カラムのインデックスを特定
         idx_id = header.index('shape_id')
         idx_lat = header.index('shape_pt_lat')
         idx_lon = header.index('shape_pt_lon')
@@ -183,6 +199,7 @@ async def analyze_freight_data(trip_id):
         coords = []
         for line in lines[1:]:
             cols = line.split(',')
+            # shape_id が一致する行だけを抽出
             if len(cols) > idx_id and cols[idx_id] == sid:
                 coords.append({
                     'lat': float(cols[idx_lat]),
@@ -190,16 +207,22 @@ async def analyze_freight_data(trip_id):
                     'seq': int(cols[idx_seq])
                 })
 
+        # 順序通りにソートしてリスト化
         coords.sort(key=lambda x: x['seq'])
         final_list = [[p['lat'], p['lon']] for p in coords]
         
-        log(f"SUCCESS: {len(final_list)} COORDINATES LOADED.")
-        js.window.update_map_route(json.dumps(final_list))
+        if len(final_list) == 0:
+            log(f"WARNING: shape_id {sid} に一致する座標が shapes.txt 内に見つかりません。")
+        else:
+            log(f"SUCCESS: {len(final_list)} COORDINATES LOADED.")
+            # JavaScriptの地図更新関数を呼び出し
+            js.window.update_map_route(json.dumps(final_list))
 
     except Exception as e:
         log(f"CRITICAL ERROR: {str(e)}")
         loading_el.style.display = "none"
 
+# 起動時のメッセージ（log関数が外にあるので正常に動作します）
 log("PYTHON ENGINE LOADED. WAITING FOR COMMAND.")
 </py-script>
 
