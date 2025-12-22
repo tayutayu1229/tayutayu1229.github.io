@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC: Strategic Railway Operations Terminal v4.8</title>
+    <title>WB-OCC: Strategic Railway Operations Terminal v4.9</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -14,122 +14,59 @@
     <style>
         :root {
             --bg-deep: #00050a; --panel-bg: #001226; --border-blue: #004d99;
-            --accent-red: #ff2b56; --active-green: #00ffcc; --warn-gold: #ffcc00;
-            --text-main: #e0f2f7; --font-mono: "Consolas", "Roboto Mono", monospace;
+            --accent-red: #ff2b56; --active-green: #00ffcc; --text-main: #e0f2f7; --font-mono: "Consolas", "Roboto Mono", monospace;
         }
-
-        body {
-            margin: 0; font-family: var(--font-mono); background: var(--bg-deep);
-            color: var(--text-main); display: flex; flex-direction: column;
-            height: 100vh; overflow: hidden;
-        }
-
-        /* --- Header Section --- */
-        header {
-            height: 60px; background: linear-gradient(90deg, var(--panel-bg), #002b5c);
-            border-bottom: 2px solid var(--border-blue); display: flex;
-            justify-content: space-between; align-items: center; padding: 0 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 1000;
-        }
-        .brand { display: flex; align-items: center; gap: 15px; }
+        body { margin: 0; font-family: var(--font-mono); background: var(--bg-deep); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { height: 60px; background: linear-gradient(90deg, var(--panel-bg), #002b5c); border-bottom: 2px solid var(--border-blue); display: flex; justify-content: space-between; align-items: center; padding: 0 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 1000; }
         .logo-box { padding: 5px 10px; border: 2px solid var(--accent-red); color: var(--accent-red); font-weight: 900; font-size: 20px; text-shadow: 0 0 10px var(--accent-red); }
-        .status-pill { font-size: 10px; background: var(--border-blue); padding: 4px 12px; border-radius: 15px; color: var(--active-green); border: 1px solid var(--active-green); }
-
-        /* --- Main Layout --- */
         #main-wrapper { display: flex; flex: 1; overflow: hidden; padding: 10px; gap: 10px; }
-
-        /* Left: Selection Panel */
         #panel-left { width: 350px; background: var(--panel-bg); border: 1px solid var(--border-blue); display: flex; flex-direction: column; }
-        .p-head { background: var(--border-blue); padding: 10px; font-size: 12px; font-weight: bold; letter-spacing: 2px; }
+        .p-head { background: var(--border-blue); padding: 10px; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
         .search-box { padding: 15px; background: rgba(0,0,0,0.5); }
         #q_input { width: 100%; background: #000; border: 1px solid var(--border-blue); color: var(--active-green); padding: 12px; font-size: 14px; outline: none; }
-        #trip-list { flex: 1; overflow-y: auto; scrollbar-width: thin; }
-        .trip-item { padding: 15px; border-bottom: 1px solid rgba(0,77,153,0.3); cursor: pointer; transition: all 0.3s; }
-        .trip-item:hover { background: rgba(0,255,204,0.05); }
+        #trip-list { flex: 1; overflow-y: auto; }
+        .trip-item { padding: 15px; border-bottom: 1px solid rgba(0,77,153,0.3); cursor: pointer; }
         .trip-item.active { background: var(--border-blue); border-left: 8px solid var(--accent-red); }
-        .t-id { font-weight: bold; font-size: 14px; color: var(--active-green); }
-        .t-route { display: block; font-size: 12px; margin-top: 6px; color: #fff; }
-
-        /* Center: Tactical Map */
         #panel-center { flex: 1; border: 1px solid var(--border-blue); position: relative; }
         #map { height: 100%; width: 100%; background: #000; }
-        .map-tools { position: absolute; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 5px; }
-        .tool-btn { background: rgba(0,20,40,0.8); border: 1px solid var(--border-blue); color: #fff; padding: 8px; cursor: pointer; font-size: 10px; }
-
-        /* Right: Analysis Panel */
         #panel-right { width: 400px; background: var(--panel-bg); border: 1px solid var(--border-blue); display: flex; flex-direction: column; }
         #station-feed { flex: 1; overflow-y: auto; padding: 20px; }
-        .node { position: relative; padding-left: 35px; padding-bottom: 25px; border-left: 1px solid var(--border-blue); margin-left: 10px; }
-        .node::after { content: ""; position: absolute; left: -6px; top: 0; width: 10px; height: 10px; background: var(--bg-deep); border: 2px solid var(--active-green); border-radius: 50%; }
-        .node.selected::after { background: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); border-color: #fff; }
-        .node-name { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
-        .node-time { font-size: 12px; color: var(--active-green); display: flex; gap: 10px; }
-        
-        /* Stats & Logs */
+        .node { position: relative; padding-left: 35px; padding-bottom: 25px; border-left: 1px solid var(--border-blue); margin-left: 10px; cursor: pointer; }
+        .node::after { content: ""; position: absolute; left: -6px; top: 0; width: 100px; width: 10px; height: 10px; background: var(--bg-deep); border: 2px solid var(--active-green); border-radius: 50%; }
         #summary-stats { height: 180px; background: rgba(0,0,0,0.6); padding: 15px; border-top: 1px solid var(--border-blue); font-size: 12px; }
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .stat-item { border-left: 2px solid var(--active-green); padding-left: 8px; }
         #log-monitor { height: 120px; background: #000; color: var(--active-green); font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--border-blue); }
-
-        /* Overlays */
         #boot-loader { position: fixed; inset: 0; background: var(--bg-deep); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        .glitch-text { font-size: 18px; letter-spacing: 5px; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
 <body>
 
 <div id="boot-loader">
     <div style="width: 80px; height: 80px; border: 4px solid var(--border-blue); border-top-color: var(--accent-red); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-    <div class="glitch-text" style="margin-top: 30px;">RECONSTRUCTING DATA MAP...</div>
+    <div style="margin-top: 30px; color: #fff;">FETCHING CLOUD GEOMETRY...</div>
 </div>
 
 <header>
-    <div class="brand">
-        <div class="logo-box">WB-OCC</div>
-        <div style="display: flex; flex-direction: column;">
-            <span style="font-size: 14px; font-weight: bold;">WEB-BASED OPERATIONS CONTROL CENTER</span>
-            <span style="font-size: 9px; opacity: 0.6;">STRATEGIC RAILWAY ANALYTICS TERMINAL v4.8</span>
-        </div>
-    </div>
-    <div style="display: flex; align-items: center; gap: 20px;">
-        <div id="kernel-status" class="status-pill">PY-KERNEL: STANDBY</div>
-        <div id="live-clock" style="font-size: 18px; font-weight: bold; color: var(--active-green);">00:00:00</div>
-    </div>
+    <div class="brand"><div class="logo-box">WB-OCC</div><div style="margin-left:15px; font-size:14px;">COMMAND TERMINAL v4.9</div></div>
+    <div id="live-clock" style="color: var(--active-green); font-weight: bold;">00:00:00</div>
 </header>
 
 <div id="main-wrapper">
     <div id="panel-left">
-        <div class="p-head">▼ TARGET ACQUISITION / TRIPS</div>
-        <div class="search-box">
-            <input type="text" id="q_input" placeholder="TRIP ID FILTER...">
-        </div>
+        <div class="p-head">▼ TARGET ACQUISITION</div>
+        <div class="search-box"><input type="text" id="q_input" placeholder="TRIP ID FILTER..."></div>
         <div id="trip-list"></div>
     </div>
-
-    <div id="panel-center">
-        <div id="map"></div>
-        <div class="map-tools">
-            <button class="tool-btn" onclick="map.setView([36, 138], 5)">RESET VIEW</button>
-            <div id="coord-display" style="background: rgba(0,0,0,0.8); padding: 5px; font-size: 10px; border: 1px solid var(--border-blue);">LAT: -- LON: --</div>
-        </div>
-    </div>
-
+    <div id="panel-center"><div id="map"></div></div>
     <div id="panel-right">
         <div class="p-head">▼ OPERATION TIMELINE</div>
         <div id="station-feed"></div>
-        <div class="p-head">▼ TELEMETRY SUMMARY</div>
-        <div id="summary-stats">
-            <div id="stats-content">WAITING FOR SELECTION...</div>
-        </div>
+        <div id="summary-stats">SELECT A TRIP TO ANALYZE.</div>
     </div>
 </div>
-
 <div id="log-monitor"></div>
 
 <script>
-    // --- JavaScript Module ---
-    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([36, 138], 5);
+    const map = L.map('map', { zoomControl: false }).setView([36, 138], 5);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
     let routeGroup = L.layerGroup().addTo(map);
     let markerGroup = L.layerGroup().addTo(map);
@@ -138,48 +75,37 @@
 
     function pushLog(msg, type="INFO") {
         const mon = document.getElementById("log-monitor");
-        const entry = document.createElement("div");
-        entry.style.color = type === "ERROR" ? "var(--accent-red)" : "var(--active-green)";
-        entry.innerHTML = `[${new Date().toLocaleTimeString()}] [${type}] ${msg}`;
-        mon.appendChild(entry); mon.scrollTop = mon.scrollHeight;
+        mon.innerHTML += `<div>[${new Date().toLocaleTimeString()}] [${type}] ${msg}</div>`;
+        mon.scrollTop = mon.scrollHeight;
     }
 
     async function loadResources() {
-        pushLog("Starting resource synchronization...");
         try {
             const files = ['trips', 'stops', 'stop_times'];
             for (const f of files) {
                 const response = await fetch(`./${f}.txt`);
-                const csvText = await response.text();
-                window.gtfsDB[f] = Papa.parse(csvText.trim(), { header: true, skipEmptyLines: true }).data;
-                pushLog(`File synchronized: ${f}.txt (${window.gtfsDB[f].length} records)`);
+                const text = await response.text();
+                window.gtfsDB[f] = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
             }
             refreshList("");
-        } catch (e) {
-            pushLog(`Critical Sync Error: ${e.message}`, "ERROR");
-        }
+        } catch (e) { pushLog(e.message, "ERROR"); }
     }
 
     function refreshList(filter) {
         const container = document.getElementById("trip-list");
         container.innerHTML = "";
-        const filtered = window.gtfsDB.trips.filter(t => t.trip_id.includes(filter)).slice(0, 100);
-        
-        filtered.forEach(t => {
-            const stopsForTrip = window.gtfsDB.stop_times.filter(st => st.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
-            let section = "---";
-            if(stopsForTrip.length > 1) {
-                const sName = window.gtfsDB.stops.find(s => s.stop_id === stopsForTrip[0].stop_id)?.stop_name || "??";
-                const eName = window.gtfsDB.stops.find(s => s.stop_id === stopsForTrip[stopsForTrip.length-1].stop_id)?.stop_name || "??";
+        window.gtfsDB.trips.filter(t => t.trip_id.includes(filter)).slice(0, 80).forEach(t => {
+            const stops = window.gtfsDB.stop_times.filter(st => st.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
+            let section = "Unknown";
+            if(stops.length > 1) {
+                const sName = window.gtfsDB.stops.find(s => s.stop_id === stops[0].stop_id)?.stop_name;
+                const eName = window.gtfsDB.stops.find(s => s.stop_id === stops[stops.length-1].stop_id)?.stop_name;
                 section = `${sName} 〜 ${eName}`;
             }
-
             const div = document.createElement("div");
             div.className = "trip-item";
-            div.innerHTML = `<span class="t-id">${t.trip_id}</span><span class="t-route">${section}</span>`;
+            div.innerHTML = `<div style="color:var(--active-green); font-weight:bold;">${t.trip_id}</div><div style="font-size:12px;">${section}</div>`;
             div.onclick = () => {
-                document.querySelectorAll(".trip-item").forEach(i => i.classList.remove("active"));
-                div.classList.add("active");
                 document.getElementById("boot-loader").style.display = "flex";
                 window.dispatchEvent(new CustomEvent("start-analysis", { detail: t.trip_id }));
             };
@@ -191,46 +117,27 @@
         const geo = JSON.parse(geo_json);
         const timeline = JSON.parse(timeline_json);
         const meta = JSON.parse(meta_json);
-
         routeGroup.clearLayers(); markerGroup.clearLayers();
-        
         if(geo.length > 0) {
-            L.polyline(geo, { color: 'var(--accent-red)', weight: 5, opacity: 0.8 }).addTo(routeGroup);
+            L.polyline(geo, { color: 'var(--accent-red)', weight: 4 }).addTo(routeGroup);
             map.fitBounds(L.polyline(geo).getBounds(), { padding: [50, 50] });
         }
-
         const feed = document.getElementById("station-feed");
         feed.innerHTML = "";
         timeline.forEach(s => {
             const div = document.createElement("div");
             div.className = "node";
-            div.innerHTML = `<div class="node-name">${s.name}</div><div class="node-time"><span>ARR: ${s.arr}</span><span>DEP: ${s.dep}</span></div>`;
-            div.onclick = () => {
-                map.flyTo([s.lat, s.lon], 14);
-                document.querySelectorAll(".node").forEach(n => n.classList.remove("selected"));
-                div.classList.add("selected");
-            };
+            div.innerHTML = `<div>${s.name}</div><div style="font-size:11px; color:var(--active-green);">${s.arr} / ${s.dep}</div>`;
+            div.onclick = () => map.flyTo([s.lat, s.lon], 14);
             feed.appendChild(div);
-            L.circleMarker([s.lat, s.lon], { radius: 6, color: 'var(--active-green)', fillOpacity: 1 }).addTo(markerGroup).bindPopup(s.name);
+            L.circleMarker([s.lat, s.lon], { radius: 5, color: '#00ffcc' }).addTo(markerGroup);
         });
-
-        document.getElementById("summary-stats").innerHTML = `
-            <div style="color:var(--active-green); font-weight:bold; border-bottom:1px solid var(--border-blue); padding-bottom:5px;">ANALYSIS COMPLETE</div>
-            <div class="stat-grid">
-                <div class="stat-item"><div class="metric-label">TRIP_ID</div><div style="font-size:11px">${meta.id}</div></div>
-                <div class="stat-item"><div class="metric-label">DISTANCE</div><div style="font-size:18px; font-weight:bold">${meta.dist.toFixed(2)} km</div></div>
-                <div class="stat-item"><div class="metric-label">STATIONS</div><div>${meta.count} nodes</div></div>
-                <div class="stat-item"><div class="metric-label">AVG SPEED</div><div>${(meta.dist / 2).toFixed(1)} km/h (est)</div></div>
-            </div>
-        `;
+        document.getElementById("summary-stats").innerHTML = `TRIP: ${meta.id}<br>DISTANCE: ${meta.dist.toFixed(2)} km<br>STATUS: COMPLETED`;
         document.getElementById("boot-loader").style.display = "none";
-        pushLog(`UI updated for Trip: ${meta.id}`);
     };
 
-    document.getElementById("q_input").addEventListener("input", e => refreshList(e.target.value));
-    map.on("mousemove", e => { document.getElementById("coord-display").innerText = `LAT: ${e.latlng.lat.toFixed(4)} LON: ${e.latlng.lng.toFixed(4)}`; });
+    document.getElementById("q_input").oninput = (e) => refreshList(e.target.value);
     setInterval(() => { document.getElementById("live-clock").innerText = new Date().toLocaleTimeString(); }, 1000);
-    
     loadResources();
 </script>
 
@@ -239,75 +146,61 @@ import js, json, math, re
 from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 
-GD_ID = "12uumDK-VYglG26_33nkMhcVjfUaFLdrE"
-SHAPES_URL = f"https://docs.google.com/spreadsheets/d/{GD_ID}/export?format=csv"
-
-def log_py(m, l="INFO"): js.pushLog(f"[PY] {m}", l)
+# --- ⚠️ 重要：ここを書き換えてください ⚠️ ---
+# フォルダIDではなく、shapes.txt自体のファイルIDを入れてください
+FILE_ID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x" # 例: 実際のIDに書き換えて
+SHAPES_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
 async def process_analysis(event):
     tid = event.detail
-    log_py(f"Initiating analysis for {tid}")
     try:
         db = js.window.gtfsDB
         trip_data = next((t for t in db.trips.to_py() if t['trip_id'] == tid), None)
-        if not trip_data: raise Exception("Invalid Trip ID")
         sid = trip_data.get('shape_id')
 
-        # 1. Timeline Extraction
+        # 1. Timeline
         st_list = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
         timeline = []
         for entry in st_list:
             stop_info = next((s for s in db.stops.to_py() if s['stop_id'] == entry['stop_id']), None)
-            timeline.append({
-                "name": stop_info['stop_name'], "arr": entry['arrival_time'], "dep": entry['departure_time'],
-                "lat": float(stop_info['stop_lat']), "lon": float(stop_info['stop_lon'])
-            })
+            timeline.append({"name": stop_info['stop_name'], "arr": entry['arrival_time'], "dep": entry['departure_time'], "lat": float(stop_info['stop_lat']), "lon": float(stop_info['stop_lon'])})
 
-        # 2. Cloud Geometry Fetch (Ultra-Robust Parser)
-        log_py(f"Accessing cloud shapes for SID: {sid}")
+        # 2. Shapes Fetch
+        js.pushLog(f"Fetching CSV from: {SHAPES_URL}")
         res = await pyfetch(SHAPES_URL)
         content = await res.string()
         
-        # Normalize line endings and remove BOM
-        content = content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n')
-        rows = content.strip().split('\n')
-        
-        # Header normalization with Regex for extra safety
-        header = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in rows[0].split(',')]
-        log_py(f"Parsed headers: {header}")
+        # HTMLが返ってきていないかチェック
+        if "<!DOCTYPE html>" in content or "<html" in content:
+            raise Exception("URL returned HTML instead of CSV. Check FILE_ID and Permissions.")
 
-        idx_map = { key: header.index(key) for key in ['shape_id', 'shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence'] }
+        rows = content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
+        header = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in rows[0].split(',')]
+        
+        idx = { 'id': header.index('shape_id'), 'lat': header.index('shape_pt_lat'), 'lon': header.index('shape_pt_lon'), 'seq': header.index('shape_pt_sequence') }
         
         geo_points = []
         for r in rows[1:]:
             cells = [c.strip() for c in r.split(',')]
-            if len(cells) > idx_map['shape_id'] and cells[idx_map['shape_id']] == sid:
-                geo_points.append([float(cells[idx_map['lat']]), float(cells[idx_map['lon']]), int(cells[idx_map['seq']])])
+            if len(cells) > idx['id'] and cells[idx['id']] == sid:
+                geo_points.append([float(cells['lat']), float(cells['lon']), int(cells['seq'])])
         
         geo_points.sort(key=lambda x: x[2])
         final_geo = [[p[0], p[1]] for p in geo_points]
 
-        # 3. Distance Analytics (Haversine)
+        # 3. Distance
         total_m = 0
         for i in range(len(final_geo)-1):
             p1, p2 = final_geo[i], final_geo[i+1]
-            phi1, phi2 = math.radians(p1[0]), math.radians(p2[0])
-            dphi, dlam = math.radians(p2[0]-p1[0]), math.radians(p2[1]-p1[1])
-            a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
-            total_m += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+            total_m += 6371 * 2 * math.asin(math.sqrt(math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2))
 
-        # Callback to JS
         js.window.finalizeUI(json.dumps(final_geo), json.dumps(timeline), json.dumps({"id": tid, "dist": total_m, "count": len(timeline)}))
-        log_py("Analysis sequence complete.")
 
     except Exception as e:
-        log_py(f"Process Failure: {str(e)}", "ERROR")
+        js.pushLog(f"CRITICAL ERROR: {str(e)}", "ERROR")
         js.document.getElementById('boot-loader').style.display = 'none'
 
-# Register Listener
 js.window.addEventListener("start-analysis", create_proxy(process_analysis))
-js.document.getElementById("kernel-status").innerText = "PY-KERNEL: ONLINE"
-log_py("Operational intelligence core initialized.")
 </py-script>
 
 </body>
