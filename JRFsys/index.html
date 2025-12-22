@@ -2,48 +2,48 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.0</title>
+    <title>WB-OCC 運行管理 v10.1</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        :root { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
-        body.light-mode { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
+        :root { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
+        body.dark-mode { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background 0.3s; }
         header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); }
         #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
         .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
-        .panel-title { background: rgba(0,0,0,0.1); padding: 8px 12px; font-size: 13px; font-weight: bold; border-bottom: 1px solid var(--border); }
+        .panel-title { background: rgba(0,0,0,0.05); padding: 8px 12px; font-size: 13px; font-weight: bold; border-bottom: 1px solid var(--border); }
         .control-box { padding: 10px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
         input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px; font-size: 13px; border-radius: 4px; }
         #trip-list { flex: 1; overflow-y: auto; }
         .trip-card { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 4px solid transparent; }
-        .trip-card:hover { background: rgba(0,120,212,0.1); }
-        .trip-card.active { background: var(--accent); color: #fff; border-left-color: #fff; }
+        .trip-card:hover { background: rgba(0,90,158,0.1); }
+        .trip-card.active { background: var(--accent); color: #fff; border-left-color: var(--accent); }
         .card-relay { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
         .card-range { font-size: 11px; color: #3498db; }
-        .relay-area { padding: 12px; background: rgba(0,120,212,0.1); border-bottom: 1px solid var(--border); }
+        .relay-area { padding: 12px; background: rgba(0,90,158,0.05); border-bottom: 1px solid var(--border); }
         .relay-text { font-size: 15px; font-weight: bold; color: var(--accent); }
         .st-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .st-table th { background: rgba(0,0,0,0.2); position: sticky; top: 0; padding: 10px 8px; text-align: left; }
+        .st-table th { background: rgba(0,0,0,0.05); position: sticky; top: 0; padding: 10px 8px; text-align: left; }
         .st-table td { padding: 8px; border-bottom: 1px solid var(--border); }
         #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px; overflow-y: auto; }
-        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; }
-        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; }
+        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
         .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
         button { padding: 8px 12px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-size: 12px; border-radius: 4px; }
         #loader { position: fixed; top: 60px; right: 20px; background: #f1c40f; color: #000; padding: 6px 12px; display: none; z-index: 10001; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
-<body>
+<body class="light-mode">
 <div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.0</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.1</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -51,7 +51,7 @@
             <option value="standard">通常地図</option>
             <option value="sat">衛星写真</option>
         </select>
-        <button onclick="toggleTheme()">モード切替</button>
+        <button onclick="toggleTheme()">背景色切替 (白/黒)</button>
         <div id="clock">00:00:00</div>
     </div>
 </header>
@@ -62,12 +62,12 @@
         <div class="control-box">
             <input type="date" id="base_date">
             <select id="route_filter" onchange="renderTrips(document.getElementById('q_input').value)"><option value="">全ての方面</option></select>
-            <input type="text" id="q_input" placeholder="列車番号または駅名...">
+            <input type="text" id="q_input" placeholder="列車番号または駅名..." oninput="renderTrips(this.value)">
         </div>
         <div id="trip-list"></div>
     </div>
     <div class="panel">
-        <div class="panel-title">位置モニタ (排他的描画ロジック)</div>
+        <div class="panel-title">位置モニタ (道路/線路 排他描画)</div>
         <div id="map" style="flex:1;"></div>
     </div>
     <div class="panel">
@@ -106,41 +106,46 @@
         light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
         sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
     };
-    tiles.dark.addTo(map);
+    tiles.light.addTo(map);
 
     window.gtfsDB = { trips: [], stops: {}, stopTimes: {}, routes: {} };
     let currentTripId = "";
     let currentTimeline = [];
 
-    function toggleTheme() { document.body.classList.toggle('light-mode'); updateMapLayers(); }
+    function toggleTheme() { 
+        document.body.classList.toggle('dark-mode'); 
+        updateMapLayers(); 
+    }
     function updateMapLayers() {
-        const isL = document.body.classList.contains('light-mode');
+        const isDark = document.body.classList.contains('dark-mode');
         const m = document.getElementById('map-mode').value;
         Object.values(tiles).forEach(t => map.removeLayer(t));
-        if (m === 'sat') tiles.sat.addTo(map); else tiles[isL ? 'light' : 'dark'].addTo(map);
+        if (m === 'sat') tiles.sat.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
     }
 
     async function init() {
         document.getElementById("loader").style.display = "block";
         document.getElementById('base_date').valueAsDate = new Date();
-        const [tr, st, s, rt] = await Promise.all([
-            fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
-            fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
-        ]);
-        Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
-            if(r.route_id) {
-                window.gtfsDB.routes[r.route_id] = r;
-                const opt = document.createElement('option'); opt.value = r.route_id; opt.innerText = r.route_long_name;
-                document.getElementById('route_filter').appendChild(opt);
-            }
-        });
-        window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
-        Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
-        Papa.parse(st.trim(), { header: true }).data.forEach(x => {
-            if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
-            window.gtfsDB.stopTimes[x.trip_id].push(x);
-        });
-        createDic(); renderTrips("");
+        try {
+            const [tr, st, s, rt] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
+                fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
+            ]);
+            Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
+                if(r.route_id) {
+                    window.gtfsDB.routes[r.route_id] = r;
+                    const opt = document.createElement('option'); opt.value = r.route_id; opt.innerText = r.route_long_name;
+                    document.getElementById('route_filter').appendChild(opt);
+                }
+            });
+            window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
+            Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
+            Papa.parse(st.trim(), { header: true }).data.forEach(x => {
+                if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
+                window.gtfsDB.stopTimes[x.trip_id].push(x);
+            });
+            createDic(); renderTrips("");
+        } catch(e) { console.error("Data Load Error", e); }
         document.getElementById("loader").style.display = "none";
     }
 
@@ -153,6 +158,7 @@
     }
 
     function parseRelay(tid, timeline) {
+        if(!tid) return "-";
         const parts = tid.split('_').slice(2);
         return parts.map((p, i) => {
             const sName = (i === 0 && timeline && timeline.length > 0) ? timeline[0].name : "";
@@ -164,7 +170,8 @@
         const list = document.getElementById("trip-list");
         list.innerHTML = "";
         const rf = document.getElementById('route_filter').value;
-        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(f.toLowerCase()))
+        const query = (f || "").toLowerCase();
+        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(query))
         .slice(0, 50).forEach(t => {
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
@@ -190,12 +197,11 @@
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
 
-        // 駅集約
         const consolidated = [];
         const mapObj = {};
         timeRaw.forEach(s => {
             if(!mapObj[s.code]) {
-                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon, seq: s.seq };
+                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon, id: s.id };
                 consolidated.push(mapObj[s.code]);
             }
             if(s.id.startsWith('C')) mapObj[s.code].arr = s.arr;
@@ -207,21 +213,15 @@
 
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // 💡 修正：道路と線路を被らせない描画ロジック
-        // 全経路を1区間ずつ判定して排他的に描画
+        // 💡 修正：全経路描画を廃止し、区間ごとに排他的にのみ描画する
         for (let i = 0; i < currentTimeline.length - 1; i++) {
-            const sNode = currentTimeline[i];
-            const eNode = currentTimeline[i+1];
-            
-            // Shapesデータからこの駅間に該当する座標を抽出（簡易的な距離計算によるスライス）
-            const segmentPoints = extractSegment(geoPoints, sNode, eNode);
-            const isRoad = sNode.name.includes("オフレール") || eNode.name.includes("オフレール") || sNode.name.includes("営業所") || eNode.name.includes("営業所");
+            const s = currentTimeline[i], e = currentTimeline[i+1];
+            const segmentPoints = extractSegment(geoPoints, s, e);
+            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || s.name.includes("営業所") || e.name.includes("営業所");
 
             if (isRoad) {
-                // 道路区間：青太線のみ
                 L.polyline(segmentPoints, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
             } else {
-                // 線路区間：黒白点線のみ
                 L.polyline(segmentPoints, { color: '#000', weight: 6 }).addTo(map);
                 L.polyline(segmentPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
             }
@@ -240,18 +240,16 @@
         document.getElementById("loader").style.display = "none";
     };
 
-    // 補助関数：Shapesから特定区間を抜き出す
     function extractSegment(points, start, end) {
-        let startIndex = 0, endIndex = points.length - 1;
-        let minStart = Infinity, minEnd = Infinity;
+        let si = 0, ei = points.length - 1, ms = Infinity, me = Infinity;
         points.forEach((p, idx) => {
-            let dStart = Math.pow(p[0]-start.lat, 2) + Math.pow(p[1]-start.lon, 2);
-            let dEnd = Math.pow(p[0]-end.lat, 2) + Math.pow(p[1]-end.lon, 2);
-            if(dStart < minStart) { minStart = dStart; startIndex = idx; }
-            if(dEnd < minEnd) { minEnd = dEnd; endIndex = idx; }
+            let ds = Math.pow(p[0]-start.lat, 2) + Math.pow(p[1]-start.lon, 2);
+            let de = Math.pow(p[0]-end.lat, 2) + Math.pow(p[1]-end.lon, 2);
+            if(ds < ms) { ms = ds; si = idx; }
+            if(de < me) { me = de; ei = idx; }
         });
-        if(startIndex > endIndex) [startIndex, endIndex] = [endIndex, startIndex];
-        return points.slice(startIndex, endIndex + 1);
+        if(si > ei) [si, ei] = [ei, si];
+        return points.slice(si, ei + 1);
     }
 
     function formatTime(t, base) {
@@ -261,16 +259,46 @@
         return (d > 0 ? `+${d}d ` : "") + `${String(h%24).padStart(2,'0')}:${p[1]}`;
     }
 
+    function showOpSheet() {
+        if(!currentTimeline.length) return;
+        const content = document.getElementById("op-content");
+        content.innerHTML = `
+            <div style="text-align:right; font-size:10px;">WB-OCC v10.1 / ${new Date().toLocaleString()}</div>
+            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">貨物列車 運行順序表</h2>
+            <p><b>継走番号:</b> ${document.getElementById("relay-text").innerText}</p>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="background:#eee;">
+                    <th style="border:1px solid #000; padding:8px;">駅コード</th>
+                    <th style="border:1px solid #000; padding:8px;">停車駅</th>
+                    <th style="border:1px solid #000; padding:8px;">到着時刻</th>
+                    <th style="border:1px solid #000; padding:8px;">出発時刻</th>
+                </tr></thead>
+                <tbody>${currentTimeline.map(s => `
+                    <tr>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.code}</td>
+                        <td style="border:1px solid #000; padding:8px;"><b>${s.name}</b></td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td>
+                    </tr>`).join("")}</tbody>
+            </table>
+        `;
+        document.getElementById("modal-op").style.display = "block";
+    }
+
     function createDic() {
         const list = document.getElementById("dic-list");
         const stops = Object.values(window.gtfsDB.stops).sort((a,b) => (a.stop_code||"").localeCompare(b.stop_code||""));
         stops.forEach(s => {
-            if(!s.stop_code || s.stop_code === "undefined") return;
+            if(!s.stop_code) return;
             const div = document.createElement("div"); div.className = "dic-item";
             div.innerHTML = `<b>${s.stop_code}</b> <span>${s.stop_name}</span>`;
             div.onclick = () => { document.getElementById("q_input").value = s.stop_name; renderTrips(s.stop_name); toggleDic(); };
             list.appendChild(div);
         });
+    }
+    function filterDic() {
+        const q = document.getElementById("dic_search").value.toLowerCase();
+        Array.from(document.getElementsByClassName("dic-item")).forEach(i => i.style.display = i.innerText.toLowerCase().includes(q) ? "flex" : "none");
     }
     function toggleDic() { const d = document.getElementById("modal-dic"); d.style.display = d.style.display === "block" ? "none" : "block"; }
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
@@ -299,8 +327,7 @@ async def process(event):
                 "arr": str(r.get('arrival_time', "None")),
                 "dep": str(r.get('departure_time', "None")),
                 "lat": float(s.get('stop_lat', 0)), 
-                "lon": float(s.get('stop_lon', 0)),
-                "seq": int(r['stop_sequence'])
+                "lon": float(s.get('stop_lon', 0))
             })
         js.window.updateUI(data['geo'], json.dumps(timeline))
     except Exception as e:
