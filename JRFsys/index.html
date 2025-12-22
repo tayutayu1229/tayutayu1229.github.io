@@ -2,94 +2,118 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JRF-GTFS 運行指令システム</title>
+    <title>JRF-GTFS 運行指令システム (Google Drive 連携版)</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     
     <style>
         :root { --jrf-red: #d32f2f; --jrf-dark: #000033; --console-bg: #1a1a1a; }
-        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #444; color: #eee; display: flex; flex-direction: column; height: 100vh; }
+        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #444; color: #eee; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* ヘッダー：鉄道指令室風 */
-        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .system-title { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); display: flex; justify-content: space-between; align-items: center; }
+        .system-title { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
 
         #layout { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
         
-        /* 左：コントロールパネル */
+        /* 左パネル: 検索とリスト */
         #side { width: 320px; background: #ccc; color: #000; border: 2px inset #fff; display: flex; flex-direction: column; }
         .panel-label { background: var(--jrf-dark); color: #fff; padding: 4px 8px; font-size: 11px; }
-        .control-group { padding: 15px; border-bottom: 1px solid #999; }
-        input { width: 100%; padding: 8px; border: 2px inset #fff; font-family: monospace; font-size: 14px; margin-bottom: 10px; }
+        .search-area { padding: 10px; background: #bbb; }
+        #q_input { width: 100%; padding: 8px; border: 2px inset #fff; box-sizing: border-box; }
         
-        /* Pythonトリガースイッチ */
-        .btn-execute { background: #eee; border: 3px outset #fff; padding: 10px; cursor: pointer; font-weight: bold; width: 100%; color: var(--jrf-red); font-size: 14px; }
-        .btn-execute:active { border: 3px inset #fff; }
+        #trip-list { flex: 1; overflow-y: scroll; background: white; border-top: 1px solid #999; }
+        .trip-row { padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 13px; }
+        .trip-row:hover { background: #ffffaa; }
+        .trip-row.active { background: var(--jrf-dark); color: white; }
 
-        /* 右：メイン表示エリア */
+        /* 右パネル: 地図とログ */
         #main-view { flex: 1; display: flex; flex-direction: column; gap: 4px; }
         #map { flex: 1; border: 2px inset #fff; background: #cad7d0; }
+        #console { height: 160px; background: var(--console-bg); color: #00ff00; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; }
         
-        /* 下：Pythonコンソールログ */
-        #console { height: 180px; background: var(--console-bg); color: #00ff00; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; line-height: 1.4; }
-        .log-entry { border-bottom: 1px dotted #333; margin-bottom: 4px; }
+        .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
     </style>
 </head>
 <body>
 
+<div id="loading" class="loading-overlay">
+    <div style="font-size:20px; color:white; margin-bottom:10px;">Python処理中...</div>
+    <div style="color:white;">Google Driveから高精度形状を読み込んでいます</div>
+</div>
+
 <header>
-    <div class="system-title">■ JR-FREIGHT TRAIN MONITORING SYSTEM (VER 2025.03)</div>
-    <div id="status-clock" style="font-family: monospace;">STATUS: RUNNING</div>
+    <div class="system-title">■ JR-FREIGHT HIGH-PRECISION MONITORING SYSTEM</div>
+    <div id="status" style="font-size:12px;">Initializing Python...</div>
 </header>
 
 <div id="layout">
     <div id="side">
-        <div class="panel-label">ANALYSIS PARAMETERS (Python)</div>
-        <div class="control-group">
-            <label style="font-size:12px; font-weight:bold;">ENTER TRIP ID:</label>
-            <input type="text" id="trip_input" value="1012_1025_209200_2093" placeholder="列車IDを入力...">
-            
-            <button class="btn-execute" py-click="analyze_freight_data">EXECUTE PYTHON SCRIPT</button>
+        <div class="panel-label">列車検索 (TRIP_ID)</div>
+        <div class="search-area">
+            <input type="text" id="q_input" placeholder="列車番号を入力...">
         </div>
-        
-        <div style="padding:15px; font-size:11px;">
-            <p>■ 処理工程:<br>
-            1. txtファイルをPythonでスキャン<br>
-            2. 停車駅(stop_sequence)を特定<br>
-            3. 座標を結合し、地図へ反映</p>
-        </div>
+        <div id="trip-list"></div>
     </div>
 
     <div id="main-view">
         <div id="map"></div>
-        <div class="panel-label">SYSTEM CONSOLE LOG</div>
-        <div id="console">
-            <div class="log-entry">>> [BOOT] System ready. Initializing Python runtime...</div>
-        </div>
+        <div class="panel-label">PYTHON CONSOLE OUTPUT</div>
+        <div id="console"></div>
     </div>
 </div>
 
 <script>
-    // Leaflet 地図初期化
-    const map = L.map('map').setView([43.5, 144.0], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    // 1. 地図初期化
+    const map = L.map('map').setView([38, 138], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     let drawLayer = L.layerGroup().addTo(map);
 
-    // Pythonから地図を操作するための関数
-    window.update_map_route = (points_json, trip_id) => {
+    let tripsData = [];
+
+    // 2. 初期データ(trips.txt)読み込み
+    async function initTrips() {
+        const res = await fetch('trips.txt');
+        const text = await res.text();
+        tripsData = Papa.parse(text.trim(), { header: true, skipEmptyLines: true }).data;
+        renderList("");
+    }
+
+    function renderList(filter) {
+        const list = document.getElementById('trip-list');
+        list.innerHTML = '';
+        tripsData.filter(t => t.trip_id.includes(filter)).forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'trip-row';
+            div.innerHTML = `<strong>${t.trip_id}</strong><br><small>${t.trip_headsign}方面</small>`;
+            div.onclick = () => {
+                document.querySelectorAll('.trip-row').forEach(r => r.classList.remove('active'));
+                div.classList.add('active');
+                // Python関数を呼び出し
+                const pyFunc = pyscript.interpreter.globals.get('analyze_freight_data');
+                pyFunc(t.trip_id);
+            };
+            list.appendChild(div);
+        });
+    }
+
+    document.getElementById('q_input').oninput = (e) => renderList(e.target.value);
+
+    // Pythonから呼ばれる描画関数
+    window.update_map_route = (points_json) => {
         const points = JSON.parse(points_json);
         drawLayer.clearLayers();
-        
         if (points.length > 0) {
-            // 路線を描画
-            const poly = L.polyline(points, {color: 'red', weight: 4, dashArray: '10, 5'}).addTo(drawLayer);
-            // 各駅にマーカー
-            points.forEach(p => L.circleMarker(p, {radius: 5, color: '#003', fillOpacity: 1}).addTo(drawLayer));
-            map.fitBounds(poly.getBounds());
+            const poly = L.polyline(points, {color: '#d32f2f', weight: 5, opacity: 0.8}).addTo(drawLayer);
+            points.forEach(p => L.circleMarker(p, {radius: 4, color: '#003', fillOpacity: 1}).addTo(drawLayer));
+            map.fitBounds(poly.getBounds(), {padding: [50, 50]});
         }
+        document.getElementById('loading').style.display = 'none';
     };
+
+    initTrips();
 </script>
 
 <py-script>
@@ -97,55 +121,73 @@ import js
 import json
 from pyodide.http import pyfetch
 
-async def analyze_freight_data(event):
+# 【重要】ここにGoogle DriveのファイルIDを入れてください
+# 例: 1a2b3c4d5e6f...
+GOOGLE_DRIVE_FILE_ID = "2uumDK-VYglG26_33nkMhcVjfUaFLdrE"
+SHAPES_URL = f"https://docs.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
+
+async def analyze_freight_data(trip_id):
     console_el = js.document.getElementById("console")
-    trip_id = js.document.getElementById("trip_input").value
+    loading_el = js.document.getElementById("loading")
+    loading_el.style.display = "flex"
     
     def log(msg):
         div = js.document.createElement("div")
-        div.className = "log-entry"
         div.innerText = f">> [PY] {msg}"
         console_el.appendChild(div)
         console_el.scrollTop = console_el.scrollHeight
 
-    log(f"START ANALYSIS: TRIP_ID = {trip_id}")
+    log(f"分析開始: {trip_id}")
 
     try:
-        # 1. 各txtをフェッチしてパース (簡易的に処理)
-        async def get_data(file):
-            response = await pyfetch(f"./{file}.txt")
-            text = await response.string()
-            lines = text.strip().split('\n')
-            header = lines[0].split(',')
-            return [dict(zip(header, line.split(','))) for line in lines[1:]]
-
-        log("Loading stop_times.txt...")
-        stop_times = await get_data("stop_times")
+        # 1. trips.txt の読み込み (JSからデータを借りる)
+        trips = js.tripsData.to_py()
+        target = next((t for t in trips if t['trip_id'] == trip_id), None)
         
-        log("Loading stops.txt...")
-        stops = await get_data("stops")
+        if not target or 'shape_id' not in target:
+            log("ERROR: shape_idが見つかりません。")
+            loading_el.style.display = "none"
+            return
 
-        # 2. 該当する列車の駅を抽出
-        my_stops = [s for s in stop_times if s['trip_id'] == trip_id]
-        my_stops.sort(key=lambda x: int(x['stop_sequence']))
+        sid = target['shape_id']
+        log(f"Shape ID: {sid} をGoogle Driveからスキャン中...")
+
+        # 2. Google Driveからshapesを取得
+        res = await pyfetch(SHAPES_URL)
+        if not res.ok:
+            raise Exception("Google Driveへの接続に失敗しました。共有設定を確認してください。")
+            
+        # 巨大ファイルを1行ずつ処理してメモリ節約
+        text = await res.string()
+        lines = text.strip().split('\n')
+        header = [x.strip() for x in lines[0].split(',')]
         
-        log(f"Found {len(my_stops)} stations in sequence.")
+        idx_id = header.index('shape_id')
+        idx_lat = header.index('shape_pt_lat')
+        idx_lon = header.index('shape_pt_lon')
+        idx_seq = header.index('shape_pt_sequence')
 
-        # 3. 座標をリスト化
         coords = []
-        for ms in my_stops:
-            stop_info = next((s for s in stops if s['stop_id'] == ms['stop_id']), None)
-            if stop_info:
-                coords.append([float(stop_info['stop_lat']), float(stop_info['stop_lon'])])
-                log(f"STATION: {stop_info.get('stop_name', 'Unknown')} ({ms['arrival_time']})")
+        for line in lines[1:]:
+            cols = line.split(',')
+            if len(cols) > idx_id and cols[idx_id] == sid:
+                coords.append({
+                    'lat': float(cols[idx_lat]),
+                    'lon': float(cols[idx_lon]),
+                    'seq': int(cols[idx_seq])
+                })
 
-        # 4. JavaScript経由で地図を更新
-        js.window.update_map_route(json.dumps(coords), trip_id)
-        log("SUCCESS: Route rendered on map.")
+        coords.sort(key=lambda x: x['seq'])
+        final_list = [[p['lat'], p['lon']] for p in coords]
+        
+        log(f"完了: {len(final_list)} 地点を描画します。")
+        js.window.update_map_route(json.dumps(final_list))
 
     except Exception as e:
-        log(f"ERROR: {str(e)}")
+        log(f"CRITICAL ERROR: {str(e)}")
+        loading_el.style.display = "none"
 
+js.document.getElementById("status").innerText = "SYSTEM READY (Python Engine Online)"
 </py-script>
 
 </body>
