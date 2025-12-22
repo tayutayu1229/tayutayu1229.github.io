@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.3</title>
+    <title>WB-OCC 運行管理 v10.4</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -32,17 +32,23 @@
         .st-table td { padding: 8px; border-bottom: 1px solid var(--border); }
         .weather-btn { font-size: 10px; background: #2ecc71; color: white; border: none; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; }
 
-        #log-panel { height: 100px; background: #000; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
+        /* システムログ：文字色を白へ、初期非表示 */
+        #log-panel { display: none; height: 100px; background: #000; color: #ffffff; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
 
+        /* 天気視覚化ポップアップ */
+        #weather-toast { display: none; position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 2000; border: 2px solid var(--accent); min-width: 250px; text-align: center; }
+
+        /* モーダル & 印刷設定修正 */
         #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px; overflow-y: auto; }
-        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; }
+        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; position: relative; }
         
+        @page { size: A4; margin: 0; }
         @media print {
             body * { visibility: hidden; }
             #modal-op, #modal-op * { visibility: visible; }
-            #modal-op { position: absolute; left: 0; top: 0; width: 100%; background: none; padding: 0; margin: 0; }
+            #modal-op { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: white; padding: 0; margin: 0; }
             .no-print { display: none !important; }
-            .op-sheet { box-shadow: none; border: none; width: 100%; margin: 0; padding: 0; }
+            .op-sheet { box-shadow: none; border: none; width: 210mm; margin: 0 auto; padding: 15mm; }
         }
 
         #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; }
@@ -55,9 +61,10 @@
 <body class="light-mode">
 <div id="loader">データ処理中...</div>
 <header>
-    <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.3</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.4</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
+        <button id="log-toggle-btn" onclick="toggleLog()" style="background:#444;">ログ表示</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
         <select id="map-mode" onchange="updateMapLayers()">
@@ -77,16 +84,17 @@
         <div class="control-box">
             <input type="date" id="base_date">
             <select id="route_filter" onchange="renderTrips(document.getElementById('q_input').value)"><option value="">全ての方面</option></select>
-            <input type="text" id="q_input" placeholder="列車番号または駅名..." oninput="renderTrips(this.value)">
+            <input type="text" id="q_input" placeholder="列車番号または停車駅名..." oninput="renderTrips(this.value)">
         </div>
         <div id="trip-list"></div>
     </div>
-    <div class="panel">
-        <div class="panel-title">位置モニタ & 気象連携</div>
+    <div class="panel" style="position:relative;">
+        <div class="panel-title">位置モニタ</div>
+        <div id="weather-toast"></div>
         <div id="map" style="flex:1;"></div>
         <div id="log-panel">
             [System Log]<br>
-            > Initializing system v10.3 (Weather Integrated)...<br>
+            > Initializing system v10.4...<br>
             > Ready.
         </div>
     </div>
@@ -140,30 +148,41 @@
         log.scrollTop = log.scrollHeight;
     }
 
-    // 💡 天気API連携ロジック (tsukumijima API互換)
+    function toggleLog() {
+        const p = document.getElementById('log-panel');
+        const b = document.getElementById('log-toggle-btn');
+        const isShow = p.style.display === 'block';
+        p.style.display = isShow ? 'none' : 'block';
+        b.innerText = isShow ? 'ログ表示' : 'ログ隠す';
+    }
+
     async function fetchWeather(lat, lon, stationName) {
-        addLog(`Weather fetching for ${stationName}...`);
+        addLog(`Weather fetching: ${stationName}...`);
         try {
-            // 最寄りの地点IDを特定するロジック（実際には座標から近傍のcityIDを引く辞書が必要ですが、ここでは気象庁の代表地点をサンプルとして使用）
-            // 開発用ダミーロジック: 実際には全国地点定義表との突合が必要
-            const cityId = "130010"; // デフォルト東京
-            const response = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${cityId}`);
-            const data = await response.json();
+            const cityId = "130010"; // 地点辞書は今後の拡張ポイント
+            const res = await fetch(`https://weather.tsukumijima.net/api/forecast/city/${cityId}`);
+            const data = await res.json();
+            const f = data.forecasts[0];
             
-            const today = data.forecasts[0];
-            const info = `【${stationName}の天気】今日: ${today.telop} (最高 ${today.temperature.max.celsius || '--'}℃) 降水確率: ${today.chanceOfRain.T12_18}`;
-            addLog(info);
-            return info;
+            const toast = document.getElementById('weather-toast');
+            toast.innerHTML = `
+                <div style="font-size:14px; font-weight:bold; margin-bottom:5px;">${stationName} の気象情報</div>
+                <img src="${f.image.url}" width="50" style="vertical-align:middle;">
+                <span style="font-size:18px; font-weight:bold;">${f.telop}</span>
+                <div style="font-size:12px; margin-top:5px;">最高気温: <span style="color:red;">${f.temperature.max.celsius || '--'}℃</span> / 降水確率: ${f.chanceOfRain.T12_18}</div>
+                <button onclick="this.parentElement.style.display='none'" style="margin-top:10px; padding:3px 10px; background:#666;">閉じる</button>
+            `;
+            toast.style.display = 'block';
+            addLog(`Weather: ${f.telop} (${f.temperature.max.celsius}C)`);
         } catch(e) {
             addLog(`Weather API Error: ${e}`);
-            return "天気情報の取得に失敗しました。";
         }
     }
 
     function toggleTheme() { document.body.classList.toggle('dark-mode'); updateMapLayers(); }
     function updateMapLayers() {
-        const isDark = document.body.classList.contains('dark-mode');
         const mode = document.getElementById('map-mode').value;
+        const isDark = document.body.classList.contains('dark-mode');
         Object.values(tiles).forEach(t => map.removeLayer(t));
         if (mode === 'sat') tiles.sat.addTo(map);
         else if (mode === 'osm') tiles.osm.addTo(map);
@@ -193,7 +212,6 @@
                 window.gtfsDB.stopTimes[x.trip_id].push(x);
             });
             createDic(); renderTrips("");
-            addLog("System initialized. All features active.");
         } catch(e) { addLog(`Init Error: ${e}`); }
         document.getElementById("loader").style.display = "none";
     }
@@ -210,7 +228,18 @@
         list.innerHTML = "";
         const rf = document.getElementById('route_filter').value;
         const query = (f || "").toLowerCase();
-        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(query))
+        
+        window.gtfsDB.trips.filter(t => {
+            if (rf !== "" && t.route_id !== rf) return false;
+            // 💡 修正：列車番号だけでなく、その列車の停車駅名も検索対象にする
+            const tripNoMatch = t.trip_id.toLowerCase().includes(query);
+            const st = window.gtfsDB.stopTimes[t.trip_id] || [];
+            const stationMatch = st.some(sTime => {
+                const sName = window.gtfsDB.stops[sTime.stop_id]?.stop_name || "";
+                return sName.toLowerCase().includes(query);
+            });
+            return tripNoMatch || stationMatch;
+        })
         .slice(0, 50).forEach(t => {
             const st = window.gtfsDB.stopTimes[t.trip_id] || [];
             const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
@@ -225,7 +254,6 @@
 
     async function loadTrip(t) {
         currentTripId = t.trip_id;
-        addLog(`Loading: ${t.trip_id}`);
         document.getElementById("loader").style.display = "block";
         const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
         window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
@@ -235,7 +263,6 @@
         const timeRaw = JSON.parse(time_s);
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
-
         const consolidated = [];
         const mapObj = {};
         timeRaw.forEach(s => {
@@ -252,33 +279,23 @@
 
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // 排他描画
         for (let i = 0; i < currentTimeline.length - 1; i++) {
             const s = currentTimeline[i], e = currentTimeline[i+1];
             const seg = extractSegment(geoPoints, s, e);
             const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || s.name.includes("営業所") || e.name.includes("営業所");
             if (isRoad) L.polyline(seg, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
-            else {
-                L.polyline(seg, { color: '#000', weight: 6 }).addTo(map);
-                L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
-            }
+            else { L.polyline(seg, { color: '#000', weight: 6 }).addTo(map); L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map); }
         }
         
         currentTimeline.forEach(s => {
             const m = L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map);
-            m.bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">この駅の天気を取得</button>`);
+            m.bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">気象情報表示</button>`);
         });
         
         map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
-        
-        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `
-            <tr>
-                <td style="font-family:monospace;">${s.code}</td>
-                <td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td>
-                <td style="text-align:center;">${s.arrD}</td>
-                <td style="text-align:center;">${s.depD}</td>
-            </tr>`).join("");
+        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr><td>${s.code}</td><td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td><td style="text-align:center;">${s.arrD}</td><td style="text-align:center;">${s.depD}</td></tr>`).join("");
         document.getElementById("loader").style.display = "none";
+        addLog(`Loaded Trip: ${currentTripId}`);
     };
 
     function extractSegment(points, start, end) {
@@ -304,7 +321,7 @@
         if(!currentTimeline.length) return;
         const content = document.getElementById("op-content");
         content.innerHTML = `
-            <div style="text-align:right; font-size:10px;">WB-OCC v10.3 / 基準日: ${document.getElementById("base_date").value}</div>
+            <div style="text-align:right; font-size:10px;">WB-OCC v10.4 / 基準日: ${document.getElementById("base_date").value}</div>
             <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
             <div style="margin: 15px 0;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
@@ -315,7 +332,7 @@
                     <th style="border:1px solid #000; padding:8px;">出発時刻</th>
                 </tr></thead>
                 <tbody>${currentTimeline.map(s => `<tr>
-                    <td style="border:1px solid #000; padding:8px; text-align:center;">${s.code}</td>
+                    <td style="border:1px solid #000; padding:8px; text-align:center; font-family:monospace;">${s.code}</td>
                     <td style="border:1px solid #000; padding:8px;"><b>${s.name}</b></td>
                     <td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td>
                     <td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td>
@@ -355,7 +372,7 @@ async def process(event):
         st_data = db.stopTimes.to_py()
         st_list = sorted(st_data[tid], key=lambda x: int(x['stop_sequence']))
         stops = db.stops.to_py()
-        timeline = [{"id":str(r['stop_id']),"name":str(stops.get(r['stop_id'],{}).get('stop_name',"-")),"code":str(stops.get(r['stop_id'],{}).get('stop_code',"-")),"arr":str(r.get('arrival_time',"None")),"dep":str(r.get('departure_time',"None")),"lat":float(stops.get(r['stop_id'],{}).get('stop_lat',0)),"lon":float(stops.get(r['stop_id'],{}).get('stop_lat',0))} for r in st_list]
+        timeline = [{"id":str(r['stop_id']),"name":str(stops.get(r['stop_id'],{}).get('stop_name',"-")),"code":str(stops.get(r['stop_id'],{}).get('stop_code',"-")),"arr":str(r.get('arrival_time',"None")),"dep":str(r.get('departure_time',"None")),"lat":float(stops.get(r['stop_id'],{}).get('stop_lat',0)),"lon":float(stops.get(r['stop_id'],{}).get('stop_lon',0))} for r in st_list]
         js.window.updateUI(data['geo'], json.dumps(timeline))
     except Exception as e:
         js.console.error(str(e))
