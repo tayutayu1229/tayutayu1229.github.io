@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v9.8</title>
+    <title>WB-OCC 運行管理 v9.9</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -43,7 +43,7 @@
 <div id="loader">地図データ生成中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:20px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.8</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v9.9</span>
         <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -67,7 +67,7 @@
         <div id="trip-list"></div>
     </div>
     <div class="panel">
-        <div class="panel-title">位置モニタ (区間別種別判定)</div>
+        <div class="panel-title">位置モニタ (Shape高精度再現)</div>
         <div id="map" style="flex:1;"></div>
     </div>
     <div class="panel">
@@ -144,6 +144,7 @@
         document.getElementById("loader").style.display = "none";
     }
 
+    // 0削り、b→便、ORS判定機能保持
     function formatTripNo(no, stopName) {
         let clean = no.replace(/^0+/, ''); 
         if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
@@ -190,23 +191,34 @@
         const geoPoints = JSON.parse(geo_s);
         const bDate = document.getElementById('base_date').value;
 
-        currentTimeline = timeRaw.map(s => ({ ...s, arrD: formatTime(s.arr, bDate), depD: formatTime(s.dep, bDate) }));
+        // 💡 同一駅（stop_code）の集約ロジック
+        const consolidated = [];
+        const mapObj = {};
+        timeRaw.forEach(s => {
+            if(!mapObj[s.code]) {
+                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon };
+                consolidated.push(mapObj[s.code]);
+            }
+            if(s.id.startsWith('C')) mapObj[s.code].arr = s.arr;
+            if(s.id.startsWith('T')) mapObj[s.code].dep = s.dep;
+        });
+
+        currentTimeline = consolidated.map(s => ({ ...s, arrD: formatTime(s.arr, bDate), depD: formatTime(s.dep, bDate) }));
         document.getElementById("relay-text").innerText = parseRelay(currentTripId, currentTimeline);
 
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
 
-        // 💡 区間ごとの描画ロジック
+        // 💡 Shapes経路を維持した描き分け
+        // 高精度の全経路を黒白点線で描き、その上に道路区間（青太線）を駅位置ベースで重ねる
+        L.polyline(geoPoints, { color: '#000', weight: 6 }).addTo(map);
+        L.polyline(geoPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
+
         for (let i = 0; i < currentTimeline.length - 1; i++) {
             const s = currentTimeline[i], e = currentTimeline[i+1];
-            // ジオメトリの中からこの区間に該当する部分を近似的に抽出（簡易化のため直線または形状分割が必要だが、ここでは属性で分ける）
-            const segment = [[s.lat, s.lon], [e.lat, e.lon]];
             const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || s.name.includes("営業所") || e.name.includes("営業所");
-
             if (isRoad) {
-                L.polyline(segment, { color: '#0078d4', weight: 8, opacity: 0.7 }).addTo(map);
-            } else {
-                L.polyline(segment, { color: '#000', weight: 6 }).addTo(map);
-                L.polyline(segment, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
+                // 道路区間は直線的に強調（または近傍点探索が必要だが業務上は強調で十分）
+                L.polyline([[s.lat, s.lon], [e.lat, e.lon]], { color: '#0078d4', weight: 8, opacity: 0.7 }).addTo(map);
             }
         }
         
@@ -217,8 +229,8 @@
             <tr>
                 <td style="font-family:monospace;">${s.code}</td>
                 <td><b>${s.name}</b></td>
-                <td style="text-align:center;">${s.id.startsWith('C') ? s.arrD : ' - '}</td>
-                <td style="text-align:center;">${s.id.startsWith('T') ? s.depD : ' - '}</td>
+                <td style="text-align:center;">${s.arrD}</td>
+                <td style="text-align:center;">${s.depD}</td>
             </tr>`).join("");
         document.getElementById("loader").style.display = "none";
     };
@@ -262,9 +274,9 @@ async def process(event):
         for r in st_list:
             s = stops.get(r['stop_id'], {})
             timeline.append({
-                "id": str(r['stop_id']), # C1012, T1012などのID
+                "id": str(r['stop_id']),
                 "name": str(s.get('stop_name', "-")), 
-                "code": str(s.get('stop_code', "-")), # 駅コード（1012など）
+                "code": str(s.get('stop_code', "-")),
                 "arr": str(r.get('arrival_time', "None")),
                 "dep": str(r.get('departure_time', "None")),
                 "lat": float(s.get('stop_lat', 0)), 
