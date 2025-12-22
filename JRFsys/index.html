@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC 運行管理 v10.8 [Complete Edition]</title>
+    <title>WB-OCC 運行管理 v11.0 [Complete]</title>
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,7 +33,7 @@
         #weather-toast { display: none; position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 2000; border: 2px solid var(--accent); min-width: 250px; text-align: center; }
         #modal-op { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow-y: auto; padding: 20px; }
         .op-container { background: white; width: 210mm; margin: 0 auto; min-height: 297mm; padding: 15mm; position: relative; color: #000; }
-        #log-panel { display: none; height: 100px; background: #000; color: #ffffff; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
+        #log-panel { display: none; height: 120px; background: #000; color: #00ff00; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); white-space: pre-wrap; }
         @media print {
             body * { visibility: hidden; }
             #modal-op, #modal-op * { visibility: visible; }
@@ -47,7 +47,7 @@
 <div id="loader" style="position:fixed; top:60px; right:20px; background:#f1c40f; color:#000; padding:6px 12px; display:none; z-index:10001; font-weight:bold; border-radius:4px;">データ処理中...</div>
 <header>
     <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.8</span>
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v11.0</span>
         <button id="log-toggle-btn" onclick="toggleLog()" style="background:#444;">ログ表示</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center;">
@@ -104,7 +104,7 @@
 </div>
 
 <script>
-    // 💡 方面データの完全復元
+    // --- 1. 方面データの完全復元 ---
     const masterRoutes = [
         {id:"11", name:"北海道-北海道"}, {id:"12", name:"北海道-東北"}, {id:"13", name:"北海道-関東"},
         {id:"14", name:"北海道-東海"}, {id:"15", name:"北海道-関西"}, {id:"16", name:"北海道-九州"},
@@ -115,7 +115,7 @@
         {id:"55", name:"関西-関西"}, {id:"56", name:"関西-九州"}, {id:"66", name:"九州-九州"}
     ];
 
-    // 💡 天気地点定義の完全実装 (142地点)
+    // --- 2. 天気地点定義 (142地点) ---
     const weatherStations = [
         {id:"011000", n:"稚内", lat:45.415, lon:141.673}, {id:"012010", n:"旭川", lat:43.770, lon:142.357}, {id:"012020", n:"留萌", lat:43.935, lon:141.644},
         {id:"013010", n:"網走", lat:44.020, lon:144.273}, {id:"013020", n:"北見", lat:43.803, lon:143.894}, {id:"013030", n:"紋別", lat:44.356, lon:143.354},
@@ -167,9 +167,9 @@
         {id:"474020", n:"与那国島", lat:24.467, lon:122.991}
     ];
 
-    // 💡 道路・便の判定用
+    // --- 3. 道路判定・レ便判定用 ---
     const roadKeywords = ["オフレール", "営業所", "ORS"];
-    const roadExcludeStops = ["テスト除外駅"]; // 除外したい駅名はここへ
+    const roadExcludeStops = ["テスト除外駅"]; 
 
     const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
     const tiles = {
@@ -185,8 +185,16 @@
     let currentTripId = "";
     let currentTimeline = [];
 
+    function logger(msg) {
+        const p = document.getElementById('log-panel');
+        const now = new Date().toLocaleTimeString();
+        p.innerText += `[${now}] ${msg}\n`;
+        p.scrollTop = p.scrollHeight;
+    }
+
     async function init() {
         document.getElementById("loader").style.display = "block";
+        logger("システム起動: データを読み込みます...");
         document.getElementById('base_date').valueAsDate = new Date();
         const rf = document.getElementById("route_filter");
         masterRoutes.forEach(r => {
@@ -203,11 +211,13 @@
                 if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
                 window.gtfsDB.stopTimes[x.trip_id].push(x);
             });
+            logger("GTFSデータロード完了。検索可能です。");
             renderTrips("");
-        } catch(e) { console.error(e); }
+        } catch(e) { logger(`ロード失敗: ${e.message}`); }
         document.getElementById("loader").style.display = "none";
     }
 
+    // --- 4. 厳格な判定 (レ/便) ---
     function formatTripNo(no, stationName) {
         let clean = no.replace(/^0+/, '').replace('b','');
         if (clean.length > 4) clean = clean.substring(0, clean.length - 2);
@@ -216,7 +226,9 @@
         return isRoad ? clean + "便" : clean + "レ";
     }
 
+    // --- 5. 天気予報取得 ---
     async function fetchWeather(lat, lon, stationName) {
+        logger(`${stationName} の最寄気象台を検索中...`);
         let minD = Infinity, cityId = "130010";
         weatherStations.forEach(s => {
             const d = Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2));
@@ -228,14 +240,15 @@
             const f = data.forecasts[0];
             const toast = document.getElementById('weather-toast');
             toast.innerHTML = `
-                <div style="font-size:10px;">最寄: ${data.location.city}</div>
+                <div style="font-size:10px;">気象庁: ${data.location.city}</div>
                 <div style="font-weight:bold;">${stationName} の天気</div>
                 <img src="${f.image.url}" width="40"><span style="font-size:16px;">${f.telop}</span>
-                <div style="font-size:11px;">気温: ${f.temperature.max.celsius||'--'}℃ / 降水: ${f.chanceOfRain.T12_18}</div>
+                <div style="font-size:11px;">Max: ${f.temperature.max.celsius||'--'}℃ / 降水: ${f.chanceOfRain.T12_18}</div>
                 <button onclick="this.parentElement.style.display='none'" style="font-size:10px; margin-top:5px;">閉じる</button>
             `;
             toast.style.display = 'block';
-        } catch(e) { console.error(e); }
+            logger(`${stationName} の天気を表示しました。`);
+        } catch(e) { logger(`天気取得失敗: ${e.message}`); }
     }
 
     function renderTrips(f) {
@@ -259,9 +272,12 @@
 
     async function loadTrip(t) {
         currentTripId = t.trip_id; document.getElementById("loader").style.display = "block";
+        logger(`列車読込中: ${t.trip_id}`);
         const shardId = t.shape_id ? t.shape_id.substring(0, 2) : "00";
-        const shard = await fetch(`./shapes_shards/shard_${shardId}.json`).then(r => r.json());
-        window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id] || []) } }));
+        try {
+            const shard = await fetch(`./shapes_shards/shard_${shardId}.json`).then(r => r.json());
+            window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id] || []) } }));
+        } catch(e) { logger("Shapeデータが見つかりません。"); }
     }
 
     window.updateUI = (geo_s, time_s) => {
@@ -276,20 +292,41 @@
             if(s.id.startsWith('T')) mapObj[s.code].dep = s.dep;
         });
         currentTimeline = consolidated.map(s => ({ ...s, arrD: formatTime(s.arr), depD: formatTime(s.dep) }));
+        
         document.getElementById("relay-text").innerText = currentTripId.split('_').slice(2).map(p=>formatTripNo(p, currentTimeline[0]?.name||"")).join('〜');
+        
         map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
+
+        // --- 6. 厳格な線路/道路 描画 ---
         for (let i = 0; i < currentTimeline.length - 1; i++) {
             const s = currentTimeline[i], e = currentTimeline[i+1], seg = extractSegment(geoPoints, s, e);
-            const isRoad = roadKeywords.some(kw => s.name.includes(kw));
-            if (isRoad) L.polyline(seg, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
-            else { L.polyline(seg, { color: '#000', weight: 6 }).addTo(map); L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map); }
+            // ORSor営業所〜駅 OR 駅〜ORSor営業所 は道路
+            const isRoad = roadKeywords.some(kw => s.name.includes(kw) || e.name.includes(kw));
+            
+            if (isRoad) {
+                L.polyline(seg, { color: '#00c3ff', weight: 8, opacity: 0.8, lineCap: 'round' }).addTo(map); 
+            } else {
+                L.polyline(seg, { color: '#000', weight: 6 }).addTo(map); 
+                L.polyline(seg, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map); 
+            }
         }
+
         currentTimeline.forEach(s => {
-            L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map)
+            L.circleMarker([s.lat, s.lon], { radius: 5, color: '#fff', weight:2, fillColor: '#000', fillOpacity: 1 }).addTo(map)
              .bindPopup(`<b>${s.name}</b><br><button onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気取得</button>`);
         });
+
         if(geoPoints.length > 0) map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
-        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr><td>${s.code}</td><td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td><td style="text-align:center;">${s.arrD}</td><td style="text-align:center;">${s.depD}</td></tr>`).join("");
+        
+        // --- 7. 天気ボタンをリストに配置 ---
+        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `<tr>
+            <td>${s.code}</td>
+            <td><b>${s.name}</b><button class="weather-btn" onclick="fetchWeather(${s.lat},${s.lon},'${s.name}')">天気</button></td>
+            <td style="text-align:center;">${s.arrD}</td>
+            <td style="text-align:center;">${s.depD}</td>
+        </tr>`).join("");
+        
+        logger("UI描画を完了しました。");
         document.getElementById("loader").style.display = "none";
     };
 
@@ -308,10 +345,20 @@
         if(!t || t === "None") return " - ";
         const p = t.split(':'); return `${String(parseInt(p[0])%24).padStart(2,'0')}:${p[1]}`;
     }
+    function toggleLog() { 
+        const p = document.getElementById('log-panel'); 
+        p.style.display = (p.style.display==='block'?'none':'block'); 
+    }
+    function toggleTheme() { document.body.classList.toggle('dark-mode'); updateMapLayers(); }
+    function updateMapLayers() {
+        const mode = document.getElementById('map-mode').value, isDark = document.body.classList.contains('dark-mode');
+        Object.values(tiles).forEach(t => map.removeLayer(t));
+        if (mode === 'sat') tiles.sat.addTo(map); else if (mode === 'osm') tiles.osm.addTo(map); else if (mode === 'gsi') tiles.gsi.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
+    }
     function showOpSheet() {
         if(!currentTimeline.length) return;
         document.getElementById("op-content").innerHTML = `
-            <div style="text-align:right; font-size:10px;">WB-OCC v10.8 / ${document.getElementById("base_date").value}</div>
+            <div style="text-align:right; font-size:10px;">WB-OCC v11.0 / ${document.getElementById("base_date").value}</div>
             <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px;">輸送列車順序資料</h2>
             <div style="margin: 15px 0;"><b>継走列車:</b> ${document.getElementById("relay-text").innerText}</div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
@@ -321,13 +368,6 @@
         `;
         document.getElementById("modal-op").style.display = "block";
     }
-    function toggleTheme() { document.body.classList.toggle('dark-mode'); updateMapLayers(); }
-    function updateMapLayers() {
-        const mode = document.getElementById('map-mode').value, isDark = document.body.classList.contains('dark-mode');
-        Object.values(tiles).forEach(t => map.removeLayer(t));
-        if (mode === 'sat') tiles.sat.addTo(map); else if (mode === 'osm') tiles.osm.addTo(map); else if (mode === 'gsi') tiles.gsi.addTo(map); else tiles[isDark ? 'dark' : 'light'].addTo(map);
-    }
-    function toggleLog() { const p = document.getElementById('log-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
     init();
 </script>
