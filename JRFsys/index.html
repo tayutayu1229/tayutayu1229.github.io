@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Strategic Terminal v6.9</title>
+    <title>WB-OCC Strategic Terminal v7.1</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -15,79 +15,114 @@
         :root {
             --bg-base: #000814; --panel-bg: #001b33; --border-primary: #004d99;
             --accent-danger: #ff2b56; --accent-active: #00ffcc; --text-silver: #e0f2f7;
-            --font-main: "Consolas", "Monaco", monospace;
+            --accent-warning: #ffcc00; --lane-bg: #002244;
+            --font-main: "Segoe UI", "Meiryo", sans-serif;
         }
+        * { box-sizing: border-box; }
         body { margin: 0; font-family: var(--font-main); background: var(--bg-base); color: var(--text-silver); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        header { height: 60px; background: linear-gradient(180deg, #002b5c 0%, #001b33 100%); border-bottom: 3px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 25px; z-index: 1000; }
-        .logo { font-size: 22px; font-weight: 900; color: var(--accent-danger); border: 2px solid var(--accent-danger); padding: 4px 10px; }
         
-        #container-main { display: flex; flex: 1; gap: 10px; padding: 10px; overflow: hidden; }
-        #panel-left { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); display: flex; flex-direction: column; }
-        #panel-map { flex: 1; background: #000; border: 1px solid var(--border-primary); position: relative; }
-        #panel-right { width: 400px; background: var(--panel-bg); border: 1px solid var(--border-primary); display: flex; flex-direction: column; }
+        header { height: 65px; background: linear-gradient(180deg, #002b5c 0%, #001b33 100%); border-bottom: 3px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 1000; }
+        .logo { font-size: 24px; font-weight: 900; color: var(--accent-danger); border: 3px solid var(--accent-danger); padding: 2px 12px; }
         
-        .section-header { background: var(--border-primary); padding: 10px; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
-        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 12px; outline: none; box-sizing: border-box; }
+        #main-layout { display: grid; grid-template-columns: 380px 1fr 420px; flex: 1; overflow: hidden; gap: 4px; background: var(--border-primary); }
+        .panel { background: var(--bg-base); display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* 検索エリア */
+        .search-box { padding: 15px; background: var(--panel-bg); }
+        #q_input { width: 100%; background: #000; border: 1px solid var(--border-primary); color: var(--accent-active); padding: 12px; border-radius: 4px; outline: none; }
         #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { padding: 15px; border-bottom: 1px solid rgba(0, 77, 153, 0.4); cursor: pointer; transition: 0.2s; }
-        .trip-card:hover { background: rgba(0, 255, 204, 0.1); }
-        .trip-card.active { background: #003366; border-left: 8px solid var(--accent-danger); }
-        .trip-route { font-size: 12px; color: #fff; margin-top: 5px; font-weight: bold; }
+        .trip-card { padding: 16px; border-bottom: 1px solid rgba(0, 77, 153, 0.3); cursor: pointer; }
+        .trip-card.active { background: #002244; border-left: 5px solid var(--accent-danger); }
+        .lane-info { font-size: 11px; color: var(--accent-warning); margin-top: 4px; font-weight: bold; }
         
+        /* 地図エリア */
+        #map { height: 100%; width: 100%; }
+        .map-tools { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; }
+        .t-btn { background: #001b33; border: 1px solid var(--border-primary); color: white; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+
+        /* タイムライン（運行系統表示追加） */
+        .lane-banner { background: var(--lane-bg); padding: 10px; border-bottom: 2px solid var(--accent-danger); font-family: 'Consolas', monospace; }
+        .lane-seq { font-size: 18px; color: var(--accent-active); text-align: center; letter-spacing: 1px; }
         #timeline-view { flex: 1; overflow-y: auto; padding: 20px; }
         .station-node { position: relative; padding-left: 35px; padding-bottom: 25px; border-left: 2px solid var(--border-primary); margin-left: 10px; }
-        .station-node::before { content: ""; position: absolute; left: -10px; top: 0; width: 16px; height: 16px; background: var(--bg-base); border: 2px solid var(--accent-active); border-radius: 50%; }
+        .station-node::before { content: ""; position: absolute; left: -9px; top: 0; width: 16px; height: 16px; background: var(--bg-base); border: 3px solid var(--accent-active); border-radius: 50%; }
         
-        #footer { height: 150px; display: flex; gap: 10px; padding: 0 10px 10px 10px; }
-        #stats-box { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); padding: 15px; }
-        #log-box { flex: 1; background: #000; border: 1px solid var(--border-primary); padding: 10px; overflow-y: auto; font-size: 11px; color: var(--accent-active); }
-        
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        .spinner { width: 40px; height: 40px; border: 3px solid #111; border-top: 3px solid var(--accent-danger); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        /* フッター */
+        footer { height: 150px; display: grid; grid-template-columns: 380px 1fr; gap: 10px; padding: 10px; background: #000; border-top: 2px solid var(--border-primary); }
+        .stats { padding: 10px; font-size: 13px; line-height: 1.6; }
+        #log-box { background: rgba(0,0,0,0.5); padding: 10px; font-size: 11px; color: #88aaee; overflow-y: auto; font-family: 'Consolas', monospace; }
+
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spinner { width: 40px; height: 40px; border: 4px solid #111; border-top-color: var(--accent-danger); border-radius: 50%; animation: spin 1s linear infinite; }
     </style>
 </head>
 <body>
 
-<div id="loader"><div class="spinner"></div><div style="margin-top:15px; font-size:12px; letter-spacing:2px;">LOADING SHARD...</div></div>
+<div id="loader"><div class="spinner"></div><div style="margin-top:20px; color:var(--accent-danger);">PARSING LOGISTICS LANE...</div></div>
 
 <header>
-    <div class="logo">WB-OCC v6.9</div>
-    <div id="clock" style="font-size: 18px; font-weight: bold; color: var(--accent-active);">00:00:00</div>
+    <div class="logo">WB-OCC v7.1</div>
+    <div id="clock" style="font-size: 24px; font-weight: 900; color: var(--accent-active);">00:00:00</div>
 </header>
 
-<div id="container-main">
-    <div id="panel-left">
-        <div class="section-header">TRIP INDEX (GTFS)</div>
-        <div style="padding:10px;"><input type="text" id="q_input" placeholder="SEARCH TRIP ID..."></div>
+<div id="main-layout">
+    <div class="panel">
+        <div class="search-box"><input type="text" id="q_input" placeholder="Search Trip ID / Station..."></div>
         <div id="trip-list"></div>
     </div>
-    <div id="panel-map"><div id="map" style="height:100%;"></div></div>
-    <div id="panel-right">
-        <div class="section-header">STATION TIMELINE</div>
+
+    <div class="panel" style="position:relative;">
+        <div class="map-tools">
+            <button class="t-btn" onclick="toggleMap('dark')">DARK</button>
+            <button class="t-btn" onclick="toggleMap('gsi')">地形図</button>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <div class="panel">
+        <div id="lane-display" class="lane-banner">
+            <div style="font-size: 10px; color: #8af;">RUNNING LANE SYSTEM</div>
+            <div id="lane-text" class="lane-seq">--</div>
+        </div>
         <div id="timeline-view"></div>
     </div>
 </div>
 
-<div id="footer">
-    <div id="stats-box">AWAITING SELECTION...</div>
-    <div id="log-box">Shard Engine v6.9 Online.</div>
-</div>
+<footer>
+    <div class="stats" id="stats-area">
+        <div>TRIP: <span id="st-id" style="color:var(--accent-active)">---</span></div>
+        <div>DIST: <span id="st-dist" style="color:var(--accent-active)">0.0 KM</span></div>
+        <div id="st-google" style="margin-top:5px;"></div>
+    </div>
+    <div id="log-box">Logistics Terminal Standby.</div>
+</footer>
 
 <script>
     const map = L.map('map', { zoomControl: false }).setView([36.5, 138], 6);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    const layers = {
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map),
+        gsi: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png')
+    };
     let routeGroup = L.layerGroup().addTo(map);
     let markerGroup = L.layerGroup().addTo(map);
-    window.gtfsDB = { trips: [], stops: [], stop_times: [] };
 
-    function log(msg, err = false) {
-        const box = document.getElementById("log-box");
-        const div = document.createElement("div");
-        if(err) div.style.color = "var(--accent-danger)";
-        div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        box.prepend(div);
+    function toggleMap(k) { Object.values(layers).forEach(l => map.removeLayer(l)); layers[k].addTo(map); }
+
+    // 💡 Trip IDから「運行系統（Lanes）」を抽出する関数
+    function parseLane(id) {
+        const parts = id.split('_');
+        const lanes = parts.filter(p => {
+            // 3050(レ), 6091(レ)のような4桁数字、または 1b, 22b(便)のような数字+bを抽出
+            return /^\d{3,4}$/.test(p) || /^\d+b$/.test(p);
+        }).map(p => {
+            if(p.endsWith('b')) return p.replace('b', '便');
+            return p + 'レ';
+        });
+        return lanes.length > 0 ? lanes.join(' 〜 ') : '直通運航';
     }
+
+    window.gtfsDB = { trips: [], stops: [], stop_times: [] };
 
     async function init() {
         try {
@@ -97,51 +132,45 @@
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
             }
             renderTrips("");
-            log("Core Data Loaded.");
-        } catch (e) { log("BOOT ERROR: " + e.message, true); }
+        } catch (e) { console.error(e); }
     }
 
     function renderTrips(filter) {
         const list = document.getElementById("trip-list");
         list.innerHTML = "";
-        window.gtfsDB.trips.filter(t => t.trip_id.includes(filter)).slice(0, 100).forEach(t => {
+        const f = filter.toLowerCase();
+
+        window.gtfsDB.trips.filter(t => {
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
-            let route = "---";
-            if(st.length > 0) {
-                const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "??";
-                const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "??";
-                route = `${sName} 〜 ${eName}`;
-            }
+            const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id)?.stop_name || "";
+            const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id)?.stop_name || "";
+            return t.trip_id.toLowerCase().includes(f) || sName.includes(f) || eName.includes(f);
+        }).slice(0, 100).forEach(t => {
+            const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
+            const sName = window.gtfsDB.stops.find(s => s.stop_id === st[0]?.stop_id)?.stop_name || "??";
+            const eName = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1]?.stop_id)?.stop_name || "??";
+            const lane = parseLane(t.trip_id);
+
             const card = document.createElement("div");
             card.className = "trip-card";
-            card.innerHTML = `<div style="color:var(--accent-active); font-weight:bold;">${t.trip_id}</div><div class="trip-route">${route}</div>`;
-            
+            card.innerHTML = `
+                <div style="font-size:12px; color:var(--accent-active);">${t.trip_id}</div>
+                <div style="font-weight:bold;">${sName} ▶ ${eName}</div>
+                <div class="lane-info">${lane}</div>
+            `;
             card.onclick = async () => {
                 document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
                 card.classList.add("active");
                 document.getElementById("loader").style.display = "flex";
+                document.getElementById("lane-text").innerText = lane;
                 
-                const sid = t.shape_id;
-                // 頭2文字でシャードファイルを特定 (例: 1012... -> shard_10.json)
-                const shardKey = sid.substring(0, 2); 
+                const shardKey = t.shape_id.substring(0, 2);
+                const res = await fetch(`./shapes_shards/shard_${shardKey}.json`);
+                const shard = await res.json();
                 
-                try {
-                    log(`Accessing Shard: shard_${shardKey}.json`);
-                    const res = await fetch(`./shapes_shards/shard_${shardKey}.json`);
-                    if(!res.ok) throw new Error(`Shard ${shardKey} not found on server.`);
-                    
-                    const shardData = await res.json();
-                    const geoData = shardData[sid];
-                    
-                    if(!geoData) throw new Error(`Shape ID ${sid} missing in shard.`);
-
-                    window.dispatchEvent(new CustomEvent("py-process", { 
-                        detail: { tid: t.trip_id, geo: JSON.stringify(geoData) } 
-                    }));
-                } catch (e) {
-                    log(`ERROR: ${e.message}`, true);
-                    document.getElementById("loader").style.display = "none";
-                }
+                window.dispatchEvent(new CustomEvent("py-process", { 
+                    detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } 
+                }));
             };
             list.appendChild(card);
         });
@@ -151,21 +180,23 @@
         const geo = JSON.parse(geo_s); const time = JSON.parse(time_s); const stats = JSON.parse(stat_s);
         routeGroup.clearLayers(); markerGroup.clearLayers();
         if(geo.length > 0) {
-            const poly = L.polyline(geo, { color: 'var(--accent-danger)', weight: 4 }).addTo(routeGroup);
-            map.fitBounds(poly.getBounds(), { padding: [40, 40] });
+            L.polyline(geo, { color: 'var(--accent-danger)', weight: 4 }).addTo(routeGroup);
+            map.fitBounds(L.polyline(geo).getBounds(), { padding: [50, 50] });
         }
         const view = document.getElementById("timeline-view");
         view.innerHTML = "";
         time.forEach(s => {
             const d = document.createElement("div");
             d.className = "station-node";
-            d.innerHTML = `<div>${s.name}</div><div style="font-size:11px;color:var(--accent-active);">${s.arr} / ${s.dep}</div>`;
+            d.innerHTML = `<div style="font-weight:bold;">${s.name}</div><div style="color:var(--accent-warning); font-size:12px;">${s.arr} / ${s.dep}</div>`;
             view.appendChild(d);
-            L.circleMarker([s.lat, s.lon], { radius: 6, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
+            L.circleMarker([s.lat, s.lon], { radius: 5, color: '#00ffcc', fillOpacity: 1 }).addTo(markerGroup);
         });
-        document.getElementById("stats-box").innerHTML = `TRIP: ${stats.id}<br>DISTANCE: ${stats.dist.toFixed(2)} KM`;
+        document.getElementById("st-id").innerText = stats.id;
+        document.getElementById("st-dist").innerText = stats.dist.toFixed(2) + " KM";
+        const last = time[time.length-1];
+        document.getElementById("st-google").innerHTML = `<a href="https://www.google.com/maps?q=${last.lat},${last.lon}" target="_blank" style="color:var(--accent-active); text-decoration:none;">[ 地図で到着地を確認 ]</a>`;
         document.getElementById("loader").style.display = "none";
-        log(`Mapping Success: ${stats.id}`);
     };
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -177,32 +208,28 @@
 import js, json, math
 from pyodide.ffi import create_proxy
 
-async def process_data(event):
+async def process(event):
     data = event.detail.to_py()
-    tid = data['tid']
     coords = json.loads(data['geo'])
-    
+    tid = data['tid']
     try:
         db = js.window.gtfsDB
-        # 1. Station Timeline
         st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
-        stops_map = {s['stop_id']: s for s in db.stops.to_py()}
-        timeline = [{"name": stops_map[r['stop_id']]['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(stops_map[r['stop_id']]['stop_lat']), "lon": float(stops_map[r['stop_id']]['stop_lon'])} for r in st]
-
-        # 2. Distance
+        stops = {s['stop_id']: s for s in db.stops.to_py()}
+        timeline = [{"name": stops[r['stop_id']]['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(stops[r['stop_id']]['stop_lat']), "lon": float(stops[r['stop_id']]['stop_lon'])} for r in st]
+        
         dist = 0
         for i in range(len(coords)-1):
             p1, p2 = coords[i], coords[i+1]
             a = math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2
             dist += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-
+            
         js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": dist}))
-
     except Exception as e:
-        js.log(f"PY_ENGINE ERROR: {str(e)}", True)
+        js.console.error(str(e))
         js.document.getElementById('loader').style.display = 'none'
 
-js.window.addEventListener("py-process", create_proxy(process_data))
+js.window.addEventListener("py-process", create_proxy(process))
 </py-script>
 </body>
 </html>
