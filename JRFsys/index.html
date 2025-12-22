@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB-OCC Tactical Terminal v6.4</title>
+    <title>WB-OCC Strategic Terminal v6.5</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -41,7 +41,7 @@
         #stats-box { width: 360px; background: var(--panel-bg); border: 1px solid var(--border-primary); padding: 15px; }
         #log-box { flex: 1; background: #000; border: 1px solid var(--border-primary); padding: 10px; overflow-y: auto; font-size: 11px; color: var(--accent-active); }
         
-        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         .spinner { width: 50px; height: 50px; border: 4px solid #111; border-top: 4px solid var(--accent-danger); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
@@ -50,20 +50,18 @@
 
 <div id="loader">
     <div class="spinner"></div>
-    <div style="margin-top:20px;">ESTABLISHING CLOUD CONNECTION...</div>
-    <div id="error-display" style="color: var(--accent-danger); font-size: 12px; margin-top: 10px; max-width: 80%;"></div>
-    <button id="close-loader" style="display:none; margin-top:15px; background:var(--accent-danger); color:white; border:none; padding:8px 15px; cursor:pointer;">CLOSE</button>
+    <div style="margin-top:20px; letter-spacing: 2px;">BYPASSING CLOUD SECURITY...</div>
 </div>
 
 <header>
-    <div class="logo">WB-OCC v6.4</div>
+    <div class="logo">WB-OCC v6.5</div>
     <div id="clock" style="font-size: 18px; font-weight: bold; color: var(--accent-active);">00:00:00</div>
 </header>
 
 <div id="container-main">
     <div id="panel-left">
         <div class="section-header">TRIP INDEX (GTFS)</div>
-        <div style="padding:10px;"><input type="text" id="q_input" placeholder="TRIP ID..."></div>
+        <div style="padding:10px;"><input type="text" id="q_input" placeholder="SEARCH TRIP ID..."></div>
         <div id="trip-list"></div>
     </div>
     <div id="panel-map"><div id="map" style="height:100%;"></div></div>
@@ -75,7 +73,7 @@
 
 <div id="footer">
     <div id="stats-box">AWAITING SELECTION...</div>
-    <div id="log-box">Ready.</div>
+    <div id="log-box">System Online.</div>
 </div>
 
 <script>
@@ -101,7 +99,7 @@
                 window.gtfsDB[t] = Papa.parse(data.trim(), { header: true }).data;
             }
             renderTrips("");
-            log("Core GTFS loaded.");
+            log("Local GTFS resources synced.");
         } catch (e) { log("LOAD ERROR: " + e.message, true); }
     }
 
@@ -112,49 +110,23 @@
             const st = window.gtfsDB.stop_times.filter(s => s.trip_id === t.trip_id).sort((a,b) => a.stop_sequence - b.stop_sequence);
             let route = "---";
             if(st.length > 0) {
-                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "START";
-                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "END";
+                const start = window.gtfsDB.stops.find(s => s.stop_id === st[0].stop_id)?.stop_name || "??";
+                const end = window.gtfsDB.stops.find(s => s.stop_id === st[st.length-1].stop_id)?.stop_name || "??";
                 route = `${start} 〜 ${end}`;
             }
             const card = document.createElement("div");
             card.className = "trip-card";
             card.innerHTML = `<div style="color:var(--accent-active); font-weight:bold;">${t.trip_id}</div><div class="trip-route">${route}</div>`;
-            card.onclick = async () => {
-                const loader = document.getElementById("loader");
-                const errBox = document.getElementById("error-display");
-                const closeBtn = document.getElementById("close-loader");
-                
-                loader.style.display = "flex";
-                errBox.innerText = "";
-                closeBtn.style.display = "none";
-                
-                const fileID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x";
-                // 💡 プロキシを "corsproxy.io" に変更 (alloriginsが不安定なため)
-                const targetUrl = encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileID}&confirm=t`);
-                const proxyUrl = `https://corsproxy.io/?${targetUrl}`;
-                
-                log(`Attempting secure fetch via corsproxy.io...`);
-                try {
-                    const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`HTTP Error ${res.status}: Proxy unavailable.`);
-                    const rawText = await res.text();
-                    
-                    if (rawText.includes("<!DOCTYPE html>")) throw new Error("Google Drive blocked the request with an HTML page.");
-                    
-                    window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, csv: rawText } }));
-                } catch (e) {
-                    log("CONNECTION FAILED: " + e.message, true);
-                    errBox.innerText = `CORS/NETWORK ERROR: ${e.message}\nTry checking your Internet or if the file is truly Public.`;
-                    closeBtn.style.display = "block";
-                }
+            card.onclick = () => {
+                document.querySelectorAll(".trip-card").forEach(c => c.classList.remove("active"));
+                card.classList.add("active");
+                document.getElementById("loader").style.display = "flex";
+                log(`Direct Cloud Request for: ${t.trip_id}`);
+                window.dispatchEvent(new CustomEvent("trigger-py", { detail: t.trip_id }));
             };
             list.appendChild(card);
         });
     }
-
-    document.getElementById("close-loader").onclick = () => {
-        document.getElementById("loader").style.display = "none";
-    };
 
     window.updateUI = (geo_s, time_s, stat_s) => {
         const geo = JSON.parse(geo_s); const time = JSON.parse(time_s); const stats = JSON.parse(stat_s);
@@ -174,7 +146,6 @@
         });
         document.getElementById("stats-box").innerHTML = `ID: ${stats.id}<br>DIST: ${stats.dist.toFixed(2)} KM`;
         document.getElementById("loader").style.display = "none";
-        log(`Mapping Success: ${stats.id}`);
     };
 
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -184,38 +155,59 @@
 
 <py-script>
 import js, json, math, re
+from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 
-async def start_analysis(event):
-    data = event.detail.to_py()
-    tid, csv_content = data['tid'], data['csv']
+# --- FINAL CLOUD STRATEGY ---
+FILE_ID = "18T7-qEaUqX6S5gG_N_Q_v9xI6IuP8x2x"
+# プロキシを通さず、Googleの「直接出力」モードを使用
+DIRECT_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+
+async def analyze(event):
+    tid = event.detail
     try:
         db = js.window.gtfsDB
         trip = next((t for t in db.trips.to_py() if t['trip_id'] == tid), None)
         sid = trip.get('shape_id')
 
-        # 1. Timeline
+        # 1. Timeline logic (Fast Map)
         st = sorted([s for s in db.stop_times.to_py() if s['trip_id'] == tid], key=lambda x: int(x['stop_sequence']))
-        timeline = [{"name": (next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_name')), "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_lat',0)), "lon": float(next((s for s in db.stops.to_py() if s['stop_id'] == r['stop_id']), {}).get('stop_lon',0))} for r in st]
+        stops_map = {s['stop_id']: s for s in db.stops.to_py()}
+        timeline = [{"name": stops_map[r['stop_id']]['stop_name'], "arr": r['arrival_time'], "dep": r['departure_time'], "lat": float(stops_map[r['stop_id']]['stop_lat']), "lon": float(stops_map[r['stop_id']]['stop_lon'])} for r in st]
 
-        # 2. CSV Parse
+        # 2. Geometry (Pyfetch is more robust for direct drive links)
+        js.log("Requesting geometry stream...")
+        response = await pyfetch(DIRECT_URL)
+        if not response.ok:
+            raise Exception(f"Cloud Error: {response.status}")
+        
+        csv_content = await response.string()
+        if "<!DOCTYPE html>" in csv_content:
+            raise Exception("Access Denied: Google Drive is showing a warning page. Check file sharing settings.")
+
+        # 3. Flexible Parsing
         lines = csv_content.lstrip('\ufeff').replace('\r\n', '\n').replace('\r', '\n').strip().split('\n')
         h = [re.sub(r'[^a-z0-9_]', '', x.lower().strip()) for x in lines[0].split(',')]
         idx = {'id': h.index('shape_id'), 'lat': h.index('shape_pt_lat'), 'lon': h.index('shape_pt_lon'), 'seq': h.index('shape_pt_sequence')}
         
-        geo = sorted([[float(c[idx['lat']]), float(c[idx['lon']]), int(c[idx['seq']])] for l in lines[1:] if (c := [col.strip() for col in l.split(',')])[idx['id']] == sid], key=lambda x: x[2])
+        geo = sorted([[float(c[idx['lat']]), float(c[idx['lon']]), int(c[idx['seq']])] for l in lines[1:] if (c := l.split(','))[idx['id']].strip() == sid], key=lambda x: x[2])
         coords = [[p[0], p[1]] for p in geo]
 
-        # 3. Distance
-        d = sum(6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)) for i in range(len(coords)-1) if (a := math.sin(math.radians(coords[i+1][0]-coords[i][0])/2)**2 + math.cos(math.radians(coords[i][0]))*math.cos(math.radians(coords[i+1][0]))*math.sin(math.radians(coords[i+1][1]-coords[i][1])/2)**2) >= 0)
+        # 4. Calculation
+        d = 0
+        for i in range(len(coords)-1):
+            p1, p2 = coords[i], coords[i+1]
+            a = math.sin(math.radians(p2[0]-p1[0])/2)**2 + math.cos(math.radians(p1[0]))*math.cos(math.radians(p2[0]))*math.sin(math.radians(p2[1]-p1[1])/2)**2
+            d += 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
         js.window.updateUI(json.dumps(coords), json.dumps(timeline), json.dumps({"id": tid, "dist": d}))
+
     except Exception as e:
-        js.log(f"ANALYSIS ERROR: {str(e)}", True)
+        js.log(f"ENGINE ERROR: {str(e)}", True)
         js.document.getElementById('loader').style.display = 'none'
 
-js.window.addEventListener("py-process", create_proxy(start_analysis))
-js.log("OCC System Final Ready.")
+js.window.addEventListener("trigger-py", create_proxy(analyze))
+js.log("WB-OCC Tactical Terminal: v6.5 Ready.")
 </py-script>
 </body>
 </html>
