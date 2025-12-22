@@ -2,105 +2,151 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JRF 運行管理：シンプルエクスプローラー</title>
+    <title>JRF-GTFS 運行指令システム</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <style>
-        /* 貨物カラーと無骨なデザイン */
-        body { background: #888; margin: 0; font-family: "MS UI Gothic", sans-serif; display: flex; flex-direction: column; height: 100vh; }
-        header { background: #b22222; color: white; padding: 5px 15px; border-bottom: 2px solid #000033; font-size: 14px; font-weight: bold; }
-        #main { display: flex; flex: 1; overflow: hidden; gap: 2px; padding: 2px; }
-        #side { width: 280px; background: #ddd; border: 2px inset #fff; display: flex; flex-direction: column; }
+        :root { --jrf-red: #d32f2f; --jrf-dark: #000033; --console-bg: #1a1a1a; }
+        body { margin: 0; font-family: "MS UI Gothic", "Meiryo", monospace; background: #444; color: #eee; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* ヘッダー：鉄道指令室風 */
+        header { background: var(--jrf-red); padding: 8px 20px; border-bottom: 4px solid var(--jrf-dark); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .system-title { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+
+        #layout { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
+        
+        /* 左：コントロールパネル */
+        #side { width: 320px; background: #ccc; color: #000; border: 2px inset #fff; display: flex; flex-direction: column; }
+        .panel-label { background: var(--jrf-dark); color: #fff; padding: 4px 8px; font-size: 11px; }
+        .control-group { padding: 15px; border-bottom: 1px solid #999; }
+        input { width: 100%; padding: 8px; border: 2px inset #fff; font-family: monospace; font-size: 14px; margin-bottom: 10px; }
+        
+        /* Pythonトリガースイッチ */
+        .btn-execute { background: #eee; border: 3px outset #fff; padding: 10px; cursor: pointer; font-weight: bold; width: 100%; color: var(--jrf-red); font-size: 14px; }
+        .btn-execute:active { border: 3px inset #fff; }
+
+        /* 右：メイン表示エリア */
+        #main-view { flex: 1; display: flex; flex-direction: column; gap: 4px; }
         #map { flex: 1; border: 2px inset #fff; background: #cad7d0; }
-        .trip-list { flex: 1; overflow-y: scroll; background: white; border-top: 1px solid #999; }
-        .trip-row { padding: 5px; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 12px; }
-        .trip-row:hover { background: #ffffaa; }
-        .trip-row.active { background: #000080; color: white; }
-        #status { background: #333; color: #0f0; font-family: monospace; font-size: 11px; padding: 2px 10px; }
+        
+        /* 下：Pythonコンソールログ */
+        #console { height: 180px; background: var(--console-bg); color: #00ff00; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; border: 2px inset #444; line-height: 1.4; }
+        .log-entry { border-bottom: 1px dotted #333; margin-bottom: 4px; }
     </style>
 </head>
 <body>
 
-<header>JR貨物 運行エクスプローラー (2025年改正対応版)</header>
+<header>
+    <div class="system-title">■ JR-FREIGHT TRAIN MONITORING SYSTEM (VER 2025.03)</div>
+    <div id="status-clock" style="font-family: monospace;">STATUS: RUNNING</div>
+</header>
 
-<div id="main">
+<div id="layout">
     <div id="side">
-        <div style="padding:5px; background:#ccc; font-size:11px;">■ 列車番号検索</div>
-        <input type="text" id="q" style="width:calc(100% - 10px); margin:5px;">
-        <div class="trip-list" id="trip-list"></div>
+        <div class="panel-label">ANALYSIS PARAMETERS (Python)</div>
+        <div class="control-group">
+            <label style="font-size:12px; font-weight:bold;">ENTER TRIP ID:</label>
+            <input type="text" id="trip_input" value="1012_1025_209200_2093" placeholder="列車IDを入力...">
+            
+            <button class="btn-execute" py-click="analyze_freight_data">EXECUTE PYTHON SCRIPT</button>
+        </div>
+        
+        <div style="padding:15px; font-size:11px;">
+            <p>■ 処理工程:<br>
+            1. txtファイルをPythonでスキャン<br>
+            2. 停車駅(stop_sequence)を特定<br>
+            3. 座標を結合し、地図へ反映</p>
+        </div>
     </div>
-    <div id="map"></div>
+
+    <div id="main-view">
+        <div id="map"></div>
+        <div class="panel-label">SYSTEM CONSOLE LOG</div>
+        <div id="console">
+            <div class="log-entry">>> [BOOT] System ready. Initializing Python runtime...</div>
+        </div>
+    </div>
 </div>
 
-<div id="status">Ready.</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let db = {};
-    const map = L.map('map').setView([38.0, 138.0], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    let layerGrp = L.layerGroup().addTo(map);
+    // Leaflet 地図初期化
+    const map = L.map('map').setView([43.5, 144.0], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    let drawLayer = L.layerGroup().addTo(map);
 
-    async function init() {
-        // 軽量なファイルだけ先に読み込む
-        const files = ['trips', 'stop_times', 'stops', 'calendar'];
-        for (const f of files) {
-            const r = await fetch(`${f}.txt`);
-            const t = await r.text();
-            db[f] = Papa.parse(t.trim(), { header: true, skipEmptyLines: true }).data;
-        }
-        document.getElementById('status').innerText = "System Online. Select a trip.";
-        renderList();
-        document.getElementById('q').oninput = renderList;
-    }
-
-    function renderList() {
-        const q = document.getElementById('q').value.toLowerCase();
-        const list = document.getElementById('trip-list');
-        list.innerHTML = '';
-        db.trips.filter(t => t.trip_id.toLowerCase().includes(q)).forEach(t => {
-            const d = document.createElement('div');
-            d.className = 'trip-row';
-            d.innerHTML = `ID: ${t.trip_id}<br>${t.trip_headsign} 行`;
-            d.onclick = () => loadTrip(t, d);
-            list.appendChild(d);
-        });
-    }
-
-    async function loadTrip(trip, el) {
-        document.querySelectorAll('.trip-row').forEach(r => r.classList.remove('active'));
-        el.classList.add('active');
-        layerGrp.clearLayers();
-
-        // 1. まず駅間を直線で結ぶ（仮）
-        const stimes = db.stop_times.filter(s => s.trip_id === trip.trip_id).sort((a,b)=>a.stop_sequence-b.stop_sequence);
-        const pts = stimes.map(st => {
-            const s = db.stops.find(x => x.stop_id === st.stop_id);
-            return s ? [parseFloat(s.stop_lat), parseFloat(s.stop_lon)] : null;
-        }).filter(p => p);
-
-        // 2. 分割した詳細形状データがあれば取得して上書き
-        if (trip.shape_id) {
-            document.getElementById('status').innerText = `Loading shape: ${trip.shape_id}...`;
-            try {
-                // ここで分割JSONを読み込む
-                const res = await fetch(`shapes_data/${trip.shape_id}.json`);
-                const shapePts = await res.json();
-                L.polyline(shapePts, {color: 'red', weight: 4}).addTo(layerGrp);
-                document.getElementById('status').innerText = `Active: ${trip.trip_id} (High Precision)`;
-            } catch (e) {
-                // JSONがない場合は直線
-                L.polyline(pts, {color: 'red', weight: 3, dashArray: '5,5'}).addTo(layerGrp);
-                document.getElementById('status').innerText = `Active: ${trip.trip_id} (Simple Line)`;
-            }
-        }
+    // Pythonから地図を操作するための関数
+    window.update_map_route = (points_json, trip_id) => {
+        const points = JSON.parse(points_json);
+        drawLayer.clearLayers();
         
-        // 駅にマーカー設置
-        pts.forEach(p => L.circleMarker(p, {radius: 4, color: '#003'}).addTo(layerGrp));
-        map.fitBounds(L.polyline(pts).getBounds(), {padding: [50,50]});
-    }
-
-    init();
+        if (points.length > 0) {
+            // 路線を描画
+            const poly = L.polyline(points, {color: 'red', weight: 4, dashArray: '10, 5'}).addTo(drawLayer);
+            // 各駅にマーカー
+            points.forEach(p => L.circleMarker(p, {radius: 5, color: '#003', fillOpacity: 1}).addTo(drawLayer));
+            map.fitBounds(poly.getBounds());
+        }
+    };
 </script>
+
+<py-script>
+import js
+import json
+from pyodide.http import pyfetch
+
+async def analyze_freight_data(event):
+    console_el = js.document.getElementById("console")
+    trip_id = js.document.getElementById("trip_input").value
+    
+    def log(msg):
+        div = js.document.createElement("div")
+        div.className = "log-entry"
+        div.innerText = f">> [PY] {msg}"
+        console_el.appendChild(div)
+        console_el.scrollTop = console_el.scrollHeight
+
+    log(f"START ANALYSIS: TRIP_ID = {trip_id}")
+
+    try:
+        # 1. 各txtをフェッチしてパース (簡易的に処理)
+        async def get_data(file):
+            response = await pyfetch(f"./{file}.txt")
+            text = await response.string()
+            lines = text.strip().split('\n')
+            header = lines[0].split(',')
+            return [dict(zip(header, line.split(','))) for line in lines[1:]]
+
+        log("Loading stop_times.txt...")
+        stop_times = await get_data("stop_times")
+        
+        log("Loading stops.txt...")
+        stops = await get_data("stops")
+
+        # 2. 該当する列車の駅を抽出
+        my_stops = [s for s in stop_times if s['trip_id'] == trip_id]
+        my_stops.sort(key=lambda x: int(x['stop_sequence']))
+        
+        log(f"Found {len(my_stops)} stations in sequence.")
+
+        # 3. 座標をリスト化
+        coords = []
+        for ms in my_stops:
+            stop_info = next((s for s in stops if s['stop_id'] == ms['stop_id']), None)
+            if stop_info:
+                coords.append([float(stop_info['stop_lat']), float(stop_info['stop_lon'])])
+                log(f"STATION: {stop_info.get('stop_name', 'Unknown')} ({ms['arrival_time']})")
+
+        # 4. JavaScript経由で地図を更新
+        js.window.update_map_route(json.dumps(coords), trip_id)
+        log("SUCCESS: Route rendered on map.")
+
+    except Exception as e:
+        log(f"ERROR: {str(e)}")
+
+</py-script>
+
 </body>
 </html>
