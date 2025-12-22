@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>WB-OCC OPERATIONAL COMMAND v8.7</title>
+    <title>WB-OCC 運行管理端末 v8.8</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -12,164 +12,130 @@
     
     <style>
         :root {
-            --bg-dark: #1e1e1e;
-            --panel-bg: #2d2d30;
-            --accent-blue: #0078d4;
-            --text-main: #f5f5f5;
-            --text-dim: #cccccc;
-            --border-color: #3f3f46;
+            --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4;
+        }
+        body.light-mode {
+            --bg: #f0f0f0; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e;
         }
         * { box-sizing: border-box; }
         body { 
-            margin: 0; 
-            font-family: "Segoe UI", "Meiryo", sans-serif; 
-            background: var(--bg-dark); 
-            color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            margin: 0; font-family: "Segoe UI", "Meiryo", sans-serif; 
+            background: var(--bg); color: var(--text);
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
         }
         
-        /* Layout */
         header { 
-            height: 50px; 
-            background: #000; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 0 20px; 
-            border-bottom: 2px solid var(--accent-blue);
-        }
-        #main-layout { display: grid; grid-template-columns: 350px 1fr 400px; flex: 1; overflow: hidden; background: #000; gap: 1px; }
-        .panel { background: var(--panel-bg); display: flex; flex-direction: column; overflow: hidden; }
-        
-        .panel-header {
-            background: #333337;
-            padding: 8px 12px;
-            font-size: 14px;
-            font-weight: 600;
-            border-bottom: 1px solid var(--border-color);
-            text-transform: uppercase;
+            height: 50px; background: #000; color: #fff; display: flex; 
+            justify-content: space-between; align-items: center; padding: 0 20px; 
+            border-bottom: 2px solid var(--accent);
         }
 
-        /* List Area */
-        .search-area { padding: 12px; border-bottom: 1px solid var(--border-color); }
-        #q_input { 
-            width: 100%; 
-            background: #3f3f46; 
-            border: 1px solid #555; 
-            color: #fff; 
-            padding: 10px; 
-            font-size: 14px;
-            outline: none;
+        #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
+        .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+        .panel-title { background: rgba(0,0,0,0.1); padding: 8px 12px; font-size: 14px; font-weight: bold; border-bottom: 1px solid var(--border); }
+
+        /* 検索・日付 */
+        .control-box { padding: 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+        #q_input, #base_date { 
+            width: 100%; background: var(--bg); border: 1px solid var(--border); 
+            color: var(--text); padding: 8px; font-size: 14px;
         }
+
         #trip-list { flex: 1; overflow-y: auto; }
-        .trip-card { 
-            padding: 15px 12px; 
-            border-bottom: 1px solid var(--border-color); 
-            cursor: pointer; 
-            transition: background 0.2s;
-        }
-        .trip-card:hover { background: #3e3e42; }
-        .trip-card.active { background: var(--accent-blue); }
+        .trip-card { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .trip-card:hover { background: rgba(0,120,212,0.1); }
+        .trip-card.active { background: var(--accent); color: #fff; }
 
-        /* Relay Bar */
-        .relay-display { 
-            padding: 12px; 
-            background: #252526; 
-            border-bottom: 1px solid var(--border-color);
-        }
-        .relay-text { 
-            font-size: 16px; 
-            font-weight: bold; 
-            color: var(--accent-blue); 
-            display: block;
-            margin-top: 4px;
-        }
+        /* 継走表示 */
+        .relay-area { padding: 12px; background: rgba(0,120,212,0.05); border-bottom: 1px solid var(--border); }
+        .relay-text { font-size: 18px; font-weight: 900; color: var(--accent); margin-top: 5px; display: block; }
 
-        /* Timeline Table */
-        #timeline-view { flex: 1; overflow-y: auto; padding: 0; }
-        .st-table { width: 100%; border-collapse: collapse; }
-        .st-table th { background: #333; position: sticky; top: 0; text-align: left; font-size: 12px; padding: 10px; border-bottom: 2px solid #555; }
-        .st-table td { padding: 12px 10px; font-size: 14px; border-bottom: 1px solid #3f3f46; }
+        /* 時刻表 */
+        .st-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .st-table th { background: rgba(0,0,0,0.05); position: sticky; top: 0; padding: 10px; text-align: left; }
+        .st-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+        .date-label { font-size: 10px; color: var(--accent); display: block; }
 
-        /* Report Modal */
-        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 40px; }
+        /* モーダル & 印刷 */
+        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; padding: 20px; }
         .op-sheet { 
-            background: #fff; 
-            color: #000; 
-            max-width: 900px; 
-            height: 100%; 
-            margin: 0 auto; 
-            padding: 50px; 
-            overflow-y: auto; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: #fff; color: #000; width: 100%; max-width: 1000px; 
+            height: 100%; margin: 0 auto; padding: 40px; overflow-y: auto; 
+        }
+        .op-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .op-table th, .op-table td { border: 1px solid #000; padding: 8px; text-align: center; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #modal-op, #modal-op * { visibility: visible; }
+            #modal-op { position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: none; }
+            .op-sheet { box-shadow: none; border: none; width: 100%; max-width: none; }
+            button { display: none; }
         }
 
-        button {
-            background: var(--accent-blue);
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-        }
-        button:hover { opacity: 0.9; }
-
-        #loader { position: fixed; top: 60px; right: 20px; background: var(--accent-blue); padding: 5px 15px; font-size: 12px; display: none; }
+        button { padding: 8px 16px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-weight: bold; }
+        #loader { position: fixed; top: 60px; right: 20px; background: #ffaa00; color: #000; padding: 4px 12px; font-size: 12px; display: none; z-index: 10001; }
     </style>
 </head>
-<body>
+<body class="dark-mode">
 
-<div id="loader">SYSTEM_BUSY</div>
+<div id="loader">データ処理中...</div>
 
 <header>
-    <div style="font-size: 18px; font-weight: bold; letter-spacing: 1px;">OCC OPERATIONAL TERMINAL</div>
-    <div id="clock" style="font-family: monospace; font-size: 18px;">00:00:00</div>
+    <div>WB-OCC 運行管理システム v8.8</div>
+    <div style="display: flex; gap: 20px; align-items: center;">
+        <button onclick="document.body.classList.toggle('light-mode')" style="background:#444; font-size:11px;">モード切替</button>
+        <div id="clock">00:00:00</div>
+    </div>
 </header>
 
 <div id="main-layout">
     <div class="panel">
-        <div class="panel-header">Unit Search</div>
-        <div class="search-area"><input type="text" id="q_input" placeholder="Enter Trip ID or Station Name..."></div>
+        <div class="panel-title">列車検索・基準日設定</div>
+        <div class="control-box">
+            <label style="font-size:11px;">始発駅の出発日:</label>
+            <input type="date" id="base_date">
+            <input type="text" id="q_input" placeholder="列車番号・駅名を入力...">
+        </div>
         <div id="trip-list"></div>
     </div>
 
     <div class="panel">
-        <div class="panel-header">Geographic Monitor</div>
+        <div class="panel-title">地理モニター</div>
         <div id="map" style="flex:1;"></div>
     </div>
 
     <div class="panel">
-        <div class="panel-header">Lane Sequence</div>
-        <div class="relay-display">
-            <span style="font-size:11px; color:#888;">CURRENT_RELAY_SEQ:</span>
+        <div class="panel-title">継走順序・時刻表</div>
+        <div class="relay-area">
+            <span style="font-size:11px; opacity:0.7;">現在の継走シーケンス:</span>
             <span id="relay-text" class="relay-text">--</span>
         </div>
-        <div id="timeline-view">
+        <div style="flex:1; overflow-y:auto;">
             <table class="st-table">
-                <thead><tr><th>CODE</th><th>STATION</th><th>ARR</th><th>DEP</th></tr></thead>
+                <thead><tr><th>駅コード</th><th>駅名</th><th>着時刻</th><th>発時刻</th></tr></thead>
                 <tbody id="st-body"></tbody>
             </table>
         </div>
-        <div style="padding:15px; background:#252526; display:flex; gap:10px;">
-            <button style="flex:1;" onclick="showOpSheet()">GENERATE_REPORT</button>
-            <button style="background:#444;" onclick="location.reload()">RESET</button>
+        <div style="padding:15px; border-top:1px solid var(--border); display:flex; gap:10px;">
+            <button style="flex:1" onclick="showOpSheet()">運行表を生成</button>
         </div>
     </div>
 </div>
 
 <div id="modal-op">
     <div style="text-align:right; margin-bottom:10px;">
-        <button onclick="window.print()">PRINT_PDF</button>
-        <button style="background:#f44336;" onclick="document.getElementById('modal-op').style.display='none'">CLOSE</button>
+        <button onclick="window.print()" style="background:#000;">印刷実行 (PDF)</button>
+        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#f44336;">閉じる</button>
     </div>
     <div class="op-sheet" id="op-content"></div>
 </div>
 
 <script>
+    // 基準日の初期設定（今日）
+    const dateInput = document.getElementById('base_date');
+    dateInput.valueAsDate = new Date();
+
     const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
     let routeGroup = L.layerGroup().addTo(map);
@@ -178,6 +144,27 @@
     window.gtfsDB = { trips: [], stops: {}, stopTimes: {}, stopToTrips: {} };
     let currentTripData = null;
     let currentTripId = "";
+
+    // 時刻解析エンジン: GTFSの24時以降を日付に変換
+    function parseGTFSTime(timeStr, baseDateStr) {
+        if (!timeStr) return { date: "", time: "" };
+        let [h, m, s] = timeStr.split(':').map(Number);
+        let dayOffset = Math.floor(h / 24);
+        let actualH = h % 24;
+        
+        let date = new Date(baseDateStr);
+        date.setDate(date.getDate() + dayOffset);
+        
+        const datePart = `${date.getMonth()+1}/${date.getDate()}`;
+        const timePart = `${String(actualH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        
+        return { 
+            full: (dayOffset > 0 ? `+${dayOffset}日 ` : "") + timePart,
+            dateLabel: datePart,
+            timeOnly: timePart,
+            dayOffset: dayOffset
+        };
+    }
 
     function parseRelayText(id) {
         const parts = id.split('_').slice(2);
@@ -229,7 +216,7 @@
             const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "??";
             const card = document.createElement("div");
             card.className = "trip-card";
-            card.innerHTML = `<div style="font-size:11px; color:#888;">${t.trip_id}</div><div style="font-weight:bold;">${sName} ▶ ${eName}</div>`;
+            card.innerHTML = `<div style="font-size:10px; opacity:0.6;">${t.trip_id}</div><b>${sName} ▶ ${eName}</b>`;
             card.onclick = () => loadTrip(t);
             list.appendChild(card);
         });
@@ -240,21 +227,24 @@
         document.getElementById("loader").style.display = "block";
         const shardKey = t.shape_id.substring(0, 2);
         const shard = await fetch(`./shapes_shards/shard_${shardKey}.json`).then(r => r.json());
-        
         document.getElementById("relay-text").innerText = parseRelayText(t.trip_id);
-
         window.dispatchEvent(new CustomEvent("py-process", { 
             detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } 
         }));
     }
 
     window.updateUI = (geo_s, time_s) => {
-        const time = JSON.parse(time_s); 
-        currentTripData = time;
+        const timeRaw = JSON.parse(time_s);
         const geo = JSON.parse(geo_s);
-        routeGroup.clearLayers(); markerGroup.clearLayers();
+        const baseDate = document.getElementById('base_date').value;
+        
+        currentTripData = timeRaw.map(s => ({
+            ...s,
+            arrParsed: parseGTFSTime(s.arr, baseDate),
+            depParsed: parseGTFSTime(s.dep, baseDate)
+        }));
 
-        // 💡 種別による描き分け
+        routeGroup.clearLayers(); markerGroup.clearLayers();
         const isTruck = parseRelayText(currentTripId).includes('便');
         if (isTruck) {
             L.polyline(geo, { color: '#0078d4', weight: 6, opacity: 0.8 }).addTo(routeGroup);
@@ -267,9 +257,14 @@
         
         const tbody = document.getElementById("st-body");
         tbody.innerHTML = "";
-        time.forEach(s => {
+        currentTripData.forEach(s => {
             const row = document.createElement("tr");
-            row.innerHTML = `<td>${s.code}</td><td>${s.name}</td><td>${s.arr}</td><td>${s.dep}</td>`;
+            row.innerHTML = `
+                <td>${s.code}</td>
+                <td><b>${s.name}</b></td>
+                <td><span class="date-label">${s.arrParsed.dateLabel}</span>${s.arrParsed.full}</td>
+                <td><span class="date-label">${s.depParsed.dateLabel}</span>${s.depParsed.full}</td>
+            `;
             tbody.appendChild(row);
             L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1, weight: 2 }).addTo(markerGroup);
         });
@@ -280,19 +275,39 @@
         if(!currentTripData) return;
         const modal = document.getElementById("modal-op");
         const content = document.getElementById("op-content");
-        let rows = currentTripData.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.arr}</td><td>${s.dep}</td><td></td></tr>`).join("");
+        const baseDate = document.getElementById('base_date').value;
+        
+        let rows = currentTripData.map(s => `
+            <tr>
+                <td>${s.code}</td>
+                <td style="text-align:left;">${s.name}</td>
+                <td>${s.arrParsed.dateLabel}<br>${s.arrParsed.timeOnly}</td>
+                <td>${s.depParsed.dateLabel}<br>${s.depParsed.timeOnly}</td>
+                <td></td>
+            </tr>`).join("");
+
         content.innerHTML = `
-            <div style="border-bottom:3px solid #000; padding-bottom:10px; margin-bottom:20px;">
-                <h1 style="margin:0; text-align:center;">貨物列車運行表</h1>
-                <div style="display:flex; justify-content:space-between; margin-top:10px;">
-                    <span>識別番号: ${currentTripId}</span>
-                    <span>継走区分: ${document.getElementById("relay-text").innerText}</span>
+            <div style="border-bottom:4px solid #000; padding-bottom:15px; margin-bottom:25px;">
+                <h1 style="margin:0; text-align:center; font-size:28px;">貨物列車運行表（行路表）</h1>
+                <div style="display:flex; justify-content:space-between; margin-top:20px; font-size:14px;">
+                    <div><b>始発日:</b> ${baseDate}</div>
+                    <div><b>識別ID:</b> ${currentTripId}</div>
+                    <div><b>継走:</b> ${document.getElementById("relay-text").innerText}</div>
                 </div>
             </div>
-            <table style="width:100%; border-collapse:collapse;" border="1">
-                <thead><tr style="background:#eee;"><th>駅コード</th><th>停車駅</th><th>着時刻</th><th>発時刻</th><th>記事</th></tr></thead>
+            <table class="op-table">
+                <thead>
+                    <tr style="background:#f0f0f0;">
+                        <th style="width:12%;">駅コード</th>
+                        <th style="width:30%;">停車駅名</th>
+                        <th style="width:18%;">到着時刻</th>
+                        <th style="width:18%;">出発時刻</th>
+                        <th>備考・指示事項</th>
+                    </tr>
+                </thead>
                 <tbody>${rows}</tbody>
             </table>
+            <div style="margin-top:40px; text-align:right; font-size:12px;">出力元: WB-OCC STRATEGIC SYSTEM</div>
         `;
         modal.style.display = "block";
     }
@@ -300,6 +315,7 @@
     setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString(); }, 1000);
     init();
     document.getElementById("q_input").oninput = (e) => renderTrips(e.target.value);
+    document.getElementById("base_date").onchange = () => { if(currentTripId) loadTrip({trip_id: currentTripId, shape_id: currentTripId.split('_')[0]}); };
 </script>
 
 <py-script>
@@ -312,30 +328,23 @@ async def process(event):
     tid = data['tid']
     try:
         db = js.window.gtfsDB
-        # JS Proxy object handling
         st_data = db.stopTimes.to_py()
-        if tid not in st_data:
-            return
-            
+        if tid not in st_data: return
         st_list = sorted(st_data[tid], key=lambda x: int(x['stop_sequence']))
         stops_dict = db.stops.to_py()
-        
         timeline = []
         for r in st_list:
             sid = r['stop_id']
             if sid in stops_dict:
                 s = stops_dict[sid]
                 timeline.append({
-                    "name": s['stop_name'],
-                    "code": s['stop_code'],
-                    "arr": r['arrival_time'],
-                    "dep": r['departure_time'],
-                    "lat": float(s['stop_lat']),
-                    "lon": float(s['stop_lon'])
+                    "name": s['stop_name'], "code": s['stop_code'],
+                    "arr": r['arrival_time'], "dep": r['departure_time'],
+                    "lat": float(s['stop_lat']), "lon": float(s['stop_lon'])
                 })
         js.window.updateUI(json.dumps(coords), json.dumps(timeline))
     except Exception as e:
-        js.console.error("Python Runtime Error: " + str(e))
+        js.console.error(str(e))
         js.document.getElementById('loader').style.display = 'none'
 
 js.window.addEventListener("py-process", create_proxy(process))
