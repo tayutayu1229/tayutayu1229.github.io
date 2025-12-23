@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday おりく！</title>
+    <style>
+        :root {
+            --primary: #ff8fa3;
+            --gold: #ffcf56;
+            --text-color: #5d4037;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: #fff;
+            font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+        }
+
+        /* 明るい背景グラデーション */
+        #bg {
+            position: fixed; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #fff9f9 0%, #fff0f3 100%);
+            z-index: -2;
+        }
+
+        /* 装飾用の光の粒 */
+        .kira {
+            position: absolute; background: white; border-radius: 50%;
+            filter: blur(2px); animation: twinkle 3s infinite;
+        }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.8; } }
+
+        /* ステージ管理 */
+        .stage {
+            position: absolute; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column; text-align: center; padding: 20px;
+            box-sizing: border-box; transition: 0.5s;
+        }
+        .hidden { opacity: 0; pointer-events: none; transform: scale(0.9); }
+
+        /* メッセージカード */
+        .msg-box {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px 20px; border-radius: 25px;
+            box-shadow: 0 10px 40px rgba(255, 143, 163, 0.2);
+            border: 3px solid var(--primary);
+            width: 90%; max-width: 350px;
+            color: var(--text-color); position: relative; z-index: 20;
+        }
+
+        /* 思い出写真のスロット */
+        .photo-frame {
+            position: absolute; width: 200px; height: 200px;
+            border: 8px solid white; box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            object-fit: cover; opacity: 0; z-index: 15;
+            transition: 1s ease-in-out; border-radius: 10px;
+        }
+        .photo-show { opacity: 1; transform: scale(1.1) rotate(5deg); }
+
+        /* クラッカーの破片 */
+        .piece { position: absolute; pointer-events: none; z-index: 100; animation: fall 1.5s ease-out forwards; }
+        @keyframes fall {
+            0% { transform: translate(-50%, -50%) rotate(0); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) rotate(360deg); opacity: 0; }
+        }
+
+        /* ボタン */
+        .btn-main {
+            background: var(--primary); color: white; border: none;
+            padding: 18px 45px; border-radius: 50px; font-size: 1.2rem;
+            font-weight: bold; cursor: pointer; box-shadow: 0 8px 20px rgba(255,143,163,0.4);
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} }
+
+        h1 { color: var(--primary); margin-bottom: 10px; font-size: 1.8rem; }
+    </style>
+</head>
+<body onclick="createCracker(event)">
+
+      
+    <div id="bg"></div>
+    <audio id="bgm" src="present.mp3" loop></audio>
+
+    <img src="photo1.jpg" id="p1" class="photo-frame" style="top:10%; left:5%;">
+    <img src="photo2.jpg" id="p2" class="photo-frame" style="bottom:15%; right:5%;">
+    <img src="photo3.jpg" id="p3" class="photo-frame" style="top:5%; right:10%;">
+
+    <div id="stage1" class="stage">
+        <div style="font-size: 5rem; margin-bottom: 20px;">🎂</div>
+        <h1 style="color: var(--text-color);">Happy Birthday<br>ORIKU!</h1>
+        <button class="btn-main" onclick="startApp()">プレゼントを開ける</button>
+    </div>
+
+    <div id="stage2" class="stage hidden">
+        <div class="msg-box" onclick="handleTap(event)">
+            <div id="text-area" style="font-size: 1.2rem; font-weight: bold; line-height: 1.8;"></div>
+            <div style="font-size: 0.8rem; color: #aaa; margin-top: 20px;">タップで次へ</div>
+        </div>
+    </div>
+
+    <div id="stage3" class="stage hidden">
+        <div class="msg-box">
+            <h1>LUCKY PHOTO ✨</h1>
+            <div id="slot-res" style="font-size: 1.5rem; margin: 20px 0; color: #ff5252; font-weight: bold;">????</div>
+            <button id="slot-btn" class="btn-main" style="padding: 10px 30px; background: var(--gold);" onclick="drawSlot(event)">占う！</button>
+            <div id="final-msg" class="hidden" style="margin-top: 20px;">
+                <p>かわかみより感謝を込めて！<br>素敵な新生活を！🚀</p>
+                <small>画面をタップしてお祝いしてね！</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const messages = [
+            "おりく誕生日おめでとう！🥳",
+            "いつも遊んでくれて本当にありがとう！",
+            "また羽田空港とか行っていっぱい写真撮ろうね！📸",
+            "素敵な一年になりますように！！",
+            "新生活もがんばれー！！",
+            "無理しないようにして〜🌿",
+            "かわかみ"
+        ];
+        let step = 0;
+
+        function startApp() {
+            document.getElementById('bgm').play(); // 音声を再生
+            nextStage(1);
+        }
+
+        function nextStage(num) {
+            document.getElementById(`stage${num}`).classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById(`stage${num}`).style.display = 'none';
+                const next = document.getElementById(`stage${num+1}`);
+                next.style.display = 'flex';
+                setTimeout(() => next.classList.remove('hidden'), 50);
+                if(num === 1) showMsg();
+            }, 600);
+        }
+
+        function showMsg() {
+            document.getElementById('text-area').innerText = messages[step];
+            // 写真の表示タイミング
+            if(step === 2) document.getElementById('p1').classList.add('photo-show');
+            if(step === 4) document.getElementById('p2').classList.add('photo-show');
+            if(step === 6) document.getElementById('p3').classList.add('photo-show');
+        }
+
+        function handleTap(e) {
+            createCracker(e);
+            step++;
+            if(step < messages.length) {
+                showMsg();
+            } else {
+                nextStage(2);
+            }
+        }
+
+        function drawSlot(e) {
+            createCracker(e);
+            const spots = ["いっぱい写真とろう！", "フォトグラファｱｱｱー", "夕暮れの第3ターミナル 🌇", "限界光線貨物列車", "離陸直後の機体 ✈️", "空港の夜景 ✨", "臨時列車運転通達！", "アゲハ蝶", "横浜の夜景！"];
+            const btn = document.getElementById('slot-btn');
+            const res = document.getElementById('slot-res');
+            btn.style.display = 'none';
+            
+            let count = 0;
+            const timer = setInterval(() => {
+                res.innerText = spots[Math.floor(Math.random() * spots.length)];
+                count++;
+                if(count > 12) {
+                    clearInterval(timer);
+                    res.style.fontSize = "1.8rem";
+                    document.getElementById('final-msg').classList.remove('hidden');
+                }
+            }, 80);
+        }
+
+        function createCracker(e) {
+            const colors = ['#FF8FA3', '#FFCF56', '#87CEEB', '#FFB74D', '#BA68C8'];
+            for(let i=0; i<30; i++) {
+                const p = document.createElement('div');
+                p.className = 'piece';
+                p.style.left = e.clientX + 'px';
+                p.style.top = e.clientY + 'px';
+                p.style.background = colors[Math.floor(Math.random()*colors.length)];
+                const tx = (Math.random()-0.5)*400 + 'px';
+                const ty = (Math.random()-0.5)*400 + 'px';
+                p.style.setProperty('--tx', tx);
+                p.style.setProperty('--ty', ty);
+                p.style.width = Math.random()*10+5+'px';
+                p.style.height = '6px';
+                document.body.appendChild(p);
+                setTimeout(() => p.remove(), 1500);
+            }
+        }
+
+        // 背景に光の粒を生成
+        for(let i=0; i<20; i++) {
+            const k = document.createElement('div');
+            k.className = 'kira';
+            k.style.width = k.style.height = Math.random()*15+5+'px';
+            k.style.left = Math.random()*100+'vw';
+            k.style.top = Math.random()*100+'vh';
+            k.style.animationDelay = Math.random()*3+'s';
+            document.body.appendChild(k);
+        }
+    </script>
+</body>
+</html>
