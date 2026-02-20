@@ -32,20 +32,21 @@
             max-width: 800px;
         }
 
-        /* 画面右上の更新時刻表示 */
         .info-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
             padding: 0 5px;
+            flex-wrap: wrap;
         }
         .update-timestamp {
             font-size: 0.85em;
             color: #666;
             background: #eee;
-            padding: 2px 8px;
+            padding: 4px 10px;
             border-radius: 4px;
+            font-weight: bold;
         }
 
         .filter-container {
@@ -57,7 +58,6 @@
             border: 1px solid #eee;
         }
 
-        /* 運行情報カードのスタイル */
         .train-card {
             background-color: #fff;
             border: 1px solid #ddd;
@@ -65,10 +65,8 @@
             margin-bottom: 20px;
             padding: 15px;
             position: relative;
-            overflow: hidden;
         }
 
-        /* 路線名の太字表示 */
         .railway-title {
             font-weight: 800;
             font-size: 1.25em;
@@ -76,20 +74,17 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
         }
 
-        /* ステータスバッジ */
         .status-badge {
-            font-size: 0.7em;
-            padding: 3px 8px;
-            border-radius: 4px;
+            font-size: 0.65em;
+            padding: 3px 10px;
+            border-radius: 20px;
             color: #fff;
             font-weight: bold;
-            text-transform: uppercase;
         }
 
-        /* 状態別色分け */
+        /* 状態別カラー */
         .status-normal { border-left: 8px solid #28a745; }
         .status-normal .status-badge { background-color: #28a745; }
 
@@ -102,7 +97,7 @@
         .status-notice { border-left: 8px solid #17a2b8; background-color: #f0faff; }
         .status-notice .status-badge { background-color: #17a2b8; }
 
-        /* 履歴セクション */
+        /* 履歴表示 */
         .history-section {
             margin-top: 12px;
             border-top: 1px dashed #ccc;
@@ -112,14 +107,13 @@
             font-size: 0.8em;
             color: #01977a;
             cursor: pointer;
-            display: inline-flex;
-            align-items: center;
             font-weight: bold;
+            display: inline-block;
         }
         .history-list {
             display: none;
             font-size: 0.85em;
-            background: #fcfcfc;
+            background: #fafafa;
             padding: 10px;
             border-radius: 4px;
             list-style: none;
@@ -128,18 +122,16 @@
         }
         .history-item {
             border-bottom: 1px solid #eee;
-            padding: 5px 0;
-            color: #555;
+            padding: 8px 0;
         }
         .history-item:last-child { border-bottom: none; }
         .history-time {
             font-weight: bold;
             color: #333;
-            margin-right: 8px;
-            background: #eee;
-            padding: 1px 4px;
+            background: #e0e0e0;
+            padding: 2px 5px;
             border-radius: 3px;
-            font-size: 0.9em;
+            margin-right: 5px;
         }
 
         button {
@@ -150,17 +142,16 @@
             font-size: 16px;
             cursor: pointer;
             border-radius: 4px;
-            transition: 0.2s;
             display: block;
             margin: 10px auto;
+            transition: 0.3s;
         }
-        button:hover { background-color: #017a64; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        
-        footer { text-align: center; margin-top: 20px; color: #666; font-size: 0.9em; padding-bottom: 20px;}
+        button:hover { background-color: #017a64; }
+        footer { text-align: center; margin-top: 20px; color: #666; font-size: 0.8em; padding-bottom: 20px; }
 
         @media (max-width: 768px) {
             h1 { font-size: 1.4em; }
-            button { width: calc(100% - 40px); }
+            button { width: 90%; }
         }
     </style>
 </head>
@@ -170,15 +161,13 @@
             <h1>運行情報一覧</h1>
         </header>
 
-        <div style="padding: 0 10px;">
-            <button onclick="window.location.href='zaisen-JRE.html'">駅列車在線モニタに戻る</button>
-            <button onclick="window.location.href='railinfo.html'">運行情報2へ</button>
-            <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-        </div>
+        <button onclick="window.location.href='zaisen-JRE.html'">駅列車在線モニタに戻る</button>
+        <button onclick="window.location.href='railinfo.html'">運行情報2へ</button>
+        <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
 
         <main>
             <div class="info-header">
-                <div id="filter-placeholder"></div>
+                <div id="filter-area"></div>
                 <div id="update-timestamp" class="update-timestamp">取得中...</div>
             </div>
             
@@ -194,7 +183,7 @@
         </footer>
 
         <script>
-            // 全路線マッピング（既存のものを継承）
+            // 路線名マッピング
             const railwayMap = {
                 "JR-East.Chuo": "中央本線", "JR-East.Senzan": "仙山線", "JR-East.Yonesaka": "米坂線", "JR-East.Hanawa": "花輪線",
                 "JR-East.Tsugaru": "津軽線", "JR-East.Ou": "奥羽本線", "JR-East.OuYamagata": "奥羽本線（山形線）", "JR-East.RikuEast": "陸羽東線",
@@ -220,147 +209,121 @@
                 "JR-East.Yamada": "山田線", "JR-East.Hachinohe": "八戸線", "JR-East.Ominato": "大湊線", "JR-East.Tazawako": "田沢湖線",
                 "JR-East.Oga": "男鹿線", "JR-East.Gono": "五能線", "JR-East.Tadami": "只見線", "JR-East.BanetsuWest": "磐越西線",
                 "JR-East.SensekiTohoku": "仙石東北ライン", "JR-East.Echigo": "越後線", "JR-East.Hakushin": "白新線",
-                "JR-East.Yahiko": "弥彦線", "JR-East.Shinonoi": "篠ノ井線", "JR-East.Oito": "大糸線", "": ""
+                "JR-East.Yahiko": "弥彦線", "JR-East.Shinonoi": "篠ノ井線", "JR-East.Oito": "大糸線"
             };
 
-            function createFilterCheckboxes() {
-                const filterDiv = document.createElement('div');
-                filterDiv.className = 'filter-container';
-                filterDiv.innerHTML = `
-                    <label style="cursor:pointer">
-                        <input type="checkbox" id="hide-no-info"> 平常運転の線区を非表示
-                    </label>
-                `;
-                document.getElementById('filter-placeholder').appendChild(filterDiv);
-                document.getElementById('hide-no-info').addEventListener('change', fetchTrainInfo);
+            let cachedData = [];
+
+            // フィルタの作成
+            function initUI() {
+                const area = document.getElementById('filter-area');
+                area.innerHTML = `<div class="filter-container">
+                    <label><input type="checkbox" id="hide-normal" onchange="renderInfo()"> 平常運転の線区を非表示</label>
+                </div>`;
             }
 
-            function toggleHistory(id) {
-                const list = document.getElementById('hist-' + id);
-                const isVisible = list.style.display === 'block';
-                list.style.display = isVisible ? 'none' : 'block';
-            }
+            // 履歴保存 (中身のテキストが違う場合のみ)
+            function saveHistory(data) {
+                const KEY = 'train_history_content_based';
+                let store = JSON.parse(localStorage.getItem(KEY) || '{}');
+                let updated = false;
 
-            // 履歴保存機能 (最大10件保持)
-            function saveToHistory(data) {
-                let historyStore = JSON.parse(localStorage.getItem('train_history_v2') || '{}');
                 data.forEach(item => {
-                    const railwayKey = item["odpt:railway"];
-                    const currentText = item["odpt:trainInformationText"]?.ja;
-                    const currentDate = item["dc:date"];
-                    
-                    if (!historyStore[railwayKey]) historyStore[railwayKey] = [];
-                    
-                    // 重複チェック（最新の内容と異なる場合のみ保存）
-                    const isDuplicate = historyStore[railwayKey].some(h => h.date === currentDate && h.text === currentText);
-                    
-                    if (!isDuplicate && currentText) {
-                        historyStore[railwayKey].unshift({
-                            date: currentDate,
-                            text: currentText,
-                            status: item["odpt:trainInformationStatus"]?.ja || "情報なし"
-                        });
-                        // 10件を超えたら古いものを削除
-                        if (historyStore[railwayKey].length > 10) {
-                            historyStore[railwayKey].pop();
-                        }
+                    const id = item["odpt:railway"];
+                    const text = item["odpt:trainInformationText"]?.ja;
+                    const date = item["dc:date"];
+                    const status = item["odpt:trainInformationStatus"]?.ja || "平常運転";
+
+                    if (!store[id]) store[id] = [];
+                    const last = store[id][0];
+
+                    // テキスト中身が前回と違う場合のみ記録
+                    if (text && (!last || last.text !== text)) {
+                        store[id].unshift({ date, text, status });
+                        if (store[id].length > 10) store[id].pop(); // 最大10件
+                        updated = true;
                     }
                 });
-                localStorage.setItem('train_history_v2', JSON.stringify(historyStore));
-                return historyStore;
+
+                if (updated) localStorage.setItem(KEY, JSON.stringify(store));
+                return store;
             }
 
-            function fetchTrainInfo() {
+            function fetchInfo() {
                 const token = "wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh";
                 const url = `https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`;
 
                 fetch(url)
-                    .then(response => response.json())
+                    .then(r => r.json())
                     .then(data => {
-                        const historyStore = saveToHistory(data);
-                        
-                        // 画面右上の最終更新表示
-                        if(data.length > 0) {
-                            const lastUpdate = new Date(data[0]["dc:date"]);
-                            document.getElementById('update-timestamp').innerText = 
-                                "データ更新: " + lastUpdate.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-                        }
-
-                        // ステータス優先度
-                        const statusPriority = {
-                            '運転見合わせ': 1, '一部運休': 1, '運転再開見込': 1, '直通運転中止': 1,
-                            '運転再開': 2, '遅延': 2, '平常運転': 3, 'お知らせ': 4
-                        };
-
-                        data.sort((a, b) => {
-                            const statusA = statusPriority[a["odpt:trainInformationStatus"]?.ja] || 99;
-                            const statusB = statusPriority[b["odpt:trainInformationStatus"]?.ja] || 99;
-                            return statusA - statusB;
-                        });
-
-                        const hideNoInfo = document.getElementById('hide-no-info').checked;
-                        const filteredData = data.filter(info => {
-                            const status = info["odpt:trainInformationStatus"]?.ja || "情報なし";
-                            if (hideNoInfo && status === '平常運転') return false;
-                            return true;
-                        });
-
-                        let output = '';
-                        filteredData.forEach((train_info, index) => {
-                            const status = train_info["odpt:trainInformationStatus"]?.ja || "情報なし";
-                            const cause = train_info["odpt:trainInformationCause"]?.ja || "---";
-                            let railwayId = train_info["odpt:railway"]?.replace("odpt.Railway:", "") || "不明な路線";
-                            const railwayName = railwayMap[railwayId] || railwayId;
-                            const range = train_info["odpt:trainInformationRange"]?.ja || "全線";
-                            const text = train_info["odpt:trainInformationText"]?.ja || "情報なし";
-
-                            let statusClass = 'status-notice';
-                            if (status === '平常運転') statusClass = 'status-normal';
-                            else if (status.includes('再開') || status.includes('遅延')) statusClass = 'status-delay';
-                            else if (status.includes('見合わせ') || status.includes('運休') || status.includes('中止')) statusClass = 'status-suspend';
-
-                            // 同一路線の過去履歴（現在のデータ以外）
-                            const allHistories = historyStore[train_info["odpt:railway"]] || [];
-                            const pastHistories = allHistories.filter(h => h.date !== train_info["dc:date"]);
-
-                            output += `
-                                <div class="train-card ${statusClass}">
-                                    <div class="railway-title">
-                                        ${railwayName} 
-                                        <span class="status-badge">${status}</span>
-                                    </div>
-                                    <p><strong>事由:</strong> ${cause} / <strong>区間:</strong> ${range}</p>
-                                    <p style="margin-top:10px;">${text}</p>
-                                    
-                                    ${pastHistories.length > 0 ? `
-                                    <div class="history-section">
-                                        <div class="history-toggle" onclick="toggleHistory(${index})">
-                                            ▼ 過去の履歴を表示 (${pastHistories.length}件)
-                                        </div>
-                                        <ul class="history-list" id="hist-${index}">
-                                            ${pastHistories.map(h => `
-                                                <li class="history-item">
-                                                    <span class="history-time">${new Date(h.date).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})}</span>
-                                                    [${h.status}] ${h.text}
-                                                </li>
-                                            `).join('')}
-                                        </ul>
-                                    </div>` : ''}
-                                </div>
-                            `;
-                        });
-                        document.getElementById("train-info").innerHTML = output || "<p style='text-align:center; padding:20px;'>対象の路線はありません。</p>";
+                        cachedData = data;
+                        saveHistory(data);
+                        renderInfo();
                     })
-                    .catch(error => {
-                        console.error("エラー:", error);
-                        document.getElementById("train-info").innerHTML = "<p>データの取得に失敗しました。トークンや通信を確認してください。</p>";
-                    });
+                    .catch(e => console.error("Fetch Error:", e));
             }
 
-            window.onload = function() {
-                createFilterCheckboxes();
-                fetchTrainInfo();
-                setInterval(fetchTrainInfo, 60000); // 1分ごとに自動更新
+            function renderInfo() {
+                const container = document.getElementById('train-info');
+                const hideNormal = document.getElementById('hide-normal').checked;
+                const historyStore = JSON.parse(localStorage.getItem('train_history_content_based') || '{}');
+
+                if (cachedData.length > 0) {
+                    const d = new Date(cachedData[0]["dc:date"]);
+                    document.getElementById('update-timestamp').innerText = "データ更新: " + d.toLocaleTimeString();
+                }
+
+                const priority = { '運転見合わせ': 1, '一部運休': 1, '運転再開見込': 1, '遅延': 2, '平常運転': 3 };
+                const sorted = [...cachedData].sort((a, b) => {
+                    return (priority[a["odpt:trainInformationStatus"]?.ja] || 99) - (priority[b["odpt:trainInformationStatus"]?.ja] || 99);
+                });
+
+                let html = '';
+                sorted.forEach((info, idx) => {
+                    const status = info["odpt:trainInformationStatus"]?.ja || "平常運転";
+                    if (hideNormal && status === '平常運転') return;
+
+                    const rId = info["odpt:railway"];
+                    const name = railwayMap[rId.replace("odpt.Railway:", "")] || rId;
+                    const text = info["odpt:trainInformationText"]?.ja || "平常通り運転しています。";
+                    
+                    let cls = 'status-notice';
+                    if (status === '平常運転') cls = 'status-normal';
+                    else if (status.includes('遅延') || status.includes('再開')) cls = 'status-delay';
+                    else if (status.includes('見合わせ') || status.includes('運休')) cls = 'status-suspend';
+
+                    const history = historyStore[rId] || [];
+                    const past = history.filter(h => h.date !== info["dc:date"]);
+
+                    html += `
+                    <div class="train-card ${cls}">
+                        <div class="railway-title">${name} <span class="status-badge">${status}</span></div>
+                        <p style="font-size:0.85em; color:#555;">事由: ${info["odpt:trainInformationCause"]?.ja || "---"} / 区間: ${info["odpt:trainInformationRange"]?.ja || "---"}</p>
+                        <p style="font-weight:bold; margin-top:5px;">${text}</p>
+                        ${past.length > 0 ? `
+                        <div class="history-section">
+                            <span class="history-toggle" onclick="document.getElementById('hlist-${idx}').style.display = (document.getElementById('hlist-${idx}').style.display === 'block' ? 'none' : 'block')">
+                                ▼ 内容が変更された過去の履歴 (${past.length}件)
+                            </span>
+                            <ul class="history-list" id="hlist-${idx}">
+                                ${past.map(p => `
+                                    <li class="history-item">
+                                        <span class="history-time">${new Date(p.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                        <span style="color:#d32f2f; font-weight:bold;">[${p.status}]</span><br>
+                                        ${p.text}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>` : ''}
+                    </div>`;
+                });
+                container.innerHTML = html || "<p style='text-align:center;'>表示する情報はありません。</p>";
+            }
+
+            window.onload = () => {
+                initUI();
+                fetchInfo();
+                setInterval(fetchInfo, 60000); // 1分更新
             };
         </script>
 
