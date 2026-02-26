@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>輸送障害 管理画面</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  body { font-family: 'Inter','Noto Sans JP',sans-serif; background-color:#f8fffe; }
+  .header-card { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
+  .system-card { background: #fff; border: 1px solid #d1fae5; box-shadow: 0 1px 3px rgba(6,78,59,0.1); }
+  .input-box { border: 1px solid #d1fae5; }
+  .input-box:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.1); }
+</style>
+</head>
+
+<body class="p-6">
+
+<!-- Header -->
+<header class="mb-6">
+  <div class="header-card rounded-lg p-6 text-white shadow-sm flex justify-between">
+    <div class="flex gap-4 items-center">
+      <div class="bg-white/10 p-2 rounded">
+        <span class="material-icons-outlined">edit</span>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold">輸送障害 管理画面</h1>
+        <p class="text-green-100 text-sm">Transport Incident Admin</p>
+      </div>
+    </div>
+    <div class="text-sm text-green-100 text-right">
+      <div>システムID: TIM-2025</div>
+      <div>管理モード</div>
+    </div>
+  </div>
+</header>
+
+<!-- Back button -->
+<div class="mb-6">
+  <button onclick="location.href='JRchr.html'" class="bg-green-100 hover:bg-green-200 border border-green-300 text-green-900 px-4 py-2 rounded flex items-center gap-1">
+    <span class="material-icons-outlined text-base">arrow_back</span>
+    一覧ページに戻る
+  </button>
+</div>
+
+<!-- Form -->
+<div class="system-card rounded-lg p-6 mb-6">
+  <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+    <span class="material-icons-outlined text-green-600">note_add</span>
+    新規登録 / 編集
+  </h2>
+
+  <input type="hidden" id="editId">
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="font-medium">タイトル</label>
+      <input id="title" class="w-full input-box p-2 rounded mt-1">
+    </div>
+    <div>
+      <label class="font-medium">発生日</label>
+      <input id="datetime" type="datetime-local" class="w-full input-box p-2 rounded mt-1">
+    </div>
+    <div>
+      <label class="font-medium">場所</label>
+      <input id="location" class="w-full input-box p-2 rounded mt-1">
+    </div>
+    <div>
+      <label class="font-medium">列車番号</label>
+      <input id="trainNo" class="w-full input-box p-2 rounded mt-1">
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <label class="font-medium">概況（description）</label>
+    <textarea id="description" class="w-full input-box p-2 rounded h-24 mt-1"></textarea>
+  </div>
+
+  <div class="mt-4">
+    <label class="font-medium">メモ（notes：1行＝1項目）</label>
+    <textarea id="notes" class="w-full input-box p-2 rounded h-24 mt-1"></textarea>
+  </div>
+
+  <div class="mt-4">
+  <label class="font-medium">タイムライン</label>
+
+  <div id="timelineContainer" class="space-y-2 mt-2"></div>
+
+  <button type="button"
+    onclick="addTimelineRow()"
+    class="mt-2 bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded border border-green-300">
+    ＋ 行を追加
+  </button>
+</div>
+
+
+  <div class="mt-6 flex gap-4">
+    <button onclick="saveIncident()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-1">
+      <span class="material-icons-outlined text-base">save</span>
+      保存
+    </button>
+    <button onclick="clearForm()" class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded flex items-center gap-1">
+      <span class="material-icons-outlined text-base">clear</span>
+      クリア
+    </button>
+  </div>
+</div>
+
+<!-- List -->
+<div class="system-card rounded-lg p-6">
+  <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+    <span class="material-icons-outlined text-green-600">list</span>
+    登録済みデータ
+  </h2>
+
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b">
+        <th class="p-2 text-left">タイトル</th>
+        <th class="p-2 text-left">日時</th>
+        <th class="p-2 text-left">操作</th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+</div>
+
+<script>
+const supabaseClient = supabase.createClient(
+  "https://cgeexdlnpbqslywcbesp.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWV4ZGxucGJxc2x5d2NiZXNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzU5OTIsImV4cCI6MjA4NzYxMTk5Mn0.KuI5aVvMz2v87EJGviOVw8A5ew8GfzYeqtESIawQmlY"
+);
+
+async function loadList() {
+  const { data } = await supabaseClient
+    .from("incidents")
+    .select("*")
+    .order("datetime", { ascending: false });
+
+  const tbody = document.getElementById("list");
+  tbody.innerHTML = "";
+
+  data.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.className = "border-b hover:bg-green-50";
+
+    tr.innerHTML = `
+      <td class="p-2">${row.title}</td>
+      <td class="p-2">${row.datetime}</td>
+      <td class="p-2">
+        <button onclick='editIncident(${JSON.stringify(row)})' class="text-blue-600 hover:underline">編集</button>
+        <button onclick='deleteIncident(${row.id})' class="text-red-600 hover:underline ml-3">削除</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function clearForm() {
+  document.getElementById("editId").value = "";
+  document.getElementById("title").value = "";
+  document.getElementById("datetime").value = "";
+  document.getElementById("location").value = "";
+  document.getElementById("trainNo").value = "";
+  document.getElementById("description").value = "";
+  document.getElementById("notes").value = "";
+  document.getElementById("timeline").value = "";
+}
+
+function editIncident(row) {
+  document.getElementById("editId").value = row.id;
+  document.getElementById("title").value = row.title;
+  document.getElementById("datetime").value = row.datetime.replace(" ", "T");
+  document.getElementById("location").value = row.location;
+  document.getElementById("trainNo").value = row.trainNo;
+
+  document.getElementById("description").value = row.data.description ?? "";
+  document.getElementById("notes").value = (row.data.notes ?? []).join("\n");
+
+  // タイムラインをクリア
+  const container = document.getElementById("timelineContainer");
+  container.innerHTML = "";
+
+  // タイムラインを行として追加
+  (row.data.timeline ?? []).forEach(t => {
+    addTimelineRow(t.time ?? "", t.text ?? "");
+  });
+}
+
+  
+function addTimelineRow(time = "", text = "") {
+  const container = document.getElementById("timelineContainer");
+
+  const row = document.createElement("div");
+  row.className = "flex gap-2 items-center";
+
+  row.innerHTML = `
+    <input type="time" value="${time}" class="input-box p-2 rounded w-28">
+    <input type="text" value="${text}" class="input-box p-2 rounded flex-1" placeholder="内容を入力">
+    <button type="button" class="text-red-600 font-bold" onclick="this.parentElement.remove()">－</button>
+  `;
+
+  container.appendChild(row);
+}
+
+  
+async function saveIncident() {
+  const id = document.getElementById("editId").value;
+
+  // ★ タイムライン行をすべて取得
+  const timelineRows = Array.from(document.querySelectorAll("#timelineContainer > div")).map(row => {
+    const inputs = row.querySelectorAll("input");
+    return {
+      time: inputs[0].value || "",
+      text: inputs[1].value || ""
+    };
+  });
+
+  const payload = {
+    title: document.getElementById("title").value,
+    datetime: document.getElementById("datetime").value.replace("T", " "),
+    location: document.getElementById("location").value,
+    trainNo: document.getElementById("trainNo").value,
+    data: {
+      description: document.getElementById("description").value,
+      notes: document.getElementById("notes").value.split("\n").filter(x => x),
+      timeline: timelineRows   // ← ★ textarea ではなく行追加UIから取得
+    }
+  };
+
+  if (id) {
+    await supabaseClient.from("incidents").update(payload).eq("id", id);
+  } else {
+    await supabaseClient.from("incidents").insert(payload);
+  }
+
+  // 保存後に一覧へ戻る
+  location.href = "JRchr.html";
+}
+
+
+async function deleteIncident(id) {
+  if (!confirm("削除しますか？")) return;
+  await supabaseClient.from("incidents").delete().eq("id", id);
+  loadList();
+}
+
+loadList();
+</script>
+
+</body>
+</html>

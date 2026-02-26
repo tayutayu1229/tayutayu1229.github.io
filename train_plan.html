@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運転計画モニタ - 東京圏輸送情報システム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #01977a;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        input[type="date"] {
+            padding: 5px;
+            border: 1px solid #01977a;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #01977a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #017a64;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #01977a;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* 既存のスタイル */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #01977a;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <div id="main-content" style="display: none;"> 
+    <div class="container">
+        <h1>運転計画モニタ</h1>
+        <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+        <div class="controls">
+            <input type="date" id="date-picker">
+            <button onclick="fetchEvents()">予定を取得</button>
+            <button onclick="showAllEvents()">全ての予定を表示</button>
+        </div>
+        <div id="loader" class="loader"></div>
+        <div id="events-container"></div>
+        <div id="error-message" class="error-message"></div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        const CLIENT_ID = 'AAAAAAA';
+
+        let tokenClient;
+        let accessToken = null;
+
+        function initializeGSI() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/calendar.readonly',
+                callback: (response) => {
+                    if (response.error) {
+                        showError('トークン取得エラー');
+                        return;
+                    }
+                    accessToken = response.access_token;
+                    console.log('Access token acquired:', accessToken);
+                },
+            });
+        }
+
+        function authenticate() {
+            if (!accessToken) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                console.log('既にアクセストークンがあります:', accessToken);
+                fetchEvents(); // または showAllEvents() を呼び出す
+            }
+        }
+
+        function fetchEvents() {
+            authenticate();
+            if (accessToken) {
+                const date = document.getElementById('date-picker').value;
+                if (!date) {
+                    showError('日付を選択してください');
+                    return;
+                }
+
+                showLoader();
+
+                const startDate = new Date(date).toISOString();
+                const endDate = new Date(new Date(date).setDate(new Date(date).getDate() + 1)).toISOString();
+
+                fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate}&timeMax=${endDate}&singleEvents=true&orderBy=startTime`, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        hideLoader();
+                        if (data.error) {
+                            showError('予定の取得に失敗しました');
+                            return;
+                        }
+                        displayEvents(data.items, '選択日の予定');
+                    })
+                    .catch((error) => {
+                        hideLoader();
+                        console.error('Error fetching events:', error);
+                        showError('予定の取得中にエラーが発生しました');
+                    });
+            }
+        }
+
+        function showAllEvents() {
+            authenticate();
+            if (accessToken) {
+                showLoader();
+
+                fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${new Date().toISOString()}&singleEvents=true&orderBy=startTime`, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        hideLoader();
+                        if (data.error) {
+                            showError('全ての予定の取得に失敗しました');
+                            return;
+                        }
+                        displayEvents(data.items, '全ての予定');
+                    })
+                    .catch((error) => {
+                        hideLoader();
+                        console.error('Error fetching all events:', error);
+                        showError('全ての予定の取得中にエラーが発生しました');
+                    });
+            }
+        }
+
+        function displayEvents(events, title) {
+            // 既存の displayEvents 関数
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+        }
+
+        function showLoader() {
+            document.getElementById('loader').style.display = 'block';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        window.onload = initializeGSI;
+        document.addEventListener('DOMContentLoaded', function() {
+
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script src="auth_guard.js"></script> 
+
+</body>
+</html>

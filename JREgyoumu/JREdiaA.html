@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車運行図表システム</title>
+    <style>
+        /* --- CSSスタイル（変更なし） --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'MS Gothic', 'Osaka-Mono', monospace;
+            background: #ffffff;
+            color: #000000;
+            font-size: 12px;
+            line-height: 1.2;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #ffffff;
+            padding: 10px 15px;
+            border-bottom: 2px solid #000000;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .controls {
+            background: #f8f8f8;
+            padding: 10px 15px;
+            border-bottom: 1px solid #cccccc;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        select, button {
+            padding: 5px 10px;
+            border: 1px solid #666666;
+            background: #ffffff;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        button {
+            background: #f0f0f0;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #e0e0e0;
+        }
+
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        .info {
+            background: #f0f8ff;
+            border-bottom: 1px solid #cccccc;
+            padding: 8px 15px;
+            font-size: 11px;
+        }
+
+        .diagram-container {
+            overflow: auto;
+            height: calc(100vh - 145px);
+            border-top: 1px solid #000;
+            position: relative;
+        }
+
+        .diagram-content {
+            position: relative;
+        }
+
+        .diagram-table {
+            border-collapse: collapse;
+            background: #ffffff;
+            table-layout: fixed;
+        }
+
+        .time-header-hour, .time-header-minute {
+            background: #f0f0f0;
+            border: 1px solid #000000;
+            text-align: center;
+            font-weight: bold;
+            padding: 3px 0;
+            font-size: 11px;
+            position: sticky;
+            z-index: 20;
+        }
+        .time-header-hour {
+            top: 0;
+        }
+        .time-header-minute {
+            top: 23px;
+            font-size: 9px;
+            min-width: 20px;
+        }
+
+        .station-cell {
+            background: #f8f8f8;
+            border: 1px solid #000000;
+            text-align: center;
+            font-weight: bold;
+            padding: 5px 8px;
+            white-space: nowrap;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            height: 24px;
+            font-size: 11px;
+        }
+        
+        .time-cell {
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            width: 20px;
+            height: 24px;
+        }
+
+        .time-cell.ten-min {
+            border-left: 1px dashed #999;
+        }
+
+        .time-cell.hour-mark {
+            border-left: 1px solid #333;
+        }
+
+        .train-line {
+            position: absolute;
+            background: #000000;
+            transform-origin: 0 50%;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .train-number {
+            position: absolute;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000000;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 0 2px;
+            z-index: 7;
+            white-space: nowrap;
+            pointer-events: none;
+            transform: rotate(-35deg) translateY(-8px) translateX(5px);
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 50px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .error-message {
+            color: #cc0000;
+            text-align: center;
+            padding: 20px;
+            background: #ffeeee;
+            border: 1px solid #cc0000;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1 id="diagramTitle">列車運行図表</h1>
+    </header>
+
+    <nav class="controls">
+        <div class="control-group">
+            <label for="railwaySelect">路線：</label>
+            <select id="railwaySelect">
+                <option value="">選択してください</option>
+                <option value="odpt.Railway:JR-East.JobanRapid">常磐快速線</option>
+                <option value="odpt.Railway:JR-East.ChuoSobuLocal">中央・総武各駅停車</option>
+                <option value="odpt.Railway:JR-East.ChuoRapid">中央快速線</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="directionSelect">方向：</label>
+            <select id="directionSelect" disabled>
+                <option value="">路線を選択</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="calendarSelect">運行日：</label>
+            <select id="calendarSelect" disabled>
+                <option value="all">平日・土休日</option>
+                <option value="odpt.Calendar:Weekday">平日</option>
+                <option value="odpt.Calendar:SaturdayHoliday">土休日</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <button id="generateDiagram" disabled>図表生成</button>
+        </div>
+    </nav>
+
+    <div class="info">
+        <strong>使用方法：</strong>路線、方向、運行日を選択して「図表生成」ボタンをクリックしてください。
+    </div>
+
+    <main id="diagramContainer" class="diagram-container">
+        <div class="status-message">路線を選択してください</div>
+    </main>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const API_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+        const API_BASE_URL = 'https://api-challenge.odpt.org/api/v4/';
+
+        const railwaySelect = document.getElementById('railwaySelect');
+        const directionSelect = document.getElementById('directionSelect');
+        const calendarSelect = document.getElementById('calendarSelect');
+        const generateBtn = document.getElementById('generateDiagram');
+        const diagramContainer = document.getElementById('diagramContainer');
+        const titleElement = document.getElementById('diagramTitle');
+
+        const START_HOUR = 4;
+        const END_HOUR = 26;
+        const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
+        const CELL_WIDTH = 20;
+        const LINE_HEIGHT = 1.5;
+
+        railwaySelect.addEventListener('change', handleRailwayChange);
+        directionSelect.addEventListener('change', handleDirectionChange);
+        generateBtn.addEventListener('click', generateDiagram);
+
+        function handleRailwayChange() {
+            const railwayId = railwaySelect.value;
+            directionSelect.innerHTML = '<option value="">読込中...</option>';
+            directionSelect.disabled = true;
+            calendarSelect.disabled = true;
+            generateBtn.disabled = true;
+
+            if (!railwayId) {
+                directionSelect.innerHTML = '<option value="">路線を選択</option>';
+                return;
+            }
+            updateDirectionOptions(railwayId);
+        }
+        
+        function handleDirectionChange() {
+            generateBtn.disabled = !directionSelect.value;
+        }
+        
+        async function updateDirectionOptions(railwayId) {
+            const railwayName = railwayId.split('.').pop();
+            let directions;
+            if (railwayName === 'ChuoSobuLocal') {
+                directions = { 'odpt.RailDirection:Eastbound': '東行 (千葉方面)', 'odpt.RailDirection:Westbound': '西行 (三鷹方面)' };
+            } else {
+                directions = { 'odpt.RailDirection:Outbound': '下り', 'odpt.RailDirection:Inbound': '上り' };
+            }
+
+            directionSelect.innerHTML = '<option value="">選択してください</option>';
+            for (const [value, text] of Object.entries(directions)) {
+                directionSelect.innerHTML += `<option value="${value}">${text}</option>`;
+            }
+            directionSelect.disabled = false;
+            calendarSelect.disabled = false;
+        }
+
+        function showStatus(message, isError = false) {
+            diagramContainer.innerHTML = `<div class="${isError ? 'error-message' : 'status-message'}">${message}</div>`;
+        }
+
+        async function fetchData(endpoint, params) {
+            const url = new URL(API_BASE_URL + endpoint);
+            url.searchParams.set('acl:consumerKey', API_KEY);
+            for (const [key, value] of Object.entries(params)) {
+                url.searchParams.set(key, value);
+            }
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`APIサーバーがエラーを返しました (Status: ${response.status})`);
+                return await response.json();
+            } catch (error) {
+                console.error('API通信エラー:', error);
+                showStatus(`データの取得に失敗しました: ${error.message}`, true);
+                return null;
+            }
+        }
+
+        async function generateDiagram() {
+            const railwayId = railwaySelect.value;
+            const directionId = directionSelect.value;
+            const calendarId = calendarSelect.value;
+            const railwayTitle = railwaySelect.options[railwaySelect.selectedIndex].text;
+
+            if (!railwayId || !directionId) return;
+
+            showStatus('時刻表データを取得中...');
+            generateBtn.disabled = true;
+            
+            const [railwayData, timetableData] = await Promise.all([
+                fetchData('odpt:Railway', { 'owl:sameAs': railwayId }),
+                fetchData('odpt:TrainTimetable', { 'odpt:railway': railwayId })
+            ]);
+            
+            if (!railwayData || !Array.isArray(railwayData) || !railwayData[0] || !timetableData) {
+                showStatus('ダイヤグラムの生成に必要なデータが取得できませんでした。', true);
+                generateBtn.disabled = false;
+                return;
+            }
+
+            const stationOrder = railwayData[0]['odpt:stationOrder'];
+            
+            if (!stationOrder || stationOrder.length === 0) {
+                 showStatus('路線情報内に駅順データが見つかりませんでした。', true);
+                 generateBtn.disabled = false;
+                 return;
+            }
+            
+            showStatus('ダイヤグラムを生成中...');
+            
+            titleElement.textContent = `${railwayTitle} 列車運行図表 (${directionSelect.options[directionSelect.selectedIndex].text})`;
+            
+            const stationMap = new Map(stationOrder.map((st, i) => [st['odpt:station'], { index: i, name: st['odpt:stationTitle'].ja }]));
+
+            diagramContainer.innerHTML = '';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'diagram-content';
+            diagramContainer.appendChild(contentDiv);
+            
+            const table = createTableGrid(contentDiv, stationOrder);
+            drawTrains(contentDiv, table, timetableData, directionId, calendarId, stationMap);
+
+            generateBtn.disabled = false;
+        }
+        
+        function createTableGrid(container, stationOrder) {
+            const table = document.createElement('table');
+            table.className = 'diagram-table';
+            
+            const thead = table.createTHead();
+            const hourRow = thead.insertRow();
+            const minuteRow = thead.insertRow();
+            
+            const th = document.createElement('th');
+            th.className = 'station-cell';
+            th.textContent = '駅名';
+            th.rowSpan = 2;
+            hourRow.appendChild(th);
+
+            for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+                const hourTh = document.createElement('th');
+                hourTh.className = 'time-header-hour';
+                hourTh.colSpan = 60;
+                hourTh.textContent = `${hour % 24}時`;
+                hourRow.appendChild(hourTh);
+            }
+
+            for (let min = 0; min < TOTAL_MINUTES; min++) {
+                const minuteTh = document.createElement('th');
+                minuteTh.className = 'time-header-minute';
+                if (min % 10 === 0) {
+                     minuteTh.textContent = `${min % 60 === 0 ? '00' : min % 60}`;
+                }
+                minuteRow.appendChild(minuteTh);
+            }
+            
+            const tbody = table.createTBody();
+            stationOrder.forEach(st => {
+                const row = tbody.insertRow();
+                row.className = 'station-row';
+                const nameCell = row.insertCell();
+                nameCell.className = 'station-cell';
+                nameCell.textContent = st['odpt:stationTitle'].ja;
+
+                for (let min = 0; min < TOTAL_MINUTES; min++) {
+                    const cell = row.insertCell();
+                    cell.className = 'time-cell';
+                    if (min % 60 === 0) cell.classList.add('hour-mark');
+                    else if (min % 10 === 0) cell.classList.add('ten-min');
+                }
+            });
+
+            container.appendChild(table);
+            return table;
+        }
+
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return null;
+            const [hour, minute] = timeStr.split(':').map(Number);
+            const adjustedHour = hour < START_HOUR ? hour + 24 : hour;
+            return (adjustedHour - START_HOUR) * 60 + minute;
+        }
+
+        function drawTrains(container, table, timetableData, directionId, calendarId, stationMap) {
+            // ▼▼▼【修正箇所】ここからが最終確定版の描画ロジックです ▼▼▼
+            const containerRect = container.getBoundingClientRect();
+            const stationRows = table.querySelectorAll('tbody .station-row');
+            
+            // 1. 駅名セルの実際の幅を「測定」して取得
+            const stationCell = table.querySelector('tbody .station-cell');
+            if (!stationCell) return; // 表がなければ何もしない
+            const measuredStationCellWidth = stationCell.offsetWidth;
+
+            const filteredTrains = timetableData.filter(train => {
+                const directionMatch = train['odpt:railDirection'] === directionId;
+                const calendarMatch = (calendarId === 'all') || (train['odpt:calendar'] === calendarId);
+                return directionMatch && calendarMatch;
+            });
+
+            filteredTrains.forEach(train => {
+                const stops = train['odpt:trainTimetableObject'];
+                let firstStop = true;
+
+                for (let i = 0; i < stops.length - 1; i++) {
+                    const stopA = stops[i];
+                    const stopB = stops[i+1];
+
+                    const stationAInfo = stationMap.get(stopA['odpt:departureStation'] || stopA['odpt:arrivalStation']);
+                    const stationBInfo = stationMap.get(stopB['odpt:departureStation'] || stopB['odpt:arrivalStation']);
+                    const timeA = timeToMinutes(stopA['odpt:departureTime'] || stopA['odpt:arrivalTime']);
+                    const timeB = timeToMinutes(stopB['odpt:departureTime'] || stopB['odpt:arrivalTime']);
+                    
+                    if (!stationAInfo || !stationBInfo || timeA === null || timeB === null) continue;
+                    
+                    const startRowEl = stationRows[stationAInfo.index];
+                    const endRowEl = stationRows[stationBInfo.index];
+                    if (!startRowEl || !endRowEl) continue;
+
+                    const startRect = startRowEl.getBoundingClientRect();
+                    const endRect = endRowEl.getBoundingClientRect();
+
+                    // 2. X座標の計算に「測定した駅名セルの幅」を使用
+                    const x1 = measuredStationCellWidth + timeA * CELL_WIDTH;
+                    const x2 = measuredStationCellWidth + timeB * CELL_WIDTH;
+                    
+                    const y1 = startRect.bottom - containerRect.top;
+                    const y2 = endRect.bottom - containerRect.top;
+                    
+                    const dx = x2 - x1;
+                    const dy = y2 - y1;
+
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                    
+                    const line = document.createElement('div');
+                    line.className = 'train-line';
+                    line.style.height = `${LINE_HEIGHT}px`;
+                    line.style.width = `${length}px`;
+                    line.style.left = `${x1}px`;
+                    line.style.top = `${y1 - (LINE_HEIGHT / 2)}px`;
+                    line.style.transform = `rotate(${angle}deg)`;
+                    container.appendChild(line);
+
+                    if(firstStop) {
+                        const trainNumberDiv = document.createElement('div');
+                        trainNumberDiv.className = 'train-number';
+                        trainNumberDiv.textContent = train['odpt:trainNumber'];
+                        trainNumberDiv.style.left = `${x1}px`;
+                        trainNumberDiv.style.top = `${y1}px`;
+                        container.appendChild(trainNumberDiv);
+                        firstStop = false;
+                    }
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>

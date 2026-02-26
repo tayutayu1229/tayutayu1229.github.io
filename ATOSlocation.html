@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>ATOS在線モニタ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 100px 20px 20px 20px; /* ヘッダーとティッカーのスペースを確保 */
+      background: #f9f9f9;
+      color: #333;
+      transition: background-color 0.3s, color 0.3s;
+      margin: 0;
+    }
+    /* ヘッダーのスタイル */
+    .page-header {
+      position: fixed; /* ページ上部に固定 */
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: #2b8e7b;
+      color: white;
+      padding: 10px 20px;
+      font-size: 1.5em;
+      font-weight: bold;
+      text-align: center;
+      z-index: 1001; /* スクロールティッカーより手前に表示 */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .line-selector {
+      margin-bottom: 20px;
+    }
+    
+    /* 運行情報スクロール */
+    .train-info-ticker {
+      position: fixed;
+      top: 60px; /* ヘッダーのすぐ下に配置 */
+      left: 0;
+      right: 0;
+      background: #333;
+      color: white;
+      height: 40px;
+      overflow: hidden;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      transition: background-color 0.3s;
+    }
+    .train-info-content {
+      white-space: nowrap;
+      animation: scroll-left var(--scroll-duration) linear infinite;
+      font-size: 14px;
+      font-weight: 500;
+      /* padding-right: 100%; */
+    }
+    @keyframes scroll-left {
+      0% {
+        transform: translateX(100%);
+      }
+      100% {
+        transform: translateX(-100%);
+      }
+    }
+
+    #monitor {
+      position: relative;
+      user-select: none;
+    }
+    .station-line {
+      position: relative;
+      margin-bottom: 30px;
+      height: auto;
+      min-height: 140px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      background: #fafafa;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+    .track-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #666;
+      transform: translateY(-50%);
+      z-index: 0;
+      border-radius: 2px;
+      transition: background-color 0.3s;
+    }
+    .station {
+      position: absolute;
+      width: 90px;
+      height: 30px;
+      background: #fff;
+      border: 1px solid #000;
+      text-align: center;
+      line-height: 30px;
+      font-size: 12px;
+      transform: translate(-50%, -50%);
+      top: 50%;
+      z-index: 10;
+      border-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      user-select: none;
+      transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s;
+      cursor: pointer;
+    }
+    
+    .train {
+      position: absolute;
+      width: 120px;
+      height: 40px;
+      padding: 4px 8px;
+      font-size: 11px;
+      text-align: center;
+      border: 2px solid;
+      background: white;
+      cursor: pointer;
+      user-select: none;
+      box-sizing: border-box;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      white-space: nowrap;
+      font-weight: 600;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transform: translateX(-50%);
+      transition: background-color 0.3s, box-shadow 0.3s;
+    }
+    /* グループ間列車用のスタイル */
+    .train.cross-group {
+      right: -60px; /* グループの右端近くに配置 */
+      transform: translateX(0);
+    }
+    /* 下り（Outbound）右向き切り欠き */
+    .train.down {
+      clip-path: polygon(
+        0 0,       
+        90px 0,    
+        120px 50px,
+        0 50px     
+      );
+    }
+    /* 上り（Inbound）左向き切り欠き */
+    .train.up {
+      clip-path: polygon(
+       20px 0,     /* 斜め先頭 */
+        120px 0,    /* 右上 */
+        120px 50px, /* 右下 */
+        0px 50px   /* 斜め先頭下 */
+      );
+    }
+    .train-number {
+      white-space: nowrap;
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .delay {
+      color: red;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    .train-info {
+      margin-top: 1px;
+      font-size: 9px;
+      color: #333;
+      line-height: 1.1;
+      user-select: none;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      transition: color 0.3s;
+    }
+    .details {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      max-width: 280px;
+      background: #fff;
+      border: 1px solid #aaa;
+      padding: 12px 16px;
+      font-size: 14px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      border-radius: 8px;
+      display: none;
+      z-index: 9999;
+      user-select: text;
+      transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+    .details strong {
+      display: inline-block;
+      width: 70px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      color: #666;
+      user-select: none;
+      background: transparent;
+      border: none;
+      padding: 4px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.3s, background-color 0.3s;
+    }
+    .close-btn:hover {
+      color: #000;
+      background: rgba(0,0,0,0.1);
+      border-radius: 12px;
+    }
+    .control-buttons {
+        position: fixed;
+        bottom: 20px;
+        left: 20px; /* 左側に変更 */
+        display: flex;
+        flex-direction: column; /* 縦に並べる */
+        gap: 10px;
+        z-index: 9999;
+    }
+    .control-buttons button {
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      user-select: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .update-btn {
+      background: #33AB94; /* 指定された色に変更 */
+      color: white;
+    }
+    .update-btn:hover {
+      background: #2b8e7b;
+    }
+    .update-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    .dark-mode-btn {
+        background: #eee;
+        color: #333;
+    }
+    .dark-mode-btn:hover {
+        background: #ddd;
+    }
+    
+    /* 時刻表モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 5% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 90%;
+      max-width: 500px;
+      border-radius: 8px;
+      position: relative;
+    }
+    .modal-close-btn {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      position: absolute;
+      top: 10px;
+      right: 15px;
+    }
+    .modal-close-btn:hover,
+    .modal-close-btn:focus {
+      color: black;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .timetable-table {
+        width: 100%;
+        max-width: 400px; /* 横幅を固定 */
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .timetable-table th, .timetable-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .timetable-table th {
+        background-color: #f2f2f2;
+    }
+    .timetable-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .timetable-header h3 {
+      margin: 0;
+    }
+
+    /* ダークモードのスタイル */
+    body.dark-mode {
+      background: #121212;
+      color: #e0e0e0;
+    }
+    .dark-mode .train-info-ticker {
+      background: #444;
+    }
+    .dark-mode .station-line {
+      background: #282828;
+      border-color: #444;
+      box-shadow: 0 2px 4px rgba(255,255,255,0.05);
+    }
+    .dark-mode .track-line {
+      background: #999;
+    }
+    .dark-mode .station {
+      background: #333;
+      border-color: #666;
+      color: #e0e0e0;
+      box-shadow: 0 1px 2px rgba(255,255,255,0.1);
+    }
+    .dark-mode .train {
+      background: #333;
+      color: #e0e0e0;
+      box-shadow: 0 2px 4px rgba(255,255,255,0.1);
+    }
+    .dark-mode .train-info {
+      color: #bbb;
+    }
+    .dark-mode .details {
+      background: #2d2d2d;
+      border-color: #555;
+      color: #e0e0e0;
+      box-shadow: 0 4px 10px rgba(255,255,255,0.1);
+    }
+    .dark-mode .close-btn {
+      color: #bbb;
+    }
+    .dark-mode .close-btn:hover,
+    .dark-mode .modal-close-btn:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+    .dark-mode .update-btn {
+      background: #33AB94;
+      color: #fff;
+    }
+    .dark-mode .update-btn:hover {
+      background: #2b8e7b;
+    }
+    .dark-mode .dark-mode-btn {
+      background: #333;
+      color: #e0e0e0;
+    }
+    .dark-mode .dark-mode-btn:hover {
+      background: #444;
+    }
+    .dark-mode .modal-content {
+      background-color: #2d2d2d;
+      color: #e0e0e0;
+    }
+    .dark-mode .modal-close-btn {
+      color: #bbb;
+    }
+    .dark-mode .timetable-table th {
+        background-color: #444;
+    }
+    .dark-mode .timetable-table th, .dark-mode .timetable-table td {
+        border-color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div id="main-content" style="display: none;"> 
+        
+  <div class="page-header">ATOS在線モニタ</div>
+  <div class="train-info-ticker">
+    <div class="train-info-content" id="trainInfoTicker">
+      運行情報を取得中...
+    </div>
+  </div>
+  <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
+  <br>
+  <br>
+
+  <div class="line-selector">
+    <label for="lineSelect">路線選択:</label>
+    <select id="lineSelect" onchange="render()"></select>
+  </div>
+  <div id="monitor"></div>
+
+  <div id="details" class="details">
+    <button class="close-btn" onclick="hideDetails()">×</button>
+    <div id="details-content"></div>
+  </div>
+
+  <div class="control-buttons">
+    <button id="updateBtn" class="update-btn" onclick="manualUpdate()">
+      更　新
+    </button>
+    <button id="toggleDarkModeBtn" class="dark-mode-btn">
+      ダークモード
+    </button>
+  </div>
+  
+  <div id="trainTimetableModal" class="modal">
+    <div class="modal-content">
+      <div class="timetable-header">
+        <h3 id="trainTimetableTitle"></h3>
+        <span class="modal-close-btn" onclick="hideTrainTimetableModal()">&times;</span>
+      </div>
+      <div id="trainTimetableContent"></div>
+    </div>
+  </div>
+
+  <div id="stationTimetableModal" class="modal">
+    <div class="modal-content">
+      <div class="timetable-header">
+        <h3 id="stationTimetableTitle"></h3>
+        <span class="modal-close-btn" onclick="hideStationTimetableModal()">&times;</span>
+      </div>
+      <div id="stationTimetableContent"></div>
+    </div>
+  </div>
+
+<script>
+  const token = "wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh";
+
+  const lineColors = {
+    "odpt.Railway:JR-East.KeihinTohokuNegishi": "#0078BD",
+    "odpt.Railway:JR-East.ChuoSobuLocal": "#FFE500",
+    "odpt.Railway:JR-East.Takasaki": "#FF8C00",
+    "odpt.Railway:JR-East.Utsunomiya": "#FF8C00",
+    "odpt.Railway:JR-East.ShonanShinjuku": "#FF8C00",
+    "odpt.Railway:JR-East.Tokaido": "#FF8C00",
+    "odpt.Railway:JR-East.Chuo": "#FFA500",
+    "odpt.Railway:JR-East.Ome": "#FFA500",
+    "odpt.Railway:JR-East.Itsukaichi": "#FFA500",
+    "odpt.Railway:JR-East.ChuoRapid": "#FFA500",
+    "odpt.Railway:JR-East.Musashino": "#734E30",
+    "odpt.Railway:JR-East.Nambu": "yellow",
+    "odpt.Railway:JR-East.Yamanote": "#32cd32",
+    "odpt.Railway:JR-East.Keiyo": "#EF454A",
+    "odpt.Railway:JR-East.SaikyoKawagoe": "#00AC84",
+    "odpt.Railway:JR-East.JobanRapid": "#0000ff",
+    "odpt.Railway:JR-East.Yokohama": "#00ff00",
+    "odpt.Railway:JR-East.Yokosuka": "#0033cc",
+    "odpt.Railway:JR-East.SobuRapid": "#0033cc",
+    "odpt.Railway:JR-East.JobanLocal": "#2F9A9A",
+    "odpt.Railway:JR-East.Joban": "#006881",
+  };
+
+  const lineGroups = {
+    "湘南新宿ライン": [
+      "odpt.Railway:JR-East.ShonanShinjuku"
+    ],
+    "埼京川越線": [
+      "odpt.Railway:JR-East.SaikyoKawagoe"
+    ],
+    "京浜東北根岸線": [
+      "odpt.Railway:JR-East.KeihinTohokuNegishi"
+    ],
+    "中央総武各駅停車": [
+      "odpt.Railway:JR-East.ChuoSobuLocal"
+    ],
+    "山手線": [
+      "odpt.Railway:JR-East.Yamanote"
+    ]
+  };
+
+  const sharedSections = {
+    "odpt.Railway:JR-East.Takasaki": ["odpt.Railway:JR-East.Utsunomiya"],
+    "odpt.Railway:JR-East.Utsunomiya": ["odpt.Railway:JR-East.Takasaki"]
+  };
+
+  //方向修正用
+
+  const railwayDirectionMap = {
+
+    //SS
+    "odpt.Railway:JR-East.ShonanShinjuku": {
+      "odpt.RailDirection:Northbound": "down",
+      "odpt.RailDirection:Southbound": "up",
+      "odpt.RailDirection:Inbound": "up",
+      "odpt.RailDirection:Outbound": "down"
+    },
+
+    //総武緩行
+    "odpt.Railway:JR-East.ChuoSobuLocal": {
+      "odpt.RailDirection:Eastbound": "up",
+      "odpt.RailDirection:Westbound": "down",
+    },
+
+    //埼京川越
+    "odpt.Railway:JR-East.SaikyoKawagoe": {
+      "odpt.RailDirection:Northbound": "down",
+      "odpt.RailDirection:Southbound": "up",
+      "odpt.RailDirection:Inbound": "up",
+      "odpt.RailDirection:Outbound": "down"
+    },
+
+  };
+
+  function getTrainDirection(railDirection, railwayId) {
+    if (railwayDirectionMap[railwayId] && railwayDirectionMap[railwayId][railDirection]) {
+      return railwayDirectionMap[railwayId][railDirection];
+    }
+    
+    switch (railDirection) {
+      case "odpt.RailDirection:Inbound": return "up";
+      case "odpt.RailDirection:Outbound": return "down";
+      case "odpt.RailDirection:Northbound": return "up";
+      case "odpt.RailDirection:Southbound": return "down";
+      case "odpt.RailDirection:Eastbound": return "down";
+      case "odpt.RailDirection:Westbound": return "up";
+      case "odpt.RailDirection:InnerLoop": return "up";
+      case "odpt.RailDirection:OuterLoop": return "down";
+      default: return "down";
+    }
+  }
+
+  function getDirectionText(railDirection, railwayId) {
+    const lineSpecificText = {
+      "odpt.Railway:JR-East.Yamanote": {
+        "odpt.RailDirection:InnerLoop": "内回り",
+        "odpt.RailDirection:OuterLoop": "外回り"
+      },
+      "odpt.Railway:JR-East.ChuoSobuLocal": {
+        "odpt.RailDirection:Eastbound": "東行",
+        "odpt.RailDirection:Westbound": "西行"
+      }
+    };
+    
+    if (lineSpecificText[railwayId] && lineSpecificText[railwayId][railDirection]) {
+      return lineSpecificText[railwayId][railDirection];
+    }
+    
+    switch (railDirection) {
+      case "odpt.RailDirection:Inbound": return "上り";
+      case "odpt.RailDirection:Outbound": return "下り";
+      case "odpt.RailDirection:Northbound": return "北行";
+      case "odpt.RailDirection:Southbound": return "南行";
+      case "odpt.RailDirection:Eastbound": return "東行";
+      case "odpt.RailDirection:Westbound": return "西行";
+      case "odpt.RailDirection:InnerLoop": return "内回り";
+      case "odpt.RailDirection:OuterLoop": return "外回り";
+      default: return "不明";
+    }
+  }
+
+  const stationNameMap = {
+   "高輪ゲートウェイ": "高輪ゲト",
+   "千葉みなと": "千葉港",
+   "さいたま新都心": "さ新都心",
+   "Maebashi": "前橋",
+   "Matsumoto": "松本",
+   "Hakuba": "白馬",
+   "Ebina": "海老名",
+   "Numazu": "沼津",
+   "Shinkiba": "新木場",
+   "odpt.Station:TWR.Rinkai.ShinKiba": "新木場",
+   "Kazusaichinomiya": "上総一宮",
+   "MusashiKoganei": "ム小金井",
+   "KinugawaOnsen": "鬼怒川温泉",
+   "IzukyuShimoda": "伊豆下田",
+
+   //メトロ
+   "YoyogiUehara": "代々木上原",
+   "MeijiJingumae": "明治神宮前",
+   "Kasumigaseki": "霞が関",
+   "Kitasenju": "北千住",
+
+   //小田急
+   "MukogaokaYuen": "向ヶ丘遊園",
+   "SeijogakuenMae": "成城学園前",
+   "Isehara": "伊勢原",
+   "SagamiOno": "相模大野",
+   "HonAtsugi": "本厚木",
+ };
+
+  let trainData = [];
+  let railwayData = [];
+  let stationTitles = {};
+  let detailsTimer = null; 
+  let trainInformationData = []; 
+  let trainTimetableData = [];
+  let autoUpdateInterval = null;
+
+  let cachedStationTimetables = {};
+
+  const trainTypeMap = {
+    "odpt.TrainType:JR-East.Local": [1, "普通", ""],
+    "odpt.TrainType:JR-East.LimitedExpress": [2, "特急", "特"],
+    "odpt.TrainType:JR-East.Rapid": [3, "快速", "快"],
+    "odpt.TrainType:JR-East.SpecialRapid": [4, "特別快速", "特快"],
+    "odpt.TrainType:JR-East.ChuoSpecialRapid": [5, "中央特快", "中快"],
+    "odpt.TrainType:JR-East.CommuterRapid": [6, "通勤快速", "通快"],
+    "odpt.TrainType:JR-East.OmeSpecialRapid": [7, "青梅特快", "青快"],
+    "odpt.TrainType:JR-East.CommuterSpecialRapid": [8, "通勤特快", "通特"]
+  };
+  
+  function shortenStationName(name) {
+    if (stationNameMap[name]) return stationNameMap[name];
+    if (name.length > 4) return name.slice(0, 4);
+    return name;
+  }
+
+  function getStationTitle(stationId) {
+    if (!stationId) return "不明";
+    if (stationTitles[stationId]) return stationTitles[stationId];
+    const parts = stationId.split(".");
+    const last = parts[parts.length - 1];
+    return shortenStationName(last);
+  }
+
+  function getLineTitle(lineId) {
+    for (const [groupName, lines] of Object.entries(lineGroups)) {
+      if (lines.includes(lineId)) {
+        return groupName;
+      }
+    }
+    const line = railwayData.find(r => r["owl:sameAs"] === lineId);
+    return line?.["odpt:railwayTitle"]?.ja || lineId;
+  }
+
+  function getTrainTypeName(trainType) {
+    if (!trainType) return "不明";
+    const typeInfo = trainTypeMap[trainType];
+    return typeInfo ? typeInfo[1] : trainType.split(":").pop();
+  }
+
+  function buildStationTitleMap() {
+    stationTitles = {};
+    railwayData.forEach(line => {
+      (line["odpt:stationOrder"] || []).forEach(st => {
+        const id = st["odpt:station"];
+        const ja = st["odpt:stationTitle"]?.ja || id.split(".").pop();
+        stationTitles[id] = shortenStationName(ja);
+      });
+    });
+  }
+
+  function populateLineSelect() {
+    const select = document.getElementById("lineSelect");
+    const previousValue = select.value;
+    select.innerHTML = "";
+    
+    const addedGroups = new Set();
+    const uniqueLines = [...new Set(trainData.map(t => t["odpt:railway"]))];
+    
+    uniqueLines.forEach(lineId => {
+      let groupName = null;
+      let isGrouped = false;
+      
+      for (const [gName, lines] of Object.entries(lineGroups)) {
+        if (lines.includes(lineId)) {
+          groupName = gName;
+          isGrouped = true;
+          break;
+        }
+      }
+      
+      if (isGrouped && !addedGroups.has(groupName)) {
+        const option = document.createElement("option");
+        option.value = groupName;
+        option.textContent = groupName;
+        select.appendChild(option);
+        addedGroups.add(groupName);
+      } else if (!isGrouped) {
+        const option = document.createElement("option");
+        option.value = lineId;
+        option.textContent = getLineTitle(lineId);
+        select.appendChild(option);
+      }
+    });
+
+    if ([...select.options].some(opt => opt.value === previousValue)) {
+      select.value = previousValue;
+    }
+    render();
+  }
+
+  function setTickerSpeed() {
+    const tickerContent = document.getElementById("trainInfoTicker");
+    const contentWidth = tickerContent.scrollWidth;
+    const tickerWidth = tickerContent.offsetWidth;
+
+    if (contentWidth > tickerWidth) {
+      const scrollSpeed = 50; // ピクセル/秒
+      const duration = (contentWidth / scrollSpeed) + 5; // +5sで少し間を取る
+      tickerContent.style.setProperty('--scroll-duration', `${duration}s`);
+    } else {
+      tickerContent.style.setProperty('--scroll-duration', `0s`);
+      tickerContent.style.transform = `translateX(0)`;
+      tickerContent.style.animation = 'none';
+    }
+  }
+
+  function updateTrainInfoTicker() {
+    const selectedLine = document.getElementById("lineSelect").value;
+    const ticker = document.getElementById("trainInfoTicker");
+    
+    if (!selectedLine) {
+      ticker.textContent = "路線を選択してください";
+      setTickerSpeed();
+      return;
+    }
+    
+    let targetLines = [];
+    if (lineGroups[selectedLine]) {
+      targetLines = lineGroups[selectedLine];
+    } else {
+      targetLines = [selectedLine];
+    }
+    
+    let displayTexts = [];
+    targetLines.forEach(lineId => {
+      const lineInfo = trainInformationData.find(info => info["odpt:railway"] === lineId);
+      if (lineInfo) {
+        const infoText = lineInfo["odpt:trainInformationText"]?.ja || "運行情報なし";
+        const status = lineInfo["odpt:trainInformationStatus"]?.ja || "";
+        const cause = lineInfo["odpt:trainInformationCause"]?.ja || "";
+        const range = lineInfo["odpt:trainInformationRange"]?.ja || "";
+        
+        let text = infoText;
+        if (status && status !== "平常運転") {
+          text = `【${status}】${infoText}`;
+          if (cause) text += ` (原因: ${cause})`;
+          if (range) text += ` [区間: ${range}]`;
+        }
+        displayTexts.push(text);
+      }
+    });
+    
+    if (displayTexts.length > 0) {
+      ticker.textContent = displayTexts.join(" | ");
+    } else {
+      ticker.textContent = `${getLineTitle(selectedLine)}: 運行情報なし`;
+    }
+
+    setTickerSpeed();
+
+    document.getElementById("details").style.display = "none";
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+      detailsTimer = null;
+    }
+  }
+
+  function hideDetails() {
+    document.getElementById("details").style.display = "none";
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+      detailsTimer = null;
+    }
+  }
+
+  function showDetails(train) {
+    const d = document.getElementById("details");
+    const content = document.getElementById("details-content");
+    const delayMin = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
+
+    const fromStation = getStationTitle(train["odpt:fromStation"]) || "不明";
+    const toStation = train["odpt:toStation"] ? getStationTitle(train["odpt:toStation"]) : null;
+    
+    let sectionInfo;
+    if (toStation) {
+      sectionInfo = `${fromStation}〜${toStation}`;
+    } else {
+      sectionInfo = `${fromStation}　　　`;
+    }
+
+    const destStations = train["odpt:destinationStation"] || [];
+    const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
+
+    // 遅延情報の追加
+    let delayInfoHtml = `<strong>遅延:</strong> ${delayMin > 0 ? delayMin + "分" : "なし"}<br>`;
+
+    content.innerHTML =
+      `<strong>列車番号:</strong> ${train["odpt:trainNumber"] || '不明'}<br>` +
+      `<strong>方向:</strong> ${getDirectionText(train["odpt:railDirection"], train["odpt:railway"])}<br>` +
+      delayInfoHtml +
+      `<strong>走行区間:</strong> ${sectionInfo}<br>` +
+      `<strong>終点駅:</strong> ${destination}<br>` +
+      `<strong>種別:</strong> ${getTrainTypeName(train["odpt:trainType"])}<br>` +
+      `<strong>編成両数:</strong> ${train["odpt:carComposition"] || '不明'}両`;
+
+    // 列車時刻表ボタンの追加
+    const trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
+    if (trainTimetable) {
+        const timetableButton = document.createElement("button");
+        timetableButton.textContent = "時刻表を見る";
+        timetableButton.style.marginTop = "10px";
+        timetableButton.style.backgroundColor = "#33AB94";
+        timetableButton.style.color = "white";
+        timetableButton.style.border = "none";
+        timetableButton.style.padding = "8px 12px";
+        timetableButton.style.borderRadius = "4px";
+        timetableButton.style.cursor = "pointer";
+        timetableButton.onclick = () => showTrainTimetableModal(trainTimetable);
+        content.appendChild(timetableButton);
+    }
+    
+    d.style.display = "block";
+    
+    if (detailsTimer) {
+      clearTimeout(detailsTimer);
+    }
+    
+    detailsTimer = setTimeout(() => {
+      hideDetails();
+    }, 5000);
+  }
+
+  function showTrainTimetableModal(timetable) {
+    const modal = document.getElementById("trainTimetableModal");
+    const title = document.getElementById("trainTimetableTitle");
+    const content = document.getElementById("trainTimetableContent");
+
+    title.textContent = `列車番号: ${timetable["odpt:trainNumber"]} の時刻表`;
+    
+    let tableHtml = `<table class="timetable-table"><thead><tr><th>駅名</th><th>発車時刻</th><th>到着時刻</th></tr></thead><tbody>`;
+    
+    timetable["odpt:trainTimetableObject"].forEach(item => {
+        const stationName = getStationTitle(item["odpt:station"] || item["odpt:departureStation"] || item["odpt:arrivalStation"]);
+        const departureTime = item["odpt:departureTime"] || "";
+        const arrivalTime = item["odpt:arrivalTime"] || "";
+        tableHtml += `<tr><td>${stationName}</td><td>${departureTime}</td><td>${arrivalTime}</td></tr>`;
+    });
+    
+    tableHtml += `</tbody></table>`;
+    content.innerHTML = tableHtml;
+    
+    modal.style.display = "block";
+  }
+
+  function hideTrainTimetableModal() {
+      document.getElementById("trainTimetableModal").style.display = "none";
+  }
+
+  async function showStationTimetableModal(stationId, lineId) {
+    const modal = document.getElementById("stationTimetableModal");
+    const title = document.getElementById("stationTimetableTitle");
+    const content = document.getElementById("stationTimetableContent");
+    
+    title.textContent = `${getStationTitle(stationId)}駅の時刻表`;
+    content.innerHTML = "時刻表を読み込み中...";
+    modal.style.display = "block";
+    
+    try {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+        const holidays = await holidayResponse.json();
+        const todayString = today.toISOString().slice(0, 10);
+        const isHoliday = holidays.hasOwnProperty(todayString);
+        let calendar = (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) ? "SaturdayHoliday" : "Weekday";
+        
+        const cacheKey = `${stationId}-${lineId}-${calendar}`;
+        if (!cachedStationTimetables[cacheKey]) {
+            const res = await fetch(`https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationId}&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`);
+            if (!res.ok) throw new Error("時刻表データの取得に失敗しました");
+            cachedStationTimetables[cacheKey] = await res.json();
+        }
+
+        modal.dataset.stationId = stationId;
+        modal.dataset.lineId = lineId;
+        modal.dataset.cacheKey = cacheKey;
+
+        updateStationTimetableDisplay();
+
+    } catch (e) {
+        console.error(e);
+        content.innerHTML = `<p style="color:red;">時刻表の取得に失敗しました。</p>`;
+    }
+  }
+  
+  function hideStationTimetableModal() {
+    document.getElementById("stationTimetableModal").style.display = "none";
+  }
+  
+  function updateStationTimetableDisplay() {
+    const modal = document.getElementById("stationTimetableModal");
+    const lineId = modal.dataset.lineId;
+    const cacheKey = modal.dataset.cacheKey;
+    const content = document.getElementById("stationTimetableContent");
+    
+    const allTimetables = cachedStationTimetables[cacheKey] || [];
+
+    function sortTimetableObjects(timetableObjects) {
+      return timetableObjects.sort((a, b) => {
+        const timeA = a["odpt:departureTime"];
+        const timeB = b["odpt:departureTime"];
+        if (!timeA || !timeB) return 0;
+        return timeA.localeCompare(timeB);
+      });
+    }
+
+    const sortedAllTimetables = allTimetables.map(tt => ({
+        ...tt,
+        "odpt:stationTimetableObject": sortTimetableObjects(tt["odpt:stationTimetableObject"])
+    }));
+
+    const now = new Date();
+    const nowHours = now.getHours();
+    const nowMinutes = now.getMinutes();
+
+    let timetablesToDisplay = sortedAllTimetables.map(tt => {
+        const filteredObjects = tt["odpt:stationTimetableObject"].filter(obj => {
+            const departureTime = obj["odpt:departureTime"];
+            if (!departureTime) return false;
+            
+            const [hour, minute] = departureTime.split(":").map(Number);
+            if (hour > nowHours || (hour === nowHours && minute >= nowMinutes)) {
+                return true;
+            }
+            return false;
+        });
+        return { ...tt, "odpt:stationTimetableObject": filteredObjects };
+    }).filter(tt => tt["odpt:stationTimetableObject"].length > 0);
+    
+    const timetablesByDirection = timetablesToDisplay.reduce((acc, tt) => {
+      const direction = tt["odpt:railDirection"];
+      if (!acc[direction]) {
+        acc[direction] = [];
+      }
+      acc[direction].push(tt);
+      return acc;
+    }, {});
+    
+    let html = "";
+    if (Object.keys(timetablesByDirection).length === 0) {
+      html = `<p>時刻表データがありません。</p>`;
+    } else {
+      for (const [direction, timetables] of Object.entries(timetablesByDirection)) {
+        html += `<h4>${getDirectionText(direction, lineId)}</h4>`;
+        html += `<table class="timetable-table"><thead><tr><th>時刻</th><th>種別</th><th>行先</th></tr></thead><tbody>`;
+
+        let count = 0;
+        for (const tt of timetables) {
+            if (count >= 5) break;
+            for (const timetableObject of tt["odpt:stationTimetableObject"]) {
+                if (count >= 5) break;
+                const departureTime = timetableObject["odpt:departureTime"] || "";
+                const trainType = getTrainTypeName(timetableObject["odpt:trainType"]);
+                const destination = timetableObject["odpt:destinationStation"] && timetableObject["odpt:destinationStation"].length > 0
+                    ? getStationTitle(timetableObject["odpt:destinationStation"][0])
+                    : "不明";
+                html += `<tr><td>${departureTime}</td><td>${trainType}</td><td>${destination}</td></tr>`;
+                count++;
+            }
+        }
+        html += `</tbody></table>`;
+      }
+    }
+    
+    content.innerHTML = html;
+  }
+
+  window.onclick = function(event) {
+      const modal1 = document.getElementById('trainTimetableModal');
+      const modal2 = document.getElementById('stationTimetableModal');
+      if (event.target == modal1) {
+          modal1.style.display = "none";
+      }
+      if (event.target == modal2) {
+          modal2.style.display = "none";
+      }
+  }
+
+  function render() {
+    const selectedLine = document.getElementById("lineSelect").value;
+    const monitor = document.getElementById("monitor");
+
+    const scrollY = window.scrollY;
+
+    monitor.innerHTML = "";
+
+    updateTrainInfoTicker();
+
+    let targetLines = [];
+    let primaryLineId = selectedLine;
+    
+    if (lineGroups[selectedLine]) {
+      targetLines = lineGroups[selectedLine];
+      primaryLineId = targetLines[0]; 
+    } else {
+      targetLines = [selectedLine];
+      if (sharedSections[selectedLine]) {
+        targetLines = targetLines.concat(sharedSections[selectedLine]);
+      }
+    }
+
+    const color = lineColors[primaryLineId] || "#666";
+    const lineData = railwayData.find(l => l["owl:sameAs"] === primaryLineId);
+    if (!lineData) return;
+
+    const allStations = (lineData["odpt:stationOrder"] || [])
+      .sort((a, b) => a["odpt:index"] - b["odpt:index"]);
+    
+    const stationIds = allStations.map(s => s["odpt:station"]);
+
+    let groupIndex = 0;
+    for (let i = 0; i < stationIds.length; ) {
+      let group;
+      if (groupIndex === 0) {
+        group = stationIds.slice(i, i + 4);
+        i += 4;
+      } else {
+        group = stationIds.slice(i - 1, i + 3);
+        i += 3;
+      }
+      
+      if (group.length < 2) break;
+
+      const lineDiv = document.createElement("div");
+      lineDiv.className = "station-line";
+
+      const track = document.createElement("div");
+      track.className = "track-line";
+      track.style.background = color;
+      lineDiv.appendChild(track);
+
+      group.forEach((stationId, idx) => {
+        const s = document.createElement("div");
+        s.className = "station";
+        s.textContent = getStationTitle(stationId);
+        s.style.left = `${(idx + 1) * (100 / (group.length + 1))}%`;
+        s.onclick = () => showStationTimetableModal(stationId, primaryLineId);
+        lineDiv.appendChild(s);
+      });
+
+      const positionOffsets = {};
+      let maxUpTrains = 0;
+      let maxDownTrains = 0;
+
+      const trainsToRender = [];
+      
+      trainData.forEach(train => {
+        if (!targetLines.includes(train["odpt:railway"])) return;
+
+        const from = train["odpt:fromStation"];
+        const to = train["odpt:toStation"];
+        const direction = train["odpt:railDirection"];
+
+        const localFromIdx = group.indexOf(from);
+        const localToIdx = to ? group.indexOf(to) : -1;
+
+        if (localFromIdx !== -1) {
+          let shouldRender = false;
+          let trainPosition;
+          let positionKey;
+
+          if (to === null || to === undefined || localToIdx === -1) {
+            trainPosition = (localFromIdx + 1) * (100 / (group.length + 1));
+            positionKey = `station-${localFromIdx}-${direction}`;
+            shouldRender = true;
+          } else if (localToIdx !== -1) {
+            const fromPos = (localFromIdx + 1) * (100 / (group.length + 1));
+            const toPos = (localToIdx + 1) * (100 / (group.length + 1));
+            trainPosition = (fromPos + toPos) / 2;
+            positionKey = `between-${Math.min(localFromIdx, localToIdx)}-${Math.max(localFromIdx, localToIdx)}-${direction}`;
+            shouldRender = true;
+          }
+
+          if (shouldRender) {
+            const offsetCount = positionOffsets[positionKey] || 0;
+            positionOffsets[positionKey] = offsetCount + 1;
+
+            const trainDir = getTrainDirection(direction, train["odpt:railway"]);
+            if (trainDir === "up") {
+              maxUpTrains = Math.max(maxUpTrains, offsetCount + 1);
+            } else {
+              maxDownTrains = Math.max(maxDownTrains, offsetCount + 1);
+            }
+
+            trainsToRender.push({
+              train,
+              trainPosition,
+              direction,
+              trainDir,
+              offsetCount,
+              isAtStation: (to === null || to === undefined)
+            });
+          }
+        }
+      });
+
+      const trainHeight = 60;
+      const minHeight = 140;
+      const requiredHeight = minHeight + (maxUpTrains + maxDownTrains) * trainHeight;
+      lineDiv.style.height = `${requiredHeight}px`;
+
+      trainsToRender.forEach(({ train, trainPosition, direction, trainDir, offsetCount, isAtStation }) => {
+        const delay = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
+        const number = train["odpt:trainNumber"] || "不明";
+        const carCount = train["odpt:carComposition"] || "";
+        const destStations = train["odpt:destinationStation"] || [];
+        const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
+
+        const div = document.createElement("div");
+        div.className = "train " + trainDir;
+        div.style.borderColor = color;
+        div.style.left = `${trainPosition}%`;
+
+        if (trainDir === "up") {
+          div.style.top = `calc(50% + 25px + ${offsetCount * trainHeight}px)`;
+        } else {
+          div.style.bottom = `calc(50% + 25px + ${offsetCount * trainHeight}px)`;
+        }
+
+        const statusText = isAtStation ? "" : "";
+        div.innerHTML =
+          `<div class="train-number">${number}${delay > 0 ? `<span class="delay">+${delay}</span>` : ""}</div>` +
+          `<div class="train-info">${statusText ? statusText + " " : ""}${carCount ? carCount + "両" : ""} ${destination}</div>`;
+
+        div.onclick = () => showDetails(train);
+
+        lineDiv.appendChild(div);
+      });
+
+      monitor.appendChild(lineDiv);
+      groupIndex++;
+    }
+    window.scrollTo(0, scrollY);
+  }
+
+  function manualUpdate() {
+    const btn = document.getElementById("updateBtn");
+    btn.disabled = true;
+    btn.textContent = "更新中...";
+    
+    fetchData().then(() => {
+      btn.disabled = false;
+      btn.textContent = "更　新";
+    }).catch(() => {
+      btn.disabled = false;
+      btn.textContent = "更　新";
+    });
+  }
+  
+  function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    const btn = document.getElementById("toggleDarkModeBtn");
+    if (document.body.classList.contains('dark-mode')) {
+      btn.textContent = "ライトモード";
+    } else {
+      btn.textContent = "ダークモード";
+    }
+  }
+
+  async function fetchData() {
+    try {
+      const select = document.getElementById("lineSelect");
+      const previousSelectedLine = select.value;
+
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0:日, 1:月, ..., 6:土
+      
+      const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+      const holidays = await holidayResponse.json();
+      const todayString = today.toISOString().slice(0, 10);
+      const isHoliday = holidays.hasOwnProperty(todayString);
+      
+      let calendar = "Weekday";
+      if (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) {
+        calendar = "SaturdayHoliday";
+      }
+      
+      const [trainRes, railRes, infoRes, trainTimetableRes] = await Promise.all([
+        fetch(`https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
+        fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
+        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`),
+        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)
+      ]);
+
+      if (!trainRes.ok || !railRes.ok) throw new Error("API取得エラー");
+
+      try {
+        if (infoRes.ok) {
+          trainInformationData = await infoRes.json();
+        }
+      } catch (e) {
+        console.warn("運行情報の取得に失敗しました:", e);
+        trainInformationData = [];
+      }
+      
+      try {
+        if (trainTimetableRes.ok) {
+          trainTimetableData = await trainTimetableRes.json();
+        }
+      } catch (e) {
+        console.warn("列車時刻表の取得に失敗しました:", e);
+        trainTimetableData = [];
+      }
+
+      trainData = await trainRes.json();
+      railwayData = await railRes.json();
+
+      buildStationTitleMap();
+      populateLineSelect();
+
+      if ([...select.options].some(opt => opt.value === previousSelectedLine)) {
+        select.value = previousSelectedLine;
+      }
+
+      render();
+    } catch (e) {
+      alert("データの取得に失敗しました: " + e.message);
+    }
+  }
+  
+  document.getElementById("toggleDarkModeBtn").addEventListener("click", toggleDarkMode);
+
+  fetchData();
+  setInterval(fetchData, 30000);
+</script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script src="auth_guard.js"></script> 
+</body>
+</html>

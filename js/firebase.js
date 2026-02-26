@@ -28,10 +28,8 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // ===============================
-// 以下は前回の支出・支払い Firestore 関数
-// ===============================
-
 // 支出
+// ===============================
 export async function getExpensesByYear(year) {
   const q = query(collection(db, "expenses"), where("year", "==", year));
   const snap = await getDocs(q);
@@ -48,7 +46,9 @@ export async function deleteExpense(id) {
   await deleteDoc(doc(db, "expenses", id));
 }
 
+// ===============================
 // 支払い状況
+// ===============================
 export async function getUsersByYear(year) {
   const usersSnap = await getDocs(collection(db, "users"));
   const users = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
@@ -67,7 +67,6 @@ export async function getUsersByYear(year) {
     email: u.email,
     status: payments[u.uid]?.status || "unpaid",
     paidDate: payments[u.uid]?.paidDate || "",
-    amount: payments[u.uid]?.amount || 0,
     year
   }));
 }
@@ -81,13 +80,3 @@ export async function saveUserPayment(user) {
 export function generateReceipt(user) {
   alert(`領収書を発行します: ${user.email}`);
 }
-
-// ===============================
-// window オブジェクトに関数を附属（モジュール対応）
-// ===============================
-window.getExpensesByYear = getExpensesByYear;
-window.saveExpense = saveExpense;
-window.deleteExpense = deleteExpense;
-window.getUsersByYear = getUsersByYear;
-window.saveUserPayment = saveUserPayment;
-window.generateReceipt = generateReceipt;

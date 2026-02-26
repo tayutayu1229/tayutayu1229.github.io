@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>列車旅客案内システム - 運行情報</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --bg: #f9f9f9;
+      --accent: #008000; /* JR東日本グリーン */
+    }
+    body {
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #1f2937;
+    }
+    .card { background:#fff; border-radius:8px; box-shadow: 0 6px 18px rgba(14, 30, 37, 0.06); }
+    .accent-text { color: var(--accent); }
+    .accent-bg { background-color: var(--accent); }
+    .sidebar { width: 280px; min-width: 240px; }
+    @media (max-width: 1024px) {
+      .sidebar { width: 100%; min-width: 0; }
+    }
+    .line-item.active {
+      background-color: rgba(255, 255, 255, 0.2);
+      font-weight: 600;
+      color: white;
+    }
+    .line-item.active span {
+        border-bottom: 2px solid white;
+    }
+    .sidebar-bg {
+      background-color: var(--accent);
+      color: white;
+    }
+    .sidebar-bg a, .sidebar-bg span {
+      color: white;
+    }
+    .return-button {
+      background-color: white;
+      color: var(--accent);
+    }
+    .direction-button.active {
+      background-color: var(--accent);
+      color: white;
+    }
+    .station-name-box {
+      background-color: var(--accent);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 8px;
+    }
+    .station-select-item:hover {
+        background-color: #f3f4f6;
+    }
+    .error-box {
+      border: 2px dashed #e5e7eb;
+      color: #9ca3af;
+    }
+    /* 絞り込みボタンのアクティブ状態のスタイル */
+    .filter-button {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+    .filter-button.active {
+      background-color: white;
+      color: var(--accent);
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* 運行情報カードのレイアウトと文字サイズ調整 */
+    .train-info-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px; /* grid-gap-6 */
+    }
+    .info-card {
+        display: flex;
+        align-items: center;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(14, 30, 37, 0.06);
+        padding: 16px;
+    }
+    .info-card .icon-container {
+        flex-shrink: 0;
+        margin-right: 16px;
+    }
+    .info-card .text-container {
+        flex-grow: 1;
+    }
+    .info-card .line-name {
+        font-size: 1rem; /* text-base */
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 4px;
+    }
+    .info-card .status-text {
+        font-size: 1.25rem; /* text-xl */
+        font-weight: 700;
+        margin-top: 0;
+    }
+  </style>
+</head>
+<body class="antialiased">
+
+<div id="app-container" class="min-h-screen flex flex-col lg:flex-row">
+  <aside id="sidebar" class="sidebar p-6 lg:mr-6 lg:mb-0 mb-6 sidebar-bg flex flex-col">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-2xl font-extrabold flex items-center gap-3">
+        <i class="fas fa-bullhorn"></i>
+        <span>運行情報</span>
+      </h1>
+      <a href="sysindex.html" class="return-button px-3 py-1 rounded-md hover:bg-gray-100 border border-gray-200 text-sm">
+        <i class="fas fa-arrow-left mr-2" style="color: black;"></i><span style="color: black;">戻る</span>
+      </a>
+    </div>
+
+    <div class="mt-8">
+      <p class="text-sm font-semibold text-gray-200 mb-2">絞り込み</p>
+      <div class="space-y-4">
+        <div>
+          <label for="line-filter" class="block text-sm font-medium mb-1">路線</label>
+          <select id="line-filter" class="w-full p-2 rounded-md text-gray-800">
+            <option value="all">すべての路線</option>
+          </select>
+        </div>
+
+        <div>
+          <p class="text-sm font-medium mb-1">ステータス</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="filter-button px-4 py-2 rounded-full text-sm active" data-status="all">すべて</button>
+            <button class="filter-button px-4 py-2 rounded-full text-sm" data-status="normal">平常運転</button>
+            <button class="filter-button px-4 py-2 rounded-full text-sm" data-status="delay">遅延</button>
+            <button class="filter-button px-4 py-2 rounded-full text-sm" data-status="other">その他</button>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center">
+            <input type="checkbox" id="show-normal-operation" class="form-checkbox h-4 w-4 text-white rounded" />
+            <label for="show-normal-operation" class="ml-2 text-white">平常運転の路線を表示</label>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <main class="flex-1 p-6">
+    <div class="flex items-center mb-6">
+      <h2 class="text-3xl font-extrabold mr-4">路線の運行情報</h2>
+      <p id="update-time" class="text-gray-500 text-sm"></p>
+    </div>
+
+    <div id="train-info-container" class="train-info-list">
+      </div>
+
+    <div id="loading" class="text-center p-12 text-gray-400 text-lg">
+      <i class="fas fa-spinner fa-spin mr-2"></i>
+      <span>運行情報を取得中です...</span>
+    </div>
+
+    <div id="error-message" class="hidden text-center p-12 text-gray-500 text-lg">
+      <i class="fas fa-exclamation-triangle mr-2"></i>
+      <span>運行情報の取得に失敗しました。時間をおいて再度お試しください。</span>
+    </div>
+  </main>
+</div>
+
+<script>
+  // APIエンドポイントとコンシューマーキー
+  const API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/odpt:TrainInformation';
+  const RAILWAY_API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/odpt:Railway';
+  const CONSUMER_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+
+  // DOM要素
+  const trainInfoContainer = document.getElementById('train-info-container');
+  const loadingElement = document.getElementById('loading');
+  const errorElement = document.getElementById('error-message');
+  const updateTimeElement = document.getElementById('update-time');
+  const lineFilterElement = document.getElementById('line-filter');
+  const statusFilterButtons = document.querySelectorAll('.filter-button');
+  const showNormalCheckbox = document.getElementById('show-normal-operation');
+
+  let allTrainInfoData = [];
+  let railwayNames = {};
+  let selectedLine = 'all';
+  let selectedStatus = 'all'; // デフォルトを「すべて」に変更
+  let isShowingNormal = false;
+
+  const specialInfoRailways = [
+    'odpt.Railway:JR-East.Yonesaka',
+    'odpt.Railway:JR-East.Rikuto',
+    'odpt.Railway:JR-East.RikuuWest'
+  ];
+
+  async function fetchRailwayNames() {
+      try {
+          const url = `${RAILWAY_API_ENDPOINT}?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${CONSUMER_KEY}`;
+          const response = await fetch(url);
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          railwayNames = data.reduce((acc, current) => {
+              if (current['owl:sameAs'] && current['odpt:railwayTitle']?.ja) {
+                  acc[current['owl:sameAs']] = current['odpt:railwayTitle'].ja;
+              }
+              return acc;
+          }, {});
+      } catch (e) {
+          console.error('路線名の取得に失敗しました:', e);
+      }
+  }
+
+  async function fetchTrainInformation() {
+    loadingElement.classList.remove('hidden');
+    errorElement.classList.add('hidden');
+    
+    try {
+      await fetchRailwayNames();
+
+      const url = `${API_ENDPOINT}?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${CONSUMER_KEY}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      allTrainInfoData = await response.json();
+      
+      loadingElement.classList.add('hidden');
+      renderFilters();
+      renderTrainInformation();
+
+      const now = new Date();
+      const formattedTime = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      updateTimeElement.textContent = `最終更新: ${formattedTime}`;
+
+    } catch (e) {
+      console.error('運行情報の取得に失敗しました:', e);
+      loadingElement.classList.add('hidden');
+      errorElement.classList.remove('hidden');
+    }
+  }
+
+  function renderFilters() {
+    lineFilterElement.innerHTML = '<option value="all">すべての路線</option>';
+    const lines = [...new Set(allTrainInfoData.map(info => info['odpt:railway']))];
+    
+    lines.sort((a, b) => {
+      const nameA = railwayNames[a] || '';
+      const nameB = railwayNames[b] || '';
+      return nameA.localeCompare(nameB, 'ja');
+    }).forEach(line => {
+      const name = railwayNames[line] || line.split('.').pop();
+      const option = document.createElement('option');
+      option.value = line;
+      option.textContent = name;
+      lineFilterElement.appendChild(option);
+    });
+    lineFilterElement.value = selectedLine;
+  }
+
+  function renderTrainInformation() {
+    trainInfoContainer.innerHTML = '';
+    const filteredData = allTrainInfoData.filter(info => {
+      const railwayId = info['odpt:railway'];
+      const statusText = info['odpt:trainInformationText']?.ja || '情報なし';
+      const isNormal = statusText.includes('平常運転');
+      const isOther = statusText.includes('お知らせ');
+      
+      const matchesLine = (selectedLine === 'all' || railwayId === selectedLine);
+      let matchesStatus = false;
+      
+      if (selectedStatus === 'all') {
+          matchesStatus = true;
+      } else if (selectedStatus === 'normal' && isNormal) {
+          matchesStatus = true;
+      } else if (selectedStatus === 'delay' && (statusText.includes('遅れ') || statusText.includes('見合わせ'))) {
+          matchesStatus = true;
+      } else if (selectedStatus === 'other' && (!isNormal && !isOther)) {
+          matchesStatus = true;
+      }
+
+      if (isShowingNormal) {
+          return matchesLine && matchesStatus;
+      } else {
+          return matchesLine && (!isNormal || isOther) && matchesStatus;
+      }
+    });
+
+    if (filteredData.length > 0) {
+      filteredData.forEach(info => {
+        const railwayId = info['odpt:railway'];
+        const statusText = info['odpt:trainInformationText']?.ja || '情報なし';
+        const railwayName = railwayNames[railwayId] || railwayId.split('.').pop();
+        const isOther = statusText.includes('お知らせ');
+        
+        let statusIconClass = '';
+        let statusTextColor = '';
+        let statusTextToDisplay = statusText;
+
+        if (isOther) {
+            statusIconClass = 'text-gray-400 fas fa-info-circle';
+            statusTextColor = 'text-gray-800';
+        } else if (statusText.includes('平常運転')) {
+          statusIconClass = 'text-green-500 fas fa-check-circle';
+          statusTextColor = 'text-green-600';
+        } else if (statusText.includes('遅れ') || statusText.includes('見合わせ')) {
+          statusIconClass = 'text-yellow-500 fas fa-exclamation-triangle';
+          statusTextColor = 'text-yellow-600';
+        } else {
+          statusIconClass = 'text-red-500 fas fa-exclamation-triangle';
+          statusTextColor = 'text-red-600';
+        }
+
+        const cardHtml = `
+          <div class="info-card">
+            <div class="icon-container">
+              <i class="${statusIconClass} text-3xl"></i>
+            </div>
+            <div class="text-container">
+              <p class="line-name">${railwayName}</p>
+              <p class="status-text ${statusTextColor}">${statusTextToDisplay}</p>
+            </div>
+          </div>
+        `;
+        trainInfoContainer.innerHTML += cardHtml;
+      });
+    } else {
+      trainInfoContainer.innerHTML = `<div class="md:col-span-3 text-center p-12 text-gray-500 text-lg">該当する運行情報はありません。</div>`;
+    }
+  }
+  
+  lineFilterElement.addEventListener('change', () => {
+    selectedLine = lineFilterElement.value;
+    renderTrainInformation();
+  });
+
+  statusFilterButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      statusFilterButtons.forEach(btn => btn.classList.remove('active'));
+      e.target.classList.add('active');
+      selectedStatus = e.target.dataset.status;
+      renderTrainInformation();
+    });
+  });
+
+  showNormalCheckbox.addEventListener('change', (e) => {
+    isShowingNormal = e.target.checked;
+    renderTrainInformation();
+  });
+
+  document.querySelector('[data-status="all"]').classList.add('active');
+  fetchTrainInformation();
+  setInterval(fetchTrainInformation, 60000);
+</script>
+
+</body>
+</html>

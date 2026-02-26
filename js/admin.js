@@ -174,9 +174,7 @@ function renderUserTable() {
 // サマリー更新
 // ===============================
 function updateSummary() {
-  const totalIncome = users
-    .filter(u => u.status === "paid")
-    .reduce((sum, u) => sum + Number(u.amount || 0), 0);
+  const totalIncome = users.filter(u => u.status === "paid").length * 1; // 必要なら金額に変更
   const totalExpense = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const balance = totalIncome - totalExpense;
 
@@ -217,15 +215,6 @@ async function loadAll() {
   renderUserTable();
   updateSummary();
 }
-
-// ===============================
-// ログアウトボタン
-// ===============================
-document.getElementById("logoutBtn").onclick = async () => {
-  if (window.logout) {
-    await window.logout();
-  }
-};
 
 // ===============================
 // 初期化
