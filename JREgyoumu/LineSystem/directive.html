@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>列車旅客案内システム - 指令端末</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg: #f9f9f9;
+      --accent: #008000; /* JR東日本グリーン */
+    }
+    html,body { height:100%; }
+    body {
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #1f2937;
+    }
+    /* sidebar fixed width on desktop; full-width on small screens */
+    .sidebar { width: 320px; min-width: 280px; }
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; min-width: 0; }
+    }
+    /* map height: We will handle this with flexbox now */
+    #map { border-radius: 0.5rem; }
+    /* train marker */
+    .train-marker {
+      width: 32px; height: 32px; display:flex; align-items:center; justify-content:center;
+      color:#fff; font-weight:700; border-radius:50%; box-shadow:0 2px 6px rgba(0,0,0,0.25);
+      border:2px solid #fff; font-size:12px; background:#3b82f6;
+    }
+    .train-marker.delayed { background:#ef4444; }
+    /* card */
+    .card { background:#fff; border-radius:8px; box-shadow: 0 6px 18px rgba(14, 30, 37, 0.06); }
+
+    /* Ensure Leaflet popups appear above the map elements */
+    .leaflet-popup-pane { z-index: 10000 !important; }
+    .leaflet-popup { z-index: 10001 !important; }
+    .leaflet-tooltip { z-index: 10002 !important; }
+  </style>
+</head>
+<body class="antialiased">
+
+<div class="h-screen flex flex-col lg:flex-row">
+
+  <aside class="sidebar p-6 card lg:mr-6 lg:mb-0 mb-6 flex flex-col h-full">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-2xl font-extrabold flex items-center gap-3 text-[var(--accent)]">
+        <i class="fas fa-desktop"></i>
+        <span>指令端末</span>
+      </h1>
+      <button href="sysindex.html" id="back-button" class="bg-gray-100 text-[var(--accent)] px-3 py-1 rounded-md hover:bg-gray-50 border border-gray-200 text-sm">
+        <i class="fas fa-arrow-left mr-2"></i>戻る
+      </button>
+    </div>
+
+    <section class="mb-6">
+      <div class="px-4 py-3">
+        <h2 class="text-lg font-semibold mb-2 border-b-2 border-[var(--accent)] pb-2">運行状況サマリー</h2>
+        <div id="summary-panel" class="space-y-3">
+          <div id="summary-total" class="flex justify-between items-center">
+            <div class="text-sm text-gray-500">総路線数</div>
+            <div class="text-2xl font-bold text-[var(--accent)]">-</div>
+          </div>
+          <div id="summary-delayed" class="flex justify-between items-center">
+            <div class="text-sm text-gray-500">遅延路線数</div>
+            <div class="text-2xl font-bold text-red-600">-</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mb-6 px-4 py-3">
+      <h3 class="text-sm font-semibold mb-2">地図の種類</h3>
+      <select id="map-style-select" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-md text-sm">
+        <option value="osm">OpenStreetMap</option>
+        <option value="opentopo">OpenTopoMap (地形)</option>
+        <option value="gsi_std">国土地理院（標準地図）</option>
+        <option value="gsi_light">国土地理院（淡色地図）</option>
+        <option value="esri_topo">ESRI World Topo Map</option>
+      </select>
+    </section>
+
+    <section class="flex-1 px-4 py-3 flex flex-col min-h-0">
+      <h3 class="text-lg font-semibold mb-2 border-b-2 border-[var(--accent)] pb-2">運行情報通知</h3>
+      <div id="alert-area" class="bg-gray-50 p-3 rounded-md text-sm text-gray-700 space-y-2 h-full overflow-y-auto">
+        <p id="alert-message">現在運行情報に関する通知はありません。</p>
+      </div>
+    </section>
+
+    <section style="display:none;">
+      <h4 class="text-sm font-medium mb-2">操作パネル（駅端末向け）</h4>
+      <textarea id="message-input" rows="3" class="w-full p-2 border border-gray-200 rounded-md bg-gray-50"></textarea>
+      <button id="update-button" class="mt-3 w-full bg-[var(--accent)] text-white py-2 rounded-md">即時更新</button>
+      <div id="status-display" class="text-xs text-gray-500 mt-2">最終更新: <span id="last-updated-time">-</span></div>
+    </section>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-full">
+    <header class="p-6">
+      <div class="card p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-bold text-[var(--accent)]">列車運行状況マップ</h2>
+          <div class="text-sm text-gray-500">最終更新: <span id="last-updated-time-header">-</span></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 p-6">
+      <div id="map" class="card h-full"></div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+  import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  // Firebase config (元ファイルのものをそのまま使用)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDmB-3bLXv_Z18Cx2MtFux_u74XYG_wgrM",
+    authDomain: "shirei-e3601.firebaseapp.com",
+    projectId: "shirei-e3601",
+    storageBucket: "shirei-e3601.appspot.com",
+    messagingSenderId: "889251305346",
+    appId: "1:889251305346:web:0fd88ada7b7120c4e9a19b",
+    measurementId: "G-RTBWJFCZ3P"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  try { getAnalytics(app); } catch(e) { /* ignore analytics errors */ }
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // DOM
+  const backButton = document.getElementById('back-button');
+  const mapStyleSelect = document.getElementById('map-style-select');
+  const alertAreaEl = document.getElementById('alert-area');
+  const alertMessageEl = document.getElementById('alert-message');
+  const summaryTotalEl = document.getElementById('summary-total');
+  const summaryDelayedEl = document.getElementById('summary-delayed');
+  const lastUpdatedHeader = document.getElementById('last-updated-time-header');
+
+  const updateButton = document.getElementById('update-button');
+  const messageInput = document.getElementById('message-input');
+  const statusDisplay = document.getElementById('status-display');
+
+  // ODPT
+  const API_KEY = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+  const API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/';
+  // 列車と駅情報にはJR-Eastを、運行情報にはjre-isを使用する
+  const API_OPERATOR_TRAIN = 'odpt.Operator:JR-East';
+  const API_OPERATOR_INFO = 'odpt.Operator:jre-is';
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+  let userId = 'anonymous';
+  let map;
+  let currentTileLayer;
+  let trainMarkers = [];
+  let allStations = {};
+  let allRailways = [];
+  let allTimetables = {};
+
+  const shortName = (uri) => uri ? uri.split(':').pop().split('.').pop() : '';
+
+  /* ---------- map init ---------- */
+  const createMap = () => {
+    if (map) map.remove();
+    map = L.map('map').setView([35.6812, 139.7671], 12);
+    setMapStyle('osm');
+  };
+
+  const setMapStyle = (style) => {
+    if (currentTileLayer) map.removeLayer(currentTileLayer);
+    let tileUrl, attribution;
+    switch(style) {
+      case 'opentopo':
+        tileUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+        attribution = 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+        break;
+      case 'gsi_std':
+        tileUrl = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
+        attribution = '<a href="http://www.gsi.go.jp/" target="_blank">国土地理院</a>';
+        break;
+      case 'gsi_light':
+        tileUrl = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
+        attribution = '<a href="http://www.gsi.go.jp/" target="_blank">国土地理院</a>';
+        break;
+      case 'esri_topo':
+        tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+        attribution = 'Tiles © Esri';
+        break;
+      default:
+        tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        attribution = '&copy; OpenStreetMap contributors';
+    }
+    currentTileLayer = L.tileLayer(tileUrl, { attribution }).addTo(map);
+  };
+
+  /* ---------- fetch static resources ---------- */
+  async function fetchRailwayData() {
+    try {
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:Railway?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      if (!res.ok) throw new Error('Failed to fetch railway data');
+      allRailways = await res.json();
+    } catch (e) { console.error('fetchRailwayData:', e); }
+  }
+
+  async function fetchStationData() {
+    try {
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:Station?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      if (!res.ok) throw new Error('Failed to fetch station data');
+      const data = await res.json();
+      data.forEach(st => {
+        const s = shortName(st['owl:sameAs']);
+        allStations[s] = {
+          title: st['odpt:stationTitle']?.ja || s,
+          geo: (st['geo:lat'] && st['geo:long']) ? { lat: st['geo:lat'], long: st['geo:long'] } : null,
+          sameAs: st['owl:sameAs']
+        };
+      });
+    } catch (e) { console.error('fetchStationData:', e); }
+  }
+
+  async function fetchTimetableData() {
+    try {
+      // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
+      const res = await fetch(`${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      if (!res.ok) throw new Error('Failed to fetch timetable data');
+      const data = await res.json();
+      data.forEach(tt => {
+        const tn = shortName(tt['odpt:trainNumber']);
+        allTimetables[tn] = tt;
+      });
+    } catch (e) { console.error('fetchTimetableData:', e); }
+  }
+
+  /* ---------- train information / alerts + summary ---------- */
+  // This updates the left sidebar summary and alert list.
+  async function updateSummaryAndAlerts() {
+    try {
+      // 1) 総路線数: 列車リアルタイム情報からのユニーク路線数
+      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const trainsData = trainsRes.ok ? await trainsRes.json() : [];
+      const routeSet = new Set(trainsData.map(t => t['odpt:railway']).filter(Boolean));
+      const totalRoutes = routeSet.size;
+
+      // 2) 遅延路線数 & 通知: TrainInformation から平常運転とお知らせ以外を抽出
+      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=${API_OPERATOR_INFO}&acl:consumerKey=${API_KEY}`);
+      const infos = infoRes.ok ? await infoRes.json() : [];
+      // 運行情報テキストまたは運行情報ステータスが「平常運転」でも「お知らせ」でもないものを抽出
+      const filtered = infos.filter(info => {
+        const text = info['odpt:trainInformationText']?.ja;
+        const status = info['odpt:trainInformationStatus']?.ja;
+        return (text && text !== '平常運転') && (status !== 'お知らせ');
+      });
+      const delayedRoutes = filtered.length;
+
+      // Update summary panel safely (check DOM)
+      const totalEl = document.querySelector('#summary-total div:last-child');
+      const delayedEl = document.querySelector('#summary-delayed div:last-child');
+      if (totalEl) totalEl.textContent = `${totalRoutes}`;
+      if (delayedEl) delayedEl.textContent = `${delayedRoutes} / ${totalRoutes}`;
+
+      // Update alert area: show only filtered (平常運転以外)
+      if (filtered.length > 0) {
+        alertAreaEl.innerHTML = ''; // Clear previous alerts
+        filtered.forEach(info => {
+          const railwayName = allRailways.find(r => r['owl:sameAs'] === info['odpt:railway'])?.['odpt:railwayTitle']?.['ja'] || shortName(info['odpt:railway']);
+          const text = info['odpt:trainInformationText']?.ja || '情報なし';
+
+          // Create a card-like div for each alert with red styling
+          const cardDiv = document.createElement('div');
+          cardDiv.className = 'card p-3 rounded-md border border-red-300 bg-red-50';
+          cardDiv.innerHTML = `
+            <p class="text-sm font-semibold text-red-800">${railwayName}</p>
+            <p class="text-xs text-red-700 mt-1">${text}</p>
+          `;
+          alertAreaEl.appendChild(cardDiv);
+        });
+      } else {
+        alertAreaEl.innerHTML = '<p id="alert-message">現在運行情報に関する通知はありません。</p>';
+      }
+
+    } catch (e) {
+      console.error('updateSummaryAndAlerts:', e);
+      alertAreaEl.innerHTML = `<p class="text-red-500">運行情報の取得に失敗しました。</p>`;
+    }
+  }
+
+  /* ---------- realtime trains + map rendering (popup-based) ---------- */
+  async function updateDashboard() {
+    try {
+      const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      if (!res.ok) throw new Error('Failed to fetch train data');
+      const trains = await res.json();
+
+      // clear markers
+      trainMarkers.forEach(m => map.removeLayer(m));
+      trainMarkers = [];
+
+      // 同じ駅にいる列車を数えるためのマップ
+      const stationMarkerCounts = {};
+
+      trains.forEach(train => {
+        const fromSn = shortName(train['odpt:fromStation']);
+        const toSn = shortName(train['odpt:toStation']);
+        const from = allStations[fromSn];
+        const to = allStations[toSn];
+
+        const delayMin = Math.floor(Number(train['odpt:delay'] || 0) / 60);
+        const tn = shortName(train['odpt:trainNumber']);
+        const cars = train['odpt:carComposition'] || '不明';
+        const destTitle = (train['odpt:destinationStation'] && train['odpt:destinationStation'][0])
+          ? allStations[shortName(train['odpt:destinationStation'][0])]?.title
+          : '不明';
+        const status = delayMin > 0 ? `${delayMin}分遅延` : '定刻';
+        const rail = allRailways.find(r => r['owl:sameAs'] === train['odpt:railway']);
+        const railName = rail?.['odpt:railwayTitle']?.['ja'] || shortName(train['odpt:railway']);
+
+        // Determine marker position & section text
+        let lat, lng, sectionText, markerStationId = null;
+        if (train['geo:lat'] && train['geo:long']) {
+          // Case 1: Use direct geolocation if available
+          lat = train['geo:lat'];
+          lng = train['geo:long'];
+          sectionText = `${from?.title || '出発地不明'} 〜 ${to?.title || '目的地不明'}`;
+        } else if (from?.geo && to?.geo) {
+          // Case 2: moving between stations — place at midpoint
+          lat = (from.geo.lat + to.geo.lat) / 2;
+          lng = (from.geo.long + to.geo.long) / 2;
+          sectionText = `${from.title} 〜 ${to.title}`;
+        } else if (from?.geo) {
+          // Case 3: station stop — place at station coords
+          lat = from.geo.lat;
+          lng = from.geo.long;
+          sectionText = `${from.title} 停車中`;
+          markerStationId = fromSn;
+        } else if (to?.geo) {
+          // Case 4: rare case: only toStation present (approaching) — place at that station
+          lat = to.geo.lat;
+          lng = to.geo.long;
+          sectionText = `${to.title} 停車中`;
+          markerStationId = toSn;
+        } else {
+          // No usable geo info — skip this train
+          return;
+        }
+        
+        // 重なりを避けるためのオフセットを計算 (Case 3 & 4のみ)
+        if (markerStationId) {
+          if (!stationMarkerCounts[markerStationId]) {
+            stationMarkerCounts[markerStationId] = 0;
+          }
+          const offsetIndex = stationMarkerCounts[markerStationId];
+          const offsetDirection = (offsetIndex % 2 === 0 ? 1 : -1);
+          const offsetMagnitude = Math.floor(offsetIndex / 2) + 1;
+          // 経度（横方向）のオフセットを3倍に拡大
+          const lngOffset = offsetDirection * offsetMagnitude * 0.00025;
+          // 緯度（縦方向）は小さくずらす
+          const latOffset = offsetDirection * offsetMagnitude * 0.00000; 
+          lat += latOffset;
+          lng += lngOffset;
+          stationMarkerCounts[markerStationId]++;
+        }
+
+        // Popup HTML in requested compact format:
+        // 路線名
+        // 列車番号　行先 行 両数
+        // 区間 or 停車中
+        // 定刻/遅延
+        const popupHtml = `
+          <div style="font-size:14px; line-height:1.4; text-align:left; color:#111;">
+            <strong>${railName}</strong><br>
+            ${tn}　${destTitle} 行 ${cars}両<br>
+            ${sectionText}<br>
+            <span style="font-weight:700; color:${delayMin>0? '#b91c1c':'#15803d'}">${status}</span>
+          </div>
+        `;
+
+        // Create marker icon (small train with number)
+        const iconHtml = `<div style="text-align:center"><i class="fas fa-train" style="font-size:12px"></i><div style="font-size:9px">${tn}</div></div>`;
+        const markerIcon = L.divIcon({
+          className: `train-marker ${delayMin>0 ? 'delayed':''}`,
+          html: iconHtml,
+          iconSize: [40,40],
+          iconAnchor: [20,20]
+        });
+
+        // オフセットを適用したマーカーを作成
+        const marker = L.marker([lat,lng], { icon: markerIcon }).addTo(map);
+        
+        // Bind popup and open on click (default Leaflet behavior)
+        marker.bindPopup(popupHtml, { offset: [0, -10], autoClose: true, closeOnClick: true });
+        trainMarkers.push(marker);
+      });
+
+      // update last updated time
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString();
+      lastUpdatedHeader.textContent = timeStr;
+      const lastUpdatedTimeSmall = document.getElementById('last-updated-time');
+      if (lastUpdatedTimeSmall) lastUpdatedTimeSmall.textContent = timeStr;
+
+    } catch (e) {
+      console.error('updateDashboard:', e);
+      alertAreaEl.innerHTML = `<p class="text-red-500">データの取得に失敗しました: ${e.message}</p>`;
+    }
+  }
+
+  /* ---------- Firestore: station display message (operation panel functionality kept but UI hidden) ---------- */
+  async function updateStationDisplayMessage() {
+    try {
+      if (!auth.currentUser) return;
+      const message = messageInput.value || '';
+      const messageRef = doc(db, `artifacts/${appId}/public/data/station_display/main_message`);
+      await setDoc(messageRef, { text: message, updatedAt: new Date().toISOString() });
+      console.log('station display message updated');
+    } catch (e) { console.error('updateStationDisplayMessage:', e); }
+  }
+
+  function startMessageWatch() {
+    try {
+      const messageRef = doc(db, `artifacts/${appId}/public/data/station_display/main_message`);
+      onSnapshot(messageRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const updatedAt = data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString() : '-';
+          if (statusDisplay) statusDisplay.innerHTML = `最終更新: <span id="last-updated-time">${updatedAt}</span>`;
+          if (messageInput) messageInput.value = data.text || '';
+        }
+      });
+    } catch (e) { console.warn('startMessageWatch:', e); }
+  }
+
+  /* ---------- events ---------- */
+  backButton.addEventListener('click', () => {
+    try { history.back(); } catch(e) { console.warn(e); }
+  });
+
+  mapStyleSelect.addEventListener('change', (e) => setMapStyle(e.target.value));
+  if (updateButton) updateButton.addEventListener('click', updateStationDisplayMessage);
+
+  /* ---------- init ---------- */
+  async function init() {
+    // auth
+    try {
+      if (typeof __initial_auth_token !== 'undefined') {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+      userId = auth.currentUser?.uid || 'anonymous';
+    } catch (e) { console.warn('auth error, continuing anonymously', e); }
+
+    createMap();
+    await Promise.all([fetchStationData(), fetchRailwayData(), fetchTimetableData()]);
+
+    // initial draw
+    await updateSummaryAndAlerts();
+    await updateDashboard();
+    startMessageWatch();
+
+    // periodic
+    setInterval(() => { updateDashboard(); updateSummaryAndAlerts(); }, 15000);
+  }
+
+  // mobile: ensure map size correct after initial layout
+  window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+
+  init();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JR貨物 運行状況</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<style>
+body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background-color: #f8f9fa;
+    color: #343a40;
+}
+.header-bar {
+    background-color: #005ab3;
+    color: #fff;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 0.5rem;
+}
+.header-bar h1 {
+    font-weight: 700;
+    font-size: 2rem;
+    margin: 0;
+}
+.incident-item {
+    background-color: #fce8e6;
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+.status-badge {
+    display: inline-block;
+    padding: 0.3em 0.6em;
+    font-size: 90%;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 0.25rem;
+}
+.status-停車中 { background-color: #d9534f; }
+.status-遅れ { background-color: #f0ad4e; }
+.status-運休 { background-color: #6c757d; }
+.status-着予定 { background-color: #9b59b6; }
+.train-line {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+.train-line h3 {
+    background-color: #e9ecef;
+    margin: 0;
+    padding: 10px 15px;
+    cursor: pointer;
+}
+.train-list {
+    display: none;
+    padding: 15px;
+}
+.train-line.active .train-list {
+    display: block;
+}
+</style>
+</head>
+<body>
+    <div id="main-content" style="display: none;">
+<div class="container py-4">
+    <header class="header-bar text-center">
+        <h1>JR貨物 運行状況</h1>
+        <p id="company-name"></p>
+        <p id="updated-time"></p>
+    </header>
+
+    <div id="status-title" class="mb-4"></div>
+
+    <div class="mb-4">
+        <h2>輸送障害情報</h2>
+        <div id="incidents"></div>
+    </div>
+
+    <div id="affected-trains" class="mb-4">
+        <h2>影響のある貨物列車</h2>
+    </div>
+
+    <div id="related-files" class="mb-4">
+        <h2>関連情報</h2>
+    </div>
+
+    <footer class="text-center text-muted mt-4" style="font-size:0.85rem;">
+        このページは自動生成されています
+    </footer>
+</div>
+
+<script>
+async function fetchAndUpdateData() {
+    try {
+        const res = await fetch('JR Frieght Railway.json');
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        renderPage(data);
+    } catch (err) {
+        console.error(err);
+        document.querySelector('.container').innerHTML =
+            '<p>データ取得に失敗しました。<a href="https://www.jrfreight.co.jp/jrfreight/i_daiya.html">公式サイト</a>をご確認ください。</p>';
+    }
+}
+
+function renderPage(data) {
+    document.getElementById('company-name').textContent = data.company || '';
+    document.getElementById('updated-time').textContent = `最終更新: ${data.date || ''} ${data.time || ''}`;
+    document.getElementById('status-title').innerHTML = data.status_title ? `<h3>${data.status_title}</h3>` : '';
+
+    const incidentsEl = document.getElementById('incidents');
+    incidentsEl.innerHTML = '';
+    if (data.incidents?.length) {
+        data.incidents.forEach(inc => {
+            const el = document.createElement('div');
+            el.className = 'incident-item';
+            el.innerHTML = `<h5>${inc.impact}</h5>
+                <p><strong>期間:</strong> ${inc.time_period}</p>
+                <p><strong>場所:</strong> ${inc.location}</p>
+                <p><strong>原因:</strong> ${inc.cause}</p>`;
+            incidentsEl.appendChild(el);
+        });
+    } else {
+        incidentsEl.innerHTML = '<p>現在、輸送障害はありません。</p>';
+    }
+
+    const trainsEl = document.getElementById('affected-trains');
+    if (data.affected_trains?.length) {
+        data.affected_trains.forEach(line => {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'train-line';
+            const header = document.createElement('h3');
+            header.textContent = line.line;
+            lineDiv.appendChild(header);
+            const list = document.createElement('div');
+            list.className = 'train-list';
+            line.trains.forEach(train => {
+                const statusClass = getStatusClass(train.status);
+                list.innerHTML += `<div class="mb-2 border-bottom pb-2">
+                    <p><strong>列車番号:</strong> ${train.train_number}</p>
+                    <p><strong>区間:</strong> ${train.route}</p>
+                    <p><strong>現在地:</strong> ${train.current_location}</p>
+                    <p><strong>状態:</strong> <span class="status-badge ${statusClass}">${train.status}</span></p>
+                </div>`;
+            });
+            lineDiv.appendChild(list);
+            trainsEl.appendChild(lineDiv);
+        });
+        activateAccordion();
+    } else {
+        trainsEl.innerHTML += '<p>現在、影響のある貨物列車はありません。</p>';
+    }
+
+    const filesEl = document.getElementById('related-files');
+    if (data.related_files?.length) {
+        data.related_files.forEach(f => {
+            filesEl.innerHTML += `<p><a href="${f.url}" target="_blank">${f.title}</a></p>`;
+        });
+    } else {
+        filesEl.innerHTML += '<p>関連情報はありません。</p>';
+    }
+}
+
+function getStatusClass(status) {
+    if (status.includes('停車中')) return 'status-停車中';
+    if (status.includes('遅れ')) return 'status-遅れ';
+    if (status.includes('運休')) return 'status-運休';
+    if (status.includes('予定') || status.includes('分')) return 'status-着予定';
+    return '';
+}
+
+function activateAccordion() {
+    document.querySelectorAll('.train-line h3').forEach(h => {
+        h.addEventListener('click', () => h.parentElement.classList.toggle('active'));
+    });
+}
+
+function scheduleRefresh() {
+    const now = new Date();
+    let delay;
+    if (now.getMinutes() < 15) {
+        delay = (15 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000;
+    } else {
+        const next = new Date();
+        next.setHours(now.getHours() + 1, 15, 0, 0);
+        delay = next - now;
+    }
+    setTimeout(() => {
+        location.reload();
+    }, delay);
+}
+
+window.onload = () => {
+    fetchAndUpdateData();
+    scheduleRefresh();
+};
+</script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script src="auth_guard.js"></script> 
+</body>
+</html>

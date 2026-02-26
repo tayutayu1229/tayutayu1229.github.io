@@ -1,41 +1,30 @@
-// ===============================
-// auth.js（管理者チェック）
-// ===============================
-
+import { auth, db } from "./firebase.js";
 import {
-  getAuth,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 import {
-  getFirestore,
   doc,
   getDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const auth = getAuth();
-const db = getFirestore();
+const dashboard = document.getElementById("dashboard");
 
-// ===============================
 // 管理者チェック
-// ===============================
 async function checkAdmin(uid) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) return false;
-
-  const data = snap.data();
-  return data.isAdmin === true;
+  return snap.data().isAdmin === true;
 }
 
-// ===============================
 // ログイン状態監視
-// ===============================
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
-    // 未ログイン → ログイン画面へ
     showLoginUI();
     return;
   }
@@ -51,29 +40,33 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // 管理者 → ダッシュボード表示
-  document.getElementById("dashboard").classList.remove("hidden");
+  dashboard.classList.remove("hidden");
 });
 
-// ===============================
-// ログアウト
-// ===============================
-export async function logout() {
-  await signOut(auth);
+// Google ログイン
+export async function login() {
+  const provider = new GoogleAuthProvider();
+  await signInWithPopup(auth, provider);
 }
 
-window.logout = logout;
+// ログアウト
+export async function logout() {
+  await signOut(auth);
+  location.reload();
+}
 
-// ===============================
-// ログイン UI 表示
-// ===============================
+// ログイン画面
 function showLoginUI() {
   document.body.innerHTML = `
     <div class="flex items-center justify-center min-h-screen bg-gray-100">
       <div class="bg-white p-8 rounded shadow text-center">
-        <h2 class="text-2xl font-bold mb-4">管理者ページ</h2>
-        <p class="text-gray-600 mb-4">管理者権限でログインしてください。</p>
+        <h2 class="text-2xl font-bold mb-4">管理者ログイン</h2>
+        <button id="loginBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Google でログイン
+        </button>
       </div>
     </div>
   `;
+
+  document.getElementById("loginBtn").onclick = login;
 }

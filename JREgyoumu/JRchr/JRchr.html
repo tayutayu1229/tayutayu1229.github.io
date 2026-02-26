@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>輸送障害一覧</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  body { font-family: 'Inter','Noto Sans JP',sans-serif; background-color:#f8fffe; }
+  .header-card { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
+  .system-card { background: #fff; border: 1px solid #d1fae5; box-shadow: 0 1px 3px rgba(6,78,59,0.1); }
+  .filter-input { background: #fff; border: 1px solid #d1fae5; }
+  .filter-input:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.1); }
+  .timeline-header { background: linear-gradient(90deg,#064e3b 0%,#065f46 100%); }
+
+  .accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+  }
+  .accordion-item.active .accordion-content {
+    max-height: 1000px;
+    transition: max-height 0.5s ease-in;
+  }
+</style>
+</head>
+<body class="text-gray-800 p-6">
+
+<header class="mb-6">
+  <div class="header-card rounded-lg p-6 text-white shadow-sm flex justify-between">
+    <div class="flex gap-4 items-center">
+      <div class="bg-white/10 p-2 rounded">
+        <span class="material-icons-outlined">event_note</span>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold">輸送障害一覧</h1>
+        <p class="text-green-100 text-sm">Transport Incident Management</p>
+      </div>
+    </div>
+    <div class="text-sm text-green-100 text-right">
+      <div>システムID: TIM-2025</div>
+      <div>バージョン: 1.4.28</div>
+    </div>
+  </div>
+</header>
+
+<div class="mb-6 flex gap-4">
+  <button onclick="location.href='JRcht-top.html'" class="bg-green-100 hover:bg-green-200 border border-green-300 text-green-900 px-4 py-2 rounded flex items-center gap-1">
+    <span class="material-icons-outlined text-base">home</span>
+    メインページに戻る
+  </button>
+
+  <button onclick="location.href='JRchr-admin.html'" class="bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-900 px-4 py-2 rounded flex items-center gap-1">
+    <span class="material-icons-outlined text-base">edit</span>
+    管理画面
+  </button>
+</div>
+
+
+<div class="system-card rounded-lg p-5 mb-6">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-icons-outlined text-green-600">tune</span>
+    <h3 class="font-semibold text-gray-700">検索・フィルタ</h3>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">キーワード</label>
+      <div class="relative">
+        <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+        <input id="filterInput" type="text" placeholder="障害表題、場所、列番など" class="filter-input w-full pl-10 pr-4 py-2.5 rounded-md outline-none">
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">発生日</label>
+      <input type="date" id="occurDate" class="filter-input w-full px-3 py-2.5 rounded-md outline-none">
+    </div>
+  </div>
+</div>
+
+<div id="container" class="space-y-4"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ログインしていなければログイン画面へ 
+  if (!localStorage.getItem("loggedInUser")) { 
+    window.location.href = "login.html"; 
+  }
+  // ★ここを書き換えて：自分のプロジェクトの URL と anon key を入れる
+  const SUPABASE_URL = "https://cgeexdlnpbqslywcbesp.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWV4ZGxucGJxc2x5d2NiZXNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzU5OTIsImV4cCI6MjA4NzYxMTk5Mn0.KuI5aVvMz2v87EJGviOVw8A5ew8GfzYeqtESIawQmlY";
+
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let allData = [];
+
+  function renderList(data) {
+    const container = document.getElementById('container');
+    container.innerHTML = '';
+    if (!data.length) {
+      container.innerHTML = '<p class="text-gray-500 text-center">該当データなし</p>';
+      return;
+    }
+    data.forEach(incident => {
+      const div = document.createElement('div');
+      div.className = 'system-card rounded-lg overflow-hidden accordion-item';
+      
+      const header = document.createElement('div');
+      header.className = 'flex justify-between items-center p-6 cursor-pointer hover:bg-green-50 transition-colors duration-200';
+      header.innerHTML = `
+        <div>
+          <h2 class="text-xl font-bold mb-1">${incident.title}</h2>
+          <div class="text-sm text-gray-600">
+            <span class="mr-4"><strong>発生日:</strong> ${incident.datetime}</span>
+            <span><strong>場所:</strong> ${incident.location}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
+            <span class="material-icons-outlined text-sm mr-1">report</span>障害
+          </div>
+          <span class="material-icons-outlined text-gray-500 transition-transform duration-300 transform">expand_more</span>
+        </div>
+      `;
+      
+      header.onclick = function() {
+        const parent = this.parentElement;
+        parent.classList.toggle('active');
+        const icon = this.querySelector('.material-icons-outlined.transform');
+        icon.classList.toggle('rotate-180');
+      };
+
+      const content = document.createElement('div');
+      content.className = 'accordion-content p-6 pt-0 border-t border-green-100';
+      content.innerHTML = `
+        <div class="pb-4">
+          <p class="text-sm text-gray-600 mb-2"><strong>列車番号:</strong> ${incident.trainNo}</p>
+          <p class="text-sm text-gray-600 mb-2"><strong>概況:</strong></p>
+          <p class="mb-4 whitespace-pre-line">${incident.description || ''}</p>
+          ${incident.notes && incident.notes.length ? `<ul class="mb-4 list-disc list-inside text-sm text-gray-700">
+            ${incident.notes.map(n => `<li>${n}</li>`).join('')}
+          </ul>` : ''}
+        </div>
+        <div class="border rounded overflow-hidden">
+          <div class="timeline-header text-white px-4 py-2 font-semibold flex items-center gap-2">
+            <span class="material-icons-outlined">timeline</span>ホワイトボード
+          </div>
+          <table class="w-full text-sm">
+            <tbody>
+              ${(incident.timeline || []).map(t => `<tr class="even:bg-green-50">
+                <td class="px-4 py-2 font-mono w-24">${t.time}</td>
+                <td class="px-4 py-2">${t.text}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      div.appendChild(header);
+      div.appendChild(content);
+      container.appendChild(div);
+    });
+  }
+
+  function applyFilters() {
+    const keyword = document.getElementById('filterInput').value.toLowerCase();
+    const occurDate = document.getElementById('occurDate').value;
+    const filtered = allData.filter(incident => {
+      const matchKeyword =
+  incident.title?.toLowerCase().includes(keyword) ||
+  incident.location?.toLowerCase().includes(keyword) ||
+  incident.trainNo?.toLowerCase().includes(keyword) ||
+  incident.description?.toLowerCase().includes(keyword) ||
+  (incident.notes && incident.notes.join(' ').toLowerCase().includes(keyword));
+
+      const dateOnly = incident.datetime.split(' ')[0];
+      const matchDate = occurDate ? dateOnly === occurDate : true;
+      return matchKeyword && matchDate;
+    });
+    renderList(filtered);
+  }
+
+  async function loadData() {
+  const { data: rows, error } = await supabaseClient
+    .from('incidents')
+    .select('*')
+    .order('datetime', { ascending: false });
+
+  if (error) {
+    console.error("Supabase error:", error);
+    return;
+  }
+
+  console.log("RAW SUPABASE DATA:", rows);
+
+  allData = rows.map(row => {
+    let d = row.data;
+
+    // data が文字列なら JSON.parse
+    if (typeof d === "string") {
+      try {
+        d = JSON.parse(d);
+      } catch (e) {
+        console.error("JSON parse error:", e, d);
+        d = {};
+      }
+    }
+
+    // datetime を統一
+    let dt = row.datetime;
+    if (dt && dt.includes("T")) {
+      dt = dt.split("T")[0] + " " + dt.split("T")[1].split("+")[0];
+    }
+
+    return {
+      title: row.title,
+      datetime: dt,
+      location: row.location,
+      trainNo: row.trainNo,
+      description: d.description ?? "",
+      notes: d.notes ?? [],
+      timeline: d.timeline ?? []
+    };
+  });
+
+  console.log("PARSED DATA:", allData);
+
+  renderList(allData);
+}
+
+
+  // リアルタイム更新
+  supabaseClient
+    .channel('incidents-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'incidents' },
+      payload => {
+        console.log('更新検知:', payload);
+        loadData();
+      }
+    )
+    .subscribe();
+
+  document.getElementById('filterInput').addEventListener('input', applyFilters);
+  document.getElementById('occurDate').addEventListener('change', applyFilters);
+
+  loadData();
+</script>
+</body>
+</html>

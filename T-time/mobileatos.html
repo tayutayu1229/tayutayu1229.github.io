@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile ATOS App</title>
+    <style>
+        /* ===========================================================
+         【 色設定エリア 】
+         ===========================================================
+        */
+        :root {
+            /* ▼ 濃い緑（テーブルヘッダー背景色） */
+            --atos-table-header: #1A968A; 
+            
+            /* その他基本色 */
+            --bg-white: #ffffff;
+            --row-gray: #cfcfcf;
+            --text-black: #222;
+            --border-white: #ffffff;
+            --error-red: #ff0000;
+            
+            /* ==================================================
+             ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
+             -------------------------------------------------- */
+            /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
+            --time-status-width: 20px; 
+            
+            /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
+            --time-plan-width: 90px;
+
+            /* ▼ テーブルの行の高さ (縦幅) */
+            --atos-row-height: 26px;
+            /* ================================================== */
+        }
+
+        body {
+            font-family: "MS Gothic", "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
+            background-color: var(--bg-white);
+            margin: 0;
+            padding: 0;
+            font-size: 15px;
+            color: var(--text-black);
+            overflow-x: hidden;
+            font-weight: bold;
+        }
+        
+        /* 全体コンテンツの最大幅 (1000px: iPadmini対応) */
+        #appContainer {
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 0 5px; 
+            font-size: 15px;
+            font-weight: bold;
+        }
+        
+        /* --- Header --- */
+        .system-header {
+            background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #999;
+            color: #444;
+            height: 30px;
+        }
+        
+        .header-title { font-size: 16px; flex-grow: 1; text-align: center; }
+        .clock-area {
+            background-color: transparent; color: #333; padding: 2px 8px;
+            font-family: inherit; font-size: 15px; min-width: 180px;
+            text-align: right; font-weight: bold; width: 180px; 
+        }
+        .icon-menu {
+            width: 20px; height: 16px; border-top: 3px solid #666; 
+            border-bottom: 3px solid #666; position: relative; flex-shrink: 0;
+        }
+        .icon-menu::after {
+            content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666;
+        }
+
+        /* --- Filter Bar --- */
+        .filter-bar {
+            background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
+            gap: 15px; border-bottom: 1px solid #999; flex-wrap: nowrap; overflow-x: auto; font-size: 15px;
+        }
+        .filter-label-text { color: #333; white-space: nowrap; }
+        .filter-group { display: flex; align-items: center; gap: 5px; }
+        select, input {
+            border: 1px solid #999; padding: 2px 4px; font-size: 15px;
+            height: 24px; border-radius: 2px; font-weight: bold; font-family: inherit;
+        }
+        input[type="date"] { width: 130px; text-align: center; padding-right: 2px; }
+        input#trainNoInput { background-color: #fff9c4; width: 70px; text-align: left; }
+
+        .error-msg {
+            color: var(--error-red); font-weight: bold; padding: 10px; font-size: 16px;
+            background-color: var(--bg-white); border-bottom: 1px solid #ccc;
+        }
+        #messageArea { display: none !important; }
+        #debugArea { display: none !important; }
+
+        /* --- Train Summary --- */
+        .train-summary {
+            background-color: #eee; padding: 5px 10px; font-size: 15px;
+            border-bottom: 1px solid #ccc; line-height: 1.5; font-weight: bold;
+        }
+
+        /* --- Main Table --- */
+        .monitor-table-container { width: 100%; overflow-x: auto; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+            color: #000;
+            table-layout: fixed; 
+        }
+
+        /* colgroupで幅を一括管理 */
+        col.col-wide { width: var(--time-plan-width); }
+        col.col-narrow { width: var(--time-status-width); }
+
+        th {
+            background-color: var(--atos-table-header); color: white;
+            border: 1px solid var(--border-white); padding: 0 2px;
+            font-weight: bold; white-space: nowrap; text-align: center;
+            height: var(--atos-row-height);
+            overflow: hidden; 
+        }
+        
+        /* 狭くなった実績列ヘッダーのフォントサイズを調整 */
+        th.cell-narrow { font-size: 12px; }
+
+        td {
+            border: 1px solid var(--border-white); padding: 0 4px;
+            text-align: center; background-color: var(--row-gray);
+            height: var(--atos-row-height);
+            font-weight: bold; font-size: 16px; line-height: var(--atos-row-height);
+            vertical-align: middle;
+            white-space: nowrap; overflow: hidden; 
+        }
+        
+        /* 各列の文字寄せ */
+        .col-align-left { text-align: left !important; padding-left: 8px !important; }
+        .col-align-right { text-align: right !important; padding-right: 5px !important; }
+        
+        /* 実績列 (到着/発車) */
+        td:nth-child(5), td:nth-child(7) { 
+            text-align: center !important; 
+            padding: 0 !important; 
+            font-size: 12px; 
+        }
+        
+        /* 時刻列 (時間) */
+        td:nth-child(4), td:nth-child(6) {
+            text-align: right !important;
+            padding-right: 5px !important;
+        }
+        
+        /* 駅名 */
+        td:nth-child(3) { text-align: left !important; padding-left: 10px !important; }
+
+        /* 番線 */
+        td:nth-child(8) { text-align: right !important; padding-right: 5px !important; }
+
+
+        .link-text {
+            color: #0000EE; text-decoration: underline; cursor: pointer; font-weight: bold;
+        }
+
+        /* --- Footer --- */
+        .footer-legend {
+            background-color: var(--bg-white); padding: 10px 10px 5px 10px;
+            font-size: 15px; font-weight: bold; margin-top: 15px;
+        }
+        .footer-legend::after { content: ""; display: block; height: 150px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="system-header">
+        <div class="icon-menu"></div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.3.0</div>
+        <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
+    </div>
+    
+    <div id="appContainer">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label-text">線区：</span>
+                <select id="lineSelect" onchange="performSearch()"><option value="">(選択)</option></select>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label-text">施行日：</span>
+                <input type="date" id="dateInput" onchange="performSearch()">
+            </div>
+            <div class="filter-group">
+                <span class="filter-label-text">列車番号：</span>
+                <select id="crownSelect" style="width:50px;" onchange="performSearch()">
+                    <option value=""></option><option value="回">回</option><option value="試">試</option><option value="単">単</option><option value="工">工</option><option value="配">配</option><option value="試単">試単</option>
+                </select>
+                <input type="text" id="trainNoInput" value="" oninput="performSearch()">
+            </div>
+        </div>
+
+        <div id="messageArea" class="error-msg hidden"></div>
+        
+        <div id="contentArea" class="hidden">
+            <div class="train-summary" id="trainSummary"></div>
+
+            <div class="monitor-table-container">
+                <table>
+                    <colgroup>
+                        <col style="width: 70px;"> <col style="width: 30px;"> <col style="width: 100px;"> <col class="col-wide">   <col class="col-narrow"> <col class="col-wide">   <col class="col-narrow"> <col style="width: 70px;"> <col style="width: 40px;"> <col style="width: 70px;"> </colgroup>
+                    
+                    <thead>
+                        <tr>
+                            <th rowspan="2">列車種別</th>
+                            <th rowspan="2">抑止</th>
+                            <th rowspan="2">駅名</th>
+                            <th colspan="2">着時刻</th>
+                            <th colspan="2">発時刻</th>
+                            <th rowspan="2">番線</th>
+                            <th rowspan="2">運用<br>情報</th>
+                            <th rowspan="2">運用列番</th>
+                        </tr>
+                        <tr>
+                            <th>時間</th>
+                            <th class="cell-narrow">到着</th>
+                            <th>時間</th>
+                            <th class="cell-narrow">発車</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleBody"></tbody>
+                </table>
+            </div>
+
+            <div class="footer-legend">
+                「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rawJsonData = [];
+        const JSON_FILE = 'timetables.json';
+        const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
+        let holidayData = {}; 
+        const PERIOD_START = new Date('2025/03/15');
+        const PERIOD_END = new Date('2026/03/13');
+        
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+        function formatJsonDate(date) {
+            if (typeof date === 'string') return date.replace(/-/g, '/');
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}/${m}/${d}`;
+        }
+        function normalizeString(str) {
+            if (typeof str !== 'string') return '';
+            let normalized = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+            return normalized.toUpperCase().replace(/\s/g, '').trim();
+        }
+        function isHoliday(date) {
+            const dayOfWeek = date.getDay(); 
+            if (dayOfWeek === 0 || dayOfWeek === 6) return true; 
+            const dateKey = formatDate(date);
+            return holidayData.hasOwnProperty(dateKey); 
+        }
+
+        async function loadData() {
+            try {
+                const holidayResponse = await fetch(HOLIDAY_API_URL);
+                if (holidayResponse.ok) holidayData = await holidayResponse.json();
+                
+                const dataResponse = await fetch(JSON_FILE);
+                if (!dataResponse.ok) throw new Error(`HTTP error! status: ${dataResponse.status}`);
+                rawJsonData = await dataResponse.json();
+            } catch (error) {
+                console.error(`Error loading required data:`, error);
+                const msgArea = document.getElementById('messageArea');
+                msgArea.innerText = `データ読み込みエラー: ${error.message}`;
+                msgArea.classList.remove('hidden');
+            }
+        }
+        
+        function performSearch() {
+            const lineSelect = document.getElementById('lineSelect');
+            const dateInput = document.getElementById('dateInput');
+            const crownSelect = document.getElementById('crownSelect');
+            const noInput = document.getElementById('trainNoInput');
+            const messageArea = document.getElementById('messageArea'); 
+            const contentArea = document.getElementById('contentArea');
+
+            const selectedLine = lineSelect.value;
+            const selectedDateUI = dateInput.value; 
+            
+            if (selectedDateUI === "") {
+                 contentArea.classList.add('hidden');
+                 messageArea.classList.add('hidden');
+                 return;
+            }
+            
+            const searchDate = new Date(selectedDateUI); 
+            const crownPart = crownSelect.value;
+            const numberPart = noInput.value;
+            const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
+            const selectedDateJSON = formatJsonDate(searchDate); 
+
+            contentArea.classList.add('hidden');
+            messageArea.classList.add('hidden');
+            
+            if (targetTrainNoNormalized === "" || selectedLine === "" || rawJsonData.length === 0) return;
+            
+            const isTargetHoliday = isHoliday(searchDate);
+            const searchDayType = isTargetHoliday ? "土休日" : "平日";
+            const searchTime = searchDate.getTime();
+            let result = null;
+            
+            result = rawJsonData.find(d => 
+                d.line === selectedLine &&
+                normalizeString(d.trainNumber) === targetTrainNoNormalized &&
+                d.startDate === selectedDateJSON
+            );
+            
+            if (result) {
+                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
+                return;
+            }
+
+            const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
+            if (isInPeriod) {
+                result = rawJsonData.find(d => {
+                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
+                    const dataDayType = d.dayType || ""; 
+                    const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
+
+                    if (dataDayType === "") {
+                        if (standardStartDates.includes(d.startDate)) return true;
+                    } else if (dataDayType === searchDayType) {
+                        if (standardStartDates.includes(d.startDate)) return true;
+                    }
+                    return false;
+                });
+            }
+
+            if (result) {
+                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
+            } else {
+                contentArea.classList.add('hidden');
+                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}) は見つかりませんでした。`;
+                messageArea.classList.remove('hidden');
+            }
+        }
+        
+        function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
+            document.getElementById('contentArea').classList.remove('hidden');
+            document.getElementById('messageArea').classList.add('hidden');
+            document.getElementById('trainSummary').innerHTML = 
+                `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
+                `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
+            updateSystemClock(selectedDateJSON);
+            renderTable(result);
+        }
+        
+        /**
+         * 時刻文字列を正規化し、通過記号を「…」に統一、または空白を維持する
+         * @param {string | null | undefined} timeStr 
+         * @returns {string} 表示用の文字列
+         */
+        function getDisplayTime(timeStr) {
+            // 1. データが完全に「 」（半角/全角の空白1つ）の場合はそれを維持する
+            if (timeStr === ' ') {
+                return ' ';
+            }
+            
+            // 2. null, undefined, 空文字列、および「・・・」や「...」などの通過記号を「…」に統一
+            // 「ー」や「-」も通過を示す記号として処理
+            const passageSymbols = ['…', '...', '・・・', 'ー', '-']; 
+            
+            if (
+                !timeStr || // null, undefined
+                String(timeStr).trim() === '' || // 空白のみ or 空文字列
+                passageSymbols.includes(String(timeStr)) // 明示的な通過記号
+            ) {
+                return '…';
+            }
+            
+            // 3. それ以外（時刻など）はそのまま返す
+            return timeStr;
+        }
+
+
+        // ==========================================
+        //  テーブル描画処理 
+        // ==========================================
+        function renderTable(data) {
+            const tbody = document.getElementById('scheduleBody');
+            tbody.innerHTML = '';
+            const totalStops = data.stops.length;
+
+            data.stops.forEach((stop, index) => {
+                const tr = document.createElement('tr');
+                
+                const typeText = (index === 0) ? data.type : '';
+                
+                let opInfo = ""; 
+                let opNum = "";
+                let currentKid = data.kid || ''; 
+
+                if (index === 0) {
+                    if (data.tt1 === "k") opInfo = "継送";
+                    else if (data.tt1 === "o") opInfo = "折返";
+                    
+                    if (data.tr1) {
+                        const kidToPass = data.kid1 || currentKid; 
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kidToPass}', 'prev')">${data.tr1}</span>`;
+                    }
+                } else if (index === totalStops - 1) {
+                    if (data.tt2 === "k") opInfo = "継送";
+                    else if (data.tt2 === "o") opInfo = "折返";
+
+                    if (data.tr2) {
+                        const kidToPass = data.kid2 || currentKid; 
+                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kidToPass}', 'next')">${data.tr2}</span>`;
+                    }
+                }
+
+                // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
+                const displayArrival = getDisplayTime(stop.arrival);
+                const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
+                
+                // HTML生成
+                tr.innerHTML = `
+                    <td class="col-align-left">${typeText}</td> 
+                    <td></td> <td class="col-station">${stop.station}</td>
+                    
+                    <td class="col-align-right">${displayArrival}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${displayDeparture}</td>
+                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.trackN}</td>
+                    <td>${opInfo}</td>
+                    <td>${opNum}</td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function jumpToTrain(targetTrainNum, currentKid, direction) {
+            if (rawJsonData.length === 0) return;
+            const targetTrainNumNormalized = normalizeString(targetTrainNum);
+            const currentKidNormalized = normalizeString(currentKid);
+            const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
+
+            let match = null;
+            const candidates = rawJsonData.filter(d => 
+                normalizeString(d.trainNumber) === targetTrainNumNormalized
+            );
+            
+            if (currentKidNormalized !== "") {
+                if (direction === 'prev') {
+                    match = candidates.find(d => normalizeString(d.kid2 || '') === currentKidNormalized);
+                } else if (direction === 'next') {
+                    match = candidates.find(d => normalizeString(d.kid1 || '') === currentKidNormalized);
+                }
+            }
+
+            if (!match) {
+                 match = candidates.find(d => d.startDate === selectedDateJSON);
+                 if (!match && candidates.length > 0) match = candidates[0];
+            }
+
+            if (match) {
+                document.getElementById('lineSelect').value = match.line;
+                const trainNum = match.trainNumber;
+                let crown = match.crown || "";
+                let numOnly = trainNum;
+                if (crown && trainNum.startsWith(crown)) {
+                    numOnly = trainNum.substring(crown.length);
+                } else {
+                    const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
+                    for (const pc of potentialCrowns) {
+                        if (trainNum.startsWith(pc)) {
+                            crown = pc;
+                            numOnly = trainNum.substring(pc.length);
+                            break;
+                        }
+                    }
+                }
+                document.getElementById('crownSelect').value = crown;
+                document.getElementById('trainNoInput').value = numOnly;
+                
+                performSearch();
+            } else {
+                const msgArea = document.getElementById('messageArea');
+                msgArea.innerText = `リンク先の列車番号 (${targetTrainNum}) のデータが見つかりません。`;
+                msgArea.classList.remove('hidden');
+                document.getElementById('contentArea').classList.add('hidden');
+            }
+        }
+
+        function updateSystemClock(dateStr) {
+            if (!dateStr) return;
+            try {
+                const d = new Date(dateStr);
+                d.setDate(d.getDate() - 2); 
+                d.setHours(22, 45);
+                const randomSec = Math.floor(Math.random() * 60);
+                d.setSeconds(randomSec);
+                const fmt = (n) => String(n).padStart(2, '0');
+                const str = `${d.getFullYear()}/${fmt(d.getMonth()+1)}/${fmt(d.getDate())} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+                document.getElementById('clockDisplay').innerText = str;
+            } catch(e) {}
+        }
+        
+        window.onload = async function() {
+            document.getElementById('dateInput').value = formatDate(new Date());
+            await loadData();
+            populateLines(); 
+            performSearch(); 
+        };
+
+        function populateLines() {
+            const select = document.getElementById('lineSelect');
+            select.innerHTML = '<option value="">(選択)</option>';
+            if (rawJsonData.length === 0) return;
+            const lines = [...new Set(rawJsonData.map(d => d.line))];
+            lines.forEach(line => {
+                const option = document.createElement('option');
+                option.value = line;
+                option.text = line;
+                select.appendChild(option);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>WB-OCC 運行管理 v10.2</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root { --bg: #f3f3f3; --panel: #ffffff; --text: #000000; --border: #cccccc; --accent: #005a9e; }
+        body.dark-mode { --bg: #1e1e1e; --panel: #2d2d30; --text: #f5f5f5; --border: #3f3f46; --accent: #0078d4; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: "Helvetica Neue", "Segoe UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { height: 50px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--accent); flex-shrink: 0; }
+        #main-layout { display: grid; grid-template-columns: 350px 1fr 420px; flex: 1; overflow: hidden; gap: 1px; background: var(--border); }
+        .panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+        .panel-title { background: rgba(0,0,0,0.05); padding: 8px 12px; font-size: 13px; font-weight: bold; border-bottom: 1px solid var(--border); }
+        .control-box { padding: 10px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+        input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px; font-size: 13px; border-radius: 4px; }
+        #trip-list { flex: 1; overflow-y: auto; }
+        .trip-card { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 4px solid transparent; }
+        .trip-card:hover { background: rgba(0,90,158,0.1); }
+        .trip-card.active { background: var(--accent); color: #fff; }
+        .card-relay { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+        .card-range { font-size: 11px; color: #3498db; }
+        .relay-area { padding: 12px; background: rgba(0,90,158,0.05); border-bottom: 1px solid var(--border); }
+        .relay-text { font-size: 15px; font-weight: bold; color: var(--accent); }
+        .st-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .st-table th { background: rgba(0,0,0,0.05); position: sticky; top: 0; padding: 10px 8px; text-align: left; }
+        .st-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+        
+        /* システムログ */
+        #log-panel { height: 100px; background: #000; color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid var(--accent); }
+
+        /* モーダル & 印刷 */
+        #modal-op { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px; overflow-y: auto; }
+        .op-sheet { background: #fff; color: #000; width: 210mm; margin: 0 auto; padding: 15mm; min-height: 297mm; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #modal-op, #modal-op * { visibility: visible; }
+            #modal-op { position: absolute; left: 0; top: 0; width: 100%; background: none; padding: 0; margin: 0; }
+            .no-print { display: none !important; }
+            .op-sheet { box-shadow: none; border: none; width: 100%; margin: 0; padding: 0; }
+        }
+
+        #modal-dic { display: none; position: fixed; top: 55px; left: 15px; width: 340px; background: var(--panel); border: 1px solid var(--accent); z-index: 1000; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #dic-list { max-height: 500px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--border); }
+        .dic-item { padding: 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
+        button { padding: 8px 12px; cursor: pointer; background: var(--accent); color: #fff; border: none; font-size: 12px; border-radius: 4px; }
+        #loader { position: fixed; top: 60px; right: 20px; background: #f1c40f; color: #000; padding: 6px 12px; display: none; z-index: 10001; font-weight: bold; border-radius: 4px; }
+    </style>
+</head>
+<body class="light-mode">
+<div id="loader">地図データ生成中...</div>
+<header>
+    <div style="display:flex; align-items:center; gap:20px;">
+        <span style="font-size:18px; font-weight:bold;">WB-OCC v10.2</span>
+        <button onclick="toggleDic()" style="background:#444;">駅コード辞書</button>
+    </div>
+    <div style="display:flex; gap:15px; align-items:center;">
+        <select id="map-mode" onchange="updateMapLayers()">
+            <option value="standard">通常地図 (Carto)</option>
+            <option value="gsi">国土地理院 (標準)</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="sat">衛星写真 (ESRI)</option>
+        </select>
+        <button onclick="toggleTheme()">背景色切替 (白/黒)</button>
+        <div id="clock">00:00:00</div>
+    </div>
+</header>
+
+<div id="main-layout">
+    <div class="panel">
+        <div class="panel-title">列車検索</div>
+        <div class="control-box">
+            <input type="date" id="base_date">
+            <select id="route_filter" onchange="renderTrips(document.getElementById('q_input').value)"><option value="">全ての方面</option></select>
+            <input type="text" id="q_input" placeholder="列車番号または駅名..." oninput="renderTrips(this.value)">
+        </div>
+        <div id="trip-list"></div>
+    </div>
+    <div class="panel">
+        <div class="panel-title">地図モニタ></div>
+        <div id="map" style="flex:1;"></div>
+        <div id="log-panel">
+            [System Log]<br>
+            > Initializing system...<br>
+            > Ready.
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel-title">運行計画・継走情報</div>
+        <div class="relay-area"><div id="relay-text" class="relay-text">-</div></div>
+        <div style="flex:1; overflow-y:auto;">
+            <table class="st-table">
+                <thead><tr><th>駅コード</th><th>停車駅</th><th>到着時刻</th><th>出発時刻</th></tr></thead>
+                <tbody id="st-body"></tbody>
+            </table>
+        </div>
+        <div style="padding:12px; border-top:1px solid var(--border);">
+            <button style="width:100%" onclick="showOpSheet()">輸送列車順序資料 (PDF) 生成</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-dic">
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b>駅コード一覧 (stop_code)</b><button onclick="toggleDic()">×</button></div>
+    <input type="text" id="dic_search" placeholder="絞り込み..." style="width:100%;" oninput="filterDic()">
+    <div id="dic-list"></div>
+</div>
+
+<div id="modal-op">
+    <div class="no-print" style="max-width:210mm; margin: 0 auto 10px auto; text-align:right;">
+        <button onclick="window.print()" style="background:#2ecc71;">印刷 / PDF保存</button>
+        <button onclick="document.getElementById('modal-op').style.display='none'" style="background:#e74c3c;">閉じる</button>
+    </div>
+    <div class="op-sheet" id="op-content"></div>
+</div>
+
+<script>
+    const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.5, 138], 6);
+    const tiles = {
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
+        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
+        sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        gsi: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: "国土地理院" })
+    };
+    tiles.light.addTo(map);
+
+    window.gtfsDB = { trips: [], stops: {}, stopTimes: {}, routes: {} };
+    let currentTripId = "";
+    let currentTimeline = [];
+
+    function addLog(msg) {
+        const log = document.getElementById('log-panel');
+        const time = new Date().toLocaleTimeString();
+        log.innerHTML += `> [${time}] ${msg}<br>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function toggleTheme() { 
+        document.body.classList.toggle('dark-mode'); 
+        updateMapLayers(); 
+    }
+
+    function updateMapLayers() {
+        const isDark = document.body.classList.contains('dark-mode');
+        const mode = document.getElementById('map-mode').value;
+        Object.values(tiles).forEach(t => map.removeLayer(t));
+        
+        if (mode === 'sat') tiles.sat.addTo(map);
+        else if (mode === 'osm') tiles.osm.addTo(map);
+        else if (mode === 'gsi') tiles.gsi.addTo(map);
+        else tiles[isDark ? 'dark' : 'light'].addTo(map);
+        addLog(`Map layer changed to: ${mode}`);
+    }
+
+    async function init() {
+        document.getElementById("loader").style.display = "block";
+        document.getElementById('base_date').valueAsDate = new Date();
+        try {
+            const [tr, st, s, rt] = await Promise.all([
+                fetch('./trips.txt').then(r => r.text()), fetch('./stop_times.txt').then(r => r.text()),
+                fetch('./stops.txt').then(r => r.text()), fetch('./routes.txt').then(r => r.text())
+            ]);
+            Papa.parse(rt.trim(), { header: true }).data.forEach(r => {
+                if(r.route_id) {
+                    window.gtfsDB.routes[r.route_id] = r;
+                    const opt = document.createElement('option'); opt.value = r.route_id; opt.innerText = r.route_long_name;
+                    document.getElementById('route_filter').appendChild(opt);
+                }
+            });
+            window.gtfsDB.trips = Papa.parse(tr.trim(), { header: true }).data;
+            Papa.parse(s.trim(), { header: true }).data.forEach(x => { window.gtfsDB.stops[x.stop_id] = x; });
+            Papa.parse(st.trim(), { header: true }).data.forEach(x => {
+                if (!window.gtfsDB.stopTimes[x.trip_id]) window.gtfsDB.stopTimes[x.trip_id] = [];
+                window.gtfsDB.stopTimes[x.trip_id].push(x);
+            });
+            createDic(); renderTrips("");
+            addLog("System data loaded successfully.");
+        } catch(e) { addLog(`Error loading data: ${e}`); }
+        document.getElementById("loader").style.display = "none";
+    }
+
+    function formatTripNo(no, stopName) {
+        let clean = no.replace(/^0+/, ''); 
+        if (clean.length > 4) clean = clean.substring(0, clean.length - 2); 
+        const isRoad = stopName.includes("オフレール") || stopName.includes("営業所") || no.includes('b');
+        let finalNo = clean.replace('b', '');
+        return isRoad ? finalNo + "便" : finalNo + "レ";
+    }
+
+    function parseRelay(tid, timeline) {
+        if(!tid) return "-";
+        const parts = tid.split('_').slice(2);
+        return parts.map((p, i) => {
+            const sName = (i === 0 && timeline && timeline.length > 0) ? timeline[0].name : "";
+            return formatTripNo(p, sName);
+        }).join("〜");
+    }
+
+    function renderTrips(f) {
+        const list = document.getElementById("trip-list");
+        list.innerHTML = "";
+        const rf = document.getElementById('route_filter').value;
+        const query = (f || "").toLowerCase();
+        window.gtfsDB.trips.filter(t => (rf === "" || t.route_id === rf) && t.trip_id.toLowerCase().includes(query))
+        .slice(0, 50).forEach(t => {
+            const st = window.gtfsDB.stopTimes[t.trip_id] || [];
+            const sName = window.gtfsDB.stops[st[0]?.stop_id]?.stop_name || "-";
+            const eName = window.gtfsDB.stops[st[st.length-1]?.stop_id]?.stop_name || "-";
+            const relay = parseRelay(t.trip_id, [{name: sName}]);
+            const card = document.createElement("div");
+            card.className = "trip-card" + (t.trip_id === currentTripId ? " active" : "");
+            card.innerHTML = `<div class="card-relay">${relay}</div><div class="card-range">${sName} 〜 ${eName}</div>`;
+            card.onclick = () => loadTrip(t);
+            list.appendChild(card);
+        });
+    }
+
+    async function loadTrip(t) {
+        currentTripId = t.trip_id;
+        addLog(`Loading TripID: ${t.trip_id}`);
+        document.getElementById("loader").style.display = "block";
+        const shard = await fetch(`./shapes_shards/shard_${t.shape_id.substring(0, 2)}.json`).then(r => r.json());
+        window.dispatchEvent(new CustomEvent("py-process", { detail: { tid: t.trip_id, geo: JSON.stringify(shard[t.shape_id]) } }));
+    }
+
+    window.updateUI = (geo_s, time_s) => {
+        const timeRaw = JSON.parse(time_s);
+        const geoPoints = JSON.parse(geo_s);
+        const bDate = document.getElementById('base_date').value;
+
+        const consolidated = [];
+        const mapObj = {};
+        timeRaw.forEach(s => {
+            if(!mapObj[s.code]) {
+                mapObj[s.code] = { code: s.code, name: s.name, arr: "None", dep: "None", lat: s.lat, lon: s.lon, id: s.id };
+                consolidated.push(mapObj[s.code]);
+            }
+            if(s.id.startsWith('C')) mapObj[s.code].arr = s.arr;
+            if(s.id.startsWith('T')) mapObj[s.code].dep = s.dep;
+        });
+
+        currentTimeline = consolidated.map(s => ({ ...s, arrD: formatTime(s.arr, bDate), depD: formatTime(s.dep, bDate) }));
+        document.getElementById("relay-text").innerText = parseRelay(currentTripId, currentTimeline);
+
+        map.eachLayer(l => { if(l instanceof L.Polyline || l instanceof L.CircleMarker) map.removeLayer(l); });
+
+        // 排他描画ロジック維持
+        for (let i = 0; i < currentTimeline.length - 1; i++) {
+            const s = currentTimeline[i], e = currentTimeline[i+1];
+            const segmentPoints = extractSegment(geoPoints, s, e);
+            const isRoad = s.name.includes("オフレール") || e.name.includes("オフレール") || s.name.includes("営業所") || e.name.includes("営業所");
+
+            if (isRoad) {
+                L.polyline(segmentPoints, { color: '#0078d4', weight: 8, opacity: 0.8 }).addTo(map);
+            } else {
+                L.polyline(segmentPoints, { color: '#000', weight: 6 }).addTo(map);
+                L.polyline(segmentPoints, { color: '#fff', weight: 2, dashArray: '8, 12' }).addTo(map);
+            }
+        }
+        
+        currentTimeline.forEach(s => L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: '#000', fillOpacity: 1 }).addTo(map).bindPopup(`${s.code}: ${s.name}`));
+        map.fitBounds(L.polyline(geoPoints).getBounds(), { padding: [40,40] });
+        
+        document.getElementById("st-body").innerHTML = currentTimeline.map(s => `
+            <tr>
+                <td style="font-family:monospace;">${s.code}</td>
+                <td><b>${s.name}</b></td>
+                <td style="text-align:center;">${s.arrD}</td>
+                <td style="text-align:center;">${s.depD}</td>
+            </tr>`).join("");
+        document.getElementById("loader").style.display = "none";
+        addLog(`Trip UI updated. Stops: ${currentTimeline.length}`);
+    };
+
+    function extractSegment(points, start, end) {
+        let si = 0, ei = points.length - 1, ms = Infinity, me = Infinity;
+        points.forEach((p, idx) => {
+            let ds = Math.pow(p[0]-start.lat, 2) + Math.pow(p[1]-start.lon, 2);
+            let de = Math.pow(p[0]-end.lat, 2) + Math.pow(p[1]-end.lon, 2);
+            if(ds < ms) { ms = ds; si = idx; }
+            if(de < me) { me = de; ei = idx; }
+        });
+        if(si > ei) [si, ei] = [ei, si];
+        return points.slice(si, ei + 1);
+    }
+
+    function formatTime(t, base) {
+        if(!t || t === "None" || t.includes("undefined")) return " - ";
+        const p = t.split(':'); if (p.length < 2) return " - ";
+        let h = parseInt(p[0], 10), d = Math.floor(h/24);
+        return (d > 0 ? `+${d}d ` : "") + `${String(h%24).padStart(2,'0')}:${p[1]}`;
+    }
+
+    function showOpSheet() {
+        if(!currentTimeline.length) return;
+        addLog("Generating Transport Train Sequence Data (PDF)...");
+        const content = document.getElementById("op-content");
+        content.innerHTML = `
+            <div style="text-align:right; font-size:10px;">WB-OCC v10.2 / 基準日: ${document.getElementById("base_date").value}</div>
+            <h2 style="text-align:center; border-bottom: 2px solid #000; padding-bottom:10px; margin-top:0;">輸送列車順序資料</h2>
+            <div style="margin: 15px 0; font-size: 14px;">
+                <b>継走列車:</b> ${document.getElementById("relay-text").innerText}
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead><tr style="background:#eee;">
+                    <th style="border:1px solid #000; padding:8px;">駅コード</th>
+                    <th style="border:1px solid #000; padding:8px;">停車駅</th>
+                    <th style="border:1px solid #000; padding:8px;">到着時刻</th>
+                    <th style="border:1px solid #000; padding:8px;">出発時刻</th>
+                </tr></thead>
+                <tbody>${currentTimeline.map(s => `
+                    <tr>
+                        <td style="border:1px solid #000; padding:8px; text-align:center; font-family:monospace;">${s.code}</td>
+                        <td style="border:1px solid #000; padding:8px;"><b>${s.name}</b></td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.arrD}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${s.depD}</td>
+                    </tr>`).join("")}</tbody>
+            </table>
+            <div style="margin-top:20px; font-size:10px; color:#666; text-align:center;">--- 本資料は WB-OCC システムにより生成されました ---</div>
+        `;
+        document.getElementById("modal-op").style.display = "block";
+    }
+
+    function createDic() {
+        const list = document.getElementById("dic-list");
+        const stops = Object.values(window.gtfsDB.stops).sort((a,b) => (a.stop_code||"").localeCompare(b.stop_code||""));
+        stops.forEach(s => {
+            if(!s.stop_code) return;
+            const div = document.createElement("div"); div.className = "dic-item";
+            div.innerHTML = `<b>${s.stop_code}</b> <span>${s.stop_name}</span>`;
+            div.onclick = () => { document.getElementById("q_input").value = s.stop_name; renderTrips(s.stop_name); toggleDic(); };
+            list.appendChild(div);
+        });
+    }
+    function filterDic() {
+        const q = document.getElementById("dic_search").value.toLowerCase();
+        Array.from(document.getElementsByClassName("dic-item")).forEach(i => i.style.display = i.innerText.toLowerCase().includes(q) ? "flex" : "none");
+    }
+    function toggleDic() { const d = document.getElementById("modal-dic"); d.style.display = d.style.display === "block" ? "none" : "block"; }
+    setInterval(() => { document.getElementById("clock").innerText = new Date().toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
+    init();
+</script>
+
+<py-script>
+import js, json
+from pyodide.ffi import create_proxy
+
+async def process(event):
+    data = event.detail.to_py()
+    tid = data['tid']
+    try:
+        db = js.window.gtfsDB
+        st_data = db.stopTimes.to_py()
+        st_list = sorted(st_data[tid], key=lambda x: int(x['stop_sequence']))
+        stops = db.stops.to_py()
+        timeline = []
+        for r in st_list:
+            s = stops.get(r['stop_id'], {})
+            timeline.append({
+                "id": str(r['stop_id']),
+                "name": str(s.get('stop_name', "-")), 
+                "code": str(s.get('stop_code', "-")),
+                "arr": str(r.get('arrival_time', "None")),
+                "dep": str(r.get('departure_time', "None")),
+                "lat": float(s.get('stop_lat', 0)), 
+                "lon": float(s.get('stop_lon', 0))
+            })
+        js.window.updateUI(data['geo'], json.dumps(timeline))
+    except Exception as e:
+        js.console.error(str(e))
+        js.document.getElementById("loader").style.display = "none"
+
+js.window.addEventListener("py-process", create_proxy(process))
+</py-script>
+</body>
+</html>

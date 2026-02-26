@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車別ダイヤモニタ - 東京圏輸送情報システム</title>
+    <style>
+        body {
+            font-family: "MS PGothic", sans-serif;
+            font-weight: bold;
+            background-color: #ffffff;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #01977a;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .container {
+            margin: 20px;
+        }
+
+        .selection {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .selection label {
+            margin-right: 10px;
+        }
+
+        .selection select, .selection input {
+            margin-right: 20px;
+            padding: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #01977a;
+        }
+
+        th {
+            background-color: #01977a;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+
+        td {
+            padding: 10px;
+            text-align: left;
+            background-color: #f0f0f0; /* Light gray background for data rows */
+        }
+
+        .station-name {
+            width: 20%;
+        }
+
+        .arrival-time {
+            width: 54%;
+        }
+
+        .departure-time {
+            width: 6%;
+        }
+
+        .back-button, .display-button {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #01977a;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .back-button:hover, .display-button:hover {
+            background-color: #017a63;
+        }
+
+        #error-log {
+            background-color: #ffcccc;
+            color: #990000;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #990000;
+        }
+    </style>
+</head>
+<body>
+	<div id="main-content" style="display: none;"> 
+    <header>
+        <h1>列車別ダイヤモニタ</h1>
+    </header>
+    <div class="container">
+        <a href="toppage.html" class="back-button">トップメニューに戻る</a>
+        <div id="error-log" style="display: none;"></div>
+        <div class="selection">
+            <label for="line">線区:</label>
+            <select id="line">
+                <option value="">選択してください</option>
+            </select>
+
+            <label for="date">施行日:</label>
+            <input type="date" id="date">
+
+            <label for="train-number">列車番号:</label>
+            <input type="text" id="train-number" placeholder="列車番号を入力">
+            <button class="display-button" id="display-button">表示</button>
+        </div>
+
+        <div id="train-info">
+            <p>■<span id="line-name"></span> 施行日: <span id="execution-date"></span></p>
+            <p>運転区間: <span id="operation-section"></span> 列車番号: <span id="train-id"></span></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th class="station-name">駅名</th>
+					<th class="departure-time">発(通)時刻</th>
+                    <th class="arrival-time">着時刻</th>
+                </tr>
+            </thead>
+            <tbody id="timetable">
+                <!-- Timetable rows will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+    <script>
+        const TOKEN = 'wvzxbmrc468he3y0p93ufz8ovhcqn5sauiiuixepg22wluhptpc42o78xfe38onh';
+        const API_URL = `https://api-challenge.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${TOKEN}`;
+
+        const lineMapping = {
+            "ChuoRapid": "中央急行",
+            "Takasaki": "高崎",
+            "Tokaido": "東海道",
+            "Yokosuka": "横須賀",
+            "Yamanote": "山手",
+            "Keihin-Tohoku": "京浜東北",
+            "Utsunomiya": "宇都宮",
+            "Shonan-Shinjuku": "湘南新宿",
+            "Sobu": "総武",
+            "SobuRapid": "総武快速",
+            "Joban": "常磐",
+            "JobanRapid": "常磐快速",
+            "Saikyo": "埼京",
+            "Kawagoe": "川越",
+            "Musashino": "武蔵野",
+            "Hachiko": "八高"
+        };
+        
+        const railwayMapping = {
+            "odpt.Railway:JR-East.ChuoRapid": "ChuoRapid",
+            "odpt.Railway:JR-East.Takasaki": "Takasaki",
+            "odpt.Railway:JR-East.Tokaido": "Tokaido",
+            "odpt.Railway:JR-East.Yokosuka": "Yokosuka",
+            "odpt.Railway:JR-East.Yamanote": "Yamanote",
+            "odpt.Railway:JR-East.Keihin-Tohoku": "Keihin-Tohoku",
+            "odpt.Railway:JR-East.Utsunomiya": "Utsunomiya",
+            "odpt.Railway:JR-East.Shonan-Shinjuku": "Shonan-Shinjuku",
+            "odpt.Railway:JR-East.Sobu": "Sobu",
+            "odpt.Railway:JR-East.SobuRapid": "SobuRapid",
+            "odpt.Railway:JR-East.Joban": "Joban",
+            "odpt.Railway:JR-East.JobanRapid": "JobanRapid",
+            "odpt.Railway:JR-East.Saikyo": "Saikyo",
+            "odpt.Railway:JR-East.Kawagoe": "Kawagoe",
+            "odpt.Railway:JR-East.Musashino": "Musashino",
+            "odpt.Railway:JR-East.Hachiko": "Hachiko"
+        };
+        
+        const stationMapping = {
+            "odpt.Station:JR-East.ChuoRapid.Tokyo": "東京",
+            "odpt.Station:JR-East.ChuoRapid.Kanda": "神田",
+            "odpt.Station:JR-East.ChuoRapid.Ochanomizu": "御茶ノ水",
+            "odpt.Station:JR-East.ChuoRapid.Yotsuya": "四ツ谷",
+            "odpt.Station:JR-East.ChuoRapid.Shinjuku": "新宿",
+            "odpt.Station:JR-East.ChuoRapid.Nakano": "中野",
+            "odpt.Station:JR-East.ChuoRapid.Koenji": "高円寺",
+            "odpt.Station:JR-East.ChuoRapid.Asagaya": "阿佐ヶ谷",
+            "odpt.Station:JR-East.ChuoRapid.Ogikubo": "荻窪",
+            "odpt.Station:JR-East.ChuoRapid.NishiOgikubo": "西荻窪",
+            "odpt.Station:JR-East.ChuoRapid.Kichijoji": "吉祥寺",
+            "odpt.Station:JR-East.ChuoRapid.Mitaka": "三鷹",
+            "odpt.Station:JR-East.ChuoRapid.MusashiSakai": "武蔵境",
+            "odpt.Station:JR-East.ChuoRapid.HigashiKoganei": "東小金井",
+            "odpt.Station:JR-East.ChuoRapid.MusashiKoganei": "武蔵小金井",
+            "odpt.Station:JR-East.ChuoRapid.Kokubunji": "国分寺",
+            "odpt.Station:JR-East.ChuoRapid.NishiKokubunji": "西国分寺",
+            "odpt.Station:JR-East.ChuoRapid.Kunitachi": "国立",
+            "odpt.Station:JR-East.ChuoRapid.Tachikawa": "立川",
+            "odpt.Station:JR-East.ChuoRapid.Hino": "日野",
+            "odpt.Station:JR-East.ChuoRapid.Toyoda": "豊田",
+            "odpt.Station:JR-East.ChuoRapid.Hachioji": "八王子",
+            "odpt.Station:JR-East.ChuoRapid.NishiHachioji": "西八王子",
+            "odpt.Station:JR-East.ChuoRapid.Takao": "高尾"
+        };
+
+        const trainTypeMapping = {
+            "JR-East.OmeSpecialRapid": "青梅特快",
+            "JR-East.ChuoSpecialRapid": "中央特快"
+        };
+
+        function logError(error) {
+            const errorLog = document.getElementById("error-log");
+            errorLog.textContent = `エラー: ${error.message}`;
+            errorLog.style.display = "block";
+        }
+
+        function populateLineDropdown() {
+            const lineSelect = document.getElementById("line");
+            for (const [key, value] of Object.entries(lineMapping)) {
+                const option = document.createElement("option");
+                option.value = key;
+                option.textContent = value;
+                lineSelect.appendChild(option);
+            }
+        }
+
+        function normalizeTrainNumber(trainNumber) {
+            // 全角半角、大文字小文字を統一
+            return trainNumber.trim().toUpperCase()
+                .replace(/[Ｍ]/g, 'M')
+                .replace(/[Ｆ]/g, 'F')
+                .replace(/[Ｋ]/g, 'K')
+                .replace(/[Ｇ]/g, 'G')
+                .replace(/[Ａ]/g, 'A')
+                .replace(/[Ｂ]/g, 'B')
+                .replace(/[Ｃ]/g, 'C')
+                .replace(/[Ｈ]/g, 'H')
+                .replace(/[Ｔ]/g, 'T')
+                .replace(/[Ｄ]/g, 'D')
+                .replace(/[０-９]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+        }
+
+        function isWeekend(date) {
+            const day = date.getDay();
+            return day === 0 || day === 6;
+        }
+
+        function getStationName(stationId) {
+            // arrivalStationも確実に日本語変換
+            return stationMapping[stationId] || stationId.split('.').pop();
+        }
+		
+        async function fetchTrainData(trainNumber, selectedDate, selectedLine) {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTPエラー: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const calendar = isWeekend(selectedDate) ? "odpt.Calendar:SaturdayHoliday" : "odpt.Calendar:Weekday";
+                
+                // 線区フィルタリングと列車番号の正規化
+                const trainData = data.find(train => {
+                    const normalizedInputTrainNumber = normalizeTrainNumber(trainNumber);
+                    const normalizedTrainNumber = normalizeTrainNumber(train["odpt:trainNumber"]);
+                    const matchLine = !selectedLine || railwayMapping[train["odpt:railway"]] === selectedLine;
+                    
+                    return (
+                        normalizedTrainNumber === normalizedInputTrainNumber &&
+                        train["odpt:calendar"] === calendar &&
+                        matchLine
+                    );
+                });
+
+                if (!trainData) {
+                    throw new Error("該当する列車番号が見つかりません。");
+                }
+
+                const railwayId = trainData["odpt:railway"];
+                const lineId = railwayMapping[railwayId];
+                const lineName = lineMapping[lineId] || railwayId;
+
+                const executionDate = selectedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
+                const originStation = getStationName(trainData["odpt:originStation"][0]);
+                const destinationStation = getStationName(trainData["odpt:destinationStation"][0]);
+                const operationSection = `${originStation}～${destinationStation}`;
+                const trainType = trainTypeMapping[trainData["odpt:trainType"]] || trainData["odpt:trainType"].split(":").pop();
+
+                document.getElementById("line-name").textContent = lineName;
+                document.getElementById("execution-date").textContent = executionDate;
+                document.getElementById("operation-section").textContent = operationSection;
+                document.getElementById("train-id").textContent = trainNumber;
+
+                const timetableBody = document.getElementById("timetable");
+                timetableBody.innerHTML = "";
+
+                trainData["odpt:trainTimetableObject"].forEach(entry => {
+                    const row = document.createElement("tr");
+
+                    const stationCell = document.createElement("td");
+                    stationCell.textContent = entry["odpt:arrivalStation"] ? 
+                        getStationName(entry["odpt:arrivalStation"]) : 
+                        getStationName(entry["odpt:departureStation"]);
+                    row.appendChild(stationCell);
+
+                    const departureCell = document.createElement("td");
+                    departureCell.textContent = entry["odpt:departureTime"] || "-";
+                    row.appendChild(departureCell);
+					
+                    const arrivalCell = document.createElement("td");
+                    arrivalCell.textContent = entry["odpt:arrivalTime"] || "-";
+                    row.appendChild(arrivalCell);
+
+                    timetableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Error fetching train data:", error);
+                logError(error);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            populateLineDropdown();
+            const today = new Date();
+            document.getElementById("date").valueAsDate = today;
+            document.getElementById("display-button").addEventListener("click", () => {
+                const trainNumber = document.getElementById("train-number").value;
+                const selectedDate = document.getElementById("date").valueAsDate;
+                const selectedLine = document.getElementById("line").value;
+                
+                if (trainNumber && selectedDate) {
+                    fetchTrainData(trainNumber, selectedDate, selectedLine);
+                } else {
+                    logError(new Error("列車番号と日付を入力してください。"));
+                }
+            });
+        });
+	goutButton.addEventListener('click', logout);
+    }
+    </script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script src="auth_guard.js"></script> 
+
+</body>
+</html>
