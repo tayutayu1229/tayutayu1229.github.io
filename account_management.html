@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アカウント管理 - 東京圏輸送情報システム</title>
+    <title>管理者パネル - 東京圏輸送情報システム</title>
 
     <style>
-        /* ================================
-           全体レイアウト
-        ================================= */
+        /* 全体レイアウト */
         body {
             margin: 0;
             padding: 0;
@@ -23,9 +21,7 @@
             overflow: hidden;
         }
 
-        /* ================================
-           左メニュー（JR東日本風）
-        ================================= */
+        /* 左メニュー */
         .sidebar {
             width: 230px;
             background-color: #ffffff;
@@ -49,6 +45,9 @@
             cursor: pointer;
             border-left: 4px solid transparent;
             font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .menu-item:hover {
@@ -61,9 +60,17 @@
             font-weight: bold;
         }
 
-        /* ================================
-           右側コンテンツ
-        ================================= */
+        .badge {
+            min-width: 18px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background-color: #c62828;
+            color: #fff;
+            font-size: 0.7rem;
+            text-align: center;
+        }
+
+        /* 右側コンテンツ */
         .content {
             flex: 1;
             padding: 2rem;
@@ -86,9 +93,7 @@
             font-size: 1.2rem;
         }
 
-        /* ================================
-           テーブル
-        ================================= */
+        /* テーブル */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -111,9 +116,7 @@
             background-color: #eef7f3;
         }
 
-        /* ================================
-           バッジ
-        ================================= */
+        /* バッジ */
         .status-badge {
             padding: 3px 8px;
             border-radius: 12px;
@@ -141,9 +144,7 @@
             color: #856404;
         }
 
-        /* ================================
-           ボタン
-        ================================= */
+        /* ボタン */
         button {
             padding: 6px 10px;
             border: none;
@@ -171,27 +172,7 @@
         .btn-revoke { background-color: #777; color: white; }
         .btn-revoke:hover { background-color: #555; }
 
-        /* ================================
-           戻るボタン
-        ================================= */
-        .btn-back {
-            display: inline-block;
-            padding: 8px 12px;
-            background-color: #009944;
-            color: white;
-            text-decoration: none;
-            border-radius: 3px;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-        }
-
-        .btn-back:hover {
-            background-color: #007a36;
-        }
-
-        /* ================================
-           ログイン情報
-        ================================= */
+        /* ログイン情報 */
         #user-info {
             text-align: right;
             font-weight: bold;
@@ -205,12 +186,38 @@
 
     <!-- 左メニュー -->
     <div class="sidebar">
-        <h2>アカウント管理メニュー</h2>
-        <div class="menu-item active" data-target="dashboard">ダッシュボード</div>
-        <div class="menu-item" data-target="pending">承認待ち</div>
-        <div class="menu-item" data-target="users">ユーザー管理</div>
-        <div class="menu-item" data-target="account">アカウント設定</div>
-        <div class="menu-item" id="logout-button">ログアウト</div>
+        <h2>管理メニュー</h2>
+
+        <!-- メインメニューへ戻る -->
+        <div class="menu-item" id="menu-back-main">
+            <span>メインメニューへ戻る</span>
+        </div>
+
+        <!-- ダッシュボード -->
+        <div class="menu-item" data-target="dashboard">
+            <span>ダッシュボード</span>
+        </div>
+
+        <!-- 承認待ち（バッジ付き） -->
+        <div class="menu-item" data-target="pending">
+            <span>承認待ち</span>
+            <span id="pending-badge" class="badge" style="display:none;">0</span>
+        </div>
+
+        <!-- ユーザー管理（初期表示） -->
+        <div class="menu-item active" data-target="users">
+            <span>ユーザー管理</span>
+        </div>
+
+        <!-- アカウント設定 -->
+        <div class="menu-item" data-target="account">
+            <span>アカウント設定</span>
+        </div>
+
+        <!-- ログアウト -->
+        <div class="menu-item" id="logout-button">
+            <span>ログアウト</span>
+        </div>
     </div>
 
     <!-- 右側コンテンツ -->
@@ -218,12 +225,9 @@
 
         <p id="user-info"></p>
 
-        <!-- ダッシュボード -->
-        <div id="dashboard" class="section">
+        <!-- ダッシュボード（初期は非表示） -->
+        <div id="dashboard" class="section" style="display:none;">
             <h3>ダッシュボード</h3>
-
-            <a href="toppage.html" class="btn-back">← メインメニューに戻る</a>
-
             <p>管理者パネルへようこそ。</p>
         </div>
 
@@ -233,8 +237,8 @@
             <div id="pending-users-list">読み込み中...</div>
         </div>
 
-        <!-- 既存ユーザー -->
-        <div id="users" class="section" style="display:none;">
+        <!-- ユーザー管理（初期表示） -->
+        <div id="users" class="section" style="display:block;">
             <h3>ユーザー管理</h3>
             <div id="existing-users-list">読み込み中...</div>
         </div>
@@ -258,25 +262,31 @@
 <script src="account_management.js"></script>
 
 <script>
-    /* 左メニュー切り替え */
+    // 左メニュー切り替え
     document.querySelectorAll(".menu-item").forEach(item => {
         item.addEventListener("click", () => {
+            const target = item.dataset.target;
+
+            // メインメニューへ戻る
+            if (item.id === "menu-back-main") {
+                window.location.href = "toppage.html";
+                return;
+            }
+
+            // ログアウトはここでは処理しない（account_management.js 側で処理）
+            if (item.id === "logout-button") {
+                return;
+            }
+
+            if (!target) return;
+
             document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
             item.classList.add("active");
 
-            const target = item.dataset.target;
             document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
-            document.getElementById(target).style.display = "block";
+            const section = document.getElementById(target);
+            if (section) section.style.display = "block";
         });
-    });
-
-    /* ログアウト（二重確認） */
-    document.getElementById("logout-button").addEventListener("click", async () => {
-        if (!confirm("ログアウトしますか？")) return;
-        if (!confirm("本当にログアウトしますか？")) return;
-
-        const auth = firebase.auth();
-        await auth.signOut();
     });
 </script>
 
