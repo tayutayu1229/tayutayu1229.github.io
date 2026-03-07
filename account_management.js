@@ -1,6 +1,8 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener("DOMContentLoaded", function () {
 
-    // Firebase 設定（あなたの設定そのまま）
+    // ============================
+    // Firebase 初期化
+    // ============================
     const firebaseConfig = {
         apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
         authDomain: "tokyo-pass.firebaseapp.com",
@@ -18,15 +20,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let CURRENT_USER_UID = null;
 
-    const mainContent = document.getElementById('main-content');
-    const userInfo = document.getElementById('user-info');
-    const logoutButton = document.getElementById('firebase-logout-button');
-    const adminPanel = document.getElementById('admin-panel');
-    const pendingUsersList = document.getElementById('pending-users-list');
+    // ============================
+    // HTML 要素
+    // ============================
+    const userInfo = document.getElementById("user-info");
+    const pendingUsersList = document.getElementById("pending-users-list");
+    const existingUsersList = document.getElementById("existing-users-list");
 
-    // ================================
+    const logoutButton = document.getElementById("logout-button");
+    const contentArea = document.querySelector(".content");
+
+    // ============================
     // 認証状態チェック
-    // ================================
+    // ============================
     auth.onAuthStateChanged(async (user) => {
         if (!user) {
             window.location.href = "index.html";
@@ -35,89 +41,98 @@ document.addEventListener('DOMContentLoaded', function() {
 
         CURRENT_USER_UID = user.uid;
 
-        const userDoc = await db.collection("users").doc(user.uid).get();
-        if (!userDoc.exists) {
-            alert("ユーザーデータが存在しません。");
-            auth.signOut();
-            return;
-        }
+        try {
+            const userDoc = await db.collection("users").doc(user.uid).get();
 
-        const data = userDoc.data();
+            if (!userDoc.exists) {
+                alert("ユーザーデータが存在しません。");
+                await auth.signOut();
+                return;
+            }
 
-        // status チェック
-        if (data.status !== "active") {
-            alert("アクセス権限がありません。管理者の承認をお待ちください。");
-            auth.signOut();
-            return;
-        }
+            const data = userDoc.data();
 
-        mainContent.style.display = "block";
-        userInfo.textContent = `${user.email} でログイン中`;
+            // status が active でない場合は弾く
+            if (data.status !== "active") {
+                alert("アクセス権限がありません。管理者の承認をお待ちください。");
+                await auth.signOut();
+                return;
+            }
 
-        // 管理者ならパネル表示
-        if (data.role === "admin") {
-            adminPanel.style.display = "block";
-            loadAllUsers();
+            // ログイン情報表示
+            userInfo.textContent = `${user.email} でログイン中`;
+
+            // 管理者ならユーザー一覧をロード
+            if (data.isAdmin === true) {
+                loadAllUsers();
+            } else {
+                // 一般ユーザーは管理画面を見せない
+                document.getElementById("pending").style.display = "none";
+                document.getElementById("users").style.display = "none";
+            }
+
+            contentArea.style.display = "block";
+
+        } catch (e) {
+            console.error("Auth check error:", e);
+            await auth.signOut();
         }
     });
 
-    // ================================
-    // 管理者：ユーザー一覧ロード
-    // ================================
+    // ============================
+    // 全ユーザー読み込み
+    // ============================
     async function loadAllUsers() {
-        const snapshot = await db.collection("users").orderBy("registeredAt", "desc").get();
+        try {
+            const snapshot = await db.collection("users").orderBy("registeredAt", "desc").get();
 
-        let html = `
-            <h3>承認待ちユーザー</h3>
-            <table>
-                <thead>
-                    <tr><th>メール</th><th>登録日</th><th>操作</th></tr>
-                </thead>
-                <tbody>
-        `;
+            let pendingHTML = `
+                <table>
+                    <thead>
+                        <tr><th>メール</th><th>登録日</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+            `;
 
-        snapshot.forEach(doc => {
-            const u = doc.data();
-            const uid = doc.id;
+            let existingHTML = `
+                <table>
+                    <thead>
+                        <tr><th>メール</th><th>状態</th><th>権限</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+            `;
 
-            if (u.status === "pending") {
-                html += `
-                    <tr>
-                        <td>${u.email}</td>
-                        <td>${u.registeredAt?.toDate().toLocaleString("ja-JP")}</td>
-                        <td>
-                            <button class="btn-approve" onclick="approveUser('${uid}')">承認</button>
-                            <button class="btn-disable" onclick="rejectUser('${uid}')">削除</button>
-                        </td>
-                    </tr>
-                `;
-            }
-        });
+            snapshot.forEach(doc => {
+                const u = doc.data();
+                const uid = doc.id;
 
-        html += `
-                </tbody>
-            </table>
+                // ============================
+                // 承認待ち
+                // ============================
+                if (u.status === "pending") {
+                    pendingHTML += `
+                        <tr>
+                            <td>${u.email}</td>
+                            <td>${u.registeredAt?.toDate().toLocaleString("ja-JP")}</td>
+                            <td>
+                                <button class="btn-approve" onclick="approveUser('${uid}')">承認</button>
+                                <button class="btn-delete" onclick="rejectUser('${uid}')">削除</button>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
 
-            <h3 style="margin-top:2rem;">既存ユーザー</h3>
-            <table>
-                <thead>
-                    <tr><th>メール</th><th>状態</th><th>権限</th><th>操作</th></tr>
-                </thead>
-                <tbody>
-        `;
-
-        snapshot.forEach(doc => {
-            const u = doc.data();
-            const uid = doc.id;
-
-            if (u.status !== "pending") {
+                // ============================
+                // 既存ユーザー
+                // ============================
                 const statusBadge =
                     u.status === "active"
-                        ? `<span class="status-badge status-approved">利用可能</span>`
+                        ? `<span class="status-badge status-active">利用可能</span>`
                         : `<span class="status-badge status-disabled">停止中</span>`;
 
                 const roleBadge =
-                    u.role === "admin"
+                    u.isAdmin
                         ? `<span class="status-badge status-admin">管理者</span>`
                         : "一般";
 
@@ -130,7 +145,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         buttons += `<button class="btn-enable" onclick="enableUser('${uid}')">再有効化</button>`;
                     }
 
-                    if (u.role === "admin") {
+                    if (u.isAdmin) {
                         buttons += `<button class="btn-revoke" onclick="revokeAdmin('${uid}')">権限剥奪</button>`;
                     } else {
                         buttons += `<button class="btn-admin" onclick="promoteAdmin('${uid}')">管理者付与</button>`;
@@ -139,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     buttons = "自分自身";
                 }
 
-                html += `
+                existingHTML += `
                     <tr>
                         <td>${u.email}</td>
                         <td>${statusBadge}</td>
@@ -147,61 +162,66 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>${buttons}</td>
                     </tr>
                 `;
-            }
-        });
+            });
 
-        html += `</tbody></table>`;
+            pendingHTML += "</tbody></table>";
+            existingHTML += "</tbody></table>";
 
-        pendingUsersList.innerHTML = html;
+            pendingUsersList.innerHTML = pendingHTML;
+            existingUsersList.innerHTML = existingHTML;
+
+        } catch (e) {
+            console.error("Load users error:", e);
+        }
     }
 
-    // ================================
+    // ============================
     // 管理者操作
-    // ================================
-    window.approveUser = async function(uid) {
+    // ============================
+    window.approveUser = async function (uid) {
         await db.collection("users").doc(uid).update({
             status: "active"
         });
         loadAllUsers();
     };
 
-    window.rejectUser = async function(uid) {
+    window.rejectUser = async function (uid) {
         if (!confirm("このユーザーを完全に削除しますか？")) return;
         await db.collection("users").doc(uid).delete();
         loadAllUsers();
     };
 
-    window.disableUser = async function(uid) {
+    window.disableUser = async function (uid) {
         await db.collection("users").doc(uid).update({
             status: "disabled"
         });
         loadAllUsers();
     };
 
-    window.enableUser = async function(uid) {
+    window.enableUser = async function (uid) {
         await db.collection("users").doc(uid).update({
             status: "active"
         });
         loadAllUsers();
     };
 
-    window.promoteAdmin = async function(uid) {
+    window.promoteAdmin = async function (uid) {
         await db.collection("users").doc(uid).update({
-            role: "admin"
+            isAdmin: true
         });
         loadAllUsers();
     };
 
-    window.revokeAdmin = async function(uid) {
+    window.revokeAdmin = async function (uid) {
         await db.collection("users").doc(uid).update({
-            role: "user"
+            isAdmin: false
         });
         loadAllUsers();
     };
 
-    // ================================
+    // ============================
     // ログアウト
-    // ================================
+    // ============================
     logoutButton.addEventListener("click", async () => {
         await auth.signOut();
     });
