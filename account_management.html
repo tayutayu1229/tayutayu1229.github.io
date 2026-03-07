@@ -6,7 +6,9 @@
     <title>管理者パネル - 東京圏輸送情報システム</title>
 
     <style>
-        /* 全体レイアウト */
+        /* ================================
+           全体レイアウト
+        ================================= */
         body {
             margin: 0;
             padding: 0;
@@ -21,7 +23,9 @@
             overflow: hidden;
         }
 
-        /* 左メニュー */
+        /* ================================
+           左メニュー（JR東日本風）
+        ================================= */
         .sidebar {
             width: 230px;
             background-color: #ffffff;
@@ -60,6 +64,7 @@
             font-weight: bold;
         }
 
+        /* 承認待ち件数バッジ（LINE風） */
         .badge {
             min-width: 18px;
             padding: 2px 6px;
@@ -70,12 +75,14 @@
             text-align: center;
         }
 
-        /* 右側コンテンツ */
+        /* ================================
+           右側コンテンツ
+        ================================= */
         .content {
             flex: 1;
             padding: 2rem;
             overflow-y: auto;
-            display: none;
+            display: none; /* JSでログイン後に表示 */
         }
 
         .section {
@@ -93,7 +100,9 @@
             font-size: 1.2rem;
         }
 
-        /* テーブル */
+        /* ================================
+           テーブル
+        ================================= */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -116,7 +125,9 @@
             background-color: #eef7f3;
         }
 
-        /* バッジ */
+        /* ================================
+           バッジ（状態表示）
+        ================================= */
         .status-badge {
             padding: 3px 8px;
             border-radius: 12px;
@@ -124,27 +135,13 @@
             font-weight: bold;
         }
 
-        .status-active {
-            background-color: #e8e8e8;
-            color: #222;
-        }
+        .status-active { background-color: #e8e8e8; color: #222; }
+        .status-disabled { background-color: #f8d7da; color: #721c24; }
+        .status-admin { background-color: #e6f0ff; color: #084298; }
 
-        .status-disabled {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        .status-admin {
-            background-color: #e6f0ff;
-            color: #084298;
-        }
-
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
-        /* ボタン */
+        /* ================================
+           ボタン
+        ================================= */
         button {
             padding: 6px 10px;
             border: none;
@@ -155,24 +152,15 @@
         }
 
         .btn-approve { background-color: #009944; color: white; }
-        .btn-approve:hover { background-color: #007a36; }
-
-        .btn-delete { background-color: #c62828; color: white; }
-        .btn-delete:hover { background-color: #a61f1f; }
-
         .btn-disable { background-color: #333; color: white; }
-        .btn-disable:hover { background-color: #111; }
-
         .btn-enable { background-color: #777; color: white; }
-        .btn-enable:hover { background-color: #555; }
-
+        .btn-delete { background-color: #c62828; color: white; }
         .btn-admin { background-color: #333; color: white; }
-        .btn-admin:hover { background-color: #111; }
-
         .btn-revoke { background-color: #777; color: white; }
-        .btn-revoke:hover { background-color: #555; }
 
-        /* ログイン情報 */
+        /* ================================
+           ログイン情報
+        ================================= */
         #user-info {
             text-align: right;
             font-weight: bold;
@@ -184,11 +172,14 @@
 <body>
 <div class="layout">
 
-    <!-- 左メニュー -->
+    <!-- ================================
+         左メニュー
+         ※ 初期表示は「ユーザー管理」
+    ================================= -->
     <div class="sidebar">
         <h2>管理メニュー</h2>
 
-        <!-- メインメニューへ戻る -->
+        <!-- トップページへ戻る -->
         <div class="menu-item" id="menu-back-main">
             <span>メインメニューへ戻る</span>
         </div>
@@ -204,9 +195,14 @@
             <span id="pending-badge" class="badge" style="display:none;">0</span>
         </div>
 
-        <!-- ユーザー管理（初期表示） -->
+        <!-- ユーザー管理（アクティブユーザー） -->
         <div class="menu-item active" data-target="users">
             <span>ユーザー管理</span>
+        </div>
+
+        <!-- 無効化ユーザー（新規追加） -->
+        <div class="menu-item" data-target="disabled-users">
+            <span>無効化ユーザー</span>
         </div>
 
         <!-- アカウント設定 -->
@@ -220,12 +216,14 @@
         </div>
     </div>
 
-    <!-- 右側コンテンツ -->
+    <!-- ================================
+         右側コンテンツ
+    ================================= -->
     <div class="content">
 
         <p id="user-info"></p>
 
-        <!-- ダッシュボード（初期は非表示） -->
+        <!-- ダッシュボード（初期非表示） -->
         <div id="dashboard" class="section" style="display:none;">
             <h3>ダッシュボード</h3>
             <p>管理者パネルへようこそ。</p>
@@ -237,10 +235,16 @@
             <div id="pending-users-list">読み込み中...</div>
         </div>
 
-        <!-- ユーザー管理（初期表示） -->
+        <!-- アクティブユーザー（初期表示） -->
         <div id="users" class="section" style="display:block;">
             <h3>ユーザー管理</h3>
             <div id="existing-users-list">読み込み中...</div>
+        </div>
+
+        <!-- 無効化ユーザー -->
+        <div id="disabled-users" class="section" style="display:none;">
+            <h3>無効化ユーザー</h3>
+            <div id="disabled-users-list">読み込み中...</div>
         </div>
 
         <!-- アカウント設定 -->
@@ -258,34 +262,36 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-<!-- 管理JS -->
+<!-- 管理JS（前ターンで渡した最新版） -->
 <script src="account_management.js"></script>
 
 <script>
-    // 左メニュー切り替え
+    /* ================================
+       左メニューの切り替え処理
+       ※ data-target の ID を表示
+    ================================= */
     document.querySelectorAll(".menu-item").forEach(item => {
         item.addEventListener("click", () => {
-            const target = item.dataset.target;
 
-            // メインメニューへ戻る
+            /* トップページへ戻る */
             if (item.id === "menu-back-main") {
                 window.location.href = "toppage.html";
                 return;
             }
 
-            // ログアウトはここでは処理しない（account_management.js 側で処理）
-            if (item.id === "logout-button") {
-                return;
-            }
+            /* ログアウトは JS 側で処理 */
+            if (item.id === "logout-button") return;
 
+            const target = item.dataset.target;
             if (!target) return;
 
+            /* メニューの active 切り替え */
             document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
             item.classList.add("active");
 
+            /* セクションの表示切り替え */
             document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
-            const section = document.getElementById(target);
-            if (section) section.style.display = "block";
+            document.getElementById(target).style.display = "block";
         });
     });
 </script>
