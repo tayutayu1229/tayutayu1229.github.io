@@ -4,191 +4,235 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>アカウント管理 - 東京圏輸送情報システム</title>
+
     <style>
+        /* 全体レイアウト */
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f0f0f0;
             margin: 0;
             padding: 0;
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            background-color: #f7f7f7;
+            color: #222;
+        }
+
+        .layout {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
         }
-        .container {
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+
+        /* 左メニュー */
+        .sidebar {
+            width: 220px;
+            background-color: #ffffff;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding-top: 1rem;
+        }
+
+        .sidebar h2 {
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 0 1rem 1rem;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 1rem;
+        }
+
+        .menu-item {
+            padding: 0.8rem 1.2rem;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+            font-size: 0.95rem;
+        }
+
+        .menu-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .menu-item.active {
+            border-left: 4px solid #009944; /* JR東日本の緑 */
+            background-color: #eef7f3;
+            font-weight: bold;
+        }
+
+        /* 右側コンテンツ */
+        .content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .section {
+            background-color: #fff;
+            border: 1px solid #ddd;
             padding: 1.5rem;
-            max-width: 900px; /* テーブルが入るように幅を広げた */
-            width: 95%;
-            display: none; 
-        }
-        h1 {
-            color: #3f51b5;
-            text-align: center;
-            margin-bottom: 1.5rem;
-            font-size: 1.8rem;
-            border-bottom: 2px solid #ccc;
-            padding-bottom: 10px;
-        }
-        .account-management {
-            margin-top: 1rem;
-            padding: 1rem;
-            border: 1px dashed #ccc;
+            margin-bottom: 2rem;
             border-radius: 4px;
         }
-        .account-management h3 {
-            color: #333;
-            font-size: 1.1rem;
-            margin-bottom: 0.8rem;
-        }
-        .account-management button {
-            background-color: #3f51b5;
-            color: white;
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            margin-right: 0.5rem;
-            transition: background-color 0.2s;
-        }
-        .account-management button:hover {
-            background-color: #303f9f;
-        }
-        .account-status {
-            margin-bottom: 0.8rem;
-            font-size: 0.9rem;
-            color: #555;
-        }
-        
-        /* 管理者パネルのスタイル */
-        #admin-panel {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            background-color: #e6e6e6; 
-            border: 1px solid #999; 
-            border-radius: 5px;
-            display: none; 
-        }
-        #admin-panel h2 {
-            color: #333; 
+
+        .section h3 {
             margin-top: 0;
-            border-bottom: 2px solid #aaa;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #ccc;
+            font-size: 1.2rem;
         }
-        /* ユーザーリストをテーブル形式にする */
-        #pending-users-list table {
+
+        /* テーブル */
+        table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 1rem;
             font-size: 0.9rem;
         }
-        #pending-users-list th, #pending-users-list td {
+
+        th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 8px 10px;
             text-align: left;
-            vertical-align: middle;
         }
-        #pending-users-list th {
+
+        th {
             background-color: #f5f5f5;
             font-weight: bold;
-            color: #555;
         }
-        #pending-users-list td button {
-            padding: 4px 8px;
-            border-radius: 3px;
-            border: none;
-            cursor: pointer;
-            font-size: 0.8rem;
-            margin-right: 4px;
-        }
-        .btn-approve { background-color: #28a745; color: white; }
-        .btn-approve:hover { background-color: #1e7e34; }
-        .btn-disable { background-color: #ffc107; color: black; }
-        .btn-disable:hover { background-color: #e0a800; }
-        .btn-enable { background-color: #17a2b8; color: white; }
-        .btn-enable:hover { background-color: #138496; }
-        .btn-admin { background-color: #dc3545; color: white; }
-        .btn-admin:hover { background-color: #c82333; }
-        .btn-revoke { background-color: #6c757d; color: white; }
-        .btn-revoke:hover { background-color: #5a6268; }
 
+        tr:hover {
+            background-color: #f1faf7; /* 薄い緑 */
+        }
+
+        /* バッジ */
         .status-badge {
-            display: inline-block;
             padding: 3px 8px;
             border-radius: 12px;
             font-size: 0.75rem;
             font-weight: bold;
         }
-        .status-approved { background-color: #d4edda; color: #155724; }
-        .status-pending { background-color: #fff3cd; color: #856404; }
-        .status-disabled { background-color: #f8d7da; color: #721c24; }
-        .status-admin { background-color: #cfe2ff; color: #084298; }
 
-        .logout-container {
-            text-align: right;
-            margin-top: 1rem;
+        .status-active {
+            background-color: #e8e8e8;
+            color: #222;
         }
-        .logout-button {
-            background-color: #d9534f;
-            color: white;
+
+        .status-disabled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-admin {
+            background-color: #e6f0ff;
+            color: #084298;
+        }
+
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        /* ボタン */
+        button {
+            padding: 6px 10px;
             border: none;
-            padding: 0.8rem 1.2rem;
             border-radius: 3px;
-            font-size: 1rem;
             cursor: pointer;
-            transition: background-color 0.3s;
+            font-size: 0.8rem;
+            margin-right: 4px;
         }
-        .logout-button:hover {
-            background-color: #c9302c;
-        }
-        .back-link {
-            text-align: left;
-            margin-top: 1rem;
-            font-size: 0.9rem;
-        }
-        .back-link a {
-            color: #01977a;
-            text-decoration: none;
+
+        .btn-approve { background-color: #009944; color: white; }
+        .btn-approve:hover { background-color: #007a36; }
+
+        .btn-delete { background-color: #c62828; color: white; }
+        .btn-delete:hover { background-color: #a61f1f; }
+
+        .btn-disable { background-color: #333; color: white; }
+        .btn-disable:hover { background-color: #111; }
+
+        .btn-enable { background-color: #777; color: white; }
+        .btn-enable:hover { background-color: #555; }
+
+        .btn-admin { background-color: #333; color: white; }
+        .btn-admin:hover { background-color: #111; }
+
+        .btn-revoke { background-color: #777; color: white; }
+        .btn-revoke:hover { background-color: #555; }
+
+        /* ログイン情報 */
+        #user-info {
+            text-align: right;
             font-weight: bold;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
-<body>
-    
-        <div id="main-content" style="display: none;"> 
-        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;"></p>
-        
-        <h1>アカウント管理パネル</h1>
 
-        <div class="account-management">
-            <h3>アカウント管理</h3>
-            <div id="account-status" class="account-status">ログインアカウント管理</div>
+<body>
+<div class="layout">
+
+    <!-- 左メニュー -->
+    <div class="sidebar">
+        <h2>管理メニュー</h2>
+        <div class="menu-item active" data-target="dashboard">ダッシュボード</div>
+        <div class="menu-item" data-target="pending">承認待ち</div>
+        <div class="menu-item" data-target="users">ユーザー管理</div>
+        <div class="menu-item" data-target="account">アカウント設定</div>
+        <div class="menu-item" id="logout-button">ログアウト</div>
+    </div>
+
+    <!-- 右側コンテンツ -->
+    <div class="content">
+
+        <p id="user-info"></p>
+
+        <div id="dashboard" class="section">
+            <h3>ダッシュボード</h3>
+            <p>アカウント管理パネルへようこそ。</p>
+        </div>
+
+        <div id="pending" class="section" style="display:none;">
+            <h3>承認待ちユーザー</h3>
+            <div id="pending-users-list">読み込み中...</div>
+        </div>
+
+        <div id="users" class="section" style="display:none;">
+            <h3>ユーザー管理</h3>
+            <div id="existing-users-list">読み込み中...</div>
+        </div>
+
+        <div id="account" class="section" style="display:none;">
+            <h3>アカウント設定</h3>
             <button id="change-email-button">メールアドレス変更</button>
             <button id="change-password-button">パスワード変更</button>
         </div>
 
-        <div id="admin-panel">
-            <h2>🚨 ユーザーアクセス承認・管理パネル</h2>
-            <div id="pending-users-list">全ユーザーリストをロード中...</div>
-        </div>
-        
-        <div class="back-link">
-            <a href="toppage.html">← メインメニューに戻る</a>
-        </div>
-        
-        <div class="logout-container">
-            <button class="logout-button" id="firebase-logout-button">ログアウト</button>
-        </div>
     </div>
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</div>
 
-    <script src="account_management.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<script src="account_management.js"></script>
+
+<script>
+    /* 左メニューの切り替え */
+    document.querySelectorAll(".menu-item").forEach(item => {
+        item.addEventListener("click", () => {
+            document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+
+            const target = item.dataset.target;
+            document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
+            document.getElementById(target).style.display = "block";
+        });
+    });
+
+    /* ログアウト */
+    document.getElementById("logout-button").addEventListener("click", async () => {
+        const auth = firebase.auth();
+        await auth.signOut();
+    });
+</script>
 
 </body>
 </html>
