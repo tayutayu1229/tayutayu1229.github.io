@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     email: email,
                     approved: false, // 承認フラグを false に設定
                     isAdmin: false,
+                    status: "pending", 
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 console.log("DEBUG: Firestoreに承認待ちレコード作成成功");
