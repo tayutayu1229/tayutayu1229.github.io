@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
 
     /* ============================
-       Firebase 初期化aa
+       Firebase 初期化bbb
     ============================ */
     const firebaseConfig = {
         apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
@@ -248,5 +248,67 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!confirm("本当にログアウトしますか？")) return;
         await auth.signOut();
     });
+    
+});
+/* ============================
+   メールアドレス変更
+============================ */
+document.getElementById("change-email-button").addEventListener("click", async () => {
+    const newEmail = prompt("新しいメールアドレスを入力してください：");
+    if (!newEmail) return;
 
+    const password = prompt("現在のパスワードを入力してください（再認証が必要です）：");
+    if (!password) return;
+
+    const user = auth.currentUser;
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+
+    try {
+        // 再認証
+        await user.reauthenticateWithCredential(credential);
+
+        // メールアドレス変更
+        await user.updateEmail(newEmail);
+
+        // Firestore の email も更新
+        await db.collection("users").doc(user.uid).update({
+            email: newEmail
+        });
+
+        alert("メールアドレスを変更しました。");
+        userInfo.textContent = `${newEmail} でログイン中`;
+
+    } catch (e) {
+        console.error(e);
+        alert("メールアドレス変更に失敗しました。パスワードが違う可能性があります。");
+    }
+});
+
+
+/* ============================
+   パスワード変更
+============================ */
+document.getElementById("change-password-button").addEventListener("click", async () => {
+    const oldPassword = prompt("現在のパスワードを入力してください（再認証が必要です）：");
+    if (!oldPassword) return;
+
+    const newPassword = prompt("新しいパスワードを入力してください：");
+    if (!newPassword) return;
+
+    const user = auth.currentUser;
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, oldPassword);
+
+    try {
+        // 再認証
+        await user.reauthenticateWithCredential(credential);
+
+        // パスワード変更
+        await user.updatePassword(newPassword);
+
+        alert("パスワードを変更しました。");
+
+    } catch (e) {
+        console.error(e);
+        alert("パスワード変更に失敗しました。現在のパスワードが違う可能性があります。");
+    }
 });
