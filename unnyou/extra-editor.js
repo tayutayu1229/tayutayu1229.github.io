@@ -463,6 +463,8 @@ async function loadSuccessorList() {
   extra.forEach(e => {
     const opt = document.createElement("option");
     opt.value = `extra-${e.id}`;
+    // 日付を「月/日」に変換した上で
+    const displayDate = e.date.substring(5).replace("-", "/");
     opt.textContent = `[臨時] ${e.duty_number}（${e.depot}）`;
     select.appendChild(opt);
   });
