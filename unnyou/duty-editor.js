@@ -1,27 +1,63 @@
 import { supabase } from "./supabaseClient.js";
 
-const diagramSelect = document.getElementById("diagram");
-const depotInput = document.getElementById("depot");
-const dutyNumberInput = document.getElementById("duty-number");
-const vehicleTypeInput = document.getElementById("vehicle-type");
-const trainBody = document.getElementById("train-body");
-const addTrainBtn = document.getElementById("add-train");
-const saveBtn = document.getElementById("save");
-const newDutyBtn = document.getElementById("new-duty");
-const statusEl = document.getElementById("status");
-
-const notesInput = document.getElementById("notes");
-const successorTextInput = document.getElementById("successor-text");
-const successorDutySelect = document.getElementById("successor-duty-id");
+let diagramSelect;
+let depotInput;
+let dutyNumberInput;
+let vehicleTypeInput;
+let trainBody;
+let addTrainBtn;
+let saveBtn;
+let newDutyBtn;
+let statusEl;
+let notesInput;
+let successorTextInput;
+let successorDutySelect;
 
 let currentDiagramId = null;
 let currentDutyId = null;
 let trainsState = [];
 
 // ------------------------------
-// 初期化
+// 初期化（ここで DOM を取得する）
 // ------------------------------
 window.addEventListener("DOMContentLoaded", async () => {
+  diagramSelect = document.getElementById("diagram");
+  depotInput = document.getElementById("depot");
+  dutyNumberInput = document.getElementById("duty-number");
+  vehicleTypeInput = document.getElementById("vehicle-type");
+  trainBody = document.getElementById("train-body");
+  addTrainBtn = document.getElementById("add-train");
+  saveBtn = document.getElementById("save");
+  newDutyBtn = document.getElementById("new-duty");
+  statusEl = document.getElementById("status");
+  notesInput = document.getElementById("notes");
+  successorTextInput = document.getElementById("successor-text");
+  successorDutySelect = document.getElementById("successor-duty-id");
+
+  // イベント登録
+  diagramSelect.addEventListener("change", async () => {
+    currentDiagramId = diagramSelect.value;
+    await loadDuties(currentDiagramId);
+  });
+
+  document.getElementById("duty-select").addEventListener("change", async (e) => {
+    const id = e.target.value;
+
+    if (!id) {
+      currentDutyId = null;
+      clearForm();
+      return;
+    }
+
+    currentDutyId = id;
+    await loadDutyDetail(id);
+  });
+
+  addTrainBtn.addEventListener("click", addTrain);
+  newDutyBtn.addEventListener("click", newDuty);
+  saveBtn.addEventListener("click", saveDuty);
+
+  // 初回ロード
   await loadDiagrams();
 });
 
@@ -69,28 +105,15 @@ async function loadDuties(diagramId) {
     dutySelect.appendChild(opt);
   });
 
-  // 初期状態は新規モード
-  currentDutyId = null;
-  clearForm();
+  // 後継運用プルダウン更新
+  successorDutySelect.innerHTML = `<option value="">（なし）</option>`;
+  data.forEach(d => {
+    const opt2 = document.createElement("option");
+    opt2.value = d.id;
+    opt2.textContent = `${d.duty_number}｜${d.depot}｜${d.vehicle_type}`;
+    successorDutySelect.appendChild(opt2);
+  });
 }
-
-
-// ★ 運用選択プルダウンの変更イベント（ここに入れる）
-document.getElementById("duty-select").addEventListener("change", async (e) => {
-  const id = e.target.value;
-
-  if (!id) {
-    // 新規モード
-    currentDutyId = null;
-    clearForm();
-    return;
-  }
-
-  currentDutyId = id;
-  await loadDutyDetail(id);
-});
-
-
 // ------------------------------
 // 運用詳細
 // ------------------------------
@@ -107,7 +130,7 @@ async function loadDutyDetail(dutyId) {
 
   notesInput.value = duty.notes || "";
   successorTextInput.value = duty.successor_text || "";
-  successorDutySelect.value = duty.successor_duty_id || "";
+  successorDutySelect.value = duty.successor_duty_id || "";  // ← ここが null で落ちていた
 
   const { data: trains } = await supabase
     .from("duty_trains")
@@ -127,6 +150,7 @@ async function loadDutyDetail(dutyId) {
   normalizeOrder();
   renderTrains();
 }
+
 
 // ------------------------------
 // フォーム初期化
@@ -227,7 +251,7 @@ function deleteTrain(index) {
 // ------------------------------
 // 列車追加
 // ------------------------------
-addTrainBtn.addEventListener("click", () => {
+function addTrain() {
   const maxOrder = trainsState.filter(t => !t._deleted).reduce((m, t) => Math.max(m, t.order), 0);
 
   trainsState.push({
@@ -240,12 +264,12 @@ addTrainBtn.addEventListener("click", () => {
   });
 
   renderTrains();
-});
+}
 
 // ------------------------------
 // 保存
 // ------------------------------
-saveBtn.addEventListener("click", async () => {
+async function saveDuty() {
   const depot = depotInput.value.trim();
   const dutyNumber = dutyNumberInput.value.trim();
   const vehicleType = vehicleTypeInput.value.trim();
@@ -259,7 +283,6 @@ saveBtn.addEventListener("click", async () => {
 
   let dutyId = currentDutyId;
 
-  // 新規作成
   if (!dutyId) {
     const { data, error } = await supabase
       .from("duties")
@@ -284,7 +307,6 @@ saveBtn.addEventListener("click", async () => {
     currentDutyId = dutyId;
 
   } else {
-    // 更新
     await supabase
       .from("duties")
       .update({
@@ -298,7 +320,6 @@ saveBtn.addEventListener("click", async () => {
       .eq("id", dutyId);
   }
 
-  // 列車保存
   normalizeOrder();
 
   const toInsert = trainsState.filter(t => !t.id && !t._deleted && t.train_number.trim());
@@ -339,17 +360,15 @@ saveBtn.addEventListener("click", async () => {
   statusEl.textContent = "保存しました";
   await loadDutyDetail(dutyId);
 
-  // ★ 保存完了したら新規モードに戻す
   currentDutyId = null;
   clearForm();
-
-});
+}
 
 // ------------------------------
 // 新規運用
 // ------------------------------
-newDutyBtn.addEventListener("click", () => {
+function newDuty() {
   currentDutyId = null;
   clearForm();
   statusEl.textContent = "新規運用として編集できます";
-});
+}
