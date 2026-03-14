@@ -327,237 +327,115 @@ function renderTable(results) {
 
 
 // --------------------------------------
-// モーダル表示（前継承＋後継承）
+// モーダル表示：継承、施行日、後継候補を網羅した完全版
 // --------------------------------------
 async function openModal(id, type) {
   let duty, trains;
 
-  // ------------------------------
-  // 所定 or 臨時のデータ取得
-  // ------------------------------
+  // 1. データ取得（ここは既存のままでOKですが、select文に predecessor_text が含まれるか確認してください）
+  // ★重要：dutiesテーブルとextra_dutiesテーブルから全カラム取得してください
   if (type === "regular") {
-    const { data } = await supabase
-      .from("duties")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data } = await supabase.from("duties").select("*, diagrams(revision_date)").eq("id", id).single();
     duty = data;
-
-    const { data: t } = await supabase
-      .from("duty_trains")
-      .select("*")
-      .eq("duty_id", id)
-      .order("order");
+    const { data: t } = await supabase.from("duty_trains").select("*").eq("duty_id", id).order("order");
     trains = t;
-
   } else {
-    const { data } = await supabase
-      .from("extra_duties")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data } = await supabase.from("extra_duties").select("*").eq("id", id).single();
     duty = data;
-
-    const { data: t } = await supabase
-      .from("extra_duty_trains")
-      .select("*")
-      .eq("extra_duty_id", id)
-      .order("order");
+    const { data: t } = await supabase.from("extra_duty_trains").select("*").eq("extra_duty_id", id).order("order");
     trains = t;
   }
 
-  // ------------------------------
-// 前継承（predecessor）
-// ------------------------------
-let predecessorHtml = "";
+  // 2. 施行日の表示
+  const effectiveDate = type === "extra" ? duty.date : (duty.diagrams?.revision_date || "所定運用");
 
-// ★ 臨時運用（extra）の場合
-if (type === "extra") {
-
-  // ① リンクがある場合（successor_duty_id が自分を指している）
+  // 3. 前継承（predecessor）の検索と表示
+  let predecessorHtml = "";
+  const predTable = (type === "regular") ? "duties" : "extra_duties";
+  
+  // 紐付いている運用を検索
   const { data: pred } = await supabase
-    .from("extra_duties")
-    .select("id, duty_number, depot")
+    .from(predTable)
+    .select("id, duty_number, depot, date")
     .eq("successor_duty_id", id)
-    .eq("successor_type", "extra");
+    .eq("successor_type", type);
 
   if (pred && pred.length > 0) {
+    // リンクが存在する場合
     const p = pred[0];
+    const label = p.date ? `${p.date} ${p.duty_number}（${p.depot}）` : `${p.duty_number}（${p.depot}）`;
     predecessorHtml = `
       <div class="modal-predecessor small-label">
-        前継承 
-        <a href="#" class="predecessor-link"
-           data-id="${p.id}"
-           data-type="extra">
-           ${p.duty_number}（${p.depot}）
-        </a>
-      </div>
-    `;
+        前継承：<a href="#" class="predecessor-link" data-id="${p.id}" data-type="${type}">${label}</a>
+      </div>`;
+  } else if (duty.predecessor_text) {
+    // 紐付けなしの場合はテキストを表示
+    predecessorHtml = `<div class="modal-predecessor small-label">前継承：${duty.predecessor_text}</div>`;
   }
 
-  // ② リンクが無い場合 → successor_text をそのまま表示
-  else if (duty.successor_text) {
-    predecessorHtml = `
-      <div class="modal-predecessor small-label">
-        前継承 ${duty.successor_text}
-      </div>
-    `;
-  }
-
-}
-
-// ★ 所定運用（regular）の場合（今まで通り）
-else if (type === "regular") {
-
-  const { data: pred } = await supabase
-    .from("duties")
-    .select("id, duty_number, depot")
-    .eq("successor_duty_id", id)
-    .eq("successor_type", "regular");
-
-  if (pred && pred.length > 0) {
-    const p = pred[0];
-    predecessorHtml = `
-      <div class="modal-predecessor small-label">
-        前継承 
-        <a href="#" class="predecessor-link"
-           data-id="${p.id}"
-           data-type="regular">
-           所定 ${p.duty_number}（${p.depot}）
-        </a>
-      </div>
-    `;
-  }
-}
-
-
-// ------------------------------
-// 後継承（successor）
-// ------------------------------
-let successorHtml = "";
-
-// ★ 臨時運用（extra）の場合
-if (type === "extra") {
-
-  if (duty.successor_duty_id && duty.successor_type) {
-    // ★ リンクあり → 今まで通り
-    let successor;
-
-    const table = duty.successor_type === "regular" ? "duties" : "extra_duties";
-
-    const { data } = await supabase
-      .from(table)
-      .select("id, duty_number, depot")
-      .eq("id", duty.successor_duty_id)
-      .single();
-
-    successor = data;
-
-    if (successor) {
+  // 4. 後継承（successor）の表示
+  let successorHtml = "";
+  if (duty.successor_duty_id) {
+    const succTable = (duty.successor_type === "regular") ? "duties" : "extra_duties";
+    const { data: succ } = await supabase.from(succTable).select("id").eq("id", duty.successor_duty_id).single();
+    
+    if (succ) {
       successorHtml = `
         <div class="modal-successor">
-          後継承 
-          <a href="#" class="successor-link"
-             data-id="${successor.id}"
-             data-type="${duty.successor_type}">
-             ${duty.successor_type === "regular" ? "所定" : "臨時"}
-             ${successor.duty_number}（${successor.depot}）
-          </a>
-        </div>
-      `;
+          後継承：<a href="#" class="successor-link" data-id="${succ.id}" data-type="${duty.successor_type}">${duty.successor_text}</a>
+        </div>`;
     }
-
   } else if (duty.successor_text) {
-    // ★ リンクなし → successor_text をそのまま表示
-    successorHtml = `
-      <div class="modal-successor">
-        後継承 ${duty.successor_text}
-      </div>
-    `;
+    successorHtml = `<div class="modal-successor">後継承：${duty.successor_text}</div>`;
   }
 
-}
+  // 5. 後継候補の検索
+  const { data: candidates } = await supabase
+    .from("extra_duties")
+    .select("id, duty_number, depot, date")
+    .eq("duty_number", duty.duty_number)
+    .eq("depot", duty.depot)
+    .neq("id", id)
+    .order("date", { ascending: true });
 
-// ★ 所定運用（regular）の場合は今まで通り
-else if (type === "regular") {
+  const candidatesHtml = (candidates && candidates.length > 0) ? `
+    <div class="candidate-list">
+      <h4>後継候補</h4>
+      ${candidates.map(c => `
+        <div class="successor-candidate" data-id="${c.id}" data-type="extra">
+          ${c.date}　${c.duty_number}（${c.depot}）
+        </div>`).join("")}
+    </div>` : "";
 
-  if (duty.successor_duty_id && duty.successor_type) {
-    let successor;
-
-    const table = duty.successor_type === "regular" ? "duties" : "extra_duties";
-
-    const { data } = await supabase
-      .from(table)
-      .select("id, duty_number, depot")
-      .eq("id", duty.successor_duty_id)
-      .single();
-
-    successor = data;
-
-    if (successor) {
-      successorHtml = `
-        <div class="modal-successor">
-          後継承 
-          <a href="#" class="successor-link"
-             data-id="${successor.id}"
-             data-type="${duty.successor_type}">
-             ${duty.successor_type === "regular" ? "所定" : "臨時"}
-             ${successor.duty_number}（${successor.depot}）
-          </a>
-        </div>
-      `;
-    }
-  }
-}
-
-  // ------------------------------
-  // モーダル HTML（元コードの構造を維持）
-  // ------------------------------
+  // 6. HTMLの組み立て
   modalContent.innerHTML = `
+    <div class="modal-date">施行日：${effectiveDate}</div>
     <h2>${duty.duty_number}　${duty.depot}</h2>
     <h3>${duty.vehicle_type}</h3>
-
     ${predecessorHtml}
-
     <div class="modal-trains">
-      ${trains
-        .map(t => `
-          <div class="modal-train-row">
-            <span class="modal-train-num">${t.train_number}</span>
-            <span class="modal-train-sec">${t.origin}〜${t.destination}</span>
-          </div>
-        `)
-        .join("")}
+      ${trains.map(t => `
+        <div class="modal-train-row">
+          <span class="modal-train-num">${t.train_number}</span>
+          <span class="modal-train-sec">${t.origin}〜${t.destination}</span>
+        </div>`).join("")}
     </div>
-
     ${duty.notes ? `<pre class="modal-notes">${duty.notes}</pre>` : ""}
-
     ${successorHtml}
+    ${candidatesHtml}
   `;
 
-  // ------------------------------
-  // クリックイベント登録
-  // ------------------------------
-  const successorLink = modalContent.querySelector(".successor-link");
-  if (successorLink) {
-    successorLink.addEventListener("click", (e) => {
+  // 7. イベント登録
+  modalContent.querySelectorAll(".successor-link, .predecessor-link, .successor-candidate").forEach(el => {
+    el.addEventListener("click", (e) => {
       e.preventDefault();
-      openModal(successorLink.dataset.id, successorLink.dataset.type);
+      openModal(el.dataset.id, el.dataset.type);
     });
-  }
-
-  const predecessorLink = modalContent.querySelector(".predecessor-link");
-  if (predecessorLink) {
-    predecessorLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      openModal(predecessorLink.dataset.id, predecessorLink.dataset.type);
-    });
-  }
+  });
 
   modalDuty = { duty, trains, type };
   modal.style.display = "flex";
 }
-
 
 
 

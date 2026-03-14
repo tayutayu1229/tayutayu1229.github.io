@@ -142,6 +142,10 @@ async function loadExtraDutyDetail(id) {
     remarks: t.remarks || "",
   }));
 
+  
+notesInput.value = duty.notes || "";
+document.getElementById("predecessor-text").value = duty.predecessor_text || ""; // 追加
+
   normalizeOrder();
   renderTrains();
 }
@@ -260,7 +264,7 @@ function addTrain() {
 }
 
 // ------------------------------
-// 保存
+// 保存（作成・更新）
 // ------------------------------
 async function saveDuty() {
   const date = dateInput.value;
@@ -275,111 +279,70 @@ async function saveDuty() {
 
   statusEl.textContent = "保存中…";
 
-  // ★ 後継リンクの取得
+  // ★ 後継リンクの取得（型安全な分割）
   const successorValue = successorDutySelect.value;
-  let successor_duty_id = null;
-  let successor_type = null;
+  const [successor_type, successor_id_str] = successorValue ? successorValue.split("-") : [null, null];
+  const successor_duty_id = successor_id_str ? Number(successor_id_str) : null;
 
-  if (successorValue) {
-    const [type, id] = successorValue.split("-");
-    successor_duty_id = Number(id);
-    successor_type = type; // "regular" or "extra"
-  }
+  const dutyData = {
+    date,
+    depot,
+    duty_number: dutyNumber,
+    vehicle_type: vehicleType,
+    notes: notesInput.value,
+    successor_text: successorTextInput.value,
+    successor_duty_id,
+    successor_type: successor_duty_id ? successor_type : null
+  };
 
-  let dutyId = currentDutyId;
+  try {
+    let dutyId = currentDutyId;
 
-  // ------------------------------
-  // 新規作成
-  // ------------------------------
-  if (!dutyId) {
-    const { data, error } = await supabase
-      .from("extra_duties")
-      .insert({
-        date,
-        depot,
-        duty_number: dutyNumber,
-        vehicle_type: vehicleType,
-        notes: notesInput.value,
-        successor_text: successorTextInput.value,
-        successor_duty_id,
-        successor_type
-      })
-      .select()
-      .single();
-
-    if (error) {
-      statusEl.textContent = "運用の作成に失敗しました";
-      return;
+    // 1. 運用データの Insert / Update
+    if (!dutyId) {
+      const { data, error } = await supabase.from("extra_duties").insert(dutyData).select().single();
+      if (error) throw error;
+      dutyId = data.id;
+    } else {
+      const { error } = await supabase.from("extra_duties").update(dutyData).eq("id", dutyId);
+      if (error) throw error;
     }
 
-    dutyId = data.id;
-    currentDutyId = dutyId;
+    // 2. 列車情報の保存（Delete -> Upsert -> Insert の順で整合性確保）
+    normalizeOrder();
+    const toDelete = trainsState.filter(t => t.id && t._deleted);
+    const toUpdate = trainsState.filter(t => t.id && !t._deleted);
+    const toInsert = trainsState.filter(t => !t.id && !t._deleted && t.train_number.trim());
 
-  } else {
-    // ------------------------------
-    // 更新
-    // ------------------------------
-    await supabase
-      .from("extra_duties")
-      .update({
-        date,
-        depot,
-        duty_number: dutyNumber,
-        vehicle_type: vehicleType,
-        notes: notesInput.value,
-        successor_text: successorTextInput.value,
-        successor_duty_id,
-        successor_type
-      })
-      .eq("id", dutyId);
+    if (toDelete.length > 0) {
+      await supabase.from("extra_duty_trains").delete().in("id", toDelete.map(t => t.id));
+    }
+    
+    if (toUpdate.length > 0) {
+      await supabase.from("extra_duty_trains").upsert(
+        toUpdate.map(t => ({ id: t.id, extra_duty_id: dutyId, order: t.order, train_number: t.train_number, origin: t.origin, destination: t.destination, remarks: t.remarks || null }))
+      );
+    }
+    
+    if (toInsert.length > 0) {
+      await supabase.from("extra_duty_trains").insert(
+        toInsert.map(t => ({ extra_duty_id: dutyId, order: t.order, train_number: t.train_number, origin: t.origin, destination: t.destination, remarks: t.remarks || null }))
+      );
+    }
+
+    // 3. 完了処理
+    statusEl.textContent = "保存しました";
+    currentDutyId = null;
+    clearForm();
+    
+    // UIの最新化
+    await loadExtraDuties(date);
+    await loadSuccessorList();
+
+  } catch (err) {
+    console.error("保存失敗:", err);
+    statusEl.textContent = `保存中にエラーが発生しました: ${err.message}`;
   }
-
-  // ------------------------------
-  // 列車保存
-  // ------------------------------
-  normalizeOrder();
-
-  const toInsert = trainsState.filter(t => !t.id && !t._deleted && t.train_number.trim());
-  const toUpdate = trainsState.filter(t => t.id && !t._deleted);
-  const toDelete = trainsState.filter(t => t.id && t._deleted);
-
-  if (toDelete.length > 0) {
-    await supabase.from("extra_duty_trains").delete().in("id", toDelete.map(t => t.id));
-  }
-
-  if (toUpdate.length > 0) {
-    await supabase.from("extra_duty_trains").upsert(
-      toUpdate.map(t => ({
-        id: t.id,
-        extra_duty_id: dutyId,
-        order: t.order,
-        train_number: t.train_number,
-        origin: t.origin,
-        destination: t.destination,
-        remarks: t.remarks || null,
-      }))
-    );
-  }
-
-  if (toInsert.length > 0) {
-    await supabase.from("extra_duty_trains").insert(
-      toInsert.map(t => ({
-        extra_duty_id: dutyId,
-        order: t.order,
-        train_number: t.train_number,
-        origin: t.origin,
-        destination: t.destination,
-        remarks: t.remarks || null,
-      }))
-    );
-  }
-
-  statusEl.textContent = "保存しました";
-
-  currentDutyId = null;
-  clearForm();
-  await loadExtraDuties(date);
-  await loadSuccessorList(); // ★ 後継候補も更新
 }
 
 // ------------------------------
