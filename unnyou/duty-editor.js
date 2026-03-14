@@ -34,6 +34,58 @@ window.addEventListener("DOMContentLoaded", async () => {
   successorTextInput = document.getElementById("successor-text");
   successorDutySelect = document.getElementById("successor-duty-id");
 
+if (!successorDutySelect) {
+  console.error("致命的エラー: #successor-duty-id が見つかりません。HTMLのロード順を確認してください。");
+
+if (!depotInput) console.warn("警告: #depot が見つかりません");
+if (!dutyNumberInput) console.warn("警告: #duty-number が見つかりません");
+if (!vehicleTypeInput) console.warn("警告: #vehicle-type が見つかりません");
+if (!trainBody) console.warn("警告: #train-body が見つかりません");
+if (!addTrainBtn) console.warn("警告: #add-train が見つかりません");
+if (!saveBtn) console.warn("警告: #save が見つかりません");
+if (!newDutyBtn) console.warn("警告: #new-duty が見つかりません");
+if (!statusEl) console.warn("警告: #status が見つかりません");
+if (!notesInput) console.warn("警告: #notes が見つかりません");
+if (!successorTextInput) console.warn("警告: #successor-text が見つかりません");  
+
+}
+
+
+//削除するもの
+const deleteBtn = document.getElementById("delete-duty");
+
+deleteBtn.addEventListener("click", async () => {
+  if (!currentDutyId) {
+    alert("削除できる運用が選択されていません。");
+    return;
+  }
+
+  const dutyNumber = dutyNumberInput.value.trim();
+
+  // 1回目の確認
+  if (!confirm(`本当に運用「${dutyNumber}」を削除しますか？`)) return;
+
+  // 2回目の確認（手入力）
+  const input = prompt(`削除するには運用番号「${dutyNumber}」を入力してください：`);
+  if (input !== dutyNumber) {
+    alert("運用番号が一致しません。削除を中止しました。");
+    return;
+  }
+
+  // duty_trains → duties の順で削除
+  await supabase.from("duty_trains").delete().eq("duty_id", currentDutyId);
+  await supabase.from("duties").delete().eq("id", currentDutyId);
+
+  alert("運用を削除しました。");
+
+  currentDutyId = null;
+  clearForm();
+  await loadDuties(currentDiagramId);
+});
+
+
+
+
   // イベント登録
   diagramSelect.addEventListener("change", async () => {
     currentDiagramId = diagramSelect.value;
@@ -124,14 +176,18 @@ async function loadDutyDetail(dutyId) {
     .eq("id", dutyId)
     .single();
 
-  depotInput.value = duty.depot;
-  dutyNumberInput.value = duty.duty_number;
-  vehicleTypeInput.value = duty.vehicle_type;
+  if (depotInput) depotInput.value = duty.depot || "";
+  if (dutyNumberInput) dutyNumberInput.value = duty.duty_number || "";
+  if (vehicleTypeInput) vehicleTypeInput.value = duty.vehicle_type || "";
 
   notesInput.value = duty.notes || "";
   successorTextInput.value = duty.successor_text || "";
-  successorDutySelect.value = duty.successor_duty_id || "";  // ← ここが null で落ちていた
+  // ★ ここだけガードを入れる
+  if (successorDutySelect) {
+    successorDutySelect.value = duty.successor_duty_id || "";
+  }
 
+  // 列車データも読み込む
   const { data: trains } = await supabase
     .from("duty_trains")
     .select("*")
@@ -161,7 +217,10 @@ function clearForm() {
   vehicleTypeInput.value = "";
   notesInput.value = "";
   successorTextInput.value = "";
-  successorDutySelect.value = "";
+  // ★ ここもガードが必要
+  if (successorDutySelect) {
+    successorDutySelect.value = "";
+  }
 
   trainsState = [];
   renderTrains();
