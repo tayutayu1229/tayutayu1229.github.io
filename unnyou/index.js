@@ -299,7 +299,13 @@ function renderTable(results) {
     const trains = item.trains;
 
     const trainHtml = trains
-      .map(t => `${t.train_number}　${t.origin}〜${t.destination}`)
+      .map(t => {
+        // 各項目の存在チェックを行い、空でなければ結合して表示
+        const num = t.train_number ? `${t.train_number} ` : "";
+        const sec = (t.origin || t.destination) ? `${t.origin || ""}〜${t.destination || ""}` : "";
+        return `${num}${sec}`.trim();
+      })
+      .filter(line => line !== "") // 空文字の行は除外
       .join("<br>");
 
     html += `
