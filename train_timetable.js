@@ -1,88 +1,81 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // データ取得 (sessionStorageから)
     const trainGroup = JSON.parse(sessionStorage.getItem('selectedTrainData'));
-    if (!trainGroup) return;
-
+    if (!trainGroup || !trainGroup[0]) return;
     const train = trainGroup[0];
 
-    // ヘッダ
-    document.getElementById("trainTitle").textContent = train.tr1 || train.trainNumber;
+    // ヘッダー反映
     document.getElementById("date").textContent = train.startDate;
-    document.getElementById("trainNo").textContent = train.tr1 || train.trainNumber;
-    document.getElementById("type").textContent = train.type || "";
-    document.getElementById("section").textContent = `${train.origin} → ${train.destination}`;
+    document.getElementById("train-no").textContent = train.tr1 || train.trainNumber;
 
-    const tbody = document.querySelector("#timetable tbody");
-    tbody.innerHTML = "";
-
-    const isEmptyLike = (v) => {
-        if (v === null || v === undefined) return true;
-        const t = String(v).trim();
-        return t === "" || t === "…" || t === "||";
-    };
-
+    const body = document.getElementById("timetable-body");
+    
+    // ユーティリティ関数
+    const isEmpty = (v) => !v || v === "" || v === "…" || v === "||" || v === " ";
+    
     const toSec = (t) => {
-        if (isEmptyLike(t)) return null;
+        if (isEmpty(t)) return null;
         const [h, m, s] = t.split(":").map(Number);
         return h * 3600 + m * 60 + s;
     };
 
-    const secToMin = (sec) => {
-        if (sec === null) return "";
-        const m = Math.floor(sec / 60);
-        const s = sec % 60;
-        return `${m}:${String(s).padStart(2, "0")}`;
+    // 時刻の整形 (10.02 00 形式)
+    const formatTime = (timeStr, isPass) => {
+        if (isEmpty(timeStr)) return isPass ? " " : "";
+        const parts = timeStr.split(":");
+        const h = parts[0];
+        const m = parts[1];
+        const s = parts[2] || "00";
+        const content = `${h}.${m}<span class="sec">${s}</span>`;
+        return isPass ? `( ${content} )` : content;
     };
 
-    const calcRunTime = (prevDepSec, thisPointSec) => {
-        if (!prevDepSec || !thisPointSec) return "";
-        return secToMin(thisPointSec - prevDepSec);
+    // 正確な運転時分の計算
+    const getDiffStr = (startSec, endSec) => {
+        if (startSec === null || endSec === null) return "";
+        const diff = endSec - startSec;
+        if (diff <= 0) return "";
+        const m = Math.floor(diff / 60);
+        const s = diff % 60;
+        // 画像のように分を大きく、秒を右下に配置
+        return `<div>${m}</div><div class="runtime-sec">${s.toString().padStart(2, '0')}</div>`;
     };
 
-    let prevDepartureSec = null;
+    let lastPointSec = null;
 
     train.stops.forEach((stop, index) => {
-        const arrStr = stop.arrival;     // 表示用はそのまま
-        const depStr = stop.departure;   // 表示用はそのまま
+        const arrSec = toSec(stop.arrival);
+        const depSec = toSec(stop.departure);
+        const isPass = isEmpty(stop.arrival) && index !== 0; // 初発以外で着が空なら通過
 
-        const arrSec = toSec(arrStr);
-        const depSec = toSec(depStr);
+        // 今回の基準点 (着、なければ発)
+        const currentPointSec = arrSec !== null ? arrSec : depSec;
 
-        // 通過判定：着が空白/…/|| なら「通過扱い」
-        const isPass = isEmptyLike(arrStr);
+        const row = document.createElement("div");
+        row.className = "row";
 
-        // 駅間運転時分用の「この駅の基準時刻」
-        const thisPointSec = arrSec !== null ? arrSec : depSec;
+        // 運転時分の表示
+        const runtimeContent = lastPointSec ? getDiffStr(lastPointSec, currentPointSec) : "";
 
-        // 2駅目以降なら、先に「駅間行」を挿入してから駅行を入れる
-        if (index > 0) {
-            const runTime = calcRunTime(prevDepartureSec, thisPointSec);
-            const between = document.createElement("tr");
-            between.className = "between";
-            between.innerHTML = `
-                <td>${runTime}</td>
-                <td colspan="4">駅間</td>
-            `;
-            tbody.appendChild(between);
-        }
-
-        const tr = document.createElement("tr");
-        if (isPass) tr.classList.add("pass");
-
-        tr.innerHTML = `
-            <td></td>
-            <td class="station">${stop.station}</td>
-            <td>${isEmptyLike(arrStr) ? "" : arrStr}</td>
-            <td>${isEmptyLike(depStr) ? "" : depStr}</td>
-            <td class="track">${stop.trackN || ""}</td>
+        row.innerHTML = `
+            <div class="cell runtime-cell">${runtimeContent}</div>
+            <div class="cell station-name">${stop.station}</div>
+            <div class="cell">
+                <div class="time-val ${!isPass && arrSec ? 'arr-box cell' : ''}">
+                    ${formatTime(stop.arrival, isPass)}
+                </div>
+            </div>
+            <div class="cell time-val">
+                ${formatTime(stop.departure, false)}
+            </div>
+            <div class="cell track-cell">${stop.trackN || ""}</div>
+            <div class="cell">30</div>
+            <div class="cell"></div>
         `;
-        tbody.appendChild(tr);
 
-        // 次の駅のために「前駅の発時刻」を更新
-        if (depSec !== null) {
-            prevDepartureSec = depSec;
-        } else if (arrSec !== null && prevDepartureSec === null) {
-            // もし発がなくて最初の駅などの場合の保険
-            prevDepartureSec = arrSec;
-        }
+        body.appendChild(row);
+
+        // 次の計算用に「発時刻」を保持（通過ならその時刻）
+        if (depSec !== null) lastPointSec = depSec;
     });
 });
