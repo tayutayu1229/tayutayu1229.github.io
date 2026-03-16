@@ -4,14 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const train = trainGroup[0];
 
-    document.getElementById("trainTitle").textContent =
-        `${train.tr1 || train.trainNumber}`;
-
-    document.getElementById("trainMeta").innerHTML = `
-        施行日：${train.startDate}<br>
-        区間：${train.origin} → ${train.destination}<br>
-        種別：${train.type}
-    `;
+    document.getElementById("trainTitle").textContent = train.tr1 || train.trainNumber;
+    document.getElementById("date").textContent = train.startDate;
+    document.getElementById("trainNo").textContent = train.tr1 || train.trainNumber;
+    document.getElementById("maxSpeed").textContent = train.speed || "―";
+    document.getElementById("speedType").textContent = train.type || "―";
+    document.getElementById("power").textContent = train.power || "―";
+    document.getElementById("cars").textContent = train.cars || "―";
 
     const tbody = document.querySelector("#timetable tbody");
     tbody.innerHTML = "";
@@ -46,10 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isPass) tr.classList.add("pass");
 
         tr.innerHTML = `
+            <td></td>
             <td class="station">${stop.station}</td>
-            <td>${isPass ? "––" : stop.arrival}</td>
-            <td>${isPass ? "––" : stop.departure}</td>
+            <td>${isPass ? "…" : stop.arrival}</td>
+            <td>${isPass ? "…" : stop.departure}</td>
             <td class="track">${stop.trackN || ""}</td>
+            <td class="speed">${stop.speed || ""}</td>
+            <td class="note">${stop.note || ""}</td>
         `;
         tbody.appendChild(tr);
 
@@ -59,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const between = document.createElement("tr");
             between.className = "between";
             between.innerHTML = `
-                <td colspan="4">駅間：${runTime}</td>
+                <td colspan="7">駅間：${runTime}</td>
             `;
             tbody.appendChild(between);
         }
