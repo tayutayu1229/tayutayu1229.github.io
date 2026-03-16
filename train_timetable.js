@@ -9,8 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById("trainMeta").innerHTML = `
         施行日：${train.startDate}<br>
-        区間：${train.origin} → ${train.destination}<br>
-        種別：${train.type}　電源：${train.power}　線区：${train.line}
+        区間：${train.origin} → ${train.destination}
     `;
 
     const tbody = document.querySelector("#timetable tbody");
@@ -36,22 +35,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let prevDepartureSec = null;
 
-    train.stops.forEach(stop => {
+    train.stops.forEach((stop, i) => {
         const arrSec = toSec(stop.arrival);
         const depSec = toSec(stop.departure);
 
-        const runTime = calcRunTime(prevDepartureSec, arrSec);
+        const isPass = (!arrSec && !depSec);
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
-            <td class="station">${stop.station}</td>
-            <td class="time">${stop.arrival}</td>
-            <td class="time">${stop.departure}</td>
-            <td>${stop.trackN}</td>
-            <td>${runTime}</td>
+            <td class="station ${isPass ? 'pass' : ''}">${stop.station}</td>
+            <td class="${isPass ? 'pass' : 'time'}">${isPass ? "" : stop.arrival}</td>
+            <td class="${isPass ? 'pass' : 'time'}">${isPass ? "" : stop.departure}</td>
+            <td class="track">${stop.trackN || ""}</td>
         `;
-
         tbody.appendChild(tr);
+
+        if (i > 0) {
+            const runTime = calcRunTime(prevDepartureSec, arrSec);
+
+            const between = document.createElement("tr");
+            between.className = "between";
+            between.innerHTML = `
+                <td colspan="4">駅間：${runTime}</td>
+            `;
+            tbody.appendChild(between);
+        }
 
         if (depSec) prevDepartureSec = depSec;
     });
