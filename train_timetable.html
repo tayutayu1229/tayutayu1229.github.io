@@ -13,9 +13,11 @@
 
         body {
             margin: 0;
-            font-family: sans-serif;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
             background: #fff;
             color: #000;
+            /* PC等の大画面で見やすいようベースサイズをアップ */
+            font-size: 18px;
         }
 
         /* ヘッダー */
@@ -24,44 +26,60 @@
             color: white;
             display: flex;
             justify-content: space-between;
-            padding: 4px 10px;
-            font-size: 14px;
+            padding: 8px 15px;
+            font-size: 20px;
         }
 
         .info-area {
-            padding: 10px;
-            border-bottom: 2px solid #ccc;
+            padding: 15px;
+            border-bottom: 3px solid #ccc;
         }
 
         .train-no {
-            font-size: 36px;
+            font-size: 52px; /* 列車番号を強調 */
             font-weight: bold;
             color: #3333cc;
-            flex: 1;
         }
 
         .train-main-row {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 40px;
         }
 
-        /* 行路票本体 */
-        .table-header {
-            display: grid;
-            grid-template-columns: 50px 140px 100px 100px 50px 50px 1fr;
-            background: #eee;
-            font-size: 11px;
+        .speed-box, .type-box, .cars-box {
+            font-size: 16px;
+            color: #555;
             text-align: center;
+        }
+
+        .speed-box span, .type-box span, .cars-box span {
+            display: block;
+            font-size: 28px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        /* 行路票本体 - Gridレイアウトの比率を再定義 */
+        .table-header, .row {
+            display: grid;
+            /* 運転時分、駅名(拡大)、着、発、着線、制限、記事(拡大) */
+            grid-template-columns: 80px 1.5fr 120px 120px 100px 80px 2fr;
             border-bottom: 1px solid var(--border-color);
         }
 
-        .row {
-            display: grid;
-            grid-template-columns: 50px 140px 100px 100px 50px 50px 1fr;
-            height: 60px;
+        .table-header {
+            background: #eee;
+            font-size: 14px;
+            text-align: center;
+            font-weight: bold;
+            height: 45px;
             align-items: center;
-            border-bottom: 1px solid #ccc;
+        }
+
+        .row {
+            height: 90px; /* 行の高さを確保 */
+            align-items: center;
         }
 
         /* セルごとの装飾 */
@@ -70,57 +88,60 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            border-left: 1px solid #eee;
+            border-left: 1px solid #ddd;
         }
 
         .station-name {
-            font-size: 20px;
+            font-size: 36px; /* 駅名を大きく */
             font-weight: bold;
             justify-content: flex-start;
-            padding-left: 8px;
+            padding-left: 20px;
         }
 
-        /* 時刻表記 */
+        /* 時刻表記 - 緑の囲みを廃止 */
         .time-val {
-            font-size: 22px;
+            font-size: 38px;
             font-weight: bold;
             font-family: 'Arial Narrow', sans-serif;
-            position: relative;
+            letter-spacing: -1px;
         }
 
         .sec {
-            font-size: 12px;
+            font-size: 22px;
             vertical-align: super;
             margin-left: 2px;
         }
 
-        /* 着時刻の強調ボックス */
-        .arr-box {
-            background: var(--green-dark);
-            color: white;
-            width: 85%;
-            height: 45px;
-            border-radius: 4px;
-        }
-
         /* 運転時分 */
         .runtime-cell {
-            font-size: 18px;
+            font-size: 32px;
             font-weight: bold;
             flex-direction: column;
-            align-items: flex-start;
-            padding-left: 5px;
+            align-items: center;
+            justify-content: center;
+            color: #000;
         }
 
         .runtime-sec {
-            font-size: 10px;
+            font-size: 16px;
+            margin-top: -5px;
         }
 
         /* 着線 */
         .track-cell {
             color: red;
-            font-size: 20px;
+            font-size: 32px;
             font-weight: bold;
+        }
+
+        .memo-cell {
+            justify-content: flex-start;
+            padding-left: 15px;
+        }
+
+        /* スクロールバーを見やすく */
+        main {
+            overflow-x: auto;
         }
     </style>
 </head>
@@ -137,25 +158,27 @@
             <div class="date-row">施行日：<span id="date"></span></div>
             <div class="train-main-row">
                 <div id="train-no" class="train-no"></div>
-                <div class="speed-box">最高速度<br><span id="max-speed"></span></div>
-                <div class="type-box">速度種別<br><span id="speed-type"></span></div>
-                <div class="cars-box"><span id="cars-count">1</span> 両</div>
+                <div class="speed-box">最高速度<span id="max-speed"></span></div>
+                <div class="type-box">速度種別<span id="speed-type"></span></div>
+                <div class="cars-box"><span id="cars-count">1</span>両</div>
             </div>
         </div>
     </header>
 
     <main class="timetable">
         <div class="table-header">
-            <div class="h-runtime">運転<br>時分</div>
+            <div class="h-runtime">運転時分</div>
             <div class="h-station">停車場名</div>
             <div class="h-arr">着</div>
             <div class="h-dep">発 (通)</div>
-            <div class="h-track">着線<br>発線</div>
-            <div class="h-limit">制限<br>速度</div>
+            <div class="h-track">着線発線</div>
+            <div class="h-limit">制限速度</div>
             <div class="h-memo">記事</div>
         </div>
-        <div id="timetable-body"></div>
+        <div id="timetable-body">
+            </div>
     </main>
+
     <script src="train_timetable.js"></script>
 </body>
 </html>
