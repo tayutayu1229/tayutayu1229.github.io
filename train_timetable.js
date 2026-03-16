@@ -5,11 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const train = trainGroup[0];
 
     document.getElementById("trainTitle").textContent =
-        `${train.tr1 || train.trainNumber}（${train.type}）`;
+        `${train.tr1 || train.trainNumber}`;
 
     document.getElementById("trainMeta").innerHTML = `
         施行日：${train.startDate}<br>
-        区間：${train.origin} → ${train.destination}
+        区間：${train.origin} → ${train.destination}<br>
+        種別：${train.type}
     `;
 
     const tbody = document.querySelector("#timetable tbody");
@@ -42,10 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPass = (!arrSec && !depSec);
 
         const tr = document.createElement("tr");
+        if (isPass) tr.classList.add("pass");
+
         tr.innerHTML = `
-            <td class="station ${isPass ? 'pass' : ''}">${stop.station}</td>
-            <td class="${isPass ? 'pass' : 'time'}">${isPass ? "" : stop.arrival}</td>
-            <td class="${isPass ? 'pass' : 'time'}">${isPass ? "" : stop.departure}</td>
+            <td class="station">${stop.station}</td>
+            <td>${isPass ? "––" : stop.arrival}</td>
+            <td>${isPass ? "––" : stop.departure}</td>
             <td class="track">${stop.trackN || ""}</td>
         `;
         tbody.appendChild(tr);
