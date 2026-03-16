@@ -1,125 +1,168 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>D-TAC 乗務員時刻表</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>D-TAC 行路票</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 
-  <style>
-    body {
-      margin: 0;
-      background: #000;
-      color: #fff;
-      font-family: 'BIZ UDPGothic', sans-serif;
-    }
+<style>
+  body {
+    margin: 0;
+    background: #ffffff;
+    color: #000;
+    font-family: 'BIZ UDPGothic', sans-serif;
+  }
 
-    /* ヘッダ */
-    .header {
-      padding: 20px;
-      border-bottom: 3px solid #444;
-    }
+  /* 上部情報欄 */
+  .info-box {
+    padding: 20px;
+    border-bottom: 3px solid #006400;
+  }
 
-    .train-number {
-      font-size: 32px;
-      font-weight: 700;
-      color: #4da6ff; /* D-TAC の青 */
-    }
+  .train-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: #006400;
+    margin-bottom: 10px;
+  }
 
-    .meta {
-      margin-top: 10px;
-      font-size: 18px;
-      line-height: 1.6;
-      color: #ddd;
-    }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr 160px 1fr;
+    row-gap: 10px;
+    column-gap: 10px;
+    font-size: 18px;
+  }
 
-    /* 表 */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 20px;
-    }
+  .label {
+    color: #006400;
+    font-weight: 700;
+  }
 
-    th {
-      background: #111;
-      padding: 10px;
-      border-bottom: 2px solid #444;
-      font-weight: 700;
-    }
+  .value {
+    color: #000;
+    font-weight: 700;
+  }
 
-    td {
-      padding: 12px 8px;
-      border-bottom: 1px solid #333;
-      text-align: center;
-    }
+  /* 時刻表 */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 20px;
+  }
 
-    .station {
-      text-align: left;
-      padding-left: 16px;
-      font-weight: 700;
-    }
+  th {
+    background: #006400;
+    color: #fff;
+    padding: 10px;
+    border-bottom: 2px solid #004d00;
+    font-weight: 700;
+  }
 
-    .track {
-      text-align: right;
-      padding-right: 16px;
-      color: #ccc;
-    }
+  td {
+    padding: 10px 6px;
+    border-bottom: 1px solid #008000;
+    text-align: center;
+  }
 
-    /* 通過駅 */
-    .pass td {
-      color: #666;
-    }
+  .station {
+    text-align: left;
+    padding-left: 16px;
+    font-weight: 700;
+  }
 
-    /* 駅間行 */
-    .between {
-      background: #111;
-      color: #bbb;
-      font-size: 16px;
-      border-bottom: 1px solid #222;
-    }
+  .track {
+    text-align: center;
+    color: #333;
+  }
 
-    .between td {
-      padding: 6px 8px;
-    }
+  .speed {
+    color: #006400;
+    font-weight: 700;
+  }
 
-    /* 戻るボタン */
-    .back {
-      margin: 20px;
-      display: inline-block;
-      padding: 8px 14px;
-      background: #222;
-      border: 1px solid #555;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      color: #ccc;
-    }
-  </style>
+  .note {
+    color: #cc0000;
+    font-weight: 700;
+  }
+
+  /* 通過駅 */
+  .pass td {
+    color: #888;
+  }
+
+  /* 駅間行 */
+  .between {
+    background: #e6f2e6;
+    color: #333;
+    font-size: 16px;
+  }
+
+  .between td {
+    padding: 6px 8px;
+  }
+
+  /* 注意事項 */
+  .caution {
+    padding: 20px;
+    color: #cc0000;
+    font-size: 16px;
+    border-top: 2px solid #006400;
+  }
+
+  .back {
+    margin: 20px;
+    display: inline-block;
+    padding: 8px 14px;
+    background: #e6f2e6;
+    border: 1px solid #006400;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #006400;
+  }
+</style>
 </head>
 
 <body>
 
-  <div class="header">
-    <div class="train-number" id="trainTitle">読み込み中…</div>
-    <div class="meta" id="trainMeta"></div>
+<div class="info-box">
+  <div class="train-number" id="trainTitle">読み込み中…</div>
+
+  <div class="info-grid">
+    <div class="label">行路施行日</div><div class="value" id="date"></div>
+    <div class="label">列車</div><div class="value" id="trainNo"></div>
+
+    <div class="label">最高速度</div><div class="value" id="maxSpeed"></div>
+    <div class="label">速度種別</div><div class="value" id="speedType"></div>
+
+    <div class="label">けん引定数</div><div class="value" id="power"></div>
+    <div class="label">両数</div><div class="value" id="cars"></div>
   </div>
+</div>
 
-  <table id="timetable">
-    <thead>
-      <tr>
-        <th>駅名</th>
-        <th>着</th>
-        <th>発</th>
-        <th>番線</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<table id="timetable">
+  <thead>
+    <tr>
+      <th>運転時分</th>
+      <th>停車場名</th>
+      <th>着</th>
+      <th>発</th>
+      <th>着線発線</th>
+      <th>制限速度</th>
+      <th>記事</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-  <div class="back" onclick="history.back()">← 一覧に戻る</div>
+<div class="caution" id="caution">注意事項：特になし</div>
 
-  <script src="train_timetable.js"></script>
+<div class="back" onclick="history.back()">← 一覧に戻る</div>
+
+<script src="train_timetable.js"></script>
 </body>
 </html>
