@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const trainGroup = JSON.parse(sessionData);
     const train = Array.isArray(trainGroup) ? trainGroup[0] : trainGroup;
 
-    // ヘッダー（undefined対策）
+    // ヘッダー情報の反映（undefined対策）
     const safeSet = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = (val === undefined || val === null) ? "" : val;
@@ -16,7 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     safeSet("max-speed", ""); // 制限速度は空欄
     safeSet("speed-type", ""); 
 
+    // 出力先を main (#timetable-body) に指定
     const body = document.getElementById("timetable-body");
+    if (!body) return;
     body.innerHTML = "";
 
     const isBlank = (v) => !v || v.trim() === "" || v.trim() === "…" || v.trim() === "||";
@@ -34,8 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!timeStr || timeStr === undefined) return "";
         const t = timeStr.trim();
         if (t === "" || t === "…" || t === "||") return t;
-        
-        // "=" が含まれる場合はそのまま表示（終着駅など）
         if (t.includes("=")) return t;
 
         const parts = t.split(':');
@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const h = parts[0];
         const m = parts[1];
         const s = parts[2] || "00";
+        // 秒を大きく表示するためのクラスを適用
         const content = `${h}.${m}<span class="sec">${s}</span>`;
         return isPass ? `( ${content} )` : content;
     };
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const arrSec = toTotalSeconds(stop.arrival);
         const depSec = toTotalSeconds(stop.departure);
 
-        // 通過判定
+        // 通過判定（始発と終着以外で着時刻が空なら通過）
         const isPass = isBlank(stop.arrival) && index !== 0 && index !== train.stops.length - 1;
         const currentRefSec = isPass ? depSec : (arrSec || depSec);
 
@@ -74,6 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ? calcRunTime(lastDepartureSec, currentRefSec) 
             : "";
 
+        // trackN（着発線）の undefined 対策
+        const trackText = (stop.trackN === undefined || stop.trackN === null) ? "" : stop.trackN;
+
         row.innerHTML = `
             <div class="cell runtime-cell">${runtimeContent}</div>
             <div class="cell station-name">${stop.station || ""}</div>
@@ -83,8 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="cell time-val">
                 ${formatTime(stop.departure, false)}
             </div>
-            <div class="cell track-cell">${(stop.trackN === undefined || stop.trackN === null) ? "" : stop.trackN}</div>
-            <div class="cell"></div> <div class="cell memo-cell"></div>
+            <div class="cell track-cell">${trackText}</div>
+            <div class="cell"></div>
+            <div class="cell memo-cell"></div>
         `;
 
         body.appendChild(row);
