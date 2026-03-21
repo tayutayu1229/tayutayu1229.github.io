@@ -249,8 +249,13 @@
         const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         let holidayData = {}; 
-        const PERIOD_START = new Date('2025/03/15');
-        const PERIOD_END = new Date('2026/03/13');
+
+        // 3つの期間を配列で管理
+        const PERIODS = [
+            { start: new Date('2025/03/15'), end: new Date('2026/03/13'), standardDates: ['2025/03/15', '2025/03/17'] },
+            { start: new Date('2026/03/14'), end: new Date('2027/03/12'), standardDates: ['2026/03/14'] },
+            { start: new Date('2027/03/13'), end: new Date('2028/03/10'), standardDates: ['2027/03/13'] }
+        ];
         
         function formatDate(date) {
             const y = date.getFullYear();
@@ -339,16 +344,21 @@
                 return;
             }
 
-            const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
-            if (isInPeriod) {
-                result = rawJsonData.find(d => {
-                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
-                    const dataDayType = d.dayType || ""; 
-                    const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
+            const activePeriod = PERIODS.find(p => 
+                searchTime >= p.start.getTime() && searchTime <= p.end.getTime()
+            );
 
-                    if (dataDayType === "") {
-                        if (standardStartDates.includes(d.startDate)) return true;
-                    } else if (dataDayType === searchDayType) {
+            if (activePeriod) {
+                result = rawJsonData.find(d => {
+                    // 基本条件（路線と列車番号）のチェック
+                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
+
+                    const dataDayType = d.dayType || ""; 
+                    const standardStartDates = activePeriod.standardDates; // その年度の改正日リストを使用
+
+                    // 平日・土休日が一致するか、またはdayType指定がない場合
+                    if (dataDayType === "" || dataDayType === searchDayType) {
+                        // かつ、その年度の改正日(startDate)のデータなら採用
                         if (standardStartDates.includes(d.startDate)) return true;
                     }
                     return false;
