@@ -350,16 +350,15 @@
 
             if (activePeriod) {
                 result = rawJsonData.find(d => {
-                    // 基本条件（路線と列車番号）のチェック
                     if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
 
-                    const dataDayType = d.dayType || ""; 
-                    const standardStartDates = activePeriod.standardDates; // その年度の改正日リストを使用
+                    // ★ここを書き換え：曜日に応じて standardDates の 0番目(土休日) か 1番目(平日) を選ぶ
+                    const targetDate = isTargetHoliday ? activePeriod.standardDates[0] : activePeriod.standardDates[1];
 
-                    // 平日・土休日が一致するか、またはdayType指定がない場合
-                    if (dataDayType === "" || dataDayType === searchDayType) {
-                        // かつ、その年度の改正日(startDate)のデータなら採用
-                        if (standardStartDates.includes(d.startDate)) return true;
+                    // 基準日が一致し、かつ曜日種別が一致（または指定なし）なら採用
+                    if (d.startDate === targetDate) {
+                        const dataDayType = d.dayType || "";
+                        if (dataDayType === "" || dataDayType === searchDayType) return true;
                     }
                     return false;
                 });
