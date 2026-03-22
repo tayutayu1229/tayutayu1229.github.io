@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車選択</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- 業務システム風・白ベース・硬質UI --- */
+
+        body.selection-page {
+            background-color: #f3f4f6;
+            color: #1a1a1a;
+            margin: 0;
+            font-family: "Segoe UI", "Roboto", "Noto Sans JP", sans-serif;
+        }
+
+        /* ヘッダー */
+        .admin-header {
+            background: #ffffff;
+            border-bottom: 1px solid #cfd2d6;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            color: #005a9e;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border: 1px solid #b8c4ce;
+            border-radius: 2px;
+            background: #f8fafc;
+        }
+        .back-btn:hover { background: #e9eef3; }
+
+        .header-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #111;
+            flex-grow: 1;
+        }
+
+        /* 検索・施行日入力コンテナ */
+        .search-container {
+            background: #ffffff;
+            border-bottom: 1px solid #d6d9dd;
+            padding: 10px 16px;
+            position: sticky;
+            top: 48px;
+            z-index: 90;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 6px;
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        .search-input {
+            padding: 7px 10px;
+            border: 1px solid #bfc3c7;
+            border-radius: 2px;
+            background: #fff;
+            font-size: 14px;
+        }
+        .search-input:focus { border-color: #0078d4; outline: none; }
+
+        /* 施行日入力欄 */
+        #execution-date {
+            width: 100px;
+            background: #fffef0;
+        }
+
+        /* 検索キーワード欄 */
+        #search-query { flex: 1; }
+
+        .btn-search {
+            padding: 0 18px;
+            background: #0078d4;
+            color: #fff;
+            border: 1px solid #006bb3;
+            border-radius: 2px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-search:hover { background: #006bb3; }
+
+        /* リスト全体 */
+        .list-container {
+            max-width: 760px;
+            margin: 14px auto;
+            padding: 0 12px;
+        }
+
+        .train-item {
+            background: #ffffff;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            border: 1px solid #d1d4d8;
+            border-radius: 2px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.08s, border-color 0.08s;
+        }
+        .train-item:hover { background: #eef2f5; border-color: #b8bcc0; }
+
+        .train-info-main { display: flex; flex-direction: column; gap: 2px; }
+
+        .train-date-num {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #111;
+        }
+
+        /* 区分ラベル設定 */
+        .day-type-tag {
+            font-size: 0.75rem;
+            margin-left: 8px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-weight: normal;
+        }
+        .tag-weekday { color: #1a73e8; border: 1px solid #1a73e8; } /* 青 */
+        .tag-holiday { color: #d93025; border: 1px solid #d93025; } /* 赤 */
+        /* データなし・不明時の灰色スタイル */
+        .tag-unknown { color: #70757a; border: 1px solid #dadce0; background: #f1f3f4; } 
+
+        .train-type-label { font-size: 0.75rem; color: #6c757d; }
+
+        .arrow-icon { color: #9aa0a6; font-size: 1.1rem; font-family: serif; }
+
+        #result-count {
+            font-size: 0.7rem;
+            color: #7d8288;
+            text-align: right;
+            margin: 4px auto 0;
+            max-width: 760px;
+            padding: 0 12px;
+        }
+    </style>
+</head>
+<body class="selection-page">
+    <header class="admin-header">
+        <div class="header-title">列車選択</div>
+        <div style="font-size: 0.75rem; font-weight: normal; color: #6c757d;">運転計画 B報編</div>
+        <a href="../top.html" class="back-btn">← 戻る</a>
+    </header>
+
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" id="execution-date" class="search-input" placeholder="施行日(任意)" title="ここに入力した日付がview.htmlに反映されます" autocomplete="off">
+            <input type="text" id="search-query" class="search-input" placeholder="列番、種別、駅名で検索..." autocomplete="off">
+            <button class="btn-search" id="search-btn">検索</button>
+        </div>
+        <div id="result-count"></div>
+    </div>
+
+    <div class="screen">
+        <div id="train-list" class="list-container">
+            <p>データを読み込み中...</p>
+        </div>
+    </div>
+
+    <script>
+        const JSON_PATH = '/T-time/timetables.json';
+        let allTrainGroups = [];
+
+        function formatDate(dateStr) {
+            if (!dateStr) return "";
+            const parts = dateStr.split(/[\/\-]/);
+            if (parts.length >= 3) return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+            return dateStr;
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch(JSON_PATH);
+                if (!response.ok) throw new Error('JSON読み込み失敗');
+                const rawData = await response.json();
+                
+                const groupsMap = new Map();
+
+                rawData.forEach(item => {
+                    const dateStr = formatDate(item.startDate || item.dayType);
+                    const dayType = item.dayType || "";
+                    const key = `${dateStr}_${item.trainNumber}`;
+                    
+                    if (!groupsMap.has(key)) {
+                        groupsMap.set(key, {
+                            id: key,
+                            date: dateStr,
+                            dayType: dayType,
+                            trainNumber: item.trainNumber || "",
+                            type: item.type || "",
+                            stations: (item.stops || []).map(s => s.station).join(' ')
+                        });
+                    }
+                });
+                
+                allTrainGroups = Array.from(groupsMap.values()).reverse();
+                
+                restoreState();
+                renderList();
+
+            } catch (error) {
+                document.getElementById('train-list').innerHTML = "Error: " + error.message;
+            }
+        }
+
+        function renderList() {
+            const query = document.getElementById('search-query').value.toLowerCase();
+            const filtered = allTrainGroups.filter(t => 
+                t.trainNumber.toLowerCase().includes(query) || 
+                t.type.toLowerCase().includes(query) || 
+                t.stations.includes(query)
+            );
+
+            const listElement = document.getElementById('train-list');
+            listElement.innerHTML = filtered.map(t => {
+                // 判定ロジック
+                let tagClass = "tag-unknown"; 
+                if (t.dayType) {
+                    if (t.dayType.includes("休日") || t.dayType.includes("土曜") || t.dayType.includes("日曜")) {
+                        tagClass = "tag-holiday";
+                    } else if (t.dayType.includes("平日")) {
+                        tagClass = "tag-weekday";
+                    }
+                }
+                
+                const displayDayType = t.dayType || "不明";
+
+                return `
+                <div class="train-item" onclick="saveAndGo('${t.id}', '${t.date}')">
+                    <div class="train-info-main">
+                        <div class="train-date-num">
+                            ${t.date} | ${t.trainNumber}
+                            <span class="day-type-tag ${tagClass}">${displayDayType}</span>
+                        </div>
+                        <div class="train-type-label">${t.type}</div>
+                    </div>
+                    <div class="arrow-icon">&rsaquo;</div>
+                </div>
+            `}).join('');
+
+            document.getElementById('result-count').innerText = `${filtered.length} 件表示中`;
+        }
+
+        function saveAndGo(id, originalDate) {
+            const customDate = document.getElementById('execution-date').value;
+            const finalDate = customDate || originalDate;
+
+            sessionStorage.setItem('train_search_pos', window.scrollY);
+            sessionStorage.setItem('train_search_query', document.getElementById('search-query').value);
+            sessionStorage.setItem('train_execution_date', customDate); 
+
+            location.href = `view.html?id=${encodeURIComponent(id)}&date=${encodeURIComponent(finalDate)}`;
+        }
+
+        function restoreState() {
+            const query = sessionStorage.getItem('train_search_query');
+            const pos = sessionStorage.getItem('train_search_pos');
+            const execDate = sessionStorage.getItem('train_execution_date');
+
+            if (query !== null) document.getElementById('search-query').value = query;
+            if (execDate !== null) document.getElementById('execution-date').value = execDate;
+
+            if (pos !== null) {
+                setTimeout(() => window.scrollTo(0, parseInt(pos)), 50);
+            }
+        }
+
+        document.getElementById('search-btn').addEventListener('click', renderList);
+        document.getElementById('search-query').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') renderList();
+        });
+
+        loadData();
+    </script>
+</body>
+</html>
