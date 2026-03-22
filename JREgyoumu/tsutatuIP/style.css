@@ -1,0 +1,377 @@
+/* --- 共通設定 --- */
+:root {
+    --font-gothic: "MS Gothic", "MS Pゴシック", monospace;
+    --ink-color: #111;
+    --paper-color: #ebe5d0; /* 古紙風 */
+}
+
+body {
+    margin: 0;
+    background-color: #333; /* 画面背景 */
+    font-family: var(--font-gothic);
+    color: var(--ink-color);
+}
+
+/* --- 1. 選択画面 (index.html) 用スタイル --- */
+.selection-page {
+    background-color: #222;
+}
+
+.admin-header {
+    background: #1a1a1a;
+    color: white;
+    padding: 20px;
+    font-size: 18px;
+    font-weight: bold;
+    border-bottom: 2px solid #444;
+}
+
+.list-container {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.train-item {
+    background: #fff;
+    padding: 15px 20px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    border-left: 5px solid #0078d4;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+}
+
+.train-item:hover {
+    background: #f0f0f0;
+    transform: translateX(5px);
+}
+
+.train-item strong {
+    font-size: 16px;
+}
+
+/* --- 2. 表示・印刷画面 (view.html) 用スタイル --- */
+
+/* ツールバー（画面上部固定） */
+.toolbar {
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    background: #111;
+    justify-content: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.toolbar button {
+    padding: 8px 25px;
+    font-family: var(--font-gothic);
+    font-weight: bold;
+    cursor: pointer;
+    background: #eee;
+    border: none;
+}
+
+.toolbar button:hover {
+    background: #ccc;
+}
+
+/* A4紙の再現 */
+.a4-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.a4-paper {
+    background-color: var(--paper-color);
+    width: 210mm;
+    height: 297mm;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    box-sizing: border-box;
+    padding: 12mm 15mm;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ヘッダー領域 */
+.doc-header {
+    border-bottom: 1px dotted #888;
+    margin-bottom: 8px;
+    padding-bottom: 3px;
+    font-size: 14px;
+}
+.doc-title { margin-top: 2px; font-weight: bold; }
+
+/* 列車情報（13px統一） */
+.train-summary {
+    text-align: center;
+    margin-bottom: 12px;
+    line-height: 1.25;
+    font-size: 13px; 
+    width: 100%;
+}
+.train-num {
+    font-weight: bold;
+    display: block;
+    margin: 1px 0;
+}
+
+/* 列レイアウト */
+.columns-wrapper {
+    display: flex;
+    justify-content: center;
+    flex-grow: 1;
+    gap: 10mm;
+}
+.column {
+    display: flex;
+    flex-direction: column;
+    width: 58mm;
+}
+
+/* 駅ブロック (隙間0.2mmの極限設定) */
+.station-block {
+    border-bottom: 1px solid var(--ink-color);
+    padding: 0;
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+}
+
+.row-time {
+    display: flex;
+    align-items: center; 
+    height: 14px; 
+    line-height: 14px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.st-name, .st-space { 
+    width: 5.0em; 
+    letter-spacing: -0.2px; /* 少し詰めて視認性向上 */
+} 
+
+/* 時刻の箱を極限まで凝縮 */
+.time-box {
+    display: flex;
+    width: 4.5em; 
+    justify-content: flex-start;
+}
+
+.t-h { width: 1.3em; text-align: right; }
+.t-sep { width: 0.5em; text-align: center; }
+.t-m { width: 1.3em; text-align: right; }
+.t-s { width: 1.0em; font-size: 9px; margin-left: 1px; text-align: left; }
+
+.t-symbol {
+    width: 100%;
+    text-align: center;
+}
+
+/* 番線表示 */
+.track-label {
+    width: 3.0em;
+    margin-left: 4px;
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+/* --- 3. 印刷用設定 --- */
+@media print {
+    /* 背景やツールバーを消す */
+    body { background: transparent; padding: 0; }
+    .no-print { display: none !important; }
+    
+    .a4-wrapper { 
+        display: block; 
+        padding: 0; 
+        margin: 0;
+    }
+    
+    .a4-paper {
+        width: 100%;
+        height: auto;
+        box-shadow: none;
+        margin: 0;
+        padding: 10mm; /* 印刷時の余白微調整 */
+        background-color: #fff !important; /* 印刷時は白背景 */
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* 改ページ制御（必要に応じて） */
+    .a4-paper { page-break-after: always; }
+}
+
+/* --- 罫線短縮のための修正 --- */
+
+.station-block {
+    border-bottom: none; /* 全体の下線は消す */
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+}
+
+/* 駅名と発時刻がある下段（2行目）だけに線を引く */
+.station-block .row-time:last-child {
+    border-bottom: 1px solid var(--ink-color);
+    width: fit-content;   /* 中身（駅名＋時刻）の幅に合わせる */
+    min-width: 9.5em;     /* 短くなりすぎないよう調整（駅名5em + 時刻4.5em） */
+    padding-right: 2px;
+}
+
+/* 番線ラベルが罫線の外側に独立して見えるように調整 */
+.track-label {
+    width: 3.0em;
+    margin-left: 10px;    /* 罫線が終わってから少し離す */
+    font-size: 10.5px;
+    white-space: nowrap;
+    /* 罫線の上に乗り上げないよう配置 */
+}
+
+/* 駅ブロックの枠組み */
+.station-block {
+    border-bottom: none; /* 全体の線を消す */
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* 左寄せ */
+}
+
+/* 下段（駅名・発時刻）だけに、必要な長さの線を引く */
+.station-block .row-time:last-child {
+    border-bottom: 1px solid var(--ink-color);
+    width: fit-content;   /* 文字がある分だけ線を引く */
+    min-width: 9.5em;     /* 駅名+時刻の標準幅で線を止める */
+    padding-right: 2px;
+}
+
+/* 上段の高さも維持 */
+.row-time {
+    display: flex;
+    align-items: center; 
+    height: 14px; 
+    line-height: 14px;
+    font-size: 13px;
+    font-weight: bold;
+    width: 100%; /* 全幅は確保しつつ中身で制御 */
+}
+
+/* 番線表示は線の外側へ */
+.track-label {
+    width: 3.0em;
+    margin-left: 10px;
+    font-size: 10.5px;
+    white-space: nowrap;
+    position: absolute; /* 親のstation-blockに対して右側に配置 */
+    left: 9.8em;       /* 罫線が終わるくらいの場所から開始 */
+}
+
+/* track-labelを正しく配置するために親に相対位置を指定 */
+.station-block {
+    position: relative;
+}
+
+/* 駅ブロック全体の枠線を消す */
+.station-block {
+    border-bottom: none; 
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+    position: relative; /* 番線ラベルの絶対配置用 */
+}
+
+/* 下段（駅名・発時刻行）だけに短い罫線を引く */
+.lower-row {
+    border-bottom: 1px solid var(--ink-color);
+    width: fit-content;   /* 中身の幅に合わせる */
+    min-width: 9.5em;     /* 駅名(5em)+時刻(4.5em)の長さを確保して止める */
+    padding-right: 4px;   /* 少し余裕をもたせる */
+}
+
+/* 番線表示が罫線の上に乗らないよう、右側に逃がす */
+.track-label {
+    width: 3.0em;
+    position: absolute;
+    left: 9.8em;         /* 罫線が終わるあたりに配置 */
+    font-size: 10.5px;
+    white-space: nowrap;
+    text-align: left;
+}
+/* 駅ブロック全体の枠線を消す */
+.station-block {
+    border-bottom: none; 
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+    position: relative; /* 番線ラベルの絶対配置の基準 */
+}
+
+/* 下段（駅名・発時刻行）だけに短い罫線を引く */
+.lower-row {
+    border-bottom: 1px solid var(--ink-color);
+    width: fit-content;   
+    min-width: 9.5em;     /* 駅名(5em)+時刻(4.5em) */
+    padding-right: 4px;   
+}
+
+/* 番線表示：位置を全角1個分右へ(9.8em -> 10.8em) */
+.track-label {
+    width: 3.0em;
+    position: absolute;
+    left: 10.8em;        /* 罫線が終わる場所から全角1個分空ける */
+    font-size: 10.5px;
+    white-space: nowrap;
+    text-align: left;
+}
+
+/* 上段・下段の共通設定 */
+.row-time {
+    display: flex;
+    align-items: center; 
+    height: 14px; 
+    line-height: 14px;
+    font-size: 13px;
+    font-weight: bold;
+}
+/* 駅ブロック全体の枠線を消す */
+.station-block {
+    border-bottom: none; 
+    margin-bottom: 0.2mm; 
+    display: flex;
+    flex-direction: column;
+    position: relative; /* 番線ラベルの絶対配置の基準 */
+}
+
+/* 下段（駅名・発時刻行）だけに短い罫線を引く */
+.lower-row {
+    border-bottom: 1px solid var(--ink-color);
+    width: fit-content;   
+    min-width: 9.5em;     /* 駅名(5em)+時刻(4.5em)の範囲 */
+    padding-right: 4px;   
+}
+
+/* 番線表示：位置を全角1個分右へさらにオフセット(10.8em) */
+.track-label {
+    width: 3.0em;
+    position: absolute;
+    left: 10.8em;        /* 罫線が終わる場所から全角1個分さらに右 */
+    font-size: 10.5px;
+    white-space: nowrap;
+    text-align: left;
+}
+
+/* 行の共通設定 */
+.row-time {
+    display: flex;
+    align-items: center; 
+    height: 14px; 
+    line-height: 14px;
+    font-size: 13px;
+    font-weight: bold;
+}
