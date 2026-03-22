@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>運転計画出力</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* --- 全体のレイアウト調整 --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; 
+            background-color: #3e4042; 
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 45px;
+            background: #2d2d2d;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .viewport {
+            position: absolute;
+            top: 45px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            cursor: grab;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px;
+        }
+        .viewport:active { cursor: grabbing; }
+
+        .zoom-container {
+            transform-origin: top center;
+            transition: transform 0.1s ease-out;
+            display: inline-block;
+        }
+
+        /* --- A4用紙の設定 --- */
+        #print-area {
+            width: 210mm;
+            min-height: 297mm;
+            /* 文字色は完全な黒にして背景に負けないようにする */
+            color: #000 !important;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.6);
+            padding: 15mm;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* 内部の透過設定 */
+        .columns-wrapper {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .column { width: 14.5em; flex-shrink: 0; }
+        .station-block { position: relative; width: 100%; }
+
+        /* 罫線をはっきりした黒にする */
+        .has-stop-line {
+            border-bottom: 1.2px solid #000 !important;
+            width: 10.5em !important;
+        }
+
+        .track-label {
+            position: absolute;
+            left: 11.5em;
+            width: 3.5em;
+            font-size: 10.5px;
+            color: #000 !important;
+        }
+
+        .row-time { background: transparent !important; }
+        .time-box { 
+            background: transparent !important; 
+            box-shadow: none !important;
+            color: #000 !important;
+        }
+
+        .st-name { color: #000 !important; }
+
+        .zoom-controls {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #ccc;
+            font-size: 13px;
+        }
+        #zoom-slider { width: 120px; cursor: pointer; }
+
+        /* --- 印刷設定 --- */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            body, html {
+                background-color: white !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+            .toolbar { display: none !important; }
+            .viewport {
+                position: static !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+            .zoom-container {
+                transform: none !important;
+            }
+            #print-area {
+                width: 210mm !important;
+                height: 297mm !important;
+                background-color: white !important; /* 印刷時は白 */
+                box-shadow: none !important;
+                padding: 15mm !important;
+                margin: 0 auto;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <button onclick="location.href='index.html'">列車選択へ戻る</button>
+        <button onclick="window.print()" style="margin-left: 10px;">印刷する</button>
+        
+        <div class="zoom-controls">
+            <span>表示倍率</span>
+            <input type="range" id="zoom-slider" min="0.4" max="2.5" step="0.1" value="1.0" oninput="updateZoom(this.value)">
+            <span id="zoom-val" style="width: 40px; text-align: right;">100%</span>
+        </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+        <div class="zoom-container" id="zoom-target">
+            <div id="print-area"></div>
+        </div>
+    </div>
+
+    <script>
+        const JSON_PATH = '/T-time/timetables.json';
+        const params = new URLSearchParams(window.location.search);
+        const targetId = params.get('id');
+        // index.htmlから渡されたカスタム施行日を取得
+        const customDate = params.get('date');
+
+        // --- 紙の色をランダムに設定（HSLロジック） ---
+        function randomOldPaperColor() {
+            const h = 15 + Math.random() * 40; // 色相
+            const s = 8 + Math.random() * 14;  // 彩度
+            const l = 68 + Math.random() * 24; // 明度
+            return `hsl(${h}, ${s}%, ${l}%)`;
+        }
+        
+        function applyRandomPaperColor() {
+            const color = randomOldPaperColor();
+            document.getElementById('print-area').style.backgroundColor = color;
+        }
+
+        function updateZoom(val) {
+            document.getElementById('zoom-target').style.transform = `scale(${val})`;
+            document.getElementById('zoom-val').innerText = `${Math.round(val * 100)}%`;
+        }
+
+        // ドラッグ移動ロジック
+        const vp = document.getElementById('viewport');
+        let isDown = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        vp.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button, input')) return;
+            isDown = true;
+            startX = e.pageX - vp.offsetLeft;
+            startY = e.pageY - vp.offsetTop;
+            scrollLeft = vp.scrollLeft;
+            scrollTop = vp.scrollTop;
+        });
+        vp.addEventListener('mouseleave', () => { isDown = false; });
+        vp.addEventListener('mouseup', () => { isDown = false; });
+        vp.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - vp.offsetLeft;
+            const y = e.pageY - vp.offsetTop;
+            vp.scrollLeft = scrollLeft - (x - startX) * 1.5;
+            vp.scrollTop = scrollTop - (y - startY) * 1.5;
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            applyRandomPaperColor();
+            if (!targetId) return;
+            try {
+                const response = await fetch(JSON_PATH);
+                const data = await response.json();
+                
+                const train = { stops: [], date: "", type: "", trainNumber: "", speed: "" };
+                data.forEach(item => {
+                    const p = (item.startDate || item.dayType || "").split(/[\/\-]/);
+                    const dateStr = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : item.dayType;
+                    const key = `${dateStr}_${item.trainNumber}`;
+                    
+                    if (key === targetId) {
+                        // カスタム日付があれば優先、なければデータの日付
+                        train.date = customDate || dateStr;
+                        train.trainNumber = item.trainNumber || "";
+                        train.type = item.type || "";
+                        train.speed = item.speed || "";
+                        if (item.stops) train.stops = train.stops.concat(item.stops);
+                    }
+                });
+
+                if (train.stops.length > 0) renderDocument(train);
+            } catch (e) { console.error(e); }
+        });
+
+        function formatTrack(raw) {
+            if (!raw) return "";
+            let t = String(raw).trim();
+            const ignore = ["上本","下本","武上","武下","客上","客下","貨上","貨下","本線","快上","快下","電上","電下","京上","京下","南外","北外","山貨下","山貨上","大支下","大支上"];
+            if (ignore.includes(t)) return "";
+            if (/^[0-9]+番$/.test(t)) return `(${t.replace("番", "")})`;
+            return t === "中線" ? "中" : t;
+        }
+
+        function generateTimeInner(t) {
+            // = や ＝ をそのまま表示
+            if (t === "＝" || t === "=") return `<div class="t-symbol">${t}</div>`;
+            if (t === "||") return `<div class="t-symbol">||</div>`;
+            if (!t || String(t).trim() === "" || t === "undefined") return "";
+            if (t === "..." || t === "…") return `<div class="t-symbol">…</div>`;
+            const p = String(t).split(':');
+            if (!p[1]) return `<div class="t-symbol">${p[0]}</div>`;
+            return `<div class="t-h">${p[0] || ""}</div><div class="t-sep">:</div><div class="t-m">${p[1] || ""}</div><div class="t-s">${p[2] || ""}</div>`;
+        }
+
+        function renderDocument(train) {
+            const area = document.getElementById('print-area');
+            area.innerHTML = `
+                <div class="doc-header"><div>＜B報編＞</div><div class="doc-title">１．運転計画</div></div>
+                <div class="train-summary">
+                    <div>${train.date || ""}</div><div>${train.type || ""}</div>
+                    <div class="train-num">${train.trainNumber || ""}</div><div>${train.speed || ""}</div>
+                </div>
+                <div class="columns-wrapper" id="cols"></div>
+            `;
+
+            const container = document.getElementById('cols');
+            const uniqueStops = [];
+            train.stops.forEach((stop, index) => {
+                if (index === 0) { uniqueStops.push(stop); }
+                else {
+                    const prev = uniqueStops[uniqueStops.length - 1];
+                    if (!(stop.station === prev.station && stop.arrival === prev.arrival && stop.departure === prev.departure)) {
+                        uniqueStops.push(stop);
+                    }
+                }
+            });
+
+            const ROWS = 27;
+            const totalCols = Math.ceil(uniqueStops.length / ROWS);
+
+            for (let i = 0; i < totalCols; i++) {
+                const col = document.createElement('div');
+                col.className = 'column';
+                const slice = uniqueStops.slice(i * ROWS, (i + 1) * ROWS);
+
+                slice.forEach(stop => {
+                    let arr = (stop.arrival || "").trim();
+                    let dep = (stop.departure || "").trim();
+                    if (!arr && !dep) dep = "||";
+
+                    // 通過(||)の集約処理：上下両方||なら上(着時刻)を消して下(発時刻)のみにする
+                    if (arr === "||" && dep === "||") {
+                        arr = "";
+                    }
+
+                    const isPassing = (!arr.includes(':') && !dep.includes(':'));
+                    const isFixedPoint = (dep === "||" || dep === "=" || dep === "＝");
+                    const needsLine = !isPassing || isFixedPoint;
+
+                    const track = formatTrack(stop.trackN);
+                    const isOrigin = (!arr);
+                    let trackAtUpper = !isOrigin || isFixedPoint;
+
+                    col.innerHTML += `
+                        <div class="station-block">
+                            <div class="row-time upper-row">
+                                <div class="st-space"></div>
+                                <div class="time-box">${generateTimeInner(arr)}</div>
+                                <div class="track-label">${trackAtUpper ? track : ""}</div>
+                            </div>
+                            <div class="row-time lower-row ${needsLine ? 'has-stop-line' : ''}">
+                                <div class="st-name">${stop.station || ""}</div>
+                                <div class="time-box">${generateTimeInner(dep)}</div>
+                                <div class="track-label">${!trackAtUpper ? track : ""}</div>
+                            </div>
+                        </div>`;
+                });
+                container.appendChild(col);
+            }
+        }
+    </script>
+</body>
+</html>
