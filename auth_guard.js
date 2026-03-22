@@ -68,7 +68,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // 未認証の処理: ログインページへリダイレクト
                 console.log("GUARD: 未認証ユーザー。ログインページへリダイレクト。");
-                window.location.href = '../../index.html';
+                window.location.href = 'https://tayunet-traininfo.com/index.html';
+
             }
         });
         
