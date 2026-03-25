@@ -1,10 +1,10 @@
 /**
  * 列車運転時刻表 (スタフ) 制御スクリプト
  */
-  
-const JSON_PATH = '/T-time/timetables.json'; // 環境に合わせて変更してください
+
+const JSON_PATH = '/T-time/timetables.json';
 const params = new URLSearchParams(window.location.search);
-const targetId = params.get('id');
+const targetId = params.get('id'); // 例: "11/21_8764"
 const customDate = params.get('date');
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -13,19 +13,25 @@ window.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch(JSON_PATH);
         const allData = await response.json();
         
-        // 1. 同一列番・同一施行日の全データを抽出
+        // 1. train_list.jsと同じロジックで対象データを抽出
         const group = allData.filter(item => {
             const p = (item.startDate || item.dayType || "").split(/[\/\-]/);
-            const dateStr = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : item.dayType;
-            return `${dateStr}_${item.trainNumber}` === targetId;
+            const dateKey = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : item.dayType;
+            const currentId = `${dateKey}_${item.trainNumber}`;
+            return currentId === targetId;
         });
 
         if (group.length > 0) {
-            // 2. 駅の重複を排除してマージ
+            // 2. 駅の重複を排除してマージ（線区を跨ぐ連結対応）
             const mergedTrain = mergeTrainSegments(group);
             renderStaff(mergedTrain);
+        } else {
+            document.getElementById('render-target').innerHTML = "データが見つかりません ID:" + targetId;
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error(e);
+        document.getElementById('render-target').innerHTML = "読み込みエラーが発生しました。";
+    }
 });
 
 function mergeTrainSegments(segments) {
@@ -39,9 +45,13 @@ function mergeTrainSegments(segments) {
                 mergedStops.push({ ...stop });
                 seenStations.add(stop.station);
             } else {
-                // 重複駅（接続駅）の場合、空いている時刻や番線があれば補完
                 const existing = mergedStops.find(s => s.station === stop.station);
-                if ((!existing.departure || existing.departure === " ") && stop.departure) {
+                // 着時刻が空で、新しいデータにあれば補完
+                if ((!existing.arrival || existing.arrival.trim() === "") && stop.arrival) {
+                    existing.arrival = stop.arrival;
+                }
+                // 発時刻が空で、新しいデータにあれば補完
+                if ((!existing.departure || existing.departure.trim() === "") && stop.departure) {
                     existing.departure = stop.departure;
                 }
                 if (!existing.trackN && stop.trackN) existing.trackN = stop.trackN;
@@ -53,13 +63,20 @@ function mergeTrainSegments(segments) {
 }
 
 function formatStaffTime(t) {
-    if (!t || t.trim() === "") return ""; // 空欄は空欄のまま表示
-    if (t === "||" || t === "…") return '<span class="pass-arrow">↓</span>';
+    if (!t || t.trim() === "" || t === " ") return ""; 
+    
+    // 通過駅の判定 (|| や …)
+    if (t === "||" || t === "…") {
+        return '<span class="pass-arrow">↓</span>';
+    }
+    
+    // 停車記号
     if (t === "=" || t === "＝") return '<span class="stop-symbol">＝＝</span>';
     
     const p = t.split(':');
     if (p.length < 2) return `<span class="time-main">${t}</span>`;
     
+    // 通常の時刻 (黒文字)
     const hhmm = `${p[0]}.${p[1]}`;
     const ss = p[2] ? `<span class="time-sec">${p[2]}</span>` : '';
     
@@ -69,14 +86,12 @@ function formatStaffTime(t) {
 function renderStaff(train) {
     const target = document.getElementById('render-target');
     const stopCount = train.stops.length;
-    
-    // 駅数に応じた可変サイズ設定 (画像 の密度感を再現)
     const rowHeight = stopCount > 25 ? '24px' : (stopCount > 15 ? '32px' : '40px');
     const stationFontSize = stopCount > 25 ? '14px' : '18px';
 
     let html = `
         <div class="staff-header">
-            <div>NO. ${train.kid1 || "1"}</div>
+            <div>NO. 1</div>
             <div class="header-center">
                 <div class="shoko-name">田町運転区</div>
             </div>
@@ -92,7 +107,9 @@ function renderStaff(train) {
             </tr>
             <tr>
                 <td colspan="4" class="train-num-box">${train.trainNumber}</td>
-                <td></td> <td style="font-size: 12px;">${train.speed || ""}</td> <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
+                <td></td>
+                <td style="font-size: 12px;">${train.speed || ""}</td>
+                <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
             </tr>
         </table>
 
@@ -110,15 +127,15 @@ function renderStaff(train) {
             </thead>
             <tbody>
                 <tr class="car-num-row">
-                    <td class="car-num" colspan="2" style="font-size:24px; font-weight:700;">15<span style="font-size:12px">両</span></td>
+                    <td class="car-num" colspan="2">15<span style="font-size:12px">両</span></td>
                     <td colspan="5" class="syosho-text">車 掌 省 略</td>
                 </tr>
     `;
 
     train.stops.forEach((stop) => {
-        // 操車場や貨物駅などを赤文字にする判定
-        const isRed = /操|タ|貨物/.test(stop.station);
-        const stClass = isRed ? 'st-name-text st-red' : 'st-name-text';
+        // 通過駅（着または発が通過記号）の場合は駅名を赤にする
+        const isPassing = (stop.arrival === "||" || stop.arrival === "…" || stop.departure === "||" || stop.departure === "…");
+        const stClass = isPassing ? 'st-name-text st-red' : 'st-name-text';
 
         html += `
             <tr style="height: ${rowHeight};">
@@ -137,7 +154,7 @@ function renderStaff(train) {
             </tbody>
         </table>
         <div class="staff-footer">
-            <div>${new Date().toLocaleDateString('ja-JP')} 作成</div>
+            <div>2026年 3月26日 作成</div>
             <div style="font-weight: bold;">(入区)</div>
         </div>
     `;
