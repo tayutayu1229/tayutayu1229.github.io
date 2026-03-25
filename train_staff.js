@@ -2,35 +2,36 @@
  * 列車運転時刻表 (スタフ) 制御スクリプト
  */
 
-const JSON_PATH = '/T-time/timetables.json';
+const JSON_PATH = '../../T-time/timetables.json';
 const params = new URLSearchParams(window.location.search);
-const targetId = params.get('id'); // 例: "11/21_8764"
+const targetId = params.get('id'); // train_list.jsから送られるID
 const customDate = params.get('date');
 
 window.addEventListener('DOMContentLoaded', async () => {
     if (!targetId) return;
     try {
         const response = await fetch(JSON_PATH);
+        if (!response.ok) throw new Error("JSON fetch failed");
         const allData = await response.json();
         
-        // 1. train_list.jsと同じロジックで対象データを抽出
+        // train_list.jsと同じロジックでIDを再構成して照合
         const group = allData.filter(item => {
-            const p = (item.startDate || item.dayType || "").split(/[\/\-]/);
-            const dateKey = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : item.dayType;
-            const currentId = `${dateKey}_${item.trainNumber}`;
-            return currentId === targetId;
+            const dateStr = item.startDate || item.dayType || "";
+            const p = dateStr.split(/[\/\-]/);
+            const dateKey = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : dateStr;
+            return `${dateKey}_${item.trainNumber}` === targetId;
         });
 
         if (group.length > 0) {
-            // 2. 駅の重複を排除してマージ（線区を跨ぐ連結対応）
+            // 複数区間ある場合はマージ
             const mergedTrain = mergeTrainSegments(group);
             renderStaff(mergedTrain);
         } else {
-            document.getElementById('render-target').innerHTML = "データが見つかりません ID:" + targetId;
+            document.getElementById('render-target').innerHTML = `<div style="padding:20px; color:red;">データが見つかりません (ID: ${targetId})</div>`;
         }
-    } catch (e) { 
+    } catch (e) {
         console.error(e);
-        document.getElementById('render-target').innerHTML = "読み込みエラーが発生しました。";
+        document.getElementById('render-target').innerHTML = `<div style="padding:20px; color:red;">読み込みエラーが発生しました。</div>`;
     }
 });
 
@@ -46,14 +47,8 @@ function mergeTrainSegments(segments) {
                 seenStations.add(stop.station);
             } else {
                 const existing = mergedStops.find(s => s.station === stop.station);
-                // 着時刻が空で、新しいデータにあれば補完
-                if ((!existing.arrival || existing.arrival.trim() === "") && stop.arrival) {
-                    existing.arrival = stop.arrival;
-                }
-                // 発時刻が空で、新しいデータにあれば補完
-                if ((!existing.departure || existing.departure.trim() === "") && stop.departure) {
-                    existing.departure = stop.departure;
-                }
+                if ((!existing.arrival || existing.arrival.trim() === "") && stop.arrival) existing.arrival = stop.arrival;
+                if ((!existing.departure || existing.departure.trim() === "") && stop.departure) existing.departure = stop.departure;
                 if (!existing.trackN && stop.trackN) existing.trackN = stop.trackN;
             }
         });
@@ -63,20 +58,13 @@ function mergeTrainSegments(segments) {
 }
 
 function formatStaffTime(t) {
-    if (!t || t.trim() === "" || t === " ") return ""; 
-    
-    // 通過駅の判定 (|| や …)
-    if (t === "||" || t === "…") {
-        return '<span class="pass-arrow">↓</span>';
-    }
-    
-    // 停車記号
+    if (!t || t.trim() === "") return "";
+    if (t === "||" || t === "…") return '<span class="pass-arrow">↓</span>';
     if (t === "=" || t === "＝") return '<span class="stop-symbol">＝＝</span>';
     
     const p = t.split(':');
     if (p.length < 2) return `<span class="time-main">${t}</span>`;
     
-    // 通常の時刻 (黒文字)
     const hhmm = `${p[0]}.${p[1]}`;
     const ss = p[2] ? `<span class="time-sec">${p[2]}</span>` : '';
     
@@ -86,15 +74,15 @@ function formatStaffTime(t) {
 function renderStaff(train) {
     const target = document.getElementById('render-target');
     const stopCount = train.stops.length;
-    const rowHeight = stopCount > 25 ? '24px' : (stopCount > 15 ? '32px' : '40px');
-    const stationFontSize = stopCount > 25 ? '14px' : '18px';
+    
+    // 行数に応じた高さ調整
+    const rowHeight = stopCount > 25 ? '24px' : (stopCount > 15 ? '32px' : '38px');
+    const stationFontSize = stopCount > 25 ? '15px' : '18px';
 
     let html = `
         <div class="staff-header">
             <div>NO. 1</div>
-            <div class="header-center">
-                <div class="shoko-name">田町運転区</div>
-            </div>
+            <div class="header-center"><div class="shoko-name">田町運転区</div></div>
             <div>施行日 ${customDate || ""}</div>
         </div>
 
@@ -107,9 +95,7 @@ function renderStaff(train) {
             </tr>
             <tr>
                 <td colspan="4" class="train-num-box">${train.trainNumber}</td>
-                <td></td>
-                <td style="font-size: 12px;">${train.speed || ""}</td>
-                <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
+                <td></td> <td style="font-size: 12px;">${train.speed || ""}</td> <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
             </tr>
         </table>
 
@@ -133,13 +119,13 @@ function renderStaff(train) {
     `;
 
     train.stops.forEach((stop) => {
-        // 通過駅（着または発が通過記号）の場合は駅名を赤にする
+        // 通過駅の判定 (↓ が表示されるデータの場合、駅名を赤文字にする)
         const isPassing = (stop.arrival === "||" || stop.arrival === "…" || stop.departure === "||" || stop.departure === "…");
-        const stClass = isPassing ? 'st-name-text st-red' : 'st-name-text';
+        const stClass = isPassing ? 'st-name-text st-passing' : 'st-name-text';
 
         html += `
             <tr style="height: ${rowHeight};">
-                <td></td>
+                <td style="font-size:12px; font-weight:bold;"></td>
                 <td class="${stClass}" style="font-size: ${stationFontSize};">${stop.station}</td>
                 <td>${formatStaffTime(stop.arrival)}</td>
                 <td>${formatStaffTime(stop.departure)}</td>
