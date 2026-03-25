@@ -4,34 +4,70 @@
   <meta charset="UTF-8">
   <title>列車一覧</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    body {
-      margin: 0;
-      background: #fff;
-      color: #000;
-      font-family: 'BIZ UDPGothic', sans-serif;
+    :root {
+      --green-deep:   #1b4d2e;
+      --green-mid:    #2e7d4f;
+      --green-vivid:  #3aad6a;
+      --green-pale:   #e8f5ee;
+      --green-line:   #a8d5b9;
+      --white:        #ffffff;
+      --gray-100:     #f4f6f5;
+      --gray-200:     #e2e8e4;
+      --gray-500:     #7a8c82;
+      --gray-800:     #2c3830;
+      --text:         #1a2820;
+      --panel-h:      96px;
+      --radius:       6px;
     }
 
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--white);
+      color: var(--text);
+      font-family: 'M PLUS 1p', sans-serif;
+      font-size: 15px;
+      padding-bottom: var(--panel-h);
+    }
+
+    /* ─── HEADER ─── */
     header {
-      padding: 20px;
-      border-bottom: 3px solid #000;
+      background: var(--green-deep);
+      color: var(--white);
+      padding: 18px 24px 14px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
     }
 
     h1 {
-      margin: 0;
-      font-size: 28px;
-      font-weight: 700;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      color: var(--white);
     }
 
+    .header-sub {
+      font-size: 11px;
+      color: var(--green-vivid);
+      letter-spacing: .12em;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    /* ─── SEARCH ─── */
     .search-area {
-      margin-top: 15px;
       display: flex;
-      gap: 10px;
       flex-wrap: wrap;
-      align-items: center;
+      gap: 10px;
+      align-items: flex-end;
+      margin-top: 14px;
     }
 
     .search-group {
@@ -41,138 +77,289 @@
     }
 
     .label-mini {
-      font-size: 11px;
-      font-weight: bold;
-      color: #555;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--green-vivid);
     }
 
     input {
-      padding: 8px;
-      font-size: 16px;
-      border: 1px solid #aaa;
-      border-radius: 4px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: var(--radius);
+      color: var(--white);
+      font-family: 'M PLUS 1p', sans-serif;
+      font-size: 14px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color .15s;
     }
+    input::placeholder { color: rgba(255,255,255,0.4); }
+    input:focus { border-color: var(--green-vivid); }
+    input[type="date"] { color-scheme: dark; }
 
-    /* 施行日上書き用：少し目立つように */
-    #execution-date {
-      background: #fffdf0;
-      border: 1px solid #d4a017;
-      width: 140px;
-    }
+    #execution-date { width: 120px; }
 
     button {
-      padding: 8px 14px;
-      font-size: 16px;
-      border: 1px solid #000;
-      background: #f0f0f0;
+      font-family: 'M PLUS 1p', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      padding: 7px 16px;
+      border-radius: var(--radius);
       cursor: pointer;
-      border-radius: 4px;
-      align-self: flex-end; /* 下揃え */
+      border: none;
+      transition: background .15s, transform .1s;
     }
-
-    button:hover {
-      background: #e0e0e0;
-    }
+    button:active { transform: scale(.97); }
 
     #search-button {
-      background: #0078d4;
-      color: #fff;
-      border: none;
+      background: var(--green-vivid);
+      color: var(--white);
     }
-    #search-button:hover { background: #005a9e; }
+    #search-button:hover { background: #45c47a; }
+
+    #reset-button {
+      background: rgba(255,255,255,0.12);
+      color: var(--white);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    #reset-button:hover { background: rgba(255,255,255,0.22); }
+
+    /* ─── NOTE ─── */
+    .note-box {
+      margin-top: 12px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: .04em;
+    }
+    .note-box b { color: var(--green-vivid); font-weight: 700; }
+
+    /* ─── TABLE ─── */
+    .table-wrap {
+      padding: 0 0 8px;
+    }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
-      font-size: 18px;
+      font-size: 15px;
     }
 
-    th, td {
-      padding: 12px 8px;
-      border-bottom: 1px solid #ccc;
-      text-align: center;
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     th {
-      background: #f5f5f5;
-      border-bottom: 2px solid #000;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 11px;
       font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--green-mid);
+      background: var(--white);
+      padding: 14px 12px 10px;
+      text-align: center;
+      border-bottom: 2px solid var(--green-mid);
     }
 
-    tr:hover {
-      background: #e8f0ff;
+    td {
+      padding: 13px 12px;
+      text-align: center;
+      border-bottom: 1px solid var(--gray-200);
+      transition: background .1s;
+    }
+
+    tbody tr {
       cursor: pointer;
     }
 
-    .footer {
-      padding: 20px;
-      font-size: 14px;
-      color: #555;
-      border-top: 1px solid #ccc;
-      margin-top: 40px;
+    tbody tr:hover td {
+      background: var(--green-pale);
     }
 
-    /* 紙スタフ等の注釈 */
-    .note-box {
-      margin-top: 10px;
-      padding: 8px;
-      background: #f9f9f9;
-      border-left: 4px solid #0078d4;
+    tbody tr.selected td {
+      background: var(--green-pale);
+      color: var(--green-deep);
+      font-weight: 700;
+    }
+
+    tbody tr.selected td:first-child {
+      border-left: 3px solid var(--green-vivid);
+    }
+
+    /* 種別列 */
+    td:nth-child(2) {
+      font-size: 12px;
+      color: var(--gray-500);
+    }
+
+    /* 列車番号 */
+    td:nth-child(3) {
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--green-deep);
+    }
+
+    /* ─── BOTTOM PANEL ─── */
+    #action-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--panel-h);
+      background: var(--green-deep);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 20px;
+      transform: translateY(100%);
+      transition: transform .22s cubic-bezier(.4,0,.2,1);
+      z-index: 100;
+      border-top: 2px solid var(--green-vivid);
+    }
+
+    #action-panel.open {
+      transform: translateY(0);
+    }
+
+    .panel-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .panel-train-num {
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--white);
+      letter-spacing: .06em;
+    }
+
+    .panel-route {
+      font-size: 12px;
+      color: var(--green-vivid);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .panel-actions {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .panel-btn {
+      font-family: 'M PLUS 1p', sans-serif;
       font-size: 13px;
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      border: none;
+      letter-spacing: .04em;
+      transition: background .15s, transform .1s;
+      white-space: nowrap;
+    }
+    .panel-btn:active { transform: scale(.96); }
+
+    #btn-digital {
+      background: var(--green-vivid);
+      color: var(--white);
+    }
+    #btn-digital:hover { background: #45c47a; }
+
+    #btn-staff {
+      background: var(--white);
+      color: var(--green-deep);
+    }
+    #btn-staff:hover { background: var(--green-pale); }
+
+    #btn-close {
+      background: transparent;
+      color: rgba(255,255,255,0.45);
+      font-size: 20px;
+      padding: 8px;
+      line-height: 1;
+    }
+    #btn-close:hover { color: var(--white); }
+
+    /* ─── FOOTER ─── */
+    .footer {
+      padding: 20px 24px;
+      font-size: 12px;
+      color: var(--gray-500);
+      border-top: 1px solid var(--gray-200);
     }
   </style>
 </head>
-
 <body>
 
 <header>
-  <h1>列車一覧</h1>
-
+  <div class="header-top">
+    <h1>列車一覧</h1>
+    <span class="header-sub">Timetable List</span>
+  </div>
   <div class="search-area">
     <div class="search-group">
-      <span class="label-mini">データ検索（施行日）</span>
+      <span class="label-mini">施行日</span>
       <input type="date" id="search-date">
     </div>
-    
     <div class="search-group">
       <span class="label-mini">列車番号</span>
       <input type="text" id="search-number" placeholder="例: 9890M">
     </div>
-
     <div class="search-group">
-      <span class="label-mini">出力施行日 (任意)</span>
+      <span class="label-mini">出力施行日（任意）</span>
       <input type="text" id="execution-date" placeholder="例: 2/3" title="未入力時はデータの日付を使用します">
     </div>
-
     <button id="search-button">検索</button>
     <button id="reset-button">リセット</button>
   </div>
-
-  <div class="note-box">
-    列車をクリックすると、<b>デジタル形式</b> または <b>紙スタフ形式</b> を選択して出力できます。
-  </div>
+  <p class="note-box">
+    列車をクリックして <b>デジタル形式</b> または <b>紙スタフ形式</b> を選択
+  </p>
 </header>
 
-<table id="timetable-list">
-  <thead>
-    <tr>
-      <th>施行日</th>
-      <th>種別</th>
-      <th>列車番号</th>
-      <th>区間</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr><td colspan="4" style="text-align:center;">データを読み込み中...</td></tr>
-  </tbody>
-</table>
+<div class="table-wrap">
+  <table id="timetable-list">
+    <thead>
+      <tr>
+        <th>施行日</th>
+        <th>種別</th>
+        <th>列車番号</th>
+        <th>区間</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="4" style="text-align:center; color:#7a8c82; padding:32px;">データを読み込み中...</td></tr>
+    </tbody>
+  </table>
+</div>
 
 <div class="footer">
   ※ 運転計画 B報編 に基づくデータを表示しています。
 </div>
 
-<script src="train_list.js"></script>
+<!-- 操作パネル（常駐・スライドイン） -->
+<div id="action-panel">
+  <div class="panel-info">
+    <div class="panel-train-num" id="panel-train-num">―</div>
+    <div class="panel-route" id="panel-route">―</div>
+  </div>
+  <div class="panel-actions">
+    <button class="panel-btn" id="btn-digital">デジタル表示</button>
+    <button class="panel-btn" id="btn-staff">紙スタフ</button>
+    <button class="panel-btn" id="btn-close">✕</button>
+  </div>
+</div>
 
+<script src="train_list.js"></script>
 </body>
 </html>

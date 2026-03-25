@@ -5,32 +5,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchNumberInput = document.getElementById('search-number');
     const searchButton = document.getElementById('search-button');
     const resetButton = document.getElementById('reset-button');
-    
-    // index.html側にある「自由設定用の施行日入力欄」を取得（IDは前回の修正に合わせexecution-dateと想定）
     const executionDateInput = document.getElementById('execution-date');
 
-    let cachedAllData = [];
+    // 操作パネル
+    const actionPanel = document.getElementById('action-panel');
+    const panelTrainNum = document.getElementById('panel-train-num');
+    const panelRoute = document.getElementById('panel-route');
+    const btnDigital = document.getElementById('btn-digital');
+    const btnStaff = document.getElementById('btn-staff');
+    const btnClose = document.getElementById('btn-close');
 
+    let cachedAllData = [];
+    let selectedTrainGroup = null;
+    let selectedTargetId = null;
+    let selectedFinalDate = null;
+    let selectedRow = null;
+
+    // ─── パネル制御 ───
+    const openPanel = (trainGroup, targetId, finalDate, row) => {
+        const t = trainGroup[0];
+
+        selectedTrainGroup = trainGroup;
+        selectedTargetId = targetId;
+        selectedFinalDate = finalDate;
+
+        panelTrainNum.textContent = t.trainNumber || '―';
+        panelRoute.textContent = `${t.origin} 〜 ${t.destination}　／　施行日：${finalDate}`;
+
+        // 選択行ハイライト
+        if (selectedRow) selectedRow.classList.remove('selected');
+        selectedRow = row;
+        row.classList.add('selected');
+
+        actionPanel.classList.add('open');
+    };
+
+    const closePanel = () => {
+        actionPanel.classList.remove('open');
+        if (selectedRow) selectedRow.classList.remove('selected');
+        selectedRow = null;
+        selectedTrainGroup = null;
+    };
+
+    const navigate = (isStaff) => {
+        if (!selectedTrainGroup) return;
+        sessionStorage.setItem('selectedTrainData', JSON.stringify(selectedTrainGroup));
+        const baseUrl = isStaff ? 'train_staff.html' : 'train_timetable.html';
+        window.location.href = `${baseUrl}?id=${encodeURIComponent(selectedTargetId)}&date=${encodeURIComponent(selectedFinalDate)}`;
+    };
+
+    btnDigital.addEventListener('click', () => navigate(false));
+    btnStaff.addEventListener('click', () => navigate(true));
+    btnClose.addEventListener('click', closePanel);
+
+    // ─── データ読み込み ───
     const loadTimetables = async () => {
         try {
             const response = await fetch(JSON_PATH);
-            if (!response.ok) throw new Error("JSON読み込み失敗");
-
+            if (!response.ok) throw new Error('JSON読み込み失敗');
             cachedAllData = await response.json();
             renderTimetableList(cachedAllData);
-
         } catch (error) {
             listBody.innerHTML =
-                '<tr><td colspan="4" style="text-align:center; color:red;">データの読み込みに失敗しました。</td></tr>';
+                '<tr><td colspan="4" style="text-align:center; color:red; padding:32px;">データの読み込みに失敗しました。</td></tr>';
         }
     };
 
+    // ─── テーブル描画 ───
     const renderTimetableList = (data) => {
-        listBody.innerHTML = "";
+        listBody.innerHTML = '';
+        closePanel();
 
         if (data.length === 0) {
             listBody.innerHTML =
-                '<tr><td colspan="4" style="text-align:center;">該当データなし</td></tr>';
+                '<tr><td colspan="4" style="text-align:center; color:#7a8c82; padding:32px;">該当データなし</td></tr>';
             return;
         }
 
@@ -45,57 +93,37 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(grouped).forEach(key => {
             const trainGroup = grouped[key];
             const t = trainGroup[0];
+            const originalDate = t.startDate || t.dayType || '―';
 
             const row = listBody.insertRow();
-            
-            // 施行日（データ上の日付）
-            const originalDate = t.startDate || t.dayType || '―';
             row.insertCell().textContent = originalDate;
-
-            let type = t.type;
-            if (type === "選択なし") type = "";
-            row.insertCell().textContent = type;
-
+            row.insertCell().textContent = t.type === '選択なし' ? '' : (t.type || '');
             row.insertCell().textContent = t.trainNumber || '―';
             row.insertCell().textContent = `${t.origin} 〜 ${t.destination}`;
 
-            // クリック時の挙動：モード選択
             row.addEventListener('click', () => {
-                // 1. 自由設定された施行日があれば取得、なければ元のデータの日付を使用
-                const customDate = executionDateInput ? executionDateInput.value : "";
+                const customDate = executionDateInput ? executionDateInput.value : '';
                 const finalDate = customDate || originalDate;
 
-                // 2. 遷移用IDの生成 (表示用と同じロジック)
-                const p = (originalDate).split(/[\/\-]/);
-                const dateKey = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : originalDate;
+                const p = originalDate.split(/[\/\-]/);
+                const dateKey = p.length >= 3
+                    ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}`
+                    : originalDate;
                 const targetId = `${dateKey}_${t.trainNumber}`;
 
-                // 3. 表示モードの選択
-                const isStaff = confirm(
-                    `【表示モード選択】\n\nOK：紙スタフ形式 (運転士用)\nキャンセル：デジタル形式 (現行)\n\n設定施行日：${finalDate}`
-                );
-
-                // 4. セッションストレージにデータを保存（互換性のため）
-                sessionStorage.setItem('selectedTrainData', JSON.stringify(trainGroup));
-                
-                // 5. 各画面へ遷移
-                const baseUrl = isStaff ? 'train_staff.html' : 'train_timetable.html';
-                window.location.href = `${baseUrl}?id=${encodeURIComponent(targetId)}&date=${encodeURIComponent(finalDate)}`;
+                openPanel(trainGroup, targetId, finalDate, row);
             });
         });
     };
 
+    // ─── 検索 ───
     const applySearchFilter = () => {
         const dateFilter = searchDateInput.value.trim();
         const numberFilter = searchNumberInput.value.trim().toLowerCase();
 
         const filtered = cachedAllData.filter(train => {
-            let dateMatch = true;
-            let numberMatch = true;
-
-            if (dateFilter) dateMatch = (train.startDate || "").includes(dateFilter);
-            if (numberFilter) numberMatch = (train.trainNumber || "").toLowerCase().includes(numberFilter);
-
+            const dateMatch = !dateFilter || (train.startDate || '').includes(dateFilter);
+            const numberMatch = !numberFilter || (train.trainNumber || '').toLowerCase().includes(numberFilter);
             return dateMatch && numberMatch;
         });
 
@@ -107,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetButton.addEventListener('click', () => {
         searchDateInput.value = '';
         searchNumberInput.value = '';
-        if(executionDateInput) executionDateInput.value = '';
+        if (executionDateInput) executionDateInput.value = '';
         renderTimetableList(cachedAllData);
     });
 
