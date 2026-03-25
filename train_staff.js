@@ -4,17 +4,27 @@
 
 const JSON_PATH = '../../T-time/timetables.json';
 const params = new URLSearchParams(window.location.search);
-const targetId = params.get('id'); // train_list.jsから送られるID
+const targetId = params.get('id'); 
 const customDate = params.get('date');
 
 window.addEventListener('DOMContentLoaded', async () => {
-    if (!targetId) return;
+    // 描画先があるかチェック
+    const container = document.getElementById('render-target');
+    if (!container) {
+        console.error("エラー: 'render-target' が見つかりません。");
+        return;
+    }
+
+    if (!targetId) {
+        container.innerHTML = "IDが指定されていません。";
+        return;
+    }
+
     try {
         const response = await fetch(JSON_PATH);
-        if (!response.ok) throw new Error("JSON fetch failed");
+        if (!response.ok) throw new Error("JSONの取得に失敗しました");
         const allData = await response.json();
         
-        // train_list.jsと同じロジックでIDを再構成して照合
         const group = allData.filter(item => {
             const dateStr = item.startDate || item.dayType || "";
             const p = dateStr.split(/[\/\-]/);
@@ -23,15 +33,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
 
         if (group.length > 0) {
-            // 複数区間ある場合はマージ
             const mergedTrain = mergeTrainSegments(group);
             renderStaff(mergedTrain);
         } else {
-            document.getElementById('render-target').innerHTML = `<div style="padding:20px; color:red;">データが見つかりません (ID: ${targetId})</div>`;
+            container.innerHTML = "該当データがありません ID:" + targetId;
         }
     } catch (e) {
         console.error(e);
-        document.getElementById('render-target').innerHTML = `<div style="padding:20px; color:red;">読み込みエラーが発生しました。</div>`;
+        container.innerHTML = "読み込みエラーが発生しました。";
     }
 });
 
@@ -58,7 +67,7 @@ function mergeTrainSegments(segments) {
 }
 
 function formatStaffTime(t) {
-    if (!t || t.trim() === "") return "";
+    if (!t || t.trim() === "" || t === " ") return "";
     if (t === "||" || t === "…") return '<span class="pass-arrow">↓</span>';
     if (t === "=" || t === "＝") return '<span class="stop-symbol">＝＝</span>';
     
@@ -73,9 +82,9 @@ function formatStaffTime(t) {
 
 function renderStaff(train) {
     const target = document.getElementById('render-target');
+    if (!target) return;
+
     const stopCount = train.stops.length;
-    
-    // 行数に応じた高さ調整
     const rowHeight = stopCount > 25 ? '24px' : (stopCount > 15 ? '32px' : '38px');
     const stationFontSize = stopCount > 25 ? '15px' : '18px';
 
@@ -95,7 +104,9 @@ function renderStaff(train) {
             </tr>
             <tr>
                 <td colspan="4" class="train-num-box">${train.trainNumber}</td>
-                <td></td> <td style="font-size: 12px;">${train.speed || ""}</td> <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
+                <td></td>
+                <td style="font-size: 12px;">${train.speed || ""}</td>
+                <td style="font-size: 9px; line-height: 1.1;">${train.power || ""}<br>${train.ns === 'A' ? '10M5T' : ''}</td>
             </tr>
         </table>
 
@@ -119,13 +130,12 @@ function renderStaff(train) {
     `;
 
     train.stops.forEach((stop) => {
-        // 通過駅の判定 (↓ が表示されるデータの場合、駅名を赤文字にする)
         const isPassing = (stop.arrival === "||" || stop.arrival === "…" || stop.departure === "||" || stop.departure === "…");
         const stClass = isPassing ? 'st-name-text st-passing' : 'st-name-text';
 
         html += `
             <tr style="height: ${rowHeight};">
-                <td style="font-size:12px; font-weight:bold;"></td>
+                <td></td>
                 <td class="${stClass}" style="font-size: ${stationFontSize};">${stop.station}</td>
                 <td>${formatStaffTime(stop.arrival)}</td>
                 <td>${formatStaffTime(stop.departure)}</td>
