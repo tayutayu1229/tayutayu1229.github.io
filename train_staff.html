@@ -3,73 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <title>紙スタフ出力</title>
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { background: #3e4042; margin: 0; font-family: "MS UI Gothic", "Meiryo", sans-serif; }
-        
+        /* --- 全体設定 --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: #3e4042; /* 背景（非印刷時） */
+            font-family: 'BIZ UDPGothic', sans-serif;
+        }
+
+        /* --- ツールバー（非印刷時） --- */
         .toolbar {
             position: fixed; top: 0; left: 0; width: 100%; height: 45px;
             background: #2d2d2d; display: flex; align-items: center; padding: 0 20px;
-            z-index: 1000; box-sizing: border-box;
+            z-index: 1000; box-sizing: border-box; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
-        .toolbar button { margin-right: 10px; cursor: pointer; }
+        .toolbar button {
+            padding: 5px 15px; background: #444; color: white; border: 1px solid #666; cursor: pointer;
+        }
+        .toolbar button:hover { background: #555; }
 
+        /* --- スタフ外枠（A3縦半分の比率を意識） --- */
         .viewport {
-            margin-top: 45px; padding: 20px;
-            display: flex; justify-content: center;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            margin-top: 45px;
         }
 
-        /* スタフのサイズ（A3縦半分の比率に近い設定） */
         #staff-area {
-            width: 145mm;
-            min-height: 400mm;
+            width: 140mm; /* スタフ本体の幅 */
+            min-height: 380mm; /* A3縦半分の高さ目安 */
             background: #fff;
-            padding: 10mm;
+            padding: 5mm; /* 余白 */
             box-sizing: border-box;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+            display: flex;
+            flex-direction: column;
             color: #000;
         }
 
-        /* スタフ特有の格子レイアウト */
-        .staff-table {
+        /* --- ヘッダー部（NO, 施行日, 行路名） --- */
+        .staff-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 2px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .header-center {
+            text-align: center;
+            flex-grow: 1;
+        }
+        .shoko-name { font-size: 14px; letter-spacing: 2px; }
+
+        /* --- 列車基本情報テーブル --- */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 2px solid #000;
+            border-left: 2px solid #000;
+            border-right: 2px solid #000;
+            table-layout: fixed;
+        }
+        .info-table td {
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 10px;
+            height: 14px;
+        }
+        .train-num-box {
+            font-size: 28px !important;
+            font-weight: 700;
+            color: #002060; /* 濃い青色 */
+            height: 40px !important;
+        }
+
+        /* --- メイン時刻表テーブル --- */
+        .main-timetable {
             width: 100%;
             border-collapse: collapse;
             border: 2px solid #000;
+            flex-grow: 1; /* 駅数に応じて伸びる */
             table-layout: fixed;
         }
-        .staff-table th, .staff-table td {
+        .main-timetable th {
+            border: 1px solid #000;
+            font-size: 10px;
+            font-weight: normal;
+            height: 25px;
+            background: #fff;
+        }
+        .main-timetable td {
             border: 1px solid #000;
             text-align: center;
-            height: 1.8em;
-            font-weight: bold;
+            position: relative;
         }
-        
-        .header-info { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-        .train-num-large { font-size: 28px; font-weight: bold; letter-spacing: 2px; }
-        
-        /* 矢印（↓）などの特殊記号用 */
-        .symbol-red { color: red; font-size: 20px; }
-        .time-sec { font-size: 0.6em; vertical-align: super; }
 
+        /* --- 各列の幅指定 --- */
+        .col-jifun { width: 35px; }  /* 運転時分 */
+        .col-station { width: auto; } /* 停車場名 */
+        .col-arr { width: 75px; }    /* 着時刻 */
+        .col-dep { width: 75px; }    /* 発時刻 */
+        .col-line { width: 40px; }   /* 着発線 */
+        .col-speed { width: 35px; }  /* 制限速度 */
+        .col-memo { width: 50px; }   /* 記事 */
+
+        /* --- 駅名行の高さ・文字サイズ --- */
+        .station-row {
+            /* 駅数が多い場合に自動で縮小するための設定 */
+            height: auto;
+            min-height: 30px; 
+        }
+        .st-name-text {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        /* 両数表示など */
+        .car-count-box {
+            font-size: 22px;
+            font-weight: 700;
+            border-bottom: 2px solid #000;
+            height: 40px;
+        }
+
+        /* --- 時刻の装飾 --- */
+        .time-main {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .time-sec {
+            font-size: 12px;
+            vertical-align: super; /* 秒を上付きに */
+            margin-left: 1px;
+        }
+        .pass-arrow {
+            color: #ff0000; /* 通過の赤い下矢印 */
+            font-size: 24px;
+            font-weight: 900;
+        }
+        .stop-symbol {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        /* --- 着発線（青文字） --- */
+        .track-num {
+            color: #0070c0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* --- フッター（作成日時） --- */
+        .staff-footer {
+            margin-top: 5px;
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* --- 印刷設定 --- */
         @media print {
             .no-print { display: none !important; }
-            body { background: white; }
+            body, html { background: #fff; }
             .viewport { margin: 0; padding: 0; }
-            #staff-area { box-shadow: none; width: 100%; }
+            #staff-area {
+                width: 140mm;
+                height: auto;
+                box-shadow: none;
+                margin: 0 auto;
+            }
         }
     </style>
 </head>
 <body>
+
     <div class="toolbar no-print">
-        <button onclick="location.href='train_list.html'">戻る</button>
-        <button onclick="window.print()">印刷する</button>
+        <button onclick="location.href='train_list.html'">← 戻る</button>
+        <button onclick="window.print()" style="margin-left: 10px;">印刷する</button>
     </div>
 
     <div class="viewport">
-        <div id="staff-area">
-            <div id="staff-content">
-                </div>
-        </div>
+        <article id="staff-area">
+            <div id="render-target"></div>
+        </article>
     </div>
 
     <script src="train_staff.js"></script>
