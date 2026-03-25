@@ -1,7 +1,7 @@
 /**
  * 列車運転時刻表 (スタフ) 制御スクリプト
  */
-
+  
 const JSON_PATH = '/T-time/timetables.json'; // 環境に合わせて変更してください
 const params = new URLSearchParams(window.location.search);
 const targetId = params.get('id');
