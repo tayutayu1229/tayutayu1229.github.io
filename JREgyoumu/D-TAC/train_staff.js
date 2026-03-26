@@ -58,34 +58,38 @@ function mergeTrainSegments(segments) {
     return base;
 }
 
-// ── 時刻計算用ユーティリティ ──
+// ── 時刻計算用 ──
 function timeToSeconds(t) {
-    if (!t || t.trim() === "" || t === " " || t === "||" || t === "…" || t === "=") return null;
+    if (!t || t.trim() === "" || [" ", "||", "…", "=", "＝", "=="].includes(t)) return null;
     const p = t.split(':');
     return parseInt(p[0] || 0) * 3600 + parseInt(p[1] || 0) * 60 + parseInt(p[2] || 0);
 }
 
-// ── 時刻フォーマット (通過時は赤文字クラスを付与) ──
+// ── 時刻フォーマット (秒の重なり防止) ──
 function formatTime(t, isPassing) {
     if (!t || t.trim() === "" || t === " ") return "";
-    // 通過記号（矢印）
     if (t === "||" || t === "…") return '<span class="pass-arrow">↓</span>';
-    // 停車記号（二重線）
-    if (t === "=" || t === "＝") return '<span class="stop-symbol">＝＝</span>';
+    
+    // 終着駅の巨大な「＝」
+    if (t === "=" || t === "＝" || t === "==") {
+        return '<div class="end-mark">＝</div>';
+    }
 
     const p = t.split(':');
     const hhmm = `${p[0]}.${p[1]}`;
     const rawSec = p[2] ? p[2].replace(/^0/, '') : '';
+    
+    // 秒がある場合、重なりを防ぐために time-sec クラスを使用
     const secStr = (rawSec && rawSec !== '0' && rawSec !== '00') 
         ? `<span class="time-sec">${rawSec}</span>` : '';
 
-    // 通過フラグがある場合 'time-passing' クラスを追加
     return `
         <div class="time-container ${isPassing ? 'time-passing' : ''}">
             <span class="time-main">${hhmm}</span>${secStr}
         </div>`;
 }
 
+// ── 運転時分の表示 ──
 function formatJifun(diff) {
     if (diff <= 0) return '';
     const mins = Math.floor(diff / 60);
@@ -96,7 +100,6 @@ function formatJifun(diff) {
 
 function todayStr() {
     const d = new Date();
-    // 2026年度改正ダイヤに基づき、表示もそれに合わせる
     return `${d.getFullYear()}年 ${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}時${d.getMinutes()}分作成`;
 }
 
@@ -105,59 +108,67 @@ function renderStaff(train, firstSegment) {
     const target = document.getElementById('render-target');
     if (!target) return;
 
-    // A3の左半分、右半分にそれぞれ配置
     let fullHtml = `<div class="staff-column">${createStaffInner(train, firstSegment)}</div>`;
-    fullHtml += `<div class="staff-column">${createStaffInner(train, firstSegment)}</div>`;
-    
+    // 右側が必要な場合は追加。不要なら空のdiv等
     target.innerHTML = fullHtml;
 }
 
 function createStaffInner(train, firstSegment) {
     const stopCount = train.stops.length;
-    // 駅数が多い場合は行を詰め、少ない場合はゆったりさせる
-    const rowHeight = stopCount > 25 ? '30px' : (stopCount > 15 ? '36px' : '45px'); 
+    const rowHeight = stopCount > 25 ? '28px' : (stopCount > 15 ? '34px' : '44px'); 
 
     let lastTimedSeconds = null;
 
     let html = `
         <div class="staff-header">
             <div class="hd-no">NO.&thinsp;${firstSegment.kid1 || '1'}</div>
-            <div class="hd-right">${train.line || ''}行路<br>田町運転所</div>
+            <div class="hd-right">${train.line || '川越貨物行路'}行路<br>田町運転所</div>
         </div>
-        <div class="hd-date">施行日&emsp;${customDate || '7/7'}</div>
+        <div class="staff-header" style="justify-content: flex-start; gap: 20px;">
+            <div style="font-size:16px;">施行日&emsp;${customDate || '2026/03/19'}</div>
+        </div>
 
         <table class="info-table">
-            <colgroup><col style="width:140px;"><col><col><col></colgroup>
-            <tr><td>列　　車</td><td>最高速度</td><td>速度種別</td><td>けん引定数</td></tr>
+            <colgroup>
+                <col class="col-train-no">
+                <col class="col-speed">
+                <col class="col-type">
+                <col>
+            </colgroup>
+            <tr><td>列　　車</td><td>最高速度<br>(Km/h)</td><td>速度種別</td><td>けん引定数</td></tr>
             <tr>
-                <td class="train-num-cell">${train.trainNumber || '―'}</td>
-                <td><div class="speed-val" style="font-size:10px; line-height:1.1;">${(train.speed || '').replace(/[,、]/g, '<br>')}</div></td>
-                <td style="font-size:10px;">${train.speedType || ''}</td>
-                <td style="font-size:10px;">${train.power || ''}</td>
+                <td class="train-num-cell">
+                    <div class="train-num-text">${train.trainNumber || '―'}</div>
+                </td>
+                <td><div class="info-sub-text">${(train.speed || '').replace(/[,、]/g, '<br>')}</div></td>
+                <td><div class="info-sub-text">${train.speedType || ''}</div></td>
+                <td><div class="info-sub-text">${train.power || ''}</div></td>
             </tr>
         </table>
 
         <table class="main-timetable">
             <colgroup>
                 <col class="col-jifun"><col class="col-station"><col class="col-arr">
-                <col class="col-dep"><col class="col-line"><col class="col-limit"><col class="col-memo">
+                <col class="col-dep"><col class="col-line"><col class="col-limit">
             </colgroup>
             <thead>
-                <tr><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発(通)</th><th>着発<br>線</th><th>制限</th><th>記事</th></tr>
+                <tr><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発(通)</th><th>着発<br>線</th><th>制限</th></tr>
             </thead>
             <tbody>
-                <tr class="car-num-row" style="height:24px;">
+                <tr style="height:28px;">
                     <td colspan="2" style="font-size:18px; font-weight:900; text-align:center;">
-                        ${train.carCount || ''}<span style="font-size:12px; margin-left:2px;">両</span>
+                        ${train.carCount || ''}<span style="font-size:12px;">両</span>
                     </td>
-                    <td colspan="5" style="text-align:left; padding-left:10px; font-weight:800;">${train.carLabel || '（乗継）'}</td>
+                    <td colspan="4" style="text-align:left; padding-left:20px; font-weight:900; font-size:20px;">
+                        ${train.carLabel || '（乗継）'}
+                    </td>
                 </tr>
     `;
 
     train.stops.forEach((stop, i) => {
-        // 「↓」記号がある、または「発(通)」のみに時刻がある場合は通過とみなす
         const isPassing = (stop.arrival === "||" || stop.arrival === "…" || (stop.arrival === "" && stop.departure !== "" && i !== 0 && i !== train.stops.length -1));
         
+        // 運転時分の計算
         let currentSeconds = timeToSeconds(stop.arrival) || timeToSeconds(stop.departure);
         let jifunHtml = '';
         if (currentSeconds !== null) {
@@ -169,8 +180,6 @@ function createStaffInner(train, firstSegment) {
 
         const arrHtml = formatTime(stop.arrival, isPassing);
         const depHtml = formatTime(stop.departure, isPassing);
-
-        // 通過駅なら駅名に 'st-passing' クラスを付与
         const nameClass = isPassing ? 'st-name-text st-passing' : 'st-name-text';
 
         html += `
@@ -183,7 +192,6 @@ function createStaffInner(train, firstSegment) {
                 <td>${depHtml}</td>
                 <td class="track-num">${stop.trackN || ''}</td>
                 <td></td>
-                <td></td>
             </tr>
         `;
     });
@@ -192,8 +200,8 @@ function createStaffInner(train, firstSegment) {
             </tbody>
         </table>
         <div class="notes-area">
-            <div style="font-size:10px; font-weight:900; border-bottom:1px solid #000; margin-bottom:2px;">注意事項</div>
-            <div class="notes-text" style="font-weight:800; white-space:pre-wrap;">${train.notes || ''}</div>
+            <div style="font-size:11px; font-weight:900; border-bottom:1px solid #000; margin-bottom:4px;">注意事項</div>
+            <div class="notes-text">${train.notes || ''}</div>
         </div>
         <div class="staff-footer">${todayStr()}</div>
     `;
