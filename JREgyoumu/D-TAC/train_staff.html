@@ -2,122 +2,135 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>列車運転時刻表 - 決定版</title>
+    <title>列車運転時刻表 Viewer</title>
     <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700;900&display=swap" rel="stylesheet">
     <style>
     :root {
         --border-bold: 3.5px solid #000;
         --border-normal: 1.5px solid #000;
+        --paper-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
 
     body {
         margin: 0;
-        padding: 10mm;
-        background-color: #fff;
+        padding: 40px 0;
+        background-color: #525659; /* PDFビューアー風の背景色 */
         font-family: 'BIZ UDPGothic', sans-serif;
+        display: flex;
+        justify-content: center;
     }
 
+    /* 紙の枠組み */
     #staff-container {
-        width: 100%;
-        max-width: 210mm;
-        margin: 0 auto;
+        width: 210mm; /* A4サイズ */
+        min-height: 297mm;
+        padding: 15mm;
+        background-color: #fff;
+        box-shadow: var(--paper-shadow);
+        box-sizing: border-box;
+        position: relative;
     }
 
+    /* ヘッダー周り */
     .header-flex {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
         margin-bottom: 2px;
     }
-    .no-label { font-size: 28px; font-weight: 900; font-family: Arial; }
+    .no-label { font-size: 26px; font-weight: 900; }
     .depot-info { text-align: right; font-size: 18px; line-height: 1.2; font-weight: 900; }
-    .execution-date { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
+    .execution-date { font-size: 18px; font-weight: 900; margin-bottom: 10px; }
 
+    /* テーブル共通 */
     table {
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
         border: var(--border-bold);
     }
-
     td, th {
         border: var(--border-normal);
         padding: 0;
         box-sizing: border-box;
     }
 
-    /* 列車情報テーブル */
+    /* 列車番号・基本情報 */
     .info-table tr { height: 35px; }
     .info-table td { text-align: center; font-size: 14px; font-weight: 900; }
     .train-num-value {
-        font-size: 85px;
+        font-size: 80px;
         font-family: 'Arial Black', sans-serif;
         letter-spacing: -4px;
-        height: 110px !important;
+        height: 100px !important;
         text-align: left !important;
         padding-left: 15px !important;
     }
 
     /* メイン時刻表 */
     .main-table { border-top: none; }
-    .main-table th { height: 38px; font-size: 14px; font-weight: 900; }
-    .main-table td { height: 52px; vertical-align: middle; }
+    .main-table th { height: 35px; font-size: 14px; font-weight: 900; background: #fff; }
+    .main-table td { height: 50px; vertical-align: middle; }
 
-    /* 運転時分 */
-    .jifun-cell { position: relative; font-family: Arial; }
-    .jifun-main { font-size: 28px; font-weight: 900; position: absolute; right: 4px; bottom: 2px; }
-    .jifun-sec { font-size: 16px; font-weight: 900; position: absolute; right: 4px; top: 2px; }
+    /* 運転時分（肩文字対応） */
+    .jifun-cell { position: relative; height: 50px; text-align: right; padding-right: 5px; }
+    .jifun-main { font-size: 26px; font-weight: 900; position: absolute; right: 5px; bottom: 2px; }
+    .jifun-sec { font-size: 15px; font-weight: 900; position: absolute; right: 5px; top: 2px; }
 
-    /* 駅名 */
+    /* 駅名（均等割付） */
     .station-name {
-        font-size: 26px;
+        font-size: 24px;
         font-weight: 900;
         text-align: justify;
         text-align-last: justify;
-        padding: 0 12px;
+        padding: 0 10px;
     }
     .st-passing { color: #e60012; }
 
-    /* 時刻表示 (秒数を肩に乗せる) */
+    /* 時刻表示（秒を肩に乗せる） */
     .time-container {
         display: flex;
         align-items: baseline;
         justify-content: flex-start;
-        padding-left: 10px;
-        font-family: Arial;
+        padding-left: 8px;
     }
-    .time-main { font-size: 44px; font-weight: 900; letter-spacing: -1px; }
-    .time-sec { font-size: 20px; font-weight: 900; margin-left: 2px; transform: translateY(-10px); }
-    .pass-arrow { color: #e60012; font-size: 48px; font-weight: 900; text-align: center; }
-
+    .time-main { font-size: 42px; font-weight: 900; letter-spacing: -1px; }
+    .time-sec { font-size: 18px; font-weight: 900; margin-left: 2px; transform: translateY(-10px); }
+    
+    .pass-arrow { color: #e60012; font-size: 45px; font-weight: 900; text-align: center; }
     .end-mark { font-size: 55px; font-weight: 900; text-align: center; letter-spacing: -8px; }
 
-    .track-cell { font-size: 26px; font-weight: 900; font-style: italic; text-align: center; font-family: serif; color: #004098; }
+    /* 着発線（ゴシック系に修正） */
+    .track-cell {
+        font-size: 24px;
+        font-weight: 900;
+        text-align: center;
+        color: #004098;
+    }
 
     /* 注意事項 */
     .notes-area {
         border: var(--border-bold);
         border-top: none;
         min-height: 80px;
-        padding: 8px;
+        padding: 10px;
         font-size: 18px;
         font-weight: 900;
     }
-    .notes-title { font-size: 14px; border-bottom: var(--border-normal); margin-bottom: 5px; }
-    .notes-content { white-space: pre-wrap; }
+    .notes-title { font-size: 14px; border-bottom: var(--border-normal); margin-bottom: 5px; padding-bottom: 2px; }
 
-    .footer-time { font-size: 14px; margin-top: 8px; font-weight: 700; text-align: left; }
+    .footer-time { font-size: 13px; margin-top: 15px; font-weight: 700; color: #333; }
 
     @media print {
-        body { padding: 0; }
-        #staff-container { width: 100%; }
+        body { padding: 0; background: none; }
+        #staff-container { box-shadow: none; margin: 0; width: 100%; }
     }
     </style>
 </head>
 <body>
-<div id="staff-container">
-    <div id="render-target"></div>
-</div>
-<script src="train_staff.js"></script>
+    <div id="staff-container">
+        <div id="render-target"></div>
+    </div>
+    <script src="train_staff.js"></script>
 </body>
 </html>
