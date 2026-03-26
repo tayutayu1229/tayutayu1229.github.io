@@ -9,107 +9,122 @@
         margin: 0;
         padding: 0;
         background-color: #555;
-        font-family: 'BIZ UDPGothic', sans-serif;
+        /* よりスタフらしい少し太めのゴシック体へ */
+        font-family: "BIZ UDPGothic", "MS Gothic", sans-serif;
+        -webkit-font-smoothing: antialiased;
     }
 
-    /* ── 紙エリア (A3タテ) ── */
+    /* ── 紙エリア (A3タテ全体を定義) ── */
     #staff-area {
-        display: flex; /* 2列並べるため */
+        display: flex;
         width: 297mm;
         min-height: 420mm;
         background: #fff;
-        margin: 10px auto;
+        margin: 0 auto; /* 画面中央へ */
         box-sizing: border-box;
-        box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        border: 1px solid #ccc; /* 画面確認用の境界 */
     }
 
     /* ── 1列車分のカラム (A3の半分 = 148.5mm) ── */
     .staff-column {
         width: 50%;
-        padding: 8mm 10mm;
+        padding: 5mm 6mm; /* 余白を実物に合わせ詰める */
         box-sizing: border-box;
-        border-right: 1px dashed #bbb; /* 切り取り線イメージ */
+        border-right: 1px dashed #bbb; /* 切り取り線 */
         position: relative;
     }
 
-    /* ── 基本情報テーブル ── */
-    .info-table {
+    /* ── トンボ (印刷時非表示) ── */
+    @media screen {
+        .staff-column::before, .staff-column::after {
+            content: '+';
+            position: absolute;
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+        }
+        .staff-column::before { top: 1mm; left: 1mm; }
+        .staff-column::after  { top: 1mm; right: 1mm; }
+    }
+
+    /* ── テーブル共通 (罫線のメリハリ) ── */
+    .info-table, .main-timetable {
         width: 100%;
         border-collapse: collapse;
-        border: 2.5px solid #000;
+        border: 2.5px solid #000; /* 外枠を太く */
         table-layout: fixed;
     }
-    .info-table td {
+
+    .info-table td, .main-timetable th, .main-timetable td {
         border: 1px solid #000;
         text-align: center;
         vertical-align: middle;
-        font-size: 11px;
-        font-weight: 800;
-        height: 20px;
     }
+
+    /* ── ヘッダー ── */
+    .staff-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 2px solid #000;
+        padding-bottom: 1px;
+        margin-bottom: 1mm;
+    }
+    .hd-no { font-size: 20px; font-weight: 900; }
+    .hd-right { text-align: right; font-size: 11px; font-weight: 800; line-height: 1.2; }
+    .hd-date { font-size: 11px; font-weight: 800; margin-bottom: 1mm; }
+
+    /* ── 列車番号テーブル ── */
     .train-num-cell {
-        font-size: 44px !important;
+        font-size: 44px !important; /* 最大級に大きく */
         font-weight: 900;
-        height: 65px !important;
-        text-align: left;
+        height: 60px !important;
+        text-align: left !important;
         padding-left: 8px !important;
         font-family: Arial, sans-serif;
     }
 
     /* ── メイン時刻表 ── */
-    .main-timetable {
-        width: 100%;
-        border-collapse: collapse;
-        border: 2.5px solid #000;
-        border-top: none;
-        table-layout: fixed;
-    }
+    .main-timetable { border-top: none; }
     .main-timetable th {
-        border: 1px solid #000;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
-        height: 24px;
-        background-color: #fff;
-    }
-    .main-timetable td {
-        border: 1px solid #000;
+        height: 22px;
+        background-color: #f2f2f2; /* 見出しに薄いグレー */
     }
 
-    /* ── カラム配分 (駅名が広がりすぎないよう固定) ── */
-    .col-jifun   { width: 32px; }
-    .col-station { width: 115px; } /* 駅名幅を適正サイズに固定 */
+    /* ── カラム配分の決定版 (駅名を適正幅に固定) ── */
+    .col-jifun   { width: 34px; }
+    .col-station { width: 110px; } /* 実物を参考に、狭く固定 */
     .col-arr     { width: 85px; }
     .col-dep     { width: 85px; }
     .col-line    { width: 45px; }
     .col-limit   { width: 35px; }
     .col-memo    { width: 40px; }
 
-    /* ── 停車場名の均等割付 ── */
+    /* ── 駅名のデザイン (均等割付) ── */
     .st-name-text {
         font-size: 16px;
         font-weight: 900;
         text-align: justify;
-        text-align-last: justify; /* セル幅いっぱいに広げる */
-        padding: 0 8px; /* 左右の余白 */
+        text-align-last: justify; /* 文字をセル幅いっぱいに散らす */
+        padding: 0 5px;
         white-space: nowrap;
     }
 
-    /* ── 通過駅の赤文字設定 ── */
+    /* ── 通過駅の赤文字設定 (重要) ── */
     .st-passing, .time-passing {
-        color: #e60012 !important; /* 鮮やかな赤 */
+        color: #e60012 !important; /* JRの赤に近い鮮やかな赤 */
     }
 
-    /* ── 時刻表示 (左寄せ・秒は下部) ── */
+    /* ── 時刻表示 (左寄せ・秒は底) ── */
     .time-container {
         display: flex;
-        align-items: baseline; /* 数字の底辺で揃える */
+        align-items: baseline; /* 時、分、秒の底辺を揃える */
         justify-content: flex-start; /* 左寄せ */
         padding-left: 8px;
         height: 100%;
-        width: 100%;
-        box-sizing: border-box;
     }
-
     .time-main {
         font-size: 28px;
         font-weight: 900;
@@ -117,51 +132,33 @@
         line-height: 1;
         letter-spacing: -1px;
     }
-
     .time-sec {
         font-size: 15px;
         font-weight: 900;
         margin-left: 1px;
-        /* 秒を少し浮かせる微調整 */
+        /* 秒数をセルの底に近づける微調整 */
         transform: translateY(-1px);
     }
 
     /* ── 運転時分 ── */
-    .jifun-cell {
-        font-size: 18px;
-        font-weight: 900;
-        text-align: center;
-    }
-    .jifun-sec {
-        font-size: 11px;
-        vertical-align: super;
-    }
+    .jifun-cell { font-size: 18px; font-weight: 900; }
+    .jifun-sec { font-size: 12px; vertical-align: super; }
 
     /* ── その他パーツ ── */
-    .track-num {
-        font-size: 14px;
-        font-weight: 900;
-        font-style: italic;
-        text-align: center;
-    }
-    .pass-arrow {
-        color: #e60012;
-        font-size: 32px;
-        font-weight: 900;
-        display: block;
-        text-align: center;
-    }
+    .track-num { font-size: 18px; font-weight: 900; font-style: italic; }
+    .pass-arrow { color: #e60012; font-size: 32px; font-weight: 900; }
 
-    /* ヘッダー・フッター */
-    .staff-header { display: flex; justify-content: space-between; padding: 2px 0; font-weight: 800; font-size: 13px; }
-    .hd-date { font-size: 12px; font-weight: 800; margin-bottom: 4px; }
-    .notes-area { border: 2px solid #000; border-top: none; min-height: 40px; padding: 4px; font-size: 11px; font-weight: 800; }
-    .staff-footer { text-align: left; font-size: 10px; margin-top: 5px; font-weight: 700; }
+    /* 両数行 */
+    .car-num-row td { height: 35px; background-color: #fff; }
+
+    /* ── 注意事項・フッター ── */
+    .notes-area { border: 2.5px solid #000; border-top: none; min-height: 40px; padding: 4px; font-size: 12px; font-weight: 800; }
+    .staff-footer { font-size: 10px; font-weight: 700; margin-top: 2mm; }
 
     @media print {
         @page { size: A3 portrait; margin: 0; }
         body { background: #fff; }
-        #staff-area { margin: 0; box-shadow: none; }
+        #staff-area { margin: 0; border: none; }
     }
 </style>
 </head>
