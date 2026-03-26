@@ -1,5 +1,5 @@
 /**
- * 列車運転時刻表 (スタフ) 制御スクリプト - リアル再現版
+ * 列車運転時刻表 (スタフ) 制御スクリプト - JR実物再現版
  */
 
 const JSON_PATH = '../../T-time/timetables.json';
@@ -65,37 +65,36 @@ function timeToSeconds(t) {
     return parseInt(p[0] || 0) * 3600 + parseInt(p[1] || 0) * 60 + parseInt(p[2] || 0);
 }
 
-// ── 時刻フォーマット (秒の重なり防止) ──
+// ── 時刻フォーマット ──
 function formatTime(t, isPassing) {
     if (!t || t.trim() === "" || t === " ") return "";
-    if (t === "||" || t === "…") return '<span class="pass-arrow">↓</span>';
+    if (t === "||" || t === "…") return '<div class="pass-arrow">↓</div>';
     
     // 終着駅の巨大な「＝」
     if (t === "=" || t === "＝" || t === "==") {
-        return '<div class="end-mark">＝</div>';
+        return '<div class="end-mark" style="font-size: 50px; letter-spacing: -8px; font-weight: 900; text-align: center;">＝＝</div>';
     }
 
     const p = t.split(':');
     const hhmm = `${p[0]}.${p[1]}`;
     const rawSec = p[2] ? p[2].replace(/^0/, '') : '';
     
-    // 秒がある場合、重なりを防ぐために time-sec クラスを使用
     const secStr = (rawSec && rawSec !== '0' && rawSec !== '00') 
-        ? `<span class="time-sec">${rawSec}</span>` : '';
+        ? `<span class="time-sec" style="font-size: 18px; margin-left: 2px; transform: translateY(-6px); display: inline-block;">${rawSec}</span>` : '';
 
     return `
-        <div class="time-container ${isPassing ? 'time-passing' : ''}">
-            <span class="time-main">${hhmm}</span>${secStr}
+        <div class="time-container ${isPassing ? 'time-passing' : ''}" style="display: flex; align-items: baseline; justify-content: flex-start; padding-left: 10px;">
+            <span class="time-main" style="font-size: 38px; font-weight: 900; font-family: Arial;">${hhmm}</span>${secStr}
         </div>`;
 }
 
-// ── 運転時分の表示 ──
+// ── 運転時分 ──
 function formatJifun(diff) {
     if (diff <= 0) return '';
     const mins = Math.floor(diff / 60);
     const secs = diff % 60;
-    const secStr = secs > 0 ? `<span class="jifun-sec">${secs}</span>` : '';
-    return `<span class="jifun-main">${mins}</span>${secStr}`;
+    const secStr = secs > 0 ? `<span style="font-size: 14px; transform: translateY(-8px); display: inline-block;">${secs}</span>` : '';
+    return `<span style="font-size: 26px; font-weight: 900;">${mins}</span>${secStr}`;
 }
 
 function todayStr() {
@@ -107,59 +106,64 @@ function todayStr() {
 function renderStaff(train, firstSegment) {
     const target = document.getElementById('render-target');
     if (!target) return;
-
-    let fullHtml = `<div class="staff-column">${createStaffInner(train, firstSegment)}</div>`;
-    // 右側が必要な場合は追加。不要なら空のdiv等
-    target.innerHTML = fullHtml;
+    // 左側のみ、幅100%
+    target.innerHTML = `<div class="staff-column" style="width: 100%; border-right: none;">${createStaffInner(train, firstSegment)}</div>`;
 }
 
 function createStaffInner(train, firstSegment) {
     const stopCount = train.stops.length;
-    const rowHeight = stopCount > 25 ? '28px' : (stopCount > 15 ? '34px' : '44px'); 
+    // 駅数に応じて高さを調整するが、基本はパツパツに
+    const rowHeight = stopCount > 22 ? '42px' : '55px'; 
 
     let lastTimedSeconds = null;
 
     let html = `
-        <div class="staff-header">
-            <div class="hd-no">NO.&thinsp;${firstSegment.kid1 || '1'}</div>
-            <div class="hd-right">${train.line || '川越貨物行路'}行路<br>田町運転所</div>
+        <div class="staff-header" style="display: flex; justify-content: space-between; align-items: flex-end; font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; margin-bottom: 5px;">
+            <div style="font-size: 28px;">NO.&thinsp;${firstSegment.kid1 || '1'}</div>
+            <div style="text-align: right; font-size: 18px; line-height: 1.1;">
+                ${train.line || '川越貨物'}行路<br>田町運転所
+            </div>
         </div>
-        <div class="staff-header" style="justify-content: flex-start; gap: 20px;">
-            <div style="font-size:16px;">施行日&emsp;${customDate || '2026/03/19'}</div>
-        </div>
+        <div style="font-size: 22px; font-weight: 900; margin-bottom: 8px;">施行日&emsp;${customDate || '2026/03/19'}</div>
 
-        <table class="info-table">
-            <colgroup>
-                <col class="col-train-no">
-                <col class="col-speed">
-                <col class="col-type">
-                <col>
-            </colgroup>
-            <tr><td>列　　車</td><td>最高速度<br>(Km/h)</td><td>速度種別</td><td>けん引定数</td></tr>
-            <tr>
-                <td class="train-num-cell">
-                    <div class="train-num-text">${train.trainNumber || '―'}</div>
+        <table style="width: 100%; border-collapse: collapse; border: 3.5px solid #000; table-layout: fixed; margin-bottom: 0;">
+            <colgroup><col style="width: 45%;"><col style="width: 18%;"><col style="width: 18%;"><col style="width: 19%;"></colgroup>
+            <tr style="height: 35px; font-size: 14px; font-weight: 900; text-align: center;">
+                <td style="border: 1px solid #000;">列　　車</td>
+                <td style="border: 1px solid #000;">最高速度</td>
+                <td style="border: 1px solid #000;">速度種別</td>
+                <td style="border: 1px solid #000;">けん引定数</td>
+            </tr>
+            <tr style="height: 115px; text-align: center;">
+                <td style="border: 1px solid #000; text-align: left; padding-left: 10px;">
+                    <div style="font-size: 88px; font-weight: 900; font-family: 'Arial Black'; letter-spacing: -4px;">${train.trainNumber || ''}</div>
                 </td>
-                <td><div class="info-sub-text">${(train.speed || '').replace(/[,、]/g, '<br>')}</div></td>
-                <td><div class="info-sub-text">${train.speedType || ''}</div></td>
-                <td><div class="info-sub-text">${train.power || ''}</div></td>
+                <td style="border: 1px solid #000; font-size: 18px; font-weight: 900;">${(train.speed || '').replace(/[,、]/g, '<br>')}</td>
+                <td style="border: 1px solid #000; font-size: 18px; font-weight: 900;">${train.speedType || ''}</td>
+                <td style="border: 1px solid #000; font-size: 18px; font-weight: 900;">${train.power || ''}</td>
             </tr>
         </table>
 
-        <table class="main-timetable">
+        <table style="width: 100%; border-collapse: collapse; border: 3.5px solid #000; border-top: none; table-layout: fixed;">
             <colgroup>
-                <col class="col-jifun"><col class="col-station"><col class="col-arr">
-                <col class="col-dep"><col class="col-line"><col class="col-limit">
+                <col style="width: 12%;"><col style="width: 32%;"><col style="width: 20%;"><col style="width: 20%;"><col style="width: 8%;"><col style="width: 8%;">
             </colgroup>
             <thead>
-                <tr><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発(通)</th><th>着発<br>線</th><th>制限</th></tr>
+                <tr style="height: 40px; border-bottom: 2px solid #000; font-size: 14px; font-weight: 900;">
+                    <th style="border-right: 1px solid #000;">運転<br>時分</th>
+                    <th style="border-right: 1px solid #000;">停車場名</th>
+                    <th style="border-right: 1px solid #000;">着</th>
+                    <th style="border-right: 1px solid #000;">発(通)</th>
+                    <th style="border-right: 1px solid #000;">着発<br>線</th>
+                    <th>制限</th>
+                </tr>
             </thead>
             <tbody>
-                <tr style="height:28px;">
-                    <td colspan="2" style="font-size:18px; font-weight:900; text-align:center;">
-                        ${train.carCount || ''}<span style="font-size:12px;">両</span>
+                <tr style="height: 48px; border-bottom: 2px solid #000; font-weight: 900;">
+                    <td colspan="2" style="text-align: center; border-right: 1px solid #000; font-size: 28px;">
+                        ${train.carCount || ''}<span style="font-size: 16px;">両</span>
                     </td>
-                    <td colspan="4" style="text-align:left; padding-left:20px; font-weight:900; font-size:20px;">
+                    <td colspan="4" style="padding-left: 25px; font-size: 26px;">
                         ${train.carLabel || '（乗継）'}
                     </td>
                 </tr>
@@ -168,7 +172,6 @@ function createStaffInner(train, firstSegment) {
     train.stops.forEach((stop, i) => {
         const isPassing = (stop.arrival === "||" || stop.arrival === "…" || (stop.arrival === "" && stop.departure !== "" && i !== 0 && i !== train.stops.length -1));
         
-        // 運転時分の計算
         let currentSeconds = timeToSeconds(stop.arrival) || timeToSeconds(stop.departure);
         let jifunHtml = '';
         if (currentSeconds !== null) {
@@ -180,17 +183,20 @@ function createStaffInner(train, firstSegment) {
 
         const arrHtml = formatTime(stop.arrival, isPassing);
         const depHtml = formatTime(stop.departure, isPassing);
-        const nameClass = isPassing ? 'st-name-text st-passing' : 'st-name-text';
 
         html += `
-            <tr style="height:${rowHeight};">
-                <td class="jifun-cell">${jifunHtml}</td>
-                <td class="col-station">
-                    <div class="${nameClass}">${stop.station}</div>
+            <tr style="height: ${rowHeight}; border-bottom: 1px solid #000;">
+                <td style="border-right: 1px solid #000; text-align: right; padding-right: 5px;">${jifunHtml}</td>
+                <td style="border-right: 1px solid #000;">
+                    <div style="font-size: 24px; font-weight: 900; text-align: justify; text-align-last: justify; padding: 0 12px; ${isPassing ? 'color: red;' : ''}">
+                        ${stop.station}
+                    </div>
                 </td>
-                <td>${arrHtml}</td>
-                <td>${depHtml}</td>
-                <td class="track-num">${stop.trackN || ''}</td>
+                <td style="border-right: 1px solid #000;">${arrHtml}</td>
+                <td style="border-right: 1px solid #000;">${depHtml}</td>
+                <td style="border-right: 1px solid #000; text-align: center; font-size: 26px; font-weight: 900; font-style: italic; font-family: serif;">
+                    ${stop.trackN || ''}
+                </td>
                 <td></td>
             </tr>
         `;
@@ -199,11 +205,11 @@ function createStaffInner(train, firstSegment) {
     html += `
             </tbody>
         </table>
-        <div class="notes-area">
-            <div style="font-size:11px; font-weight:900; border-bottom:1px solid #000; margin-bottom:4px;">注意事項</div>
-            <div class="notes-text">${train.notes || ''}</div>
+        <div style="border: 3.5px solid #000; border-top: none; min-height: 90px; padding: 5px; box-sizing: border-box;">
+            <div style="font-size: 14px; font-weight: 900; border-bottom: 1px solid #000; margin-bottom: 5px;">【注意事項】</div>
+            <div style="font-size: 18px; font-weight: 900; white-space: pre-wrap;">${train.notes || ''}</div>
         </div>
-        <div class="staff-footer">${todayStr()}</div>
+        <div style="font-size: 14px; font-weight: 900; margin-top: 10px;">${todayStr()}</div>
     `;
     return html;
 }
