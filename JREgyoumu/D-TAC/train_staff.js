@@ -1,5 +1,9 @@
 /**
  * 列車運転時刻表 (スタフ) 制御スクリプト - 画像12・13完全再現版
+ * [修正ポイント]
+ * 1. 着発線(track-cell)の表示をUDゴシック系で強調
+ * 2. 運転時分の秒数・時刻の秒数の肩文字配置を厳密化
+ * 3. ページ内ビューアーとしてのHTML構造への流し込み
  */
 
 const JSON_PATH = '../../T-time/timetables.json';
@@ -57,7 +61,7 @@ function mergeTrainSegments(segments) {
     return base;
 }
 
-// ── 時刻フォーマット（画像12の 55 30 などの再現） ──
+// ── 時刻フォーマット（肩文字の秒数再現） ──
 function formatTime(t, isPassing) {
     if (!t || t.trim() === "" || t === " ") return "";
     if (t === "||" || t === "↓" || t === "…") return '<div class="pass-arrow">↓</div>';
@@ -67,6 +71,7 @@ function formatTime(t, isPassing) {
     const hhmm = `${p[0]}.${p[1]}`;
     const rawSec = p[2] ? p[2].replace(/^0/, '') : '';
     
+    // 秒がある場合のみ肩文字スパンを生成
     const secStr = (rawSec && rawSec !== '0' && rawSec !== '00') 
         ? `<span class="time-sec">${rawSec}</span>` : '';
 
@@ -78,8 +83,8 @@ function formatTime(t, isPassing) {
 
 // ── 運転時分（肩に秒を乗せる） ──
 function formatJifun(val) {
-    if (!val) return "";
-    // 秒単位の数値で来る場合と文字列で来る場合の両方に対応
+    if (!val || val === 0 || val === "0" || val === "0:00") return "";
+    
     let min, sec;
     if (typeof val === 'number') {
         min = Math.floor(val / 60);
@@ -90,7 +95,7 @@ function formatJifun(val) {
         sec = p[1] ? p[1].replace(/^0/, '') : '';
     }
     const secStr = (sec && sec != 0) ? `<span class="jifun-sec">${sec}</span>` : '';
-    return `<span class="jifun-main">${min}</span>${secStr}`;
+    return `<div class="jifun-cell"><span class="jifun-main">${min}</span>${secStr}</div>`;
 }
 
 function renderStaff(train, firstSegment) {
@@ -101,13 +106,13 @@ function renderStaff(train, firstSegment) {
 
 function createStaffInner(train, firstSegment) {
     const stopCount = train.stops.length;
-    // 駅数に応じて行の高さを自動調整
-    const rowHeight = stopCount > 15 ? '48px' : '55px';
+    // 駅数に応じてA4 1枚に収まるよう高さを調整（18駅以上なら詰める）
+    const rowHeight = stopCount > 18 ? '42px' : (stopCount > 15 ? '48px' : '55px');
 
     let html = `
         <div class="header-flex">
             <div class="no-label">NO. ${firstSegment.kid1 || '1'}</div>
-            <div class="depot-info">${train.line || ''}行路<br>新前橋運輸区</div>
+            <div class="depot-info">${train.line || '変臨Ｂ５２３'}行路<br>新前橋運輸区</div>
         </div>
         <div class="execution-date">施行日　${customDate || train.startDate || '2026/03/19'}</div>
 
@@ -116,9 +121,9 @@ function createStaffInner(train, firstSegment) {
             <tr style="height:35px;"><td>列　　車</td><td>最高速度<br>(Km/h)</td><td>速度種別</td><td>けん引定数</td></tr>
             <tr>
                 <td class="train-num-value">${train.trainNumber || ''}</td>
-                <td style="font-size:18px;">${train.speed || ''}</td>
-                <td style="font-size:22px;">${train.speedType || ''}</td>
-                <td style="font-size:18px;">${(train.power || '').replace(/\n/g, '<br>')}</td>
+                <td style="font-size:20px; font-weight:900;">${train.speed || ''}</td>
+                <td style="font-size:20px; font-weight:900;">${train.speedType || ''}</td>
+                <td style="font-size:16px; font-weight:900; line-height:1.2;">${(train.power || '').replace(/\n/g, '<br>')}</td>
             </tr>
         </table>
 
@@ -131,7 +136,7 @@ function createStaffInner(train, firstSegment) {
             </thead>
             <tbody>
                 <tr style="height:40px;">
-                    <td colspan="2" style="text-align:center; font-size:28px; font-weight:900;">
+                    <td colspan="2" style="text-align:center; font-size:28px; font-weight:900; background-color:#fff;">
                         ${train.carCount || ''}<span style="font-size:16px; margin-left:2px;">両</span>
                     </td>
                     <td colspan="5" style="padding-left:20px; font-size:22px; font-weight:900; color:red;">${train.carLabel || ''}</td>
@@ -139,18 +144,18 @@ function createStaffInner(train, firstSegment) {
     `;
 
     train.stops.forEach((stop, i) => {
-        // 通過判定（着が矢印、または着空欄かつ途中駅）
+        // 通過判定：着が矢印、または着空欄かつ途中駅
         const isPassing = (stop.arrival === "||" || stop.arrival === "↓" || (stop.arrival === "" && stop.departure !== "" && i !== 0 && i !== train.stops.length - 1));
         
         html += `
             <tr style="height: ${rowHeight};">
-                <td class="jifun-cell">${formatJifun(stop.timeDiff)}</td>
+                <td>${formatJifun(stop.timeDiff)}</td>
                 <td><div class="station-name ${isPassing ? 'st-passing' : ''}">${stop.station}</div></td>
                 <td>${formatTime(stop.arrival, isPassing)}</td>
                 <td>${formatTime(stop.departure, isPassing)}</td>
                 <td class="track-cell">${stop.trackN || ''}</td>
-                <td></td>
-                <td style="font-size:12px; font-weight:900; vertical-align:top; padding:2px;">${stop.memo || ''}</td>
+                <td style="text-align:center; font-weight:900; color:red;">${stop.speedLimit || ''}</td>
+                <td style="font-size:11px; font-weight:900; vertical-align:top; padding:2px; line-height:1.1;">${stop.memo || ''}</td>
             </tr>
         `;
     });
