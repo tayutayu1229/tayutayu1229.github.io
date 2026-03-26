@@ -2,151 +2,154 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>列車運転時刻表 - リアル再現版</title>
+    <title>列車運転時刻表 - 決定版</title>
     <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700;900&display=swap" rel="stylesheet">
     <style>
     :root {
-        --border-bold: 2.5px solid #000;
-        --border-normal: 1px solid #000;
+        --border-bold: 3.5px solid #000; /* 資料に合わせた極太枠 */
+        --border-normal: 1.5px solid #000; /* 内枠もハッキリと */
     }
 
     body {
         margin: 0;
-        padding: 10mm;
-        background-color: #f0f0f0;
+        padding: 5mm;
+        background-color: #fff;
         font-family: 'BIZ UDPGothic', sans-serif;
     }
 
-    /* スタフ外枠 */
+    /* スタフ外枠：横全体を使う */
     #staff-container {
-        width: 148mm; /* A3半分のイメージ */
-        background: #fff;
-        padding: 5mm;
-        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        width: 100%;
+        max-width: 210mm; /* A4/A3横幅を想定 */
+        margin: 0 auto;
     }
 
-    /* ヘッダー部 */
+    /* ヘッダー */
     .header-flex {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
-        margin-bottom: 2px;
+        margin-bottom: 5px;
+        padding: 0 5px;
     }
-    .no-label { font-size: 20px; font-weight: 900; }
-    .depot-info { text-align: right; font-size: 14px; line-height: 1.2; font-weight: 900; }
-    .execution-date { font-size: 16px; font-weight: 900; margin-bottom: 5px; }
+    .no-label { font-size: 28px; font-weight: 900; }
+    .depot-info { text-align: right; font-size: 18px; line-height: 1.2; font-weight: 900; }
+    .execution-date { font-size: 22px; font-weight: 900; margin-bottom: 10px; padding-left: 5px; }
 
     /* 共通テーブル設定 */
     table {
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
+        border: var(--border-bold);
+    }
+
+    td, th {
+        border: var(--border-normal);
+        padding: 0;
+        box-sizing: border-box;
     }
 
     /* 列車情報テーブル */
-    .info-table {
-        border: var(--border-bold);
-    }
-    .info-table td {
-        border: var(--border-normal);
-        height: 30px;
-        text-align: center;
-        vertical-align: middle;
-        font-size: 12px;
-        font-weight: 900;
-    }
-    /* 列車番号を巨大化 */
+    .info-table tr { height: 35px; }
+    .info-table td { text-align: center; font-size: 14px; font-weight: 900; }
     .train-num-value {
-        font-size: 60px; /* 参考資料に合わせた巨大サイズ */
+        font-size: 90px; /* 特大サイズ */
         font-family: 'Arial Black', sans-serif;
-        letter-spacing: -2px;
-        height: 80px !important;
+        letter-spacing: -3px;
+        height: 120px !important;
+        text-align: left !important;
+        padding-left: 20px !important;
     }
 
     /* メイン時刻表 */
-    .main-table {
-        border: var(--border-bold);
-        border-top: none;
-    }
+    .main-table { border-top: none; }
     .main-table th {
-        border: var(--border-normal);
-        background: #fff;
-        font-size: 11px;
-        height: 25px;
+        height: 40px;
+        font-size: 16px;
         font-weight: 900;
+        background: #fff;
     }
-    .main-table td {
-        border: var(--border-normal);
-        height: 45px; /* 行の高さを確保 */
-        vertical-align: middle;
-        position: relative;
-    }
+    .main-table td { height: 55px; vertical-align: middle; }
 
     /* 運転時分 */
-    .jifun-cell { font-size: 24px; font-weight: 900; text-align: right; padding-right: 4px; }
-    .jifun-sec { font-size: 14px; margin-left: 1px; vertical-align: top; }
+    .jifun-cell { font-size: 28px; font-weight: 900; text-align: right; padding-right: 8px; }
+    .jifun-sec { font-size: 16px; margin-left: 1px; vertical-align: top; position: relative; top: -5px; }
 
     /* 駅名 (均等割付) */
     .station-name {
-        font-size: 22px;
+        font-size: 26px;
         font-weight: 900;
         text-align: justify;
         text-align-last: justify;
-        padding: 0 10px;
+        padding: 0 15px;
     }
+    .st-passing { color: #e60012; }
 
     /* 時刻表示 */
     .time-container {
         display: flex;
         align-items: baseline;
-        justify-content: center;
+        justify-content: flex-start;
+        padding-left: 15px;
         font-family: Arial, sans-serif;
     }
-    .time-main { font-size: 36px; font-weight: 900; letter-spacing: -1px; }
-    .time-sec { font-size: 18px; font-weight: 900; margin-left: 2px; transform: translateY(-5px); }
+    .time-main { font-size: 42px; font-weight: 900; letter-spacing: -1px; }
+    .time-sec { font-size: 20px; font-weight: 900; margin-left: 3px; transform: translateY(-8px); }
+    .pass-arrow { color: #e60012; font-size: 45px; font-weight: 900; text-align: center; width: 100%; }
 
-    /* 終着駅の二重線 (=) */
+    /* 終着駅の二重線 */
     .end-mark {
-        font-size: 45px;
+        font-size: 60px;
         font-weight: 900;
         text-align: center;
-        letter-spacing: -5px;
+        letter-spacing: -10px;
         line-height: 1;
     }
 
-    /* 着発線 (斜体) */
+    /* 着発線 */
     .track-cell {
-        font-size: 22px;
+        font-size: 28px;
         font-weight: 900;
         font-style: italic;
         text-align: center;
         font-family: 'Times New Roman', serif;
     }
 
-    /* 通過矢印 */
-    .pass-arrow { color: #e60012; font-size: 40px; font-weight: 900; text-align: center; }
-
     /* 注意事項 */
     .notes-area {
         border: var(--border-bold);
         border-top: none;
-        min-height: 60px;
-        padding: 5px;
-        font-size: 14px;
+        min-height: 100px;
+        padding: 10px;
+        font-size: 20px;
         font-weight: 900;
+        white-space: pre-wrap;
+    }
+    .notes-title {
+        font-size: 15px;
+        border-bottom: var(--border-normal);
+        margin-bottom: 10px;
+        padding-bottom: 2px;
     }
 
     .footer-time {
-        font-size: 12px;
-        margin-top: 5px;
+        font-size: 14px;
+        margin-top: 10px;
         font-weight: 700;
+    }
+
+    @media print {
+        body { padding: 0; }
+        #staff-container { box-shadow: none; width: 100%; }
     }
     </style>
 </head>
 <body>
 
 <div id="staff-container">
-    <div id="render-target"></div>
+    <div id="render-target">
+        </div>
 </div>
 
 <script src="train_staff.js"></script>
