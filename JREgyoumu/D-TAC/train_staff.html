@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>列車運転時刻表</title>
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: #555;
+            font-family: 'BIZ UDPGothic', sans-serif;
+        }
+
+        /* ── 紙エリア ── */
+        #staff-area {
+            width: 148mm;
+            min-height: 210mm;
+            background: #fff;
+            margin: 20px auto;
+            padding: 4mm 6mm 6mm;
+            box-sizing: border-box;
+            color: #000;
+            position: relative;
+        }
+
+        /* ── トンボ ── */
+        #staff-area::before,
+        #staff-area::after {
+            content: '+';
+            position: absolute;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        #staff-area::before { top: 2px; left: 4px; }
+        #staff-area::after  { top: 2px; right: 4px; }
+
+        /* ── ヘッダー ── */
+        .staff-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1mm;
+        }
+
+        .hd-no {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: .05em;
+        }
+
+        .hd-right {
+            text-align: right;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .hd-date {
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 1mm;
+        }
+
+        /* ── 基本情報テーブル ── */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1.5px solid #000;
+            table-layout: fixed;
+        }
+
+        .info-table td {
+            border: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 9px;
+            height: 12px;
+            padding: 0 2px;
+        }
+
+        .info-table .col-train   { width: 42%; }
+        .info-table .col-speed   { width: 15%; }
+        .info-table .col-speedt  { width: 25%; }
+        .info-table .col-power   { width: 18%; }
+
+        .train-num-cell {
+            font-size: 30px !important;
+            font-weight: 700;
+            height: 44px !important;
+            letter-spacing: .06em;
+            text-align: left;
+            padding-left: 4px !important;
+        }
+
+        .speed-val {
+            font-size: 9px;
+            line-height: 1.3;
+            white-space: pre-line;
+        }
+
+        /* ── メイン時刻表 ── */
+        .main-timetable {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1.5px solid #000;
+            border-top: none;
+            table-layout: fixed;
+        }
+
+        .main-timetable th {
+            border: 1px solid #000;
+            font-size: 8.5px;
+            font-weight: normal;
+            text-align: center;
+            vertical-align: middle;
+            height: 20px;
+            padding: 0;
+            background: #fff;
+        }
+
+        .main-timetable td {
+            border: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+            padding: 0 1px;
+        }
+
+        /* 列幅 */
+        .col-jifun   { width: 28px; }
+        .col-station { } /* auto */
+        .col-arr     { width: 64px; }
+        .col-dep     { width: 64px; }
+        .col-line    { width: 36px; }
+        .col-limit   { width: 28px; }
+        .col-memo    { width: 44px; }
+
+        /* ── 両数行 ── */
+        .car-num-row td { height: 30px; }
+
+        .car-num-cell {
+            font-size: 22px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .car-num-cell span {
+            font-size: 12px;
+        }
+
+        .syosho-cell {
+            color: #c00;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: left;
+            padding-left: 6px !important;
+        }
+
+        /* ── 停車駅行 ── */
+        .st-name-text {
+            font-weight: 700;
+            text-align: left;
+            padding-left: 4px !important;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            color: #000;
+            font-size: 15px;
+        }
+
+        .st-passing {
+            color: #cc0000 !important;
+        }
+
+        /* ── 時刻 ── */
+        .time-main {
+            font-size: 20px;
+            font-weight: 700;
+            font-family: 'BIZ UDPGothic', sans-serif;
+        }
+
+        .time-sec {
+            font-size: 11px;
+            font-weight: 700;
+            vertical-align: super;
+            line-height: 0;
+        }
+
+        td.time-passing .time-main,
+        td.time-passing .time-sec {
+            color: #cc0000;
+        }
+
+        .pass-arrow {
+            color: #cc0000;
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .stop-symbol {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        /* ── 着発線 ── */
+        .track-num {
+            font-size: 14px;
+            font-weight: 700;
+            font-style: italic;
+            color: #000;
+        }
+
+        /* ── 運転時分 ── */
+        .jifun-main {
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .jifun-sec {
+            font-size: 8px;
+            font-weight: 700;
+            vertical-align: super;
+            line-height: 0;
+        }
+
+        /* ── 注意事項 ── */
+        .notes-area {
+            margin-top: 2mm;
+            font-size: 9px;
+            font-weight: 700;
+        }
+        .notes-label {
+            border-bottom: 1px solid #000;
+            padding-bottom: 1px;
+            margin-bottom: 1mm;
+        }
+        .notes-text {
+            font-size: 10px;
+            font-weight: 400;
+            line-height: 1.6;
+            min-height: 10mm;
+        }
+
+        /* ── フッター ── */
+        .staff-footer {
+            margin-top: 3mm;
+            font-size: 9px;
+            text-align: left;
+            color: #333;
+        }
+
+        /* ── 印刷 ── */
+        @media print {
+            body, html { background: #fff; }
+            #staff-area {
+                margin: 0;
+                padding: 5mm;
+                box-shadow: none;
+                width: 140mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="staff-area">
+        <div id="render-target"></div>
+    </div>
+    <script src="train_staff.js"></script>
+</body>
+</html>
