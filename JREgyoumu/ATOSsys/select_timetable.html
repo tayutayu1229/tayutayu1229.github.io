@@ -80,6 +80,19 @@
         .select-table th {
             background-color: #e0e0e0;
             text-align: center;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .select-table th:hover {
+            background-color: #d0d0d0;
+        }
+
+        .select-table th .sort-icon {
+            margin-left: 4px;
+            font-size: 11px;
+            color: #555;
         }
 
         .select-table tbody tr {
@@ -110,10 +123,10 @@
         <table class="select-table" id="timetable-list">
             <thead>
                 <tr>
-                    <th style="width: 15%;">施行日</th>
-                    <th style="width: 10%;">列車種別</th>
-                    <th style="width: 15%;">列車番号</th>
-                    <th style="width: 50%;">区間（始発〜終着）</th>
+                    <th style="width: 15%;" data-col="startDate">施行日<span class="sort-icon">↕</span></th>
+                    <th style="width: 10%;" data-col="type">列車種別<span class="sort-icon">↕</span></th>
+                    <th style="width: 15%;" data-col="trainNumber">列車番号<span class="sort-icon">↕</span></th>
+                    <th style="width: 50%;" data-col="section">区間（始発〜終着）<span class="sort-icon">↕</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -131,7 +144,11 @@
             const searchButton = document.getElementById('search-button');
             const resetButton = document.getElementById('reset-button');
             
-            let cachedAllData = []; // 読み込んだ全データを保持するキャッシュ
+            let cachedAllData = [];
+
+            // ソート状態管理
+            let sortCol = null;   // 現在のソート列キー
+            let sortDir = 'asc';  // 'asc' or 'desc'
 
             // fetchでJSON_PATHからデータを取得する関数
             const loadTimetables = async () => {
@@ -140,7 +157,6 @@
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status} - JSONファイルの読み込みに失敗しました。パスを確認してください。`);
                     }
-                    // データをキャッシュに保存
                     cachedAllData = await response.json();
                     renderTimetableList(cachedAllData);
                 } catch (error) {
@@ -149,17 +165,50 @@
                     cachedAllData = [];
                 }
             };
+
+            // ソートアイコンを更新する関数
+            const updateSortIcons = () => {
+                document.querySelectorAll('.select-table th').forEach(th => {
+                    const icon = th.querySelector('.sort-icon');
+                    if (!icon) return;
+                    const col = th.getAttribute('data-col');
+                    if (col === sortCol) {
+                        icon.textContent = sortDir === 'asc' ? '▲' : '▼';
+                    } else {
+                        icon.textContent = '↕';
+                    }
+                });
+            };
+
+            // グループ化済みデータのリストをソートする関数
+            // entries: [{key, group, rep}] の配列
+            const sortEntries = (entries) => {
+                if (!sortCol) return entries;
+                return [...entries].sort((a, b) => {
+                    let aVal = '';
+                    let bVal = '';
+                    if (sortCol === 'section') {
+                        aVal = `${a.rep.origin || ''}〜${a.rep.destination || ''}`;
+                        bVal = `${b.rep.origin || ''}〜${b.rep.destination || ''}`;
+                    } else {
+                        aVal = a.rep[sortCol] || '';
+                        bVal = b.rep[sortCol] || '';
+                    }
+                    const cmp = aVal.localeCompare(bVal, 'ja');
+                    return sortDir === 'asc' ? cmp : -cmp;
+                });
+            };
             
             // フィルタリングとグルーピングを行い、テーブルを描画する関数
             const renderTimetableList = (data) => {
-                listBody.innerHTML = ''; // テーブルをクリア
+                listBody.innerHTML = '';
 
                 if (data.length === 0) {
                      listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">該当するデータがありません。</td></tr>';
                      return;
                 }
                 
-                // 列車を一意に識別するためのキー（施行日-列車番号-始発駅-終着駅）でデータをグループ化
+                // 列車を一意に識別するためのキーでグループ化
                 const groupedTrains = data.reduce((acc, train) => {
                     const key = `${train.startDate}-${train.trainNumber}-${train.origin}-${train.destination}`;
                     if (!acc[key]) {
@@ -169,32 +218,41 @@
                     return acc;
                 }, {});
 
-                // グループ化されたデータを一覧表に表示
-                Object.keys(groupedTrains).forEach(key => {
-                    const trainGroup = groupedTrains[key];
-                    const representativeTrain = trainGroup[0]; 
+                // グループをエントリ配列に変換
+                let entries = Object.keys(groupedTrains).map(key => ({
+                    key,
+                    group: groupedTrains[key],
+                    rep: groupedTrains[key][0]
+                }));
 
+                // ソートが未指定の場合はデフォルトで逆順（末尾から表示）
+                if (!sortCol) {
+                    entries = entries.reverse();
+                } else {
+                    entries = sortEntries(entries);
+                }
+
+                entries.forEach(({ group, rep }) => {
                     const row = listBody.insertRow();
-                    row.insertCell().textContent = representativeTrain.startDate || '―';
+                    row.insertCell().textContent = rep.startDate || '―';
                     
-                    // 列車種別: crownなし、typeのみ。"選択なし"なら空白
-                    let trainType = representativeTrain.type || '';
+                    let trainType = rep.type || '';
                     if (trainType === "選択なし") {
                         trainType = "";
                     }
                     row.insertCell().textContent = trainType;
                     
-                    row.insertCell().textContent = representativeTrain.trainNumber || '―';
+                    row.insertCell().textContent = rep.trainNumber || '―';
                     
-                    // 区間（始発〜終着）
-                    row.insertCell().textContent = `${representativeTrain.origin || '―'} 〜 ${representativeTrain.destination || '―'}`;
+                    row.insertCell().textContent = `${rep.origin || '―'} 〜 ${rep.destination || '―'}`;
 
-                    // クリックイベントで詳細画面へ遷移
                     row.addEventListener('click', () => {
-                        sessionStorage.setItem('selectedTrainData', JSON.stringify(trainGroup));
+                        sessionStorage.setItem('selectedTrainData', JSON.stringify(group));
                         window.location.href = 'train_timetable.html';
                     });
                 });
+
+                updateSortIcons();
             };
             
             // 検索実行関数
@@ -202,27 +260,37 @@
                 const dateFilter = searchDateInput.value.trim().toLowerCase();
                 const numberFilter = searchNumberInput.value.trim().toLowerCase();
                 
-                // キャッシュされた全データに対してフィルタを適用
                 const filteredData = cachedAllData.filter(train => {
                     let dateMatch = true;
                     let numberMatch = true;
                     
-                    // 施行日の絞り込み
                     if (dateFilter) {
                         dateMatch = (train.startDate && train.startDate.toLowerCase().includes(dateFilter));
                     }
                     
-                    // 列車番号の絞り込み
                     if (numberFilter) {
                         numberMatch = (train.trainNumber && train.trainNumber.toLowerCase().includes(numberFilter));
                     }
                     
-                    // 両方の条件に一致する場合にtrue
                     return dateMatch && numberMatch;
                 });
                 
                 renderTimetableList(filteredData);
             };
+
+            // 列ヘッダーのソートイベント
+            document.querySelectorAll('.select-table th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.getAttribute('data-col');
+                    if (sortCol === col) {
+                        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortCol = col;
+                        sortDir = 'asc';
+                    }
+                    applySearchFilter();
+                });
+            });
 
             // イベントリスナーの設定
             searchButton.addEventListener('click', applySearchFilter);
@@ -231,7 +299,9 @@
             resetButton.addEventListener('click', () => {
                 searchDateInput.value = '';
                 searchNumberInput.value = '';
-                renderTimetableList(cachedAllData); // 全データを再描画
+                sortCol = null;
+                sortDir = 'asc';
+                renderTimetableList(cachedAllData);
             });
 
             // 初期データのロード
