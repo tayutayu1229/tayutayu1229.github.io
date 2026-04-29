@@ -7,21 +7,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
-        /* 変数定義（濃い緑ベース） */
         :root {
-            --primary-color: #006400; /* 濃い深緑 */
+            --primary-color: #006400;
             --primary-light: #007C00; 
-            --accent-color: #FF6F00;  /* オレンジ */
-            --pdf-color: #E74C3C;     /* PDF (赤) */
-            --word-color: #2b5797;    /* Word (青) */
-            --excel-color: #1e7145;   /* Excel (深緑) */
+            --accent-color: #FF6F00;
+            --pdf-color: #E74C3C;
+            --word-color: #2b5797;
+            --excel-color: #1e7145;
             --background-color: #F8F8F8;
             --card-background: #ffffff;
             --text-color: #333;
             --meta-color: #666;
             --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.05);
             --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.1);
-            
             --admin-bg-color: #fff3cd;      
             --admin-border-color: #ffeeba;  
             --admin-text-color: #856404;    
@@ -36,7 +34,6 @@
             min-height: 100vh;
         }
         
-        /* 基本レイアウト */
         .header-container { max-width: 1200px; margin: 0 auto 30px; padding-bottom: 10px; border-bottom: 3px solid var(--primary-color); display: flex; align-items: center; flex-wrap: wrap; }
         .back-button { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 0.9em; margin-right: 10px; transition: background-color 0.2s; }
         .back-button:hover { background-color: var(--primary-light); }
@@ -52,7 +49,6 @@
         .search-sort-group input, .search-sort-group select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
         #bulkDownload { background-color: var(--accent-color); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; }
         
-        /* 日付フィルタエリア */
         .date-filter-area { padding: 15px; background-color: #f0f0f0; border-radius: 8px; display: flex; gap: 10px; align-items: center; border: 1px solid #ccc; flex-wrap: wrap; margin-bottom: 20px; }
         .date-filter-area label { font-weight: 600; color: var(--text-color); white-space: nowrap; font-size: 0.9em; }
         .date-filter-area input[type="date"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; flex-grow: 1; min-width: 120px; }
@@ -64,7 +60,44 @@
         .layout-switcher button { background: none; border: 1px solid #ccc; color: #666; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .layout-switcher button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-        /* ファイルグリッドの基本設定 */
+        /* ---- アップロードエリア ---- */
+        .upload-control {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f4f4f4;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #ddd;
+            flex-wrap: wrap;
+        }
+        #uploadBtn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #uploadBtn:hover { background-color: var(--primary-light); }
+        #uploadBtn:disabled { background-color: #aaa; cursor: not-allowed; }
+        #file-name-display { color: #666; font-size: 0.9em; }
+        #upload-progress {
+            width: 100%;
+            display: none;
+        }
+        #upload-progress progress {
+            width: 100%;
+            height: 8px;
+            accent-color: var(--primary-color);
+        }
+        #upload-status { font-size: 0.85em; color: var(--meta-color); }
+
         .file-grid { margin-top: 15px; gap: 20px; display: grid; }
         .file-card {
             background: var(--card-background);
@@ -77,12 +110,8 @@
         }
         .file-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--primary-color); }
         .file-card a { text-decoration: none; color: inherit; display: block; }
-        .card-info { 
-            padding: 15px;
-            position: relative;
-        }
+        .card-info { padding: 15px; position: relative; }
         
-        /* --- プレビューエリア --- */
         .card-preview { position: relative; height: 160px; overflow: hidden; } 
         .card-preview img { width: 100%; height: 100%; object-fit: cover; }
         .card-preview .no-image { 
@@ -93,7 +122,6 @@
         }
         .card-preview .no-image i { font-size: 2em; margin-bottom: 10px; }
         
-        /* ファイルアイコン (PDF, Wordなどの角丸ラベル) */
         .file-icon { position: absolute; top: 10px; right: 10px; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 600; display: flex; align-items: center; z-index: 10;}
         .file-icon i { margin-right: 5px; }
         .pdf-type { background-color: var(--pdf-color); }
@@ -104,7 +132,6 @@
 
         .card-info h2 { font-size: 1.1em; margin-top: 0; margin-bottom: 8px; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
-        /* --- メタデータ表示の強化 (カード表示用) --- */
         .metadata-detail {
             font-size: 0.85em;
             color: var(--meta-color);
@@ -112,90 +139,23 @@
             padding-top: 10px;
             border-top: 1px dashed #eee;
         }
-        .metadata-detail div {
-            margin-bottom: 5px;
-            display: flex;
-            align-items: flex-start;
-        }
-        .metadata-detail strong {
-            color: var(--text-color);
-            width: 50px;
-            font-weight: 600;
-            flex-shrink: 0;
-            margin-right: 10px;
-        }
-        .metadata-detail span {
-            flex-grow: 1;
-            line-height: 1.4;
-        }
+        .metadata-detail div { margin-bottom: 5px; display: flex; align-items: flex-start; }
+        .metadata-detail strong { color: var(--text-color); width: 50px; font-weight: 600; flex-shrink: 0; margin-right: 10px; }
+        .metadata-detail span { flex-grow: 1; line-height: 1.4; }
 
-
-        /* --- カスタムチェックボックスとアクションボタン --- */
-        .select-checkbox {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 10;
-            opacity: 0; 
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-        }
-        .select-checkbox + label {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 9;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #ccc;
-            border-radius: 4px;
-            background: #fff;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-        .select-checkbox:checked + label {
-            border-color: var(--primary-color);
-            background-color: var(--primary-color);
-        }
-        .select-checkbox:checked + label::after {
-            content: "\f00c"; 
-            font-family: 'Font Awesome 6 Free';
-            font-weight: 900;
-            font-size: 12px;
-            color: white;
-            position: absolute;
-            top: 2px;
-            left: 3px;
-        }
-        .card-actions {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            z-index: 5;
-        }
-        .action-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            transition: background-color 0.2s;
-            margin-left: 5px;
-        }
-        .action-btn:hover {
-            background-color: var(--primary-light);
-        }
-
+        .select-checkbox { position: absolute; top: 15px; left: 15px; z-index: 10; opacity: 0; width: 20px; height: 20px; cursor: pointer; }
+        .select-checkbox + label { position: absolute; top: 15px; left: 15px; z-index: 9; width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 4px; background: #fff; transition: all 0.2s; cursor: pointer; }
+        .select-checkbox:checked + label { border-color: var(--primary-color); background-color: var(--primary-color); }
+        .select-checkbox:checked + label::after { content: "\f00c"; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 12px; color: white; position: absolute; top: 2px; left: 3px; }
         
-        /* 1. カード表示 (初期/正方形) */
+        .card-actions { position: absolute; bottom: 15px; right: 15px; z-index: 5; }
+        .action-btn { background: var(--primary-color); color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background-color 0.2s; margin-left: 5px; }
+        .action-btn:hover { background-color: var(--primary-light); }
+        .action-btn.delete-btn { background-color: var(--pdf-color); }
+        .action-btn.delete-btn:hover { background-color: #c0392b; }
+
         .file-grid.grid-cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: min-content; }
         
-        /* 2. リスト表示 */
         .file-grid.grid-list { grid-template-columns: 1fr; gap: 10px; }
         .file-grid.grid-list .file-card { display: flex; align-items: center; padding: 10px; height: auto; position: relative; }
         .file-grid.grid-list .card-preview { height: 50px; width: 50px; flex-shrink: 0; border-radius: 4px; margin: 0 15px 0 30px; }
@@ -205,9 +165,7 @@
         .file-grid.grid-list .metadata { display: flex; gap: 20px; font-size: 0.9em; }
         .file-grid.grid-list .action-btn { position: static; margin-left: 10px; }
         .file-grid.grid-list .select-checkbox + label { left: 10px; }
-        
 
-        /* 3. サムネイル表示 */
         .file-grid.grid-thumb { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
         .file-grid.grid-thumb .file-card { height: 200px; padding: 0; display: flex; flex-direction: column; }
         .file-grid.grid-thumb .card-preview { height: 120px; }
@@ -217,20 +175,8 @@
         .file-grid.grid-thumb .select-checkbox + label { top: 8px; left: 8px; }
         .file-grid.grid-thumb .card-actions { bottom: 8px; right: 8px; }
 
-        /* 4. 詳細リスト表示 */
         .file-grid.grid-detail { grid-template-columns: 1fr; gap: 1px; }
-        .file-grid.grid-detail .file-card {
-            display: grid; 
-            grid-template-columns: 30px 1fr 150px 60px;
-            align-items: center;
-            border-radius: 0;
-            border-left: none;
-            border-right: none;
-            border-bottom: 1px solid #ddd;
-            padding: 10px 15px;
-            box-shadow: none;
-            overflow: visible;
-        }
+        .file-grid.grid-detail .file-card { display: grid; grid-template-columns: 30px 1fr 150px 60px; align-items: center; border-radius: 0; border-left: none; border-right: none; border-bottom: 1px solid #ddd; padding: 10px 15px; box-shadow: none; overflow: visible; }
         .file-grid.grid-detail .card-preview, .file-grid.grid-detail .file-icon, .file-grid.grid-detail .metadata-detail { display: none; }
         .file-grid.grid-detail .select-checkbox + label { position: static; margin: auto; }
         .file-grid.grid-detail .card-info { padding: 0 15px; margin: auto 0; }
@@ -238,121 +184,24 @@
         .file-grid.grid-detail .metadata { display: flex; gap: 20px; font-size: 0.9em; color: var(--meta-color); }
         .file-grid.grid-detail .card-actions { position: static; margin: auto; }
 
+        #admin-section { background-color: var(--admin-bg-color); border: 1px solid var(--admin-border-color); padding: 20px; border-radius: 8px; color: var(--admin-text-color); margin-top: 20px; }
+        #admin-section h2 { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-top: 0; }
+        #admin-stats { display: flex; gap: 30px; margin-bottom: 20px; font-size: 1.1em; color: var(--text-color); }
+        #admin-section p, #admin-section ul { font-size: 0.95em; line-height: 1.6; }
+        #admin-section a { color: var(--accent-color); text-decoration: underline; }
 
-        /* --- 管理者エリアのCSS --- */
-        #admin-section {
-            background-color: var(--admin-bg-color);
-            border: 1px solid var(--admin-border-color);
-            padding: 20px;
-            border-radius: 8px;
-            color: var(--admin-text-color);
-            margin-top: 20px;
-        }
-        #admin-section h2 {
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--primary-color);
-            padding-bottom: 10px;
-            margin-top: 0;
-        }
-        #admin-stats {
-            display: flex;
-            gap: 30px;
-            margin-bottom: 20px;
-            font-size: 1.1em;
-            color: var(--text-color);
-        }
-        #admin-section p, #admin-section ul {
-            font-size: 0.95em;
-            line-height: 1.6;
-        }
-        #admin-section a {
-            color: var(--accent-color);
-            text-decoration: underline;
-        }
-
-        /* --- ローディングオーバーレイの修正 --- */
-        #loading-overlay {
-            position: fixed; 
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.95);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .spinner {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid var(--primary-color);
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .spinner { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .hidden { display: none !important; }
 
-        /* --- モーダルCSS (PDF表示最適化) --- */
-        .modal {
-            display: none; 
-            position: fixed;
-            z-index: 200;
-            /* 修正: 上部のパディングを減らし、余白を削減 */
-            padding-top: 30px; 
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgb(0,0,0);
-            background-color: rgba(0,0,0,0.95);
-        }
-        .modal-content {
-            /* 修正: 中央寄せと横幅の調整 */
-            margin: auto;
-            display: block;
-            width: 90%; 
-            max-width: 1300px; 
-            text-align: center;
-        }
-        .modal-content img, .modal-content iframe {
-            max-width: 100%;
-            /* 修正: 画面内に収まるように高さを設定 */
-            height: 90vh; 
-            display: block;
-            margin: 0 auto;
-        }
-        .modal-caption {
-            margin: auto;
-            display: block;
-            width: 80%;
-            max-width: 700px;
-            text-align: center;
-            color: #ccc;
-            padding: 10px 0;
-            height: 150px;
-        }
-        .modal-close {
-            position: absolute;
-            top: 15px;
-            right: 35px; 
-            color: #f1f1f1;
-            font-size: 40px;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-        .modal-close:hover, .modal-close:focus {
-            color: #bbb;
-            text-decoration: none;
-            cursor: pointer;
-        }
+        .modal { display: none; position: fixed; z-index: 200; padding-top: 30px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.95); }
+        .modal-content { margin: auto; display: block; width: 90%; max-width: 1300px; text-align: center; }
+        .modal-content img, .modal-content iframe { max-width: 100%; height: 90vh; display: block; margin: 0 auto; }
+        .modal-caption { margin: auto; display: block; width: 80%; max-width: 700px; text-align: center; color: #ccc; padding: 10px 0; height: 150px; }
+        .modal-close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; transition: 0.3s; }
+        .modal-close:hover, .modal-close:focus { color: #bbb; text-decoration: none; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -384,61 +233,57 @@
     
     <div id="file-list" class="content-section">
 
-    <div class="control-area">
-        <div class="search-sort-group">
-            <input type="text" id="searchInput" placeholder="ファイル名、タグを検索..." onkeyup="applyMasterFilter()">
-            <select id="sortSelect" onchange="applyMasterFilter()">
-                <option value="date_desc">日付順 (新)</option>
-                <option value="date_asc">日付順 (古)</option>
-                <option value="name_asc">ファイル名順 (昇)</option>
-                <option value="size_desc">サイズ順 (大)</option>
-            </select>
-            <div class="layout-switcher">
-                <button class="layout-btn active" data-layout="grid-cards" title="カード表示"><i class="fas fa-th-large"></i></button>
-                <button class="layout-btn" data-layout="grid-list" title="リスト表示"><i class="fas fa-list"></i></button>
-                <button class="layout-btn" data-layout="grid-thumb" title="サムネイル表示"><i class="fas fa-grip-horizontal"></i></button>
-                <button class="layout-btn" data-layout="grid-detail" title="詳細表示"><i class="fas fa-list-alt"></i></button>
+        <div class="control-area">
+            <div class="search-sort-group">
+                <input type="text" id="searchInput" placeholder="ファイル名、タグを検索..." onkeyup="applyMasterFilter()">
+                <select id="sortSelect" onchange="applyMasterFilter()">
+                    <option value="date_desc">日付順 (新)</option>
+                    <option value="date_asc">日付順 (古)</option>
+                    <option value="name_asc">ファイル名順 (昇)</option>
+                    <option value="size_desc">サイズ順 (大)</option>
+                </select>
+                <div class="layout-switcher">
+                    <button class="layout-btn active" data-layout="grid-cards" title="カード表示"><i class="fas fa-th-large"></i></button>
+                    <button class="layout-btn" data-layout="grid-list" title="リスト表示"><i class="fas fa-list"></i></button>
+                    <button class="layout-btn" data-layout="grid-thumb" title="サムネイル表示"><i class="fas fa-grip-horizontal"></i></button>
+                    <button class="layout-btn" data-layout="grid-detail" title="詳細表示"><i class="fas fa-list-alt"></i></button>
+                </div>
+            </div>
+            
+            <!-- ===== アップロードエリア ===== -->
+            <div class="upload-control">
+                <input type="file" id="fileInput" multiple style="display: none;">
+                <button id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-file-upload"></i> ファイルを選択して追加
+                </button>
+                <span id="file-name-display">ファイルが選択されていません</span>
+                <div id="upload-progress">
+                    <progress id="upload-progress-bar" value="0" max="100"></progress>
+                    <span id="upload-status"></span>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <button id="bulkDownload"><i class="fas fa-download"></i> 選択ファイルをダウンロード</button>
             </div>
         </div>
+    
+        <div class="date-filter-area">
+            <label for="startDate">期間フィルタ (AND):</label>
+            <input type="date" id="startDate">
+            <label for="endDate">～</label>
+            <input type="date" id="endDate">
+            <button id="applyDateFilter" class="date-filter-button"><i class="fas fa-search"></i> 絞り込み</button>
+            <button id="clearDateFilter" class="clear-button"><i class="fas fa-times"></i> クリア</button>
+        </div>
+
+        <nav class="filter-nav tag-nav">
+            <button data-filter="all" class="active">すべて</button>
+        </nav>
         
-        <div class="upload-control" style="margin-top: 15px; padding: 15px; background: #f4f4f4; border-radius: 8px; display: flex; align-items: center; gap: 10px; border: 1px solid #ddd;">
-            <input type="file" id="fileInput" multiple style="display: none;">
-            <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" style="
-                background: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-weight: bold;
-                display: flex; align-items: center; gap: 8px;
-            ">
-                <i class="fas fa-file-upload"></i> ファイルを選択して追加
-            </button>
-            <span id="file-name-display" style="color: #666; font-size: 0.9em;">ファイルが選択されていません</span>
-        </div>
+        <main id="fileGrid" class="file-grid grid-cards"></main>
 
-        <div style="margin-top: 15px;">
-            <button id="bulkDownload"><i class="fas fa-download"></i> 選択ファイルをダウンロード</button>
-        </div>
     </div>
-    
-    <div class="date-filter-area">
-        <label for="startDate">期間フィルタ (AND):</label>
-        <input type="date" id="startDate">
-        <label for="endDate">～</label>
-        <input type="date" id="endDate">
-        <button id="applyDateFilter" class="date-filter-button"><i class="fas fa-search"></i> 絞り込み</button>
-        <button id="clearDateFilter" class="clear-button"><i class="fas fa-times"></i> クリア</button>
-    </div>
-
-    <nav class="filter-nav tag-nav">
-        <button data-filter="all" class="active">すべて</button>
-    </nav>
-    
-    <main id="fileGrid" class="file-grid grid-cards"></main>
-
-</div>
 
     <div id="admin-area" class="content-section hidden">
         <section id="admin-section">
@@ -446,45 +291,51 @@
             <div id="admin-stats"></div>
             <p>サーバーファイルに基づいてファイルがあります。</p>
             <ul>
-                <li>**データファイル:** <a href="server" target="_blank">.cloudflared を確認</a></li>
+                <li><strong>データファイル:</strong> <a href="server" target="_blank">.cloudflared を確認</a></li>
             </ul>
         </section>
     </div>
 
     <script>
-        // 設定定数と要素 (機能ロジックは維持)
+        const API_BASE = 'https://api.tayunet-traininfo.com/api';
+
         const tagMap = {
             'all': 'すべて', 'pdf': 'PDF文書', 'image': '画像ファイル', 
             'manual': 'マニュアル', 'report': 'レポート', 'other': 'その他',
             'word': 'Word文書', 'excel': 'Excel文書' 
         };
         const typeMap = {
-            'pdf': { icon: 'fa-file-pdf', folder: 'pdfs/' },
-            'image': { icon: 'fa-image', folder: 'images/' },
-            'word': { icon: 'fa-file-word', folder: 'documents/' },
-            'excel': { icon: 'fa-file-excel', folder: 'documents/' },
-            'other': { icon: 'fa-file', folder: 'documents/' }
+            'pdf':   { icon: 'fa-file-pdf',   folder: 'pdfs/' },
+            'image': { icon: 'fa-image',       folder: 'images/' },
+            'word':  { icon: 'fa-file-word',   folder: 'documents/' },
+            'excel': { icon: 'fa-file-excel',  folder: 'documents/' },
+            'other': { icon: 'fa-file',        folder: 'documents/' }
         };
 
-        const fileGrid = document.getElementById('fileGrid');
-        const tagNav = document.querySelector('.tag-nav');
-        const loadingOverlay = document.getElementById('loading-overlay');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const sortSelect = document.getElementById('sortSelect');
-        const searchInput = document.getElementById('searchInput');
-        const layoutButtons = document.querySelectorAll('.layout-btn');
-        const bulkDownloadButton = document.getElementById('bulkDownload');
-        const fileModal = document.getElementById('fileModal');
-        const modalBody = document.getElementById('modal-body');
-        const modalCaption = document.getElementById('modal-caption');
+        const fileGrid           = document.getElementById('fileGrid');
+        const tagNav             = document.querySelector('.tag-nav');
+        const loadingOverlay     = document.getElementById('loading-overlay');
+        const startDateInput     = document.getElementById('startDate');
+        const endDateInput       = document.getElementById('endDate');
+        const sortSelect         = document.getElementById('sortSelect');
+        const searchInput        = document.getElementById('searchInput');
+        const layoutButtons      = document.querySelectorAll('.layout-btn');
+        const fileModal          = document.getElementById('fileModal');
+        const modalBody          = document.getElementById('modal-body');
+        const modalCaption       = document.getElementById('modal-caption');
+        const fileInput          = document.getElementById('fileInput');
+        const uploadBtn          = document.getElementById('uploadBtn');
+        const fileNameDisplay    = document.getElementById('file-name-display');
+        const uploadProgressWrap = document.getElementById('upload-progress');
+        const uploadProgressBar  = document.getElementById('upload-progress-bar');
+        const uploadStatus       = document.getElementById('upload-status');
         
         let fileData = [];
-        let currentFilterTag = 'all';
-        let currentDateRange = { start: null, end: null };
-        let currentLayout = 'grid-cards';
+        let currentFilterTag  = 'all';
+        let currentDateRange  = { start: null, end: null };
+        let currentLayout     = 'grid-cards';
 
-        // --- ヘルパー関数 ---
+        // --- ヘルパー ---
         const parseDate = (dateString) => {
             if (!dateString) return null;
             const parts = dateString.split('/').map(Number);
@@ -495,47 +346,92 @@
             if (kb < 1024) return `${kb} KB`;
             return `${(kb / 1024).toFixed(2)} MB`;
         };
-        
-        /**
-         * ファイルパスを生成します。
-         * 日本語ファイル名が原因の404エラーを回避するため、encodeURIComponentで処理を強化します。
-         */
         const getFilepath = (file) => {
             const typeInfo = typeMap[file.type] || typeMap['other'];
-            let folder = typeInfo.folder;
-            if (file.type === 'image') {
-                folder = 'images/';
-            } else if (file.type === 'pdf') {
-                folder = 'pdfs/';
-            }
-            
-            // ファイル名をURLエンコード
-            const encodedFilename = encodeURIComponent(file.filename);
-            
-            // エンコードされたパスを返します。
-            return `${folder}${encodedFilename}`;
+            const folder = typeInfo.folder;
+            return `${folder}${encodeURIComponent(file.filename)}`;
         };
-        
         const getFileTypeClass = (type) => {
-            if (type === 'pdf') return 'pdf-type';
-            if (type === 'image') return 'image-type';
-            if (type === 'word') return 'word-type';
-            if (type === 'excel') return 'excel-type';
-            return 'other-type';
+            const map = { pdf: 'pdf-type', image: 'image-type', word: 'word-type', excel: 'excel-type' };
+            return map[type] || 'other-type';
         };
-        const getFileIcon = (type) => {
-            return typeMap[type] ? typeMap[type].icon : typeMap['other'].icon;
-        };
-        
-        // --- タグフィルタボタンのセットアップ関数 (機能維持) ---
+        const getFileIcon = (type) => (typeMap[type] || typeMap['other']).icon;
+
+        // ===== ファイルアップロード処理 =====
+        fileInput.addEventListener('change', async () => {
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+
+            // 選択ファイル名を表示
+            if (files.length === 1) {
+                fileNameDisplay.textContent = files[0].name;
+            } else {
+                fileNameDisplay.textContent = `${files.length} 個のファイルが選択されました`;
+            }
+
+            // 確認ダイアログ
+            const names = Array.from(files).map(f => f.name).join('\n');
+            if (!confirm(`以下のファイルをアップロードしますか？\n\n${names}`)) {
+                fileInput.value = '';
+                fileNameDisplay.textContent = 'ファイルが選択されていません';
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            uploadProgressWrap.style.display = 'block';
+
+            let succeeded = 0;
+            let failed    = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                uploadStatus.textContent = `アップロード中 (${i + 1}/${files.length}): ${file.name}`;
+                uploadProgressBar.value = Math.round((i / files.length) * 100);
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (res.ok) {
+                        succeeded++;
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        console.error(`アップロード失敗: ${file.name}`, err);
+                        failed++;
+                    }
+                } catch (e) {
+                    console.error(`通信エラー: ${file.name}`, e);
+                    failed++;
+                }
+            }
+
+            uploadProgressBar.value = 100;
+            uploadStatus.textContent = `完了: ${succeeded} 件成功${failed > 0 ? ` / ${failed} 件失敗` : ''}`;
+
+            // 後始末
+            uploadBtn.disabled = false;
+            fileInput.value = '';
+            fileNameDisplay.textContent = 'ファイルが選択されていません';
+
+            setTimeout(() => {
+                uploadProgressWrap.style.display = 'none';
+                uploadStatus.textContent = '';
+                uploadProgressBar.value = 0;
+            }, 3000);
+
+            if (succeeded > 0) loadFiles(); // 成功分があれば再読み込み
+        });
+
+        // ===== タグフィルタ =====
         const setupFilters = (data) => {
             const existingTags = new Set(['pdf', 'image', 'word', 'excel']);
-            data.forEach(file => {
-                if (file.tag) existingTags.add(file.tag);
-            });
+            data.forEach(file => { if (file.tag) existingTags.add(file.tag); });
             
             tagNav.innerHTML = '';
-            
             const allButton = document.createElement('button');
             allButton.setAttribute('data-filter', 'all');
             allButton.textContent = tagMap['all'];
@@ -560,11 +456,9 @@
             });
         };
 
-
-        // --- モーダル/プレビュー機能 (PDF表示最適化と404対策維持) ---
+        // ===== モーダル =====
         const openModal = (file) => {
-            let filePath = getFilepath(file); 
-            
+            const filePath = getFilepath(file);
             modalBody.innerHTML = '';
             modalCaption.textContent = file.title;
 
@@ -574,271 +468,205 @@
                 modalBody.appendChild(img);
             } else if (file.type === 'pdf') {
                 const iframe = document.createElement('iframe');
-                iframe.src = filePath; 
-                iframe.style.width = '100%'; // CSSの.modal-content img, iframeと連携
-                iframe.style.height = '90vh'; // CSSの.modal-content img, iframeと連携
+                iframe.src = filePath;
+                iframe.style.width  = '100%';
+                iframe.style.height = '90vh';
                 iframe.setAttribute('frameborder', '0');
                 modalBody.appendChild(iframe);
             } else {
-                modalBody.innerHTML = `<p style="color:white; font-size: 1.2em; margin-top: 100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color); text-decoration: underline;">ここをクリックしてダウンロード</a>してください。</p>`;
+                modalBody.innerHTML = `<p style="color:white;font-size:1.2em;margin-top:100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color);text-decoration:underline;">ここをクリックしてダウンロード</a>してください。</p>`;
             }
             fileModal.style.display = 'block';
         };
-
         const closeModal = () => {
             fileModal.style.display = 'none';
             modalBody.innerHTML = '';
         };
-        window.onclick = (event) => {
-            if (event.target === fileModal) {
-                closeModal();
-            }
-        };
+        window.onclick = (event) => { if (event.target === fileModal) closeModal(); };
 
-
-        // --- メインフィルタリング & ソートロジック (機能維持) ---
+        // ===== フィルタ & ソート =====
         const applyMasterFilter = () => {
             let filteredData = fileData;
             const searchTerm = searchInput.value.toLowerCase();
             const start = currentDateRange.start;
-            const end = currentDateRange.end;
+            const end   = currentDateRange.end;
 
             filteredData = filteredData.filter(file => {
                 const titleMatch = file.title.toLowerCase().includes(searchTerm);
-                const tagMatch = currentFilterTag === 'all' || 
-                                 (currentFilterTag === 'pdf' && file.type === 'pdf') ||
-                                 (currentFilterTag === 'image' && file.type === 'image') ||
-                                 (file.tag === currentFilterTag);
-                
+                const tagMatch   = currentFilterTag === 'all' || 
+                                   (currentFilterTag === 'pdf'   && file.type === 'pdf')   ||
+                                   (currentFilterTag === 'image' && file.type === 'image') ||
+                                   (file.tag === currentFilterTag);
                 let dateMatch = true;
                 if (start || end) {
                     const fileDate = parseDate(file.date);
-                    if (!fileDate) dateMatch = false;
+                    if (!fileDate) { dateMatch = false; }
                     else {
-                        if (start) dateMatch = dateMatch && (fileDate.getTime() >= start.getTime());
-                        if (end) dateMatch = dateMatch && (fileDate.getTime() <= end.getTime());
+                        if (start) dateMatch = dateMatch && (fileDate >= start);
+                        if (end)   dateMatch = dateMatch && (fileDate <= end);
                     }
                 }
-                
                 return titleMatch && tagMatch && dateMatch;
             });
 
             const sortValue = sortSelect.value;
             filteredData.sort((a, b) => {
                 if (sortValue === 'date_desc') return parseDate(b.date) - parseDate(a.date);
-                if (sortValue === 'date_asc') return parseDate(a.date) - parseDate(b.date);
-                if (sortValue === 'name_asc') return a.title.localeCompare(b.title, 'ja');
+                if (sortValue === 'date_asc')  return parseDate(a.date) - parseDate(b.date);
+                if (sortValue === 'name_asc')  return a.title.localeCompare(b.title, 'ja');
                 if (sortValue === 'size_desc') return (b.size_kb || 0) - (a.size_kb || 0);
                 return 0;
             });
-            
             renderFileCards(filteredData);
         };
 
-
-        // --- ファイルカード生成関数 (機能維持) ---
+        // ===== カード生成 =====
         const renderFileCards = (dataToRender) => {
-            fileGrid.innerHTML = ''; 
-            
-            fileGrid.className = `file-grid ${currentLayout}`; 
+            fileGrid.innerHTML = '';
+            fileGrid.className = `file-grid ${currentLayout}`;
             
             if (dataToRender.length === 0) {
-                fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--meta-color);">該当するファイルは見つかりませんでした。</p>';
+                fileGrid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--meta-color);">該当するファイルは見つかりませんでした。</p>';
                 return;
             }
+
             dataToRender.forEach(file => {
-                const filePath = getFilepath(file); 
+                const filePath      = getFilepath(file);
                 const fileExtension = file.filename.split('.').pop().toUpperCase();
 
                 const card = document.createElement('section');
-                card.className = `file-card`;
-                card.setAttribute('data-id', file.filename);
-                card.setAttribute('data-type', file.type);
-                
-                // チェックボックス (機能維持)
+                card.className = 'file-card';
+                card.setAttribute('data-id',   file.filename);
+                card.setAttribute('data-type',  file.type);
+
+                // チェックボックス
                 const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
+                checkbox.type      = 'checkbox';
                 checkbox.className = 'select-checkbox';
-                checkbox.id = `checkbox-${file.filename}`;
-                // ダウンロード用にデコードされたパスを保存（404対策）
-                checkbox.value = decodeURIComponent(filePath); 
+                checkbox.id        = `checkbox-${file.filename}`;
+                checkbox.value     = decodeURIComponent(filePath);
                 card.appendChild(checkbox);
 
                 const checkboxLabel = document.createElement('label');
                 checkboxLabel.setAttribute('for', `checkbox-${file.filename}`);
                 card.appendChild(checkboxLabel);
 
-                // アクションボタン (機能維持)
+                // アクションボタン群
                 const actionDiv = document.createElement('div');
                 actionDiv.className = 'card-actions';
-                
-                const shareButton = document.createElement('button');
-                shareButton.className = 'action-btn';
-                shareButton.title = '共有リンクをコピー';
-                shareButton.innerHTML = '<i class="fas fa-share-alt"></i>';
-                shareButton.onclick = (e) => {
+
+                // 共有ボタン
+                const shareBtn = document.createElement('button');
+                shareBtn.className = 'action-btn';
+                shareBtn.title     = '共有リンクをコピー';
+                shareBtn.innerHTML = '<i class="fas fa-share-alt"></i>';
+                shareBtn.onclick   = (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // 共有リンクはファイルパスをデコードしてクリップボードにコピー
-                    const fullUrl = new URL(decodeURIComponent(filePath), document.URL).href; 
+                    const fullUrl = new URL(decodeURIComponent(filePath), document.URL).href;
                     navigator.clipboard.writeText(fullUrl);
                     alert('共有リンクをクリップボードにコピーしました:\n' + fullUrl);
                 };
-                actionDiv.appendChild(shareButton);
+                actionDiv.appendChild(shareBtn);
 
-                // renderFileCards関数の中、actionDiv.appendChild(shareButton); の後に追加
-const deleteBtn = document.createElement("button");
-deleteBtn.className = "action-btn";
-deleteBtn.style.backgroundColor = "#E74C3C"; // 削除なので赤色にすると誤操作防止になります
-deleteBtn.title = "削除";
-deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-deleteBtn.onclick = async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
+                // 削除ボタン (1つだけ)
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'action-btn delete-btn';
+                deleteBtn.title     = '削除';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.onclick   = async (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (!confirm(`「${file.title}」をサーバーから削除します。よろしいですか？`)) return;
+                    try {
+                        const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(file.filename)}`, {
+                            method: 'DELETE'
+                        });
+                        if (res.ok) {
+                            loadFiles();
+                        } else {
+                            const errData = await res.json().catch(() => ({}));
+                            alert('削除に失敗しました: ' + (errData.message || 'サーバーエラー'));
+                        }
+                    } catch (err) {
+                        console.error('Delete request failed:', err);
+                        alert('通信エラーが発生しました。');
+                    }
+                };
+                actionDiv.appendChild(deleteBtn);
 
-    if (!confirm(`「${file.title}」を削除してもよろしいですか？`)) return;
-
-    try {
-        const response = await fetch(`https://api.tayunet-traininfo.com/api/delete/${encodeURIComponent(file.filename)}`, {
-            method: "DELETE"
-        });
-        if (response.ok) {
-            alert("削除しました");
-            loadFiles(); // 再読み込み
-        } else {
-            alert("削除に失敗しました");
-        }
-    } catch (err) {
-        console.error(err);
-    }
-};
-actionDiv.appendChild(deleteBtn);
-
-
-// 共有ボタンの直後あたりに挿入
-const deleteBtn = document.createElement('button');
-deleteBtn.className = 'action-btn';
-deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-deleteBtn.title = '削除';
-deleteBtn.style.color = "#e74c3c"; // 削除とわかるように赤色
-deleteBtn.onclick = async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    if (!confirm(`「${file.title}」をサーバーから削除します。よろしいですか？`)) return;
-
-    try {
-        const response = await fetch(`https://api.tayunet-traininfo.com/api/delete/${encodeURIComponent(file.filename)}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            loadFiles(); // 成功したら再描画
-        } else {
-            const errData = await response.json();
-            alert("削除に失敗しました: " + (errData.message || "サーバーエラー"));
-        }
-    } catch (err) {
-        console.error("Delete request failed:", err);
-        alert("通信エラーが発生しました。");
-    }
-};
-actionDiv.appendChild(deleteBtn);
-
-                
+                // リンク
                 const link = document.createElement('a');
-                link.href = filePath;
-                
+                link.href  = filePath;
                 if (file.type === 'pdf' || file.type === 'image') {
-                    link.onclick = (e) => {
-                        e.preventDefault(); 
-                        openModal(file);
-                    };
+                    link.onclick = (e) => { e.preventDefault(); openModal(file); };
                 } else {
                     link.target = '_blank';
                 }
 
-                // プレビューエリア (機能維持)
-                const previewDiv = document.createElement('div');
+                // プレビューエリア
+                const previewDiv    = document.createElement('div');
                 previewDiv.className = 'card-preview';
-                
-                let previewPath = file.preview_path || '';
-                const hasPreviewImage = previewPath.trim() !== '';
-                
-                if (hasPreviewImage) {
-                    const img = document.createElement('img');
-                    img.src = previewPath;
-                    img.alt = `${file.title} プレビュー`;
-                    
-                    const noImageDiv = document.createElement('div');
-                    noImageDiv.className = 'no-image';
-                    noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
+                const noImageDiv    = document.createElement('div');
+                noImageDiv.className = 'no-image';
+                noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
 
+                if (file.preview_path && file.preview_path.trim() !== '') {
+                    const img = document.createElement('img');
+                    img.src   = file.preview_path;
+                    img.alt   = `${file.title} プレビュー`;
                     img.onerror = function() {
-                        this.style.display = 'none';
+                        this.style.display   = 'none';
                         noImageDiv.style.display = 'flex';
                     };
-                    
-                    previewDiv.appendChild(img);
-                    previewDiv.appendChild(noImageDiv);
                     noImageDiv.style.display = 'none';
-
-                } else {
-                    const noImageDiv = document.createElement('div');
-                    noImageDiv.className = 'no-image';
-                    noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
-                    previewDiv.appendChild(noImageDiv);
+                    previewDiv.appendChild(img);
                 }
+                previewDiv.appendChild(noImageDiv);
 
-                
-                const iconSpan = document.createElement('span');
+                const iconSpan    = document.createElement('span');
                 iconSpan.className = `file-icon ${getFileTypeClass(file.type)}`;
                 iconSpan.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> ${fileExtension}`;
-                previewDiv.appendChild(iconSpan); 
-
+                previewDiv.appendChild(iconSpan);
                 link.appendChild(previewDiv);
 
-                // 情報エリア (機能維持)
-                const infoDiv = document.createElement('div');
+                // 情報エリア
+                const infoDiv    = document.createElement('div');
                 infoDiv.className = 'card-info';
 
-                const titleH2 = document.createElement('h2');
+                const titleH2    = document.createElement('h2');
                 titleH2.textContent = file.title;
-                
                 if (currentLayout === 'grid-detail') {
                     titleH2.style.cursor = 'pointer';
-                    if (file.type === 'pdf' || file.type === 'image') {
-                        titleH2.onclick = (e) => { e.preventDefault(); openModal(file); };
-                    } else {
-                        titleH2.onclick = () => { window.open(filePath, '_blank'); };
-                    }
+                    titleH2.onclick = (e) => {
+                        e.preventDefault();
+                        if (file.type === 'pdf' || file.type === 'image') openModal(file);
+                        else window.open(filePath, '_blank');
+                    };
                 }
-
                 infoDiv.appendChild(titleH2);
 
-                const metadataDetailDiv = document.createElement('div');
+                const metadataDetailDiv    = document.createElement('div');
                 metadataDetailDiv.className = 'metadata-detail';
-                const displayDescription = file.description && file.description.trim() !== '' ? file.description : '説明なし';
-                
+                const desc = (file.description && file.description.trim() !== '') ? file.description : '説明なし';
                 metadataDetailDiv.innerHTML = `
-                    <div><strong>種別:</strong> <span>${tagMap[file.tag] || file.tag}</span></div>
-                    <div><strong>サイズ:</strong> <span>${formatSize(file.size_kb)}</span></div>
-                    <div><strong>日付:</strong> <span>${file.date || 'N/A'}</span></div>
-                    <div><strong>説明:</strong> <span>${displayDescription}</span></div>
-                `; 
+                    <div><strong>種別:</strong><span>${tagMap[file.tag] || file.tag}</span></div>
+                    <div><strong>サイズ:</strong><span>${formatSize(file.size_kb)}</span></div>
+                    <div><strong>日付:</strong><span>${file.date || 'N/A'}</span></div>
+                    <div><strong>説明:</strong><span>${desc}</span></div>
+                `;
                 infoDiv.appendChild(metadataDetailDiv);
-                
-                const metadataDiv = document.createElement('div');
+
+                const metadataDiv    = document.createElement('div');
                 metadataDiv.className = 'metadata';
                 metadataDiv.innerHTML = `
-                    <span data-label="タグ">${tagMap[file.tag] || file.tag}</span>
-                    <span data-label="サイズ">${formatSize(file.size_kb)}</span>
-                    <span data-label="日付">${file.date || 'N/A'}</span>
-                `; 
+                    <span>${tagMap[file.tag] || file.tag}</span>
+                    <span>${formatSize(file.size_kb)}</span>
+                    <span>${file.date || 'N/A'}</span>
+                `;
                 if (currentLayout === 'grid-list' || currentLayout === 'grid-detail') {
                     infoDiv.appendChild(metadataDiv);
                 }
-
 
                 if (currentLayout === 'grid-detail' || currentLayout === 'grid-list') {
                     card.appendChild(infoDiv);
@@ -853,7 +681,7 @@ actionDiv.appendChild(deleteBtn);
             });
         };
 
-        // --- レイアウト切替機能、データのロード、イベントリスナー (機能維持) ---
+        // ===== レイアウト切替 =====
         const setupLayoutSwitcher = () => {
             layoutButtons.forEach(button => {
                 button.addEventListener('click', () => {
@@ -861,40 +689,41 @@ actionDiv.appendChild(deleteBtn);
                     layoutButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     currentLayout = newLayout;
-                    applyMasterFilter(); 
+                    applyMasterFilter();
                 });
             });
         };
         
+        // ===== データ取得 =====
         const loadFiles = async () => {
             loadingOverlay.classList.remove('hidden');
             try {
-                const response = await fetch('https://api.tayunet-traininfo.com/api/files');
-                if (!response.ok) throw new Error(`Failed to load fileapi. Status: ${response.status}`);
+                const response = await fetch(`${API_BASE}/files`);
+                if (!response.ok) throw new Error(`Status: ${response.status}`);
                 fileData = await response.json();
                 
                 const totalSize = fileData.reduce((sum, file) => sum + (file.size_kb || 0), 0);
                 document.getElementById('admin-stats').innerHTML = `
-                    <p style="font-weight: 600;">合計ファイル数: ${fileData.length} 件</p>
-                    <p style="font-weight: 600;">合計ファイルサイズ: ${formatSize(totalSize)}</p>
+                    <p style="font-weight:600;">合計ファイル数: ${fileData.length} 件</p>
+                    <p style="font-weight:600;">合計ファイルサイズ: ${formatSize(totalSize)}</p>
                 `;
-
                 setupFilters(fileData);
                 applyMasterFilter();
             } catch (error) {
-                 console.error('Error loading file data:', error);
-                 fileGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: var(--pdf-color);">ファイルの読み込みに失敗しました。data.jsonファイルが存在するか、形式が正しいか確認してください。</p>';
+                console.error('Error loading file data:', error);
+                fileGrid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--pdf-color);">ファイルの読み込みに失敗しました。</p>';
             } finally {
                 loadingOverlay.classList.add('hidden');
             }
         };
 
+        // ===== イベントリスナー =====
         document.getElementById('applyDateFilter').addEventListener('click', () => {
-            const startValue = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
-            const endValue = endDateInput.value ? endDateInput.value.replace(/-/g, '/') : null;
-            currentDateRange.start = startValue ? parseDate(startValue) : null;
-            currentDateRange.end = endValue ? parseDate(endValue) : null;
-            if (currentDateRange.start && currentDateRange.end && currentDateRange.start.getTime() > currentDateRange.end.getTime()) {
+            const sv = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
+            const ev = endDateInput.value   ? endDateInput.value.replace(/-/g, '/')   : null;
+            currentDateRange.start = sv ? parseDate(sv) : null;
+            currentDateRange.end   = ev ? parseDate(ev) : null;
+            if (currentDateRange.start && currentDateRange.end && currentDateRange.start > currentDateRange.end) {
                 alert('開始日が終了日より後の日付になっています。');
                 return;
             }
@@ -903,22 +732,16 @@ actionDiv.appendChild(deleteBtn);
 
         document.getElementById('clearDateFilter').addEventListener('click', () => {
             startDateInput.value = '';
-            endDateInput.value = '';
-            currentDateRange = { start: null, end: null };
+            endDateInput.value   = '';
+            currentDateRange     = { start: null, end: null };
             applyMasterFilter();
         });
         
         document.getElementById('bulkDownload').addEventListener('click', () => {
-            const selectedFiles = document.querySelectorAll('.select-checkbox:checked');
-            if (selectedFiles.length === 0) {
-                alert('ダウンロードするファイルを1つ以上選択してください。');
-                return;
-            }
-            if (confirm(`${selectedFiles.length}個のファイルをダウンロードします。よろしいですか？`)) {
-                selectedFiles.forEach(checkbox => {
-                    // ダウンロード時はデコードされたパスを使用
-                    window.open(checkbox.value, '_blank');
-                });
+            const selected = document.querySelectorAll('.select-checkbox:checked');
+            if (selected.length === 0) { alert('ダウンロードするファイルを1つ以上選択してください。'); return; }
+            if (confirm(`${selected.length}個のファイルをダウンロードします。よろしいですか？`)) {
+                selected.forEach(cb => window.open(cb.value, '_blank'));
             }
         });
 
@@ -927,19 +750,13 @@ actionDiv.appendChild(deleteBtn);
                 const target = e.target.getAttribute('data-target');
                 document.querySelectorAll('.main-nav button').forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
-
                 document.getElementById('file-list').classList.add('hidden');
                 document.getElementById('admin-area').classList.add('hidden');
-                
-                if (target === 'file-list') {
-                    document.getElementById('file-list').classList.remove('hidden');
-                } else if (target === 'admin-area') {
-                    document.getElementById('admin-area').classList.remove('hidden');
-                }
+                document.getElementById(target).classList.remove('hidden');
             });
         });
 
-        // 初期化処理
+        // ===== 初期化 =====
         document.addEventListener('DOMContentLoaded', () => {
             setupLayoutSwitcher();
             loadFiles();
