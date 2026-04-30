@@ -1,770 +1,862 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocuBase - 文書共有システム</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --primary-color: #006400;
-            --primary-light: #007C00; 
-            --accent-color: #FF6F00;
-            --pdf-color: #E74C3C;
-            --word-color: #2b5797;
-            --excel-color: #1e7145;
-            --background-color: #F8F8F8;
-            --card-background: #ffffff;
-            --text-color: #333;
-            --meta-color: #666;
-            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.05);
-            --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.1);
-            --admin-bg-color: #fff3cd;      
-            --admin-border-color: #ffeeba;  
-            --admin-text-color: #856404;    
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocuBase - 文書共有システム</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root {
+  --primary:#006400; --primary-lt:#007C00; --accent:#FF6F00;
+  --red:#E74C3C; --word:#2b5797; --excel:#1e7145;
+  --bg:#F8F8F8; --card:#fff; --text:#333; --meta:#666;
+  --sh:0 2px 8px rgba(0,0,0,.06); --sh-hov:0 6px 18px rgba(0,0,0,.12);
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px 12px;min-height:100vh;}
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px 10px; 
-            min-height: 100vh;
-        }
-        
-        .header-container { max-width: 1200px; margin: 0 auto 30px; padding-bottom: 10px; border-bottom: 3px solid var(--primary-color); display: flex; align-items: center; flex-wrap: wrap; }
-        .back-button { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 0.9em; margin-right: 10px; transition: background-color 0.2s; }
-        .back-button:hover { background-color: var(--primary-light); }
-        .header-title-area { flex-grow: 1; min-width: 200px; }
-        .header-title-area h1 { color: var(--primary-color); font-weight: 600; font-size: 2em; margin: 0; }
-        .header-title-area h1 i { margin-right: 10px; }
-        .filter-nav { max-width: 1200px; margin: 0 auto 20px; display: flex; gap: 8px; flex-wrap: wrap; }
-        .filter-nav button { background: none; border: 1px solid var(--primary-color); border-radius: 20px; padding: 6px 12px; font-size: 0.85em; cursor: pointer; color: var(--primary-color); transition: all 0.2s; }
-        .filter-nav button.active { background-color: var(--primary-color); color: white; font-weight: 600; }
-        .content-section { max-width: 1200px; margin: 0 auto; padding-top: 10px; }
-        .control-area { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; gap: 10px; }
-        .search-sort-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        .search-sort-group input, .search-sort-group select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
-        #bulkDownload { background-color: var(--accent-color); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; }
-        
-        .date-filter-area { padding: 15px; background-color: #f0f0f0; border-radius: 8px; display: flex; gap: 10px; align-items: center; border: 1px solid #ccc; flex-wrap: wrap; margin-bottom: 20px; }
-        .date-filter-area label { font-weight: 600; color: var(--text-color); white-space: nowrap; font-size: 0.9em; }
-        .date-filter-area input[type="date"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; flex-grow: 1; min-width: 120px; }
-        .date-filter-button, .clear-button { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.9em; }
-        .date-filter-button { background-color: var(--accent-color); color: white; }
-        .clear-button { background-color: #ddd; color: var(--text-color); }
+/* Header */
+.hdr{max-width:1200px;margin:0 auto 24px;padding-bottom:10px;border-bottom:3px solid var(--primary);display:flex;align-items:center;gap:10px;}
+.back-btn{background:var(--primary);color:#fff;border:none;padding:8px 13px;border-radius:5px;cursor:pointer;font-size:.9em;white-space:nowrap;}
+.back-btn:hover{background:var(--primary-lt);}
+.hdr h1{margin:0;color:var(--primary);font-size:1.9em;font-weight:700;}
+.hdr h1 i{margin-right:8px;}
 
-        .layout-switcher { display: flex; gap: 5px; }
-        .layout-switcher button { background: none; border: 1px solid #ccc; color: #666; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        .layout-switcher button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+/* Nav */
+.main-nav,.tag-nav{max-width:1200px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;}
+.main-nav button,.tag-nav button{background:none;border:1px solid var(--primary);border-radius:20px;padding:5px 14px;font-size:.85em;cursor:pointer;color:var(--primary);transition:all .2s;}
+.main-nav button.active,.tag-nav button.active{background:var(--primary);color:#fff;font-weight:600;}
 
-        /* ---- アップロードエリア ---- */
-        .upload-control {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f4f4f4;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid #ddd;
-            flex-wrap: wrap;
-        }
-        #uploadBtn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        #uploadBtn:hover { background-color: var(--primary-light); }
-        #uploadBtn:disabled { background-color: #aaa; cursor: not-allowed; }
-        #file-name-display { color: #666; font-size: 0.9em; }
-        #upload-progress {
-            width: 100%;
-            display: none;
-        }
-        #upload-progress progress {
-            width: 100%;
-            height: 8px;
-            accent-color: var(--primary-color);
-        }
-        #upload-status { font-size: 0.85em; color: var(--meta-color); }
+.section{max-width:1200px;margin:0 auto;}
 
-        .file-grid { margin-top: 15px; gap: 20px; display: grid; }
-        .file-card {
-            background: var(--card-background);
-            border-radius: 8px;
-            box-shadow: var(--shadow-light);
-            overflow: hidden;
-            transition: transform 0.3s, box-shadow 0.3s;
-            border: 1px solid #eee;
-            position: relative;
-        }
-        .file-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--primary-color); }
-        .file-card a { text-decoration: none; color: inherit; display: block; }
-        .card-info { padding: 15px; position: relative; }
-        
-        .card-preview { position: relative; height: 160px; overflow: hidden; } 
-        .card-preview img { width: 100%; height: 100%; object-fit: cover; }
-        .card-preview .no-image { 
-            display: flex; flex-direction: column; justify-content: center; 
-            align-items: center; height: 100%; background-color: #e0e0e0; 
-            color: var(--primary-color); 
-            font-size: 1.1em;
-        }
-        .card-preview .no-image i { font-size: 2em; margin-bottom: 10px; }
-        
-        .file-icon { position: absolute; top: 10px; right: 10px; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 600; display: flex; align-items: center; z-index: 10;}
-        .file-icon i { margin-right: 5px; }
-        .pdf-type { background-color: var(--pdf-color); }
-        .image-type { background-color: var(--primary-color); }
-        .word-type { background-color: var(--word-color); }
-        .excel-type { background-color: var(--excel-color); }
-        .other-type { background-color: var(--meta-color); }
+/* Control bar */
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;}
+.ctrl input[type=text],.ctrl select{padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-size:.9em;}
+.layout-sw{display:flex;gap:4px;}
+.layout-sw button{background:none;border:1px solid #ccc;color:#666;padding:5px 10px;border-radius:4px;cursor:pointer;}
+.layout-sw button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+#bulkDl{background:var(--accent);color:#fff;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;font-weight:600;}
 
-        .card-info h2 { font-size: 1.1em; margin-top: 0; margin-bottom: 8px; color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
-        .metadata-detail {
-            font-size: 0.85em;
-            color: var(--meta-color);
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #eee;
-        }
-        .metadata-detail div { margin-bottom: 5px; display: flex; align-items: flex-start; }
-        .metadata-detail strong { color: var(--text-color); width: 50px; font-weight: 600; flex-shrink: 0; margin-right: 10px; }
-        .metadata-detail span { flex-grow: 1; line-height: 1.4; }
+/* Date filter */
+.date-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;background:#f0f0f0;border:1px solid #ccc;border-radius:8px;margin-bottom:16px;font-size:.9em;}
+.date-row label{font-weight:600;white-space:nowrap;}
+.date-row input[type=date]{padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:.9em;}
+.btn-sm{border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:600;font-size:.9em;}
+.btn-orange{background:var(--accent);color:#fff;}
+.btn-gray{background:#ddd;color:var(--text);}
 
-        .select-checkbox { position: absolute; top: 15px; left: 15px; z-index: 10; opacity: 0; width: 20px; height: 20px; cursor: pointer; }
-        .select-checkbox + label { position: absolute; top: 15px; left: 15px; z-index: 9; width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 4px; background: #fff; transition: all 0.2s; cursor: pointer; }
-        .select-checkbox:checked + label { border-color: var(--primary-color); background-color: var(--primary-color); }
-        .select-checkbox:checked + label::after { content: "\f00c"; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 12px; color: white; position: absolute; top: 2px; left: 3px; }
-        
-        .card-actions { position: absolute; bottom: 15px; right: 15px; z-index: 5; }
-        .action-btn { background: var(--primary-color); color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background-color 0.2s; margin-left: 5px; }
-        .action-btn:hover { background-color: var(--primary-light); }
-        .action-btn.delete-btn { background-color: var(--pdf-color); }
-        .action-btn.delete-btn:hover { background-color: #c0392b; }
+/* Upload panel */
+.upload-panel{background:#f4f4f4;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:18px;}
+.up-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+#upTrigger{background:var(--primary);color:#fff;border:none;padding:9px 18px;border-radius:5px;cursor:pointer;font-weight:700;display:flex;align-items:center;gap:7px;white-space:nowrap;}
+#upTrigger:hover{background:var(--primary-lt);}
+#upTrigger:disabled{background:#aaa;cursor:not-allowed;}
+.up-hint{color:var(--meta);font-size:.82em;line-height:1.4;}
 
-        .file-grid.grid-cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: min-content; }
-        
-        .file-grid.grid-list { grid-template-columns: 1fr; gap: 10px; }
-        .file-grid.grid-list .file-card { display: flex; align-items: center; padding: 10px; height: auto; position: relative; }
-        .file-grid.grid-list .card-preview { height: 50px; width: 50px; flex-shrink: 0; border-radius: 4px; margin: 0 15px 0 30px; }
-        .file-grid.grid-list .card-info { padding: 0; flex-grow: 1; display: flex; justify-content: space-between; align-items: center; }
-        .file-grid.grid-list .card-info h2 { width: 40%; }
-        .file-grid.grid-list .metadata-detail { display: none; }
-        .file-grid.grid-list .metadata { display: flex; gap: 20px; font-size: 0.9em; }
-        .file-grid.grid-list .action-btn { position: static; margin-left: 10px; }
-        .file-grid.grid-list .select-checkbox + label { left: 10px; }
+/* Staged files */
+#staged{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+.s-item{background:#fff;border:1px solid #ddd;border-radius:6px;padding:12px;display:grid;grid-template-columns:36px 1fr auto;gap:8px 10px;align-items:start;}
+.s-icon{font-size:1.8em;color:var(--primary);align-self:center;text-align:center;}
+.s-fields{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.s-fields label{font-size:.75em;font-weight:700;color:var(--meta);margin-bottom:1px;display:block;}
+.s-fields input{width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:.85em;font-family:inherit;}
+.s-fields textarea{width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:.85em;font-family:inherit;resize:vertical;height:48px;}
+.s-safe-note{font-size:.72em;color:#e07000;margin-top:2px;}
+.s-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:1.1em;padding:2px 4px;align-self:start;}
+.up-actions{margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+#doUpload{background:var(--primary);color:#fff;border:none;padding:9px 22px;border-radius:5px;cursor:pointer;font-weight:700;}
+#doUpload:disabled{background:#aaa;cursor:not-allowed;}
+#upProg{flex:1;min-width:150px;display:none;}
+#upProg progress{width:100%;accent-color:var(--primary);height:7px;}
+#upStatus{font-size:.8em;color:var(--meta);margin-top:3px;}
 
-        .file-grid.grid-thumb { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
-        .file-grid.grid-thumb .file-card { height: 200px; padding: 0; display: flex; flex-direction: column; }
-        .file-grid.grid-thumb .card-preview { height: 120px; }
-        .file-grid.grid-thumb .card-info { padding: 8px; flex-grow: 1; }
-        .file-grid.grid-thumb .card-info h2 { font-size: 0.9em; margin: 0; white-space: normal; height: 3.6em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-        .file-grid.grid-thumb .metadata-detail { display: none; }
-        .file-grid.grid-thumb .select-checkbox + label { top: 8px; left: 8px; }
-        .file-grid.grid-thumb .card-actions { bottom: 8px; right: 8px; }
+/* File grid */
+.file-grid{margin-top:12px;gap:18px;display:grid;}
+.file-card{background:var(--card);border-radius:8px;box-shadow:var(--sh);overflow:hidden;transition:transform .25s,box-shadow .25s;border:1px solid #eee;position:relative;}
+.file-card:hover{transform:translateY(-3px);box-shadow:var(--sh-hov);border-color:var(--primary);}
+.card-preview{position:relative;height:150px;overflow:hidden;cursor:pointer;}
+.card-preview img{width:100%;height:100%;object-fit:cover;}
+.no-img{display:flex;flex-direction:column;justify-content:center;align-items:center;height:100%;background:#e8e8e8;color:var(--primary);}
+.no-img i{font-size:2.2em;margin-bottom:7px;}
+.no-img span{font-size:.8em;font-weight:600;}
+.file-badge{position:absolute;top:8px;right:8px;color:#fff;padding:4px 9px;border-radius:4px;font-size:.76em;font-weight:700;display:flex;align-items:center;gap:4px;z-index:2;}
+.t-pdf{background:var(--red);} .t-image{background:var(--primary);} .t-word{background:var(--word);} .t-excel{background:var(--excel);} .t-other{background:var(--meta);}
 
-        .file-grid.grid-detail { grid-template-columns: 1fr; gap: 1px; }
-        .file-grid.grid-detail .file-card { display: grid; grid-template-columns: 30px 1fr 150px 60px; align-items: center; border-radius: 0; border-left: none; border-right: none; border-bottom: 1px solid #ddd; padding: 10px 15px; box-shadow: none; overflow: visible; }
-        .file-grid.grid-detail .card-preview, .file-grid.grid-detail .file-icon, .file-grid.grid-detail .metadata-detail { display: none; }
-        .file-grid.grid-detail .select-checkbox + label { position: static; margin: auto; }
-        .file-grid.grid-detail .card-info { padding: 0 15px; margin: auto 0; }
-        .file-grid.grid-detail .card-info h2 { margin: 0; }
-        .file-grid.grid-detail .metadata { display: flex; gap: 20px; font-size: 0.9em; color: var(--meta-color); }
-        .file-grid.grid-detail .card-actions { position: static; margin: auto; }
+.card-info{padding:12px 12px 44px;}
+.card-info h2{font-size:1em;margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.meta-detail{font-size:.8em;color:var(--meta);margin-top:8px;padding-top:8px;border-top:1px dashed #eee;}
+.meta-detail div{display:flex;margin-bottom:3px;}
+.meta-detail strong{width:46px;flex-shrink:0;color:var(--text);font-weight:600;}
+.meta-detail span{flex:1;line-height:1.4;word-break:break-all;}
+.meta-inline{font-size:.82em;color:var(--meta);display:flex;gap:14px;flex-wrap:wrap;}
 
-        #admin-section { background-color: var(--admin-bg-color); border: 1px solid var(--admin-border-color); padding: 20px; border-radius: 8px; color: var(--admin-text-color); margin-top: 20px; }
-        #admin-section h2 { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; margin-top: 0; }
-        #admin-stats { display: flex; gap: 30px; margin-bottom: 20px; font-size: 1.1em; color: var(--text-color); }
-        #admin-section p, #admin-section ul { font-size: 0.95em; line-height: 1.6; }
-        #admin-section a { color: var(--accent-color); text-decoration: underline; }
+/* Checkbox */
+.sel-cb{position:absolute;top:12px;left:12px;z-index:5;opacity:0;width:20px;height:20px;cursor:pointer;}
+.sel-cb+label{position:absolute;top:12px;left:12px;z-index:4;width:20px;height:20px;border:2px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;transition:all .2s;}
+.sel-cb:checked+label{border-color:var(--primary);background:var(--primary);}
+.sel-cb:checked+label::after{content:"\f00c";font-family:'Font Awesome 6 Free';font-weight:900;font-size:11px;color:#fff;position:absolute;top:2px;left:2px;}
 
-        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
-        .spinner { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+/* Action buttons */
+.card-acts{position:absolute;bottom:9px;right:9px;display:flex;gap:5px;z-index:3;}
+.act{background:var(--primary);color:#fff;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px;box-shadow:0 2px 5px rgba(0,0,0,.18);transition:background .2s;display:flex;align-items:center;justify-content:center;}
+.act:hover{background:var(--primary-lt);}
+.act.red{background:var(--red);}
+.act.red:hover{background:#c0392b;}
 
-        .hidden { display: none !important; }
+/* Grid layouts */
+.g-cards{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}
+.g-list{grid-template-columns:1fr;gap:7px;}
+.g-list .file-card{display:flex;align-items:center;padding:8px 12px 8px 38px;overflow:visible;}
+.g-list .card-preview{width:46px;height:46px;flex-shrink:0;border-radius:4px;margin-right:12px;cursor:pointer;}
+.g-list .card-info{padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;}
+.g-list .card-info h2{flex:1;min-width:0;margin:0;}
+.g-list .meta-detail{display:none;}
+.g-list .card-acts{position:static;margin-left:auto;flex-shrink:0;}
+.g-list .sel-cb,.g-list .sel-cb+label{left:8px;}
+.g-thumb{grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:12px;}
+.g-thumb .card-preview{height:95px;}
+.g-thumb .card-info{padding:7px 7px 36px;}
+.g-thumb .card-info h2{font-size:.84em;margin:0;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.g-thumb .meta-detail{display:none;}
+.g-thumb .sel-cb,.g-thumb .sel-cb+label{top:6px;left:6px;}
+.g-thumb .card-acts{bottom:6px;right:6px;}
 
-        .modal { display: none; position: fixed; z-index: 200; padding-top: 30px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.95); }
-        .modal-content { margin: auto; display: block; width: 90%; max-width: 1300px; text-align: center; }
-        .modal-content img, .modal-content iframe { max-width: 100%; height: 90vh; display: block; margin: 0 auto; }
-        .modal-caption { margin: auto; display: block; width: 80%; max-width: 700px; text-align: center; color: #ccc; padding: 10px 0; height: 150px; }
-        .modal-close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; transition: 0.3s; }
-        .modal-close:hover, .modal-close:focus { color: #bbb; text-decoration: none; cursor: pointer; }
-    </style>
+/* Preview modal */
+#pmModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:500;overflow:auto;padding:40px 0 0;}
+.pm-wrap{margin:0 auto;width:94%;max-width:1300px;text-align:center;}
+.pm-wrap img{max-width:100%;max-height:88vh;border-radius:4px;display:block;margin:0 auto;}
+.pm-wrap iframe{width:100%;height:88vh;border:none;display:block;}
+.pm-cap{color:#ccc;padding:10px;font-size:.9em;}
+.pm-close{position:fixed;top:10px;right:26px;color:#fff;font-size:40px;cursor:pointer;line-height:1;z-index:501;user-select:none;}
+.pm-close:hover{color:#aaa;}
+.pm-alt{color:#fff;margin-top:80px;font-size:1.1em;line-height:2.2;text-align:center;}
+.pm-alt a{color:var(--accent);text-decoration:underline;}
+.pm-tabs{display:flex;justify-content:center;gap:8px;margin-bottom:12px;}
+.pm-tabs button{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:6px 14px;border-radius:4px;cursor:pointer;font-size:.85em;}
+.pm-tabs button.active{background:var(--primary);border-color:var(--primary);}
+
+/* Edit modal */
+#emModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;justify-content:center;align-items:center;}
+#emModal.open{display:flex;}
+.em-box{background:#fff;border-radius:10px;padding:24px;width:min(500px,94vw);box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;}
+.em-box h3{margin:0 0 18px;color:var(--primary);font-size:1.1em;border-bottom:2px solid var(--primary);padding-bottom:8px;}
+.em-field{margin-bottom:13px;}
+.em-field label{display:block;font-size:.78em;font-weight:700;color:var(--meta);margin-bottom:4px;}
+.em-field input,.em-field textarea{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-size:.9em;font-family:inherit;}
+.em-field textarea{resize:vertical;height:76px;}
+.em-hint{font-size:.73em;color:#999;margin-top:3px;line-height:1.4;}
+.em-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.btn-save{background:var(--primary);color:#fff;border:none;padding:9px 22px;border-radius:5px;cursor:pointer;font-weight:700;}
+.btn-cancel{background:#ddd;color:var(--text);border:none;padding:9px 16px;border-radius:5px;cursor:pointer;}
+
+/* Admin */
+.admin-box{background:#fff3cd;border:1px solid #ffeeba;padding:18px;border-radius:8px;color:#856404;margin-top:12px;}
+.admin-box h2{color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:8px;margin-top:0;}
+.admin-stats{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;font-size:1em;color:var(--text);}
+.admin-stats p{margin:0;font-weight:600;}
+
+/* Loading */
+#loading{position:fixed;inset:0;background:rgba(255,255,255,.94);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;}
+.spinner{border:7px solid #f0f0f0;border-top:7px solid var(--primary);border-radius:50%;width:46px;height:46px;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.hidden{display:none!important;}
+</style>
 </head>
 <body>
 
-    <div id="loading-overlay" class="hidden">
-        <div class="spinner"></div>
-        <p style="margin-top: 15px; color: var(--primary-color);">データを読み込み中...</p>
+<!-- Loading -->
+<div id="loading" class="hidden"><div class="spinner"></div><p style="margin-top:14px;color:var(--primary);">読み込み中...</p></div>
+
+<!-- ===== Preview Modal ===== -->
+<div id="pmModal">
+  <span class="pm-close" id="pmClose">×</span>
+  <div class="pm-wrap">
+    <div id="pmTabs" class="pm-tabs" style="display:none;"></div>
+    <div id="pmBody"></div>
+  </div>
+  <div id="pmCap" class="pm-cap"></div>
+</div>
+
+<!-- ===== Edit Modal ===== -->
+<div id="emModal">
+  <div class="em-box">
+    <h3><i class="fas fa-edit"></i> ファイル編集</h3>
+    <input type="hidden" id="em-orig">
+    <div class="em-field">
+      <label>表示タイトル <span style="color:#e07000;font-weight:normal;">（日本語OK）</span></label>
+      <input type="text" id="em-title" placeholder="例：令和7年度 技術マニュアル">
     </div>
-
-    <div id="fileModal" class="modal">
-        <span class="modal-close" onclick="closeModal()">&times;</span>
-        <div class="modal-content">
-            <div id="modal-body"></div>
-        </div>
-        <div id="modal-caption" class="modal-caption"></div>
+    <div class="em-field">
+      <label>説明</label>
+      <textarea id="em-desc" placeholder="ファイルの内容・用途などを入力..."></textarea>
     </div>
-
-    <header class="header-container">
-        <button class="back-button" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
-        <div class="header-title-area">
-            <h1><i class="fas fa-database"></i>DocuBase</h1> 
-        </div>
-    </header>
-
-    <nav class="filter-nav main-nav">
-        <button data-target="file-list" class="active">ファイルリスト</button>
-        <button data-target="admin-area">管理</button>
-    </nav>
-    
-    <div id="file-list" class="content-section">
-
-        <div class="control-area">
-            <div class="search-sort-group">
-                <input type="text" id="searchInput" placeholder="ファイル名、タグを検索..." onkeyup="applyMasterFilter()">
-                <select id="sortSelect" onchange="applyMasterFilter()">
-                    <option value="date_desc">日付順 (新)</option>
-                    <option value="date_asc">日付順 (古)</option>
-                    <option value="name_asc">ファイル名順 (昇)</option>
-                    <option value="size_desc">サイズ順 (大)</option>
-                </select>
-                <div class="layout-switcher">
-                    <button class="layout-btn active" data-layout="grid-cards" title="カード表示"><i class="fas fa-th-large"></i></button>
-                    <button class="layout-btn" data-layout="grid-list" title="リスト表示"><i class="fas fa-list"></i></button>
-                    <button class="layout-btn" data-layout="grid-thumb" title="サムネイル表示"><i class="fas fa-grip-horizontal"></i></button>
-                    <button class="layout-btn" data-layout="grid-detail" title="詳細表示"><i class="fas fa-list-alt"></i></button>
-                </div>
-            </div>
-            
-            <!-- ===== アップロードエリア ===== -->
-            <div class="upload-control">
-                <input type="file" id="fileInput" multiple style="display: none;">
-                <button id="uploadBtn" onclick="document.getElementById('fileInput').click()">
-                    <i class="fas fa-file-upload"></i> ファイルを選択して追加
-                </button>
-                <span id="file-name-display">ファイルが選択されていません</span>
-                <div id="upload-progress">
-                    <progress id="upload-progress-bar" value="0" max="100"></progress>
-                    <span id="upload-status"></span>
-                </div>
-            </div>
-
-            <div style="margin-top: 15px;">
-                <button id="bulkDownload"><i class="fas fa-download"></i> 選択ファイルをダウンロード</button>
-            </div>
-        </div>
-    
-        <div class="date-filter-area">
-            <label for="startDate">期間フィルタ (AND):</label>
-            <input type="date" id="startDate">
-            <label for="endDate">～</label>
-            <input type="date" id="endDate">
-            <button id="applyDateFilter" class="date-filter-button"><i class="fas fa-search"></i> 絞り込み</button>
-            <button id="clearDateFilter" class="clear-button"><i class="fas fa-times"></i> クリア</button>
-        </div>
-
-        <nav class="filter-nav tag-nav">
-            <button data-filter="all" class="active">すべて</button>
-        </nav>
-        
-        <main id="fileGrid" class="file-grid grid-cards"></main>
-
+    <div class="em-field">
+      <label>サーバー上のファイル名</label>
+      <input type="text" id="em-fname" placeholder="例: manual_2025_001.pdf">
+      <p class="em-hint">⚠ 日本語・スペースを含むファイル名はURLで文字化けする場合があります。ASCII英数字での保存を推奨します。変更はサーバー側の対応が必要です。</p>
     </div>
-
-    <div id="admin-area" class="content-section hidden">
-        <section id="admin-section">
-            <h2><i class="fas fa-cogs"></i> 管理者向け情報</h2>
-            <div id="admin-stats"></div>
-            <p>サーバーファイルに基づいてファイルがあります。</p>
-            <ul>
-                <li><strong>データファイル:</strong> <a href="https://api.tayunet-traininfo.com/api/files" target="_blank">.cloudflared を確認</a></li>
-            </ul>
-        </section>
+    <div class="em-acts">
+      <button class="btn-cancel" id="emCancelBtn">キャンセル</button>
+      <button class="btn-save"   id="emSaveBtn"><i class="fas fa-save"></i> 保存</button>
     </div>
+  </div>
+</div>
 
-    <script>
-        const API_BASE = 'https://api.tayunet-traininfo.com/api';
+<!-- ===== Header ===== -->
+<header class="hdr">
+  <button class="back-btn" onclick="history.back()"><i class="fas fa-arrow-left"></i> 戻る</button>
+  <h1><i class="fas fa-database"></i>DocuBase</h1>
+</header>
 
-        const tagMap = {
-            'all': 'すべて', 'pdf': 'PDF文書', 'image': '画像ファイル', 
-            'manual': 'マニュアル', 'report': 'レポート', 'other': 'その他',
-            'word': 'Word文書', 'excel': 'Excel文書' 
-        };
-        const typeMap = {
-            'pdf':   { icon: 'fa-file-pdf',   folder: 'pdfs/' },
-            'image': { icon: 'fa-image',       folder: 'images/' },
-            'word':  { icon: 'fa-file-word',   folder: 'documents/' },
-            'excel': { icon: 'fa-file-excel',  folder: 'documents/' },
-            'other': { icon: 'fa-file',        folder: 'documents/' }
-        };
+<!-- ===== Main Nav ===== -->
+<nav class="main-nav">
+  <button data-target="file-list" class="active">ファイルリスト</button>
+  <button data-target="admin-area">管理</button>
+</nav>
 
-        const fileGrid           = document.getElementById('fileGrid');
-        const tagNav             = document.querySelector('.tag-nav');
-        const loadingOverlay     = document.getElementById('loading-overlay');
-        const startDateInput     = document.getElementById('startDate');
-        const endDateInput       = document.getElementById('endDate');
-        const sortSelect         = document.getElementById('sortSelect');
-        const searchInput        = document.getElementById('searchInput');
-        const layoutButtons      = document.querySelectorAll('.layout-btn');
-        const fileModal          = document.getElementById('fileModal');
-        const modalBody          = document.getElementById('modal-body');
-        const modalCaption       = document.getElementById('modal-caption');
-        const fileInput          = document.getElementById('fileInput');
-        const uploadBtn          = document.getElementById('uploadBtn');
-        const fileNameDisplay    = document.getElementById('file-name-display');
-        const uploadProgressWrap = document.getElementById('upload-progress');
-        const uploadProgressBar  = document.getElementById('upload-progress-bar');
-        const uploadStatus       = document.getElementById('upload-status');
-        
-        let fileData = [];
-        let currentFilterTag  = 'all';
-        let currentDateRange  = { start: null, end: null };
-        let currentLayout     = 'grid-cards';
+<!-- ===== File List ===== -->
+<div id="file-list" class="section">
 
-        // --- ヘルパー ---
-        const parseDate = (dateString) => {
-            if (!dateString) return null;
-            const parts = dateString.split('/').map(Number);
-            return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-        };
-        const formatSize = (kb) => {
-            if (kb === undefined || kb === null || isNaN(kb) || kb === 0) return 'N/A';
-            if (kb < 1024) return `${kb} KB`;
-            return `${(kb / 1024).toFixed(2)} MB`;
-        };
-        const getFilepath = (file) => {
-            const typeInfo = typeMap[file.type] || typeMap['other'];
-            const folder = typeInfo.folder;
-            return `${folder}${encodeURIComponent(file.filename)}`;
-        };
-        const getFileTypeClass = (type) => {
-            const map = { pdf: 'pdf-type', image: 'image-type', word: 'word-type', excel: 'excel-type' };
-            return map[type] || 'other-type';
-        };
-        const getFileIcon = (type) => (typeMap[type] || typeMap['other']).icon;
+  <!-- Control bar -->
+  <div class="ctrl">
+    <input type="text" id="searchInput" placeholder="タイトル・タグを検索...">
+    <select id="sortSelect">
+      <option value="date_desc">日付 (新→古)</option>
+      <option value="date_asc">日付 (古→新)</option>
+      <option value="name_asc">名前順</option>
+      <option value="size_desc">サイズ順</option>
+    </select>
+    <div class="layout-sw">
+      <button class="layout-btn active" data-layout="g-cards" title="カード"><i class="fas fa-th-large"></i></button>
+      <button class="layout-btn" data-layout="g-list"  title="リスト"><i class="fas fa-list"></i></button>
+      <button class="layout-btn" data-layout="g-thumb" title="サムネイル"><i class="fas fa-grip-horizontal"></i></button>
+    </div>
+    <button id="bulkDl"><i class="fas fa-download"></i> 選択ダウンロード</button>
+  </div>
 
-        // ===== ファイルアップロード処理 =====
-        fileInput.addEventListener('change', async () => {
-            const files = fileInput.files;
-            if (!files || files.length === 0) return;
+  <!-- Upload panel -->
+  <div class="upload-panel">
+    <div class="up-top">
+      <input type="file" id="fileInput" multiple style="display:none;">
+      <button id="upTrigger" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-file-upload"></i> ファイルを選択
+      </button>
+      <span class="up-hint">選択後にタイトル・説明・ファイル名を確認してアップロードできます。<br>日本語ファイル名は自動でASCII安全名を提案します。</span>
+    </div>
+    <div id="staged"></div>
+    <div class="up-actions" id="upActions" style="display:none;">
+      <button id="doUpload"><i class="fas fa-cloud-upload-alt"></i> アップロード実行</button>
+      <div id="upProg">
+        <progress id="upBar" value="0" max="100"></progress>
+        <div id="upStatus"></div>
+      </div>
+    </div>
+  </div>
 
-            // 選択ファイル名を表示
-            if (files.length === 1) {
-                fileNameDisplay.textContent = files[0].name;
-            } else {
-                fileNameDisplay.textContent = `${files.length} 個のファイルが選択されました`;
-            }
+  <!-- Date filter -->
+  <div class="date-row">
+    <label>期間フィルタ:</label>
+    <input type="date" id="startDate">
+    <label>〜</label>
+    <input type="date" id="endDate">
+    <button class="btn-sm btn-orange" id="applyDate"><i class="fas fa-search"></i> 絞り込み</button>
+    <button class="btn-sm btn-gray"   id="clearDate"><i class="fas fa-times"></i> クリア</button>
+  </div>
 
-            // 確認ダイアログ
-            const names = Array.from(files).map(f => f.name).join('\n');
-            if (!confirm(`以下のファイルをアップロードしますか？\n\n${names}`)) {
-                fileInput.value = '';
-                fileNameDisplay.textContent = 'ファイルが選択されていません';
-                return;
-            }
+  <!-- Tag nav -->
+  <nav class="tag-nav" id="tagNav">
+    <button data-filter="all" class="active">すべて</button>
+  </nav>
 
-            uploadBtn.disabled = true;
-            uploadProgressWrap.style.display = 'block';
+  <!-- Grid -->
+  <main id="fileGrid" class="file-grid g-cards"></main>
+</div>
 
-            let succeeded = 0;
-            let failed    = 0;
+<!-- ===== Admin ===== -->
+<div id="admin-area" class="section hidden">
+  <div class="admin-box">
+    <h2><i class="fas fa-cogs"></i> 管理者向け情報</h2>
+    <div id="adminStats" class="admin-stats"></div>
+    <p style="font-size:.9em;">APIエンドポイント: <code>https://api.tayunet-traininfo.com/api/files</code></p>
+  </div>
+</div>
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                uploadStatus.textContent = `アップロード中 (${i + 1}/${files.length}): ${file.name}`;
-                uploadProgressBar.value = Math.round((i / files.length) * 100);
+<script>
+// ============================================================
+// 定数
+// ============================================================
+const API_BASE  = 'https://api.tayunet-traininfo.com/api';
+const FILE_BASE = 'https://api.tayunet-traininfo.com';   // ファイル配信ルート
 
-                const formData = new FormData();
-                formData.append('file', file);
+const TAG_LABELS = {
+  all:'すべて', pdf:'PDF文書', image:'画像', manual:'マニュアル',
+  report:'レポート', other:'その他', word:'Word文書', excel:'Excel文書'
+};
+const TYPE_INFO = {
+  pdf:   { icon:'fa-file-pdf',   folder:'pdfs/',      cls:'t-pdf'   },
+  image: { icon:'fa-image',      folder:'images/',    cls:'t-image' },
+  word:  { icon:'fa-file-word',  folder:'documents/', cls:'t-word'  },
+  excel: { icon:'fa-file-excel', folder:'documents/', cls:'t-excel' },
+  other: { icon:'fa-file',       folder:'documents/', cls:'t-other' },
+};
 
-                try {
-                    const res = await fetch(`${API_BASE}/upload`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (res.ok) {
-                        succeeded++;
-                    } else {
-                        const err = await res.json().catch(() => ({}));
-                        console.error(`アップロード失敗: ${file.name}`, err);
-                        failed++;
-                    }
-                } catch (e) {
-                    console.error(`通信エラー: ${file.name}`, e);
-                    failed++;
-                }
-            }
+// ============================================================
+// 状態
+// ============================================================
+let fileData    = [];
+let currentTag  = 'all';
+let currentLayout = 'g-cards';
+let dateRange   = { start:null, end:null };
+let stagedFiles = [];   // { file, displayName, safeFilename, description }
+let editTarget  = null;
 
-            uploadProgressBar.value = 100;
-            uploadStatus.textContent = `完了: ${succeeded} 件成功${failed > 0 ? ` / ${failed} 件失敗` : ''}`;
+// ============================================================
+// ヘルパー
+// ============================================================
+const getFilename = f => f.filename || f.title;
+const extOf = name => (name.split('.').pop() || '').toUpperCase();
+const typeOf = f => TYPE_INFO[f.type] || TYPE_INFO.other;
 
-            // 後始末
-            uploadBtn.disabled = false;
-            fileInput.value = '';
-            fileNameDisplay.textContent = 'ファイルが選択されていません';
+/** ファイルへの絶対URL */
+const fileUrl = f => {
+  const fn = getFilename(f);
+  return `${FILE_BASE}/${typeOf(f).folder}${encodeURIComponent(fn)}`;
+};
 
-            setTimeout(() => {
-                uploadProgressWrap.style.display = 'none';
-                uploadStatus.textContent = '';
-                uploadProgressBar.value = 0;
-            }, 3000);
+const parseDate  = s => { if(!s) return null; const p=s.split('/').map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2])); };
+const formatSize = kb => !kb ? 'N/A' : kb < 1024 ? `${kb} KB` : `${(kb/1024).toFixed(2)} MB`;
 
-            if (succeeded > 0) loadFiles(); // 成功分があれば再読み込み
-        });
+/** 日本語等を含むファイル名をASCII安全名に変換 */
+const toSafeName = (name, idx) => {
+  const ext  = name.split('.').pop().toLowerCase();
+  const base = name.replace(/\.[^.]+$/, '');
+  if (/^[a-zA-Z0-9 _\-()\[\].]+$/.test(base)) return name; // すでに安全
+  const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  return `file_${ts}_${String(idx+1).padStart(3,'0')}.${ext}`;
+};
 
-        // ===== タグフィルタ =====
-        const setupFilters = (data) => {
-            const existingTags = new Set(['pdf', 'image', 'word', 'excel']);
-            data.forEach(file => { if (file.tag) existingTags.add(file.tag); });
-            
-            tagNav.innerHTML = '';
-            const allButton = document.createElement('button');
-            allButton.setAttribute('data-filter', 'all');
-            allButton.textContent = tagMap['all'];
-            allButton.classList.add('active');
-            tagNav.appendChild(allButton);
+/** 簡易アイコンHTML */
+const iconHtml = f => `<i class="fas ${typeOf(f).icon}"></i>`;
 
-            existingTags.forEach(tag => {
-                if (tag === 'all') return;
-                const button = document.createElement('button');
-                button.setAttribute('data-filter', tag);
-                button.textContent = tagMap[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
-                tagNav.appendChild(button);
-            });
+// ============================================================
+// Preview Modal
+// ============================================================
+const pmModal = document.getElementById('pmModal');
+const pmBody  = document.getElementById('pmBody');
+const pmCap   = document.getElementById('pmCap');
+const pmTabs  = document.getElementById('pmTabs');
 
-            tagNav.querySelectorAll('button').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    currentFilterTag = e.target.getAttribute('data-filter');
-                    tagNav.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-                    e.target.classList.add('active');
-                    applyMasterFilter();
-                });
-            });
-        };
+const openPreview = f => {
+  const url = fileUrl(f);
+  pmBody.innerHTML = '';
+  pmTabs.innerHTML = '';
+  pmTabs.style.display = 'none';
+  pmCap.textContent = f.title || getFilename(f);
 
-        // ===== モーダル =====
-        const openModal = (file) => {
-            const filePath = getFilepath(file);
-            modalBody.innerHTML = '';
-            modalCaption.textContent = file.title;
+  if (f.type === 'image') {
+    // 画像：直接表示
+    const img = new Image();
+    img.alt = f.title;
+    img.onerror = () => {
+      pmBody.innerHTML = `<div class="pm-alt">画像を読み込めませんでした。<br>
+        <a href="${url}" target="_blank">ブラウザで直接開く</a></div>`;
+    };
+    img.src = url;
+    pmBody.appendChild(img);
 
-            if (file.type === 'image') {
-                const img = document.createElement('img');
-                img.src = filePath;
-                modalBody.appendChild(img);
-            } else if (file.type === 'pdf') {
-                const iframe = document.createElement('iframe');
-                iframe.src = filePath;
-                iframe.style.width  = '100%';
-                iframe.style.height = '90vh';
-                iframe.setAttribute('frameborder', '0');
-                modalBody.appendChild(iframe);
-            } else {
-                modalBody.innerHTML = `<p style="color:white;font-size:1.2em;margin-top:100px;">このファイル形式はプレビューできません。<br><a href="${filePath}" target="_blank" style="color:var(--accent-color);text-decoration:underline;">ここをクリックしてダウンロード</a>してください。</p>`;
-            }
-            fileModal.style.display = 'block';
-        };
-        const closeModal = () => {
-            fileModal.style.display = 'none';
-            modalBody.innerHTML = '';
-        };
-        window.onclick = (event) => { if (event.target === fileModal) closeModal(); };
+  } else if (f.type === 'pdf') {
+    // PDF：直接iframeとGoogleViewer切替タブ
+    pmTabs.style.display = 'flex';
+    const directTab = createTab('直接表示', true,  () => showPdfDirect(url));
+    const googleTab = createTab('Googleビューア', false, () => showPdfGoogle(url));
+    pmTabs.appendChild(directTab);
+    pmTabs.appendChild(googleTab);
+    showPdfDirect(url);
 
-        // ===== フィルタ & ソート =====
-        const applyMasterFilter = () => {
-            let filteredData = fileData;
-            const searchTerm = searchInput.value.toLowerCase();
-            const start = currentDateRange.start;
-            const end   = currentDateRange.end;
+  } else if (f.type === 'word' || f.type === 'excel') {
+    // Office：Microsoft Office Online
+    const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
+    pmBody.innerHTML = `<iframe src="${viewer}"></iframe>`;
 
-            filteredData = filteredData.filter(file => {
-                const titleMatch = file.title.toLowerCase().includes(searchTerm);
-                const tagMatch   = currentFilterTag === 'all' || 
-                                   (currentFilterTag === 'pdf'   && file.type === 'pdf')   ||
-                                   (currentFilterTag === 'image' && file.type === 'image') ||
-                                   (file.tag === currentFilterTag);
-                let dateMatch = true;
-                if (start || end) {
-                    const fileDate = parseDate(file.date);
-                    if (!fileDate) { dateMatch = false; }
-                    else {
-                        if (start) dateMatch = dateMatch && (fileDate >= start);
-                        if (end)   dateMatch = dateMatch && (fileDate <= end);
-                    }
-                }
-                return titleMatch && tagMatch && dateMatch;
-            });
+  } else {
+    pmBody.innerHTML = `<div class="pm-alt">このファイル形式はブラウザでプレビューできません。<br>
+      <a href="${url}" target="_blank"><i class="fas fa-download"></i> ダウンロードして開く</a></div>`;
+  }
+  pmModal.style.display = 'block';
+};
 
-            const sortValue = sortSelect.value;
-            filteredData.sort((a, b) => {
-                if (sortValue === 'date_desc') return parseDate(b.date) - parseDate(a.date);
-                if (sortValue === 'date_asc')  return parseDate(a.date) - parseDate(b.date);
-                if (sortValue === 'name_asc')  return a.title.localeCompare(b.title, 'ja');
-                if (sortValue === 'size_desc') return (b.size_kb || 0) - (a.size_kb || 0);
-                return 0;
-            });
-            renderFileCards(filteredData);
-        };
+const createTab = (label, active, fn) => {
+  const btn = document.createElement('button');
+  btn.textContent = label;
+  if (active) btn.classList.add('active');
+  btn.onclick = () => {
+    pmTabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    fn();
+  };
+  return btn;
+};
+const showPdfDirect = url => { pmBody.innerHTML = `<iframe src="${url}"></iframe>`; };
+const showPdfGoogle = url => {
+  const gv = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+  pmBody.innerHTML = `<iframe src="${gv}"></iframe>`;
+};
 
-        // ===== カード生成 =====
-        const renderFileCards = (dataToRender) => {
-            fileGrid.innerHTML = '';
-            fileGrid.className = `file-grid ${currentLayout}`;
-            
-            if (dataToRender.length === 0) {
-                fileGrid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--meta-color);">該当するファイルは見つかりませんでした。</p>';
-                return;
-            }
+const closePreview = () => { pmModal.style.display = 'none'; pmBody.innerHTML = ''; };
+document.getElementById('pmClose').onclick = closePreview;
+pmModal.addEventListener('click', e => { if(e.target === pmModal) closePreview(); });
 
-            dataToRender.forEach(file => {
-                const filePath      = getFilepath(file);
-                const fileExtension = file.filename.split('.').pop().toUpperCase();
+// ============================================================
+// Download
+// ============================================================
+const downloadFile = async f => {
+  const url  = fileUrl(f);
+  const name = getFilename(f);
+  try {
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error('fetch failed');
+    const blob = await res.blob();
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch {
+    // CORS等で失敗 → ブラウザで直接開く
+    window.open(url, '_blank');
+  }
+};
 
-                const card = document.createElement('section');
-                card.className = 'file-card';
-                card.setAttribute('data-id',   file.filename);
-                card.setAttribute('data-type',  file.type);
+// ============================================================
+// Edit Modal
+// ============================================================
+const emModal  = document.getElementById('emModal');
+const emOrig   = document.getElementById('em-orig');
+const emTitle  = document.getElementById('em-title');
+const emDesc   = document.getElementById('em-desc');
+const emFname  = document.getElementById('em-fname');
 
-                // チェックボックス
-                const checkbox = document.createElement('input');
-                checkbox.type      = 'checkbox';
-                checkbox.className = 'select-checkbox';
-                checkbox.id        = `checkbox-${file.filename}`;
-                checkbox.value     = decodeURIComponent(filePath);
-                card.appendChild(checkbox);
+const openEdit = f => {
+  editTarget = f;
+  emOrig.value  = getFilename(f);
+  emTitle.value = f.title || getFilename(f);
+  emDesc.value  = f.description || '';
+  emFname.value = getFilename(f);
+  emModal.classList.add('open');
+};
+const closeEdit = () => { emModal.classList.remove('open'); editTarget = null; };
+document.getElementById('emCancelBtn').onclick = closeEdit;
+emModal.addEventListener('click', e => { if(e.target === emModal) closeEdit(); });
 
-                const checkboxLabel = document.createElement('label');
-                checkboxLabel.setAttribute('for', `checkbox-${file.filename}`);
-                card.appendChild(checkboxLabel);
+document.getElementById('emSaveBtn').onclick = async () => {
+  if (!editTarget) return;
+  const orig     = emOrig.value;
+  const newTitle = emTitle.value.trim();
+  const newDesc  = emDesc.value.trim();
+  const newFname = emFname.value.trim();
+  const body     = { title: newTitle, description: newDesc };
+  if (newFname && newFname !== orig) body.newFilename = newFname;
 
-                // アクションボタン群
-                const actionDiv = document.createElement('div');
-                actionDiv.className = 'card-actions';
+  try {
+    const res = await fetch(`${API_BASE}/files/${encodeURIComponent(orig)}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    closeEdit();
+    loadFiles();
+  } catch (e) {
+    // APIが未実装の場合はローカル更新してUIに反映
+    editTarget.title       = newTitle;
+    editTarget.description = newDesc;
+    if (body.newFilename) editTarget.filename = newFname;
+    closeEdit();
+    applyFilter();
+    console.warn('PATCH API not available – local only:', e.message);
+  }
+};
 
-                // 共有ボタン
-                const shareBtn = document.createElement('button');
-                shareBtn.className = 'action-btn';
-                shareBtn.title     = '共有リンクをコピー';
-                shareBtn.innerHTML = '<i class="fas fa-share-alt"></i>';
-                shareBtn.onclick   = (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    const fullUrl = new URL(decodeURIComponent(filePath), document.URL).href;
-                    navigator.clipboard.writeText(fullUrl);
-                    alert('共有リンクをクリップボードにコピーしました:\n' + fullUrl);
-                };
-                actionDiv.appendChild(shareBtn);
+// ============================================================
+// Delete
+// ============================================================
+const deleteFile = async f => {
+  if (!confirm(`「${f.title || getFilename(f)}」を削除しますか？\nこの操作は取り消せません。`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(getFilename(f))}`, { method:'DELETE' });
+    if (res.ok) { loadFiles(); }
+    else { alert('削除に失敗しました: ' + (await res.text())); }
+  } catch { alert('通信エラーが発生しました。'); }
+};
 
-                // 削除ボタン (1つだけ)
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'action-btn delete-btn';
-                deleteBtn.title     = '削除';
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                deleteBtn.onclick   = async (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    if (!confirm(`「${file.title}」をサーバーから削除します。よろしいですか？`)) return;
-                    try {
-                        const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(file.filename)}`, {
-                            method: 'DELETE'
-                        });
-                        if (res.ok) {
-                            loadFiles();
-                        } else {
-                            const errData = await res.json().catch(() => ({}));
-                            alert('削除に失敗しました: ' + (errData.message || 'サーバーエラー'));
-                        }
-                    } catch (err) {
-                        console.error('Delete request failed:', err);
-                        alert('通信エラーが発生しました。');
-                    }
-                };
-                actionDiv.appendChild(deleteBtn);
+// ============================================================
+// Upload (staging → execute)
+// ============================================================
+const fileInput   = document.getElementById('fileInput');
+const stagedDiv   = document.getElementById('staged');
+const upActions   = document.getElementById('upActions');
+const upBar       = document.getElementById('upBar');
+const upStatus    = document.getElementById('upStatus');
+const upProgDiv   = document.getElementById('upProg');
+const upTrigger   = document.getElementById('upTrigger');
 
-                // リンク
-                const link = document.createElement('a');
-                link.href  = filePath;
-                if (file.type === 'pdf' || file.type === 'image') {
-                    link.onclick = (e) => { e.preventDefault(); openModal(file); };
-                } else {
-                    link.target = '_blank';
-                }
+fileInput.addEventListener('change', () => {
+  const files = Array.from(fileInput.files);
+  if (!files.length) return;
+  files.forEach((f, i) => {
+    const safe = toSafeName(f.name, stagedFiles.length + i);
+    stagedFiles.push({ file: f, displayName: f.name.replace(/\.[^.]+$/, ''), safeFilename: safe, description: '' });
+  });
+  fileInput.value = '';
+  renderStaged();
+});
 
-                // プレビューエリア
-                const previewDiv    = document.createElement('div');
-                previewDiv.className = 'card-preview';
-                const noImageDiv    = document.createElement('div');
-                noImageDiv.className = 'no-image';
-                noImageDiv.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> プレビューなし`;
+const renderStaged = () => {
+  stagedDiv.innerHTML = '';
+  if (!stagedFiles.length) { upActions.style.display = 'none'; return; }
+  upActions.style.display = 'flex';
 
-                if (file.preview_path && file.preview_path.trim() !== '') {
-                    const img = document.createElement('img');
-                    img.src   = file.preview_path;
-                    img.alt   = `${file.title} プレビュー`;
-                    img.onerror = function() {
-                        this.style.display   = 'none';
-                        noImageDiv.style.display = 'flex';
-                    };
-                    noImageDiv.style.display = 'none';
-                    previewDiv.appendChild(img);
-                }
-                previewDiv.appendChild(noImageDiv);
+  stagedFiles.forEach((item, idx) => {
+    const ext  = item.file.name.split('.').pop().toLowerCase();
+    const type = ext === 'pdf' ? 'pdf' : ['jpg','jpeg','png','gif','webp','bmp'].includes(ext) ? 'image'
+               : ['doc','docx'].includes(ext) ? 'word' : ['xls','xlsx'].includes(ext) ? 'excel' : 'other';
+    const ti   = TYPE_INFO[type] || TYPE_INFO.other;
+    const isSafe = item.safeFilename === item.file.name;
 
-                const iconSpan    = document.createElement('span');
-                iconSpan.className = `file-icon ${getFileTypeClass(file.type)}`;
-                iconSpan.innerHTML = `<i class="fas ${getFileIcon(file.type)}"></i> ${fileExtension}`;
-                previewDiv.appendChild(iconSpan);
-                link.appendChild(previewDiv);
+    const div = document.createElement('div');
+    div.className = 's-item';
+    div.innerHTML = `
+      <div class="s-icon"><i class="fas ${ti.icon}" style="color:${type==='pdf'?'var(--red)':type==='word'?'var(--word)':type==='excel'?'var(--excel)':'var(--primary)'}"></i></div>
+      <div class="s-fields">
+        <label>元ファイル名</label>
+        <input type="text" value="${escHtml(item.file.name)}" readonly style="background:#f0f0f0;color:#888;">
+        <label style="margin-top:4px;">表示タイトル <span style="color:#e07000;font-weight:normal;">(日本語OK)</span></label>
+        <input type="text" class="s-dname" value="${escHtml(item.displayName)}" placeholder="表示名">
+        <label style="margin-top:4px;">サーバー保存名 <span style="color:#e07000;font-weight:normal;">(ASCII推奨)</span></label>
+        <input type="text" class="s-sname" value="${escHtml(item.safeFilename)}" placeholder="例: file_20260430_001.pdf">
+        ${!isSafe ? `<div class="s-safe-note">⚠ 日本語ファイル名を検出したため安全名を提案しています</div>` : ''}
+        <label style="margin-top:4px;">説明</label>
+        <textarea class="s-desc" placeholder="ファイルの説明（省略可）">${escHtml(item.description)}</textarea>
+      </div>
+      <button class="s-remove" data-idx="${idx}" title="削除"><i class="fas fa-times"></i></button>`;
 
-                // 情報エリア
-                const infoDiv    = document.createElement('div');
-                infoDiv.className = 'card-info';
+    // イベント
+    div.querySelector('.s-dname').addEventListener('input', e => { stagedFiles[idx].displayName  = e.target.value; });
+    div.querySelector('.s-sname').addEventListener('input', e => { stagedFiles[idx].safeFilename = e.target.value; });
+    div.querySelector('.s-desc' ).addEventListener('input', e => { stagedFiles[idx].description  = e.target.value; });
+    div.querySelector('.s-remove').addEventListener('click', () => {
+      stagedFiles.splice(idx, 1);
+      renderStaged();
+    });
+    stagedDiv.appendChild(div);
+  });
+};
 
-                const titleH2    = document.createElement('h2');
-                titleH2.textContent = file.title;
-                if (currentLayout === 'grid-detail') {
-                    titleH2.style.cursor = 'pointer';
-                    titleH2.onclick = (e) => {
-                        e.preventDefault();
-                        if (file.type === 'pdf' || file.type === 'image') openModal(file);
-                        else window.open(filePath, '_blank');
-                    };
-                }
-                infoDiv.appendChild(titleH2);
+document.getElementById('doUpload').addEventListener('click', async () => {
+  if (!stagedFiles.length) return;
+  upTrigger.disabled = true;
+  document.getElementById('doUpload').disabled = true;
+  upProgDiv.style.display = 'block';
 
-                const metadataDetailDiv    = document.createElement('div');
-                metadataDetailDiv.className = 'metadata-detail';
-                const desc = (file.description && file.description.trim() !== '') ? file.description : '説明なし';
-                metadataDetailDiv.innerHTML = `
-                    <div><strong>種別:</strong><span>${tagMap[file.tag] || file.tag}</span></div>
-                    <div><strong>サイズ:</strong><span>${formatSize(file.size_kb)}</span></div>
-                    <div><strong>日付:</strong><span>${file.date || 'N/A'}</span></div>
-                    <div><strong>説明:</strong><span>${desc}</span></div>
-                `;
-                infoDiv.appendChild(metadataDetailDiv);
+  let ok = 0, ng = 0;
+  for (let i = 0; i < stagedFiles.length; i++) {
+    const item = stagedFiles[i];
+    upStatus.textContent  = `(${i+1}/${stagedFiles.length}) ${item.file.name} をアップロード中...`;
+    upBar.value = Math.round(i / stagedFiles.length * 100);
 
-                const metadataDiv    = document.createElement('div');
-                metadataDiv.className = 'metadata';
-                metadataDiv.innerHTML = `
-                    <span>${tagMap[file.tag] || file.tag}</span>
-                    <span>${formatSize(file.size_kb)}</span>
-                    <span>${file.date || 'N/A'}</span>
-                `;
-                if (currentLayout === 'grid-list' || currentLayout === 'grid-detail') {
-                    infoDiv.appendChild(metadataDiv);
-                }
+    const fd = new FormData();
+    // safe filenameで送信（文字化け対策）
+    fd.append('file', item.file, item.safeFilename);
+    fd.append('title', item.displayName || item.safeFilename);
+    fd.append('description', item.description);
 
-                if (currentLayout === 'grid-detail' || currentLayout === 'grid-list') {
-                    card.appendChild(infoDiv);
-                    card.appendChild(actionDiv);
-                } else {
-                    link.appendChild(infoDiv);
-                    card.appendChild(link);
-                    card.appendChild(actionDiv);
-                }
+    try {
+      const res = await fetch(`${API_BASE}/upload`, { method:'POST', body: fd });
+      if (res.ok) ok++; else { console.error('upload fail:', await res.text()); ng++; }
+    } catch (e) { console.error(e); ng++; }
+  }
 
-                fileGrid.appendChild(card);
-            });
-        };
+  upBar.value   = 100;
+  upStatus.textContent = `完了: ${ok}件成功${ng ? ` / ${ng}件失敗` : ''}`;
+  upTrigger.disabled = false;
+  document.getElementById('doUpload').disabled = false;
+  stagedFiles = [];
+  setTimeout(() => {
+    upProgDiv.style.display = 'none';
+    upStatus.textContent = '';
+    upBar.value = 0;
+    renderStaged();
+  }, 3000);
+  if (ok > 0) loadFiles();
+});
 
-        // ===== レイアウト切替 =====
-        const setupLayoutSwitcher = () => {
-            layoutButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const newLayout = button.getAttribute('data-layout');
-                    layoutButtons.forEach(btn => btn.classList.remove('active'));
-                    button.classList.add('active');
-                    currentLayout = newLayout;
-                    applyMasterFilter();
-                });
-            });
-        };
-        
-        // ===== データ取得 =====
-        const loadFiles = async () => {
-            loadingOverlay.classList.remove('hidden');
-            try {
-                const response = await fetch(`${API_BASE}/files`);
-                if (!response.ok) throw new Error(`Status: ${response.status}`);
-                fileData = await response.json();
-                
-                const totalSize = fileData.reduce((sum, file) => sum + (file.size_kb || 0), 0);
-                document.getElementById('admin-stats').innerHTML = `
-                    <p style="font-weight:600;">合計ファイル数: ${fileData.length} 件</p>
-                    <p style="font-weight:600;">合計ファイルサイズ: ${formatSize(totalSize)}</p>
-                `;
-                setupFilters(fileData);
-                applyMasterFilter();
-            } catch (error) {
-                console.error('Error loading file data:', error);
-                fileGrid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--pdf-color);">ファイルの読み込みに失敗しました。</p>';
-            } finally {
-                loadingOverlay.classList.add('hidden');
-            }
-        };
+// ============================================================
+// Tag nav
+// ============================================================
+const buildTagNav = data => {
+  const tags = new Set(['pdf','image','word','excel']);
+  data.forEach(f => { if(f.tag) tags.add(f.tag); });
+  const nav = document.getElementById('tagNav');
+  nav.innerHTML = '';
+  ['all', ...tags].forEach(tag => {
+    const btn = document.createElement('button');
+    btn.setAttribute('data-filter', tag);
+    btn.textContent = TAG_LABELS[tag] || tag;
+    if (tag === currentTag) btn.classList.add('active');
+    btn.onclick = () => {
+      currentTag = tag;
+      nav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilter();
+    };
+    nav.appendChild(btn);
+  });
+};
 
-        // ===== イベントリスナー =====
-        document.getElementById('applyDateFilter').addEventListener('click', () => {
-            const sv = startDateInput.value ? startDateInput.value.replace(/-/g, '/') : null;
-            const ev = endDateInput.value   ? endDateInput.value.replace(/-/g, '/')   : null;
-            currentDateRange.start = sv ? parseDate(sv) : null;
-            currentDateRange.end   = ev ? parseDate(ev) : null;
-            if (currentDateRange.start && currentDateRange.end && currentDateRange.start > currentDateRange.end) {
-                alert('開始日が終了日より後の日付になっています。');
-                return;
-            }
-            applyMasterFilter();
-        });
+// ============================================================
+// Filter / Sort / Render
+// ============================================================
+const applyFilter = () => {
+  const q   = document.getElementById('searchInput').value.toLowerCase();
+  const srt = document.getElementById('sortSelect').value;
+  const {start, end} = dateRange;
 
-        document.getElementById('clearDateFilter').addEventListener('click', () => {
-            startDateInput.value = '';
-            endDateInput.value   = '';
-            currentDateRange     = { start: null, end: null };
-            applyMasterFilter();
-        });
-        
-        document.getElementById('bulkDownload').addEventListener('click', () => {
-            const selected = document.querySelectorAll('.select-checkbox:checked');
-            if (selected.length === 0) { alert('ダウンロードするファイルを1つ以上選択してください。'); return; }
-            if (confirm(`${selected.length}個のファイルをダウンロードします。よろしいですか？`)) {
-                selected.forEach(cb => window.open(cb.value, '_blank'));
-            }
-        });
+  let data = fileData.filter(f => {
+    const name = (f.title || getFilename(f)).toLowerCase();
+    if (q && !name.includes(q) && !(f.tag||'').includes(q) && !(f.description||'').toLowerCase().includes(q)) return false;
+    if (currentTag !== 'all') {
+      if (currentTag === 'pdf'   && f.type !== 'pdf')   return false;
+      if (currentTag === 'image' && f.type !== 'image') return false;
+      if (currentTag !== 'pdf' && currentTag !== 'image' && f.tag !== currentTag) return false;
+    }
+    if (start || end) {
+      const fd = parseDate(f.date);
+      if (!fd) return false;
+      if (start && fd < start) return false;
+      if (end   && fd > end)   return false;
+    }
+    return true;
+  });
 
-        document.querySelectorAll('.main-nav button').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const target = e.target.getAttribute('data-target');
-                document.querySelectorAll('.main-nav button').forEach(btn => btn.classList.remove('active'));
-                e.target.classList.add('active');
-                document.getElementById('file-list').classList.add('hidden');
-                document.getElementById('admin-area').classList.add('hidden');
-                document.getElementById(target).classList.remove('hidden');
-            });
-        });
+  data.sort((a,b) => {
+    if (srt==='date_desc') return parseDate(b.date) - parseDate(a.date);
+    if (srt==='date_asc')  return parseDate(a.date) - parseDate(b.date);
+    if (srt==='name_asc')  return (a.title||getFilename(a)).localeCompare(b.title||getFilename(b),'ja');
+    if (srt==='size_desc') return (b.size_kb||0) - (a.size_kb||0);
+    return 0;
+  });
 
-        // ===== 初期化 =====
-        document.addEventListener('DOMContentLoaded', () => {
-            setupLayoutSwitcher();
-            loadFiles();
-        });
-    </script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="auth_guard.js"></script>
+  renderCards(data);
+};
+
+const renderCards = items => {
+  const grid = document.getElementById('fileGrid');
+  grid.innerHTML = '';
+  grid.className = `file-grid ${currentLayout}`;
+
+  if (!items.length) {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--meta);">ファイルが見つかりませんでした。</p>';
+    return;
+  }
+
+  items.forEach(f => {
+    const fn   = getFilename(f);
+    const url  = fileUrl(f);
+    const ti   = typeOf(f);
+    const ext  = extOf(fn);
+    const canPreview = ['pdf','image','word','excel'].includes(f.type);
+
+    const card = document.createElement('section');
+    card.className = 'file-card';
+
+    // ── Checkbox
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'sel-cb';
+    cb.id = `cb-${encodeURIComponent(fn)}`; cb.value = url;
+    const cbl = document.createElement('label');
+    cbl.htmlFor = cb.id;
+    card.appendChild(cb); card.appendChild(cbl);
+
+    // ── Preview area
+    const prev = document.createElement('div');
+    prev.className = 'card-preview';
+    prev.onclick = () => canPreview ? openPreview(f) : downloadFile(f);
+
+    if (f.type === 'image') {
+      const img = document.createElement('img');
+      img.src = url; img.alt = f.title || fn; img.loading = 'lazy';
+      const noI = document.createElement('div');
+      noI.className = 'no-img';
+      noI.innerHTML = `<i class="fas ${ti.icon}"></i><span>${ext}</span>`;
+      noI.style.display = 'none';
+      img.onerror = () => { img.style.display='none'; noI.style.display='flex'; };
+      prev.appendChild(img); prev.appendChild(noI);
+    } else {
+      const noI = document.createElement('div');
+      noI.className = 'no-img';
+      noI.innerHTML = `<i class="fas ${ti.icon}"></i><span>${ext}</span>`;
+      prev.appendChild(noI);
+    }
+
+    const badge = document.createElement('span');
+    badge.className = `file-badge ${ti.cls}`;
+    badge.innerHTML = `<i class="fas ${ti.icon}"></i>${ext}`;
+    prev.appendChild(badge);
+    card.appendChild(prev);
+
+    // ── Info
+    const info = document.createElement('div');
+    info.className = 'card-info';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = f.title || fn;
+    h2.title = f.title || fn;
+    info.appendChild(h2);
+
+    const desc = (f.description||'').trim() || '説明なし';
+    const md = document.createElement('div');
+    md.className = 'meta-detail';
+    md.innerHTML = `
+      <div><strong>種別</strong><span>${TAG_LABELS[f.tag]||f.tag||'—'}</span></div>
+      <div><strong>サイズ</strong><span>${formatSize(f.size_kb)}</span></div>
+      <div><strong>日付</strong><span>${f.date||'N/A'}</span></div>
+      <div><strong>説明</strong><span>${escHtml(desc)}</span></div>`;
+    info.appendChild(md);
+
+    const mi = document.createElement('div');
+    mi.className = 'meta-inline';
+    mi.innerHTML = `<span>${TAG_LABELS[f.tag]||f.tag||'—'}</span><span>${formatSize(f.size_kb)}</span><span>${f.date||'N/A'}</span>`;
+    info.appendChild(mi);
+    card.appendChild(info);
+
+    // ── Actions
+    const acts = document.createElement('div');
+    acts.className = 'card-acts';
+
+    const mkBtn = (icon, title, cls, fn_) => {
+      const b = document.createElement('button');
+      b.className = `act${cls?' '+cls:''}`; b.title = title;
+      b.innerHTML = `<i class="fas ${icon}"></i>`;
+      b.onclick = e => { e.stopPropagation(); fn_(); };
+      return b;
+    };
+
+    if (canPreview) acts.appendChild(mkBtn('fa-eye',      'プレビュー',     '',    () => openPreview(f)));
+    acts.appendChild(mkBtn('fa-download', 'ダウンロード', '',    () => downloadFile(f)));
+    acts.appendChild(mkBtn('fa-pen',      '編集',         '',    () => openEdit(f)));
+    acts.appendChild(mkBtn('fa-trash',    '削除',         'red', () => deleteFile(f)));
+
+    card.appendChild(acts);
+    grid.appendChild(card);
+  });
+};
+
+// ============================================================
+// Layout switcher
+// ============================================================
+document.querySelectorAll('.layout-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentLayout = btn.getAttribute('data-layout');
+    document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilter();
+  });
+});
+
+// ============================================================
+// Load files
+// ============================================================
+const loadFiles = async () => {
+  const ov = document.getElementById('loading');
+  ov.classList.remove('hidden');
+  try {
+    const res = await fetch(`${API_BASE}/files`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    fileData = await res.json();
+
+    // filename が無い場合は title をフォールバックに設定
+    fileData.forEach(f => { if (!f.filename) f.filename = f.title; });
+
+    const total = fileData.reduce((s,f) => s + (f.size_kb||0), 0);
+    document.getElementById('adminStats').innerHTML = `
+      <p>合計ファイル数: ${fileData.length} 件</p>
+      <p>合計サイズ: ${formatSize(total)}</p>`;
+
+    buildTagNav(fileData);
+    applyFilter();
+  } catch (e) {
+    document.getElementById('fileGrid').innerHTML =
+      `<p style="grid-column:1/-1;text-align:center;color:var(--red);">ファイルの読み込みに失敗しました。<br><small>${e.message}</small></p>`;
+  } finally {
+    ov.classList.add('hidden');
+  }
+};
+
+// ============================================================
+// Date filter
+// ============================================================
+document.getElementById('applyDate').addEventListener('click', () => {
+  const sv = document.getElementById('startDate').value;
+  const ev = document.getElementById('endDate').value;
+  dateRange.start = sv ? parseDate(sv.replace(/-/g,'/')) : null;
+  dateRange.end   = ev ? parseDate(ev.replace(/-/g,'/')) : null;
+  if (dateRange.start && dateRange.end && dateRange.start > dateRange.end) {
+    alert('開始日が終了日より後になっています。'); return;
+  }
+  applyFilter();
+});
+document.getElementById('clearDate').addEventListener('click', () => {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value   = '';
+  dateRange = { start:null, end:null };
+  applyFilter();
+});
+
+// ============================================================
+// Bulk download
+// ============================================================
+document.getElementById('bulkDl').addEventListener('click', () => {
+  const checked = document.querySelectorAll('.sel-cb:checked');
+  if (!checked.length) { alert('ダウンロードするファイルを選択してください。'); return; }
+  if (!confirm(`${checked.length}件をダウンロードします。`)) return;
+  checked.forEach(cb => window.open(cb.value, '_blank'));
+});
+
+// ============================================================
+// Main nav tabs
+// ============================================================
+document.querySelectorAll('.main-nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.getAttribute('data-target');
+    document.querySelectorAll('.main-nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['file-list','admin-area'].forEach(id => {
+      document.getElementById(id).classList.toggle('hidden', id !== target);
+    });
+  });
+});
+
+// ============================================================
+// Search / Sort events
+// ============================================================
+document.getElementById('searchInput').addEventListener('input',  applyFilter);
+document.getElementById('sortSelect' ).addEventListener('change', applyFilter);
+
+// ============================================================
+// Utils
+// ============================================================
+const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ============================================================
+// Init
+// ============================================================
+document.addEventListener('DOMContentLoaded', loadFiles);
+</script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="auth_guard.js"></script>
 </body>
 </html>
