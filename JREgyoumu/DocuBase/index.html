@@ -159,6 +159,19 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 #loading{position:fixed;inset:0;background:rgba(255,255,255,.94);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;}
 .spinner{border:7px solid #f0f0f0;border-top:7px solid var(--primary);border-radius:50%;width:46px;height:46px;animation:spin 1s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
+/* Delete confirm modal */
+#delModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:700;justify-content:center;align-items:center;}
+#delModal.open{display:flex;}
+.del-box{background:#fff;border-radius:12px;padding:28px 24px 22px;width:min(400px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.25);text-align:center;}
+.del-icon{font-size:2.4em;color:var(--red);margin-bottom:10px;}
+.del-box h3{margin:0 0 10px;font-size:1.1em;color:var(--text);}
+.del-msg{margin:0 0 6px;font-size:.95em;color:var(--primary);font-weight:600;word-break:break-all;}
+.del-warn{margin:0 0 20px;font-size:.82em;color:var(--red);}
+.del-acts{display:flex;justify-content:center;gap:10px;}
+.btn-delete{background:var(--red);color:#fff;border:none;padding:9px 22px;border-radius:5px;cursor:pointer;font-weight:700;}
+.btn-delete:hover{background:#c0392b;}
+.btn-delete:disabled{background:#aaa;cursor:not-allowed;}
+
 .hidden{display:none!important;}
 </style>
 </head>
@@ -198,6 +211,20 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
     <div class="em-acts">
       <button class="btn-cancel" id="emCancelBtn">キャンセル</button>
       <button class="btn-save"   id="emSaveBtn"><i class="fas fa-save"></i> 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Delete Confirm Modal ===== -->
+<div id="delModal">
+  <div class="del-box">
+    <div class="del-icon"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3>ファイルを削除しますか？</h3>
+    <p id="delMsg" class="del-msg"></p>
+    <p class="del-warn">この操作は取り消せません。</p>
+    <div class="del-acts">
+      <button class="btn-cancel" id="delCancelBtn">キャンセル</button>
+      <button class="btn-delete" id="delOkBtn"><i class="fas fa-trash"></i> 削除する</button>
     </div>
   </div>
 </div>
@@ -286,18 +313,19 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 // 定数
 // ============================================================
 const API_BASE  = 'https://api.tayunet-traininfo.com/api';
-const FILE_BASE = 'https://api.tayunet-traininfo.com/file';   // ファイル配信ルート
+const FILE_BASE = 'https://api.tayunet-traininfo.com/file'; // express.static("/file", BASE) と対応
 
 const TAG_LABELS = {
   all:'すべて', pdf:'PDF文書', image:'画像', manual:'マニュアル',
   report:'レポート', other:'その他', word:'Word文書', excel:'Excel文書'
 };
+// ※ folder は使用しない（サーバーがフラット配信のため）
 const TYPE_INFO = {
-  pdf:   { icon:'fa-file-pdf',   folder:'pdfs/',      cls:'t-pdf'   },
-  image: { icon:'fa-image',      folder:'images/',    cls:'t-image' },
-  word:  { icon:'fa-file-word',  folder:'documents/', cls:'t-word'  },
-  excel: { icon:'fa-file-excel', folder:'documents/', cls:'t-excel' },
-  other: { icon:'fa-file',       folder:'documents/', cls:'t-other' },
+  pdf:   { icon:'fa-file-pdf',   cls:'t-pdf'   },
+  image: { icon:'fa-image',      cls:'t-image' },
+  word:  { icon:'fa-file-word',  cls:'t-word'  },
+  excel: { icon:'fa-file-excel', cls:'t-excel' },
+  other: { icon:'fa-file',       cls:'t-other' },
 };
 
 // ============================================================
@@ -317,11 +345,8 @@ const getFilename = f => f.filename || f.title;
 const extOf = name => (name.split('.').pop() || '').toUpperCase();
 const typeOf = f => TYPE_INFO[f.type] || TYPE_INFO.other;
 
-/** ファイルへの絶対URL */
-const fileUrl = f => {
-  const fn = getFilename(f);
-  return `${FILE_BASE}/${encodeURIComponent(fn)}`;
-};
+/** ファイルへの絶対URL（サーバーはフラット配信: /file/ファイル名） */
+const fileUrl = f => `${FILE_BASE}/${encodeURIComponent(getFilename(f))}`;
 
 const parseDate  = s => { if(!s) return null; const p=s.split('/').map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2])); };
 const formatSize = kb => !kb ? 'N/A' : kb < 1024 ? `${kb} KB` : `${(kb/1024).toFixed(2)} MB`;
@@ -456,8 +481,15 @@ document.getElementById('emSaveBtn').onclick = async () => {
   const newTitle = emTitle.value.trim();
   const newDesc  = emDesc.value.trim();
   const newFname = emFname.value.trim();
-  const body     = { title: newTitle, description: newDesc };
+
+  if (!newTitle) { emTitle.focus(); return; }
+
+  const body = { title: newTitle, description: newDesc };
   if (newFname && newFname !== orig) body.newFilename = newFname;
+
+  const saveBtn = document.getElementById('emSaveBtn');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
 
   try {
     const res = await fetch(`${API_BASE}/files/${encodeURIComponent(orig)}`, {
@@ -465,30 +497,60 @@ document.getElementById('emSaveBtn').onclick = async () => {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(await res.text());
-    closeEdit();
-    loadFiles();
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || `HTTP ${res.status}`);
+    }
+    saveBtn.innerHTML = '<i class="fas fa-check"></i> 保存完了';
+    setTimeout(() => { closeEdit(); loadFiles(); }, 600);
   } catch (e) {
-    // APIが未実装の場合はローカル更新してUIに反映
-    editTarget.title       = newTitle;
-    editTarget.description = newDesc;
-    if (body.newFilename) editTarget.filename = newFname;
-    closeEdit();
-    applyFilter();
-    console.warn('PATCH API not available – local only:', e.message);
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fas fa-save"></i> 保存';
+    alert('保存に失敗しました:\n' + e.message);
   }
 };
 
 // ============================================================
-// Delete
+// Delete (カスタム確認モーダル)
 // ============================================================
-const deleteFile = async f => {
-  if (!confirm(`「${f.title || getFilename(f)}」を削除しますか？\nこの操作は取り消せません。`)) return;
+const delModal    = document.getElementById('delModal');
+const delMsg      = document.getElementById('delMsg');
+const delOkBtn    = document.getElementById('delOkBtn');
+const delCancelBtn= document.getElementById('delCancelBtn');
+let   deleteTarget = null;
+
+const openDeleteModal = f => {
+  deleteTarget = f;
+  delMsg.textContent = f.title || getFilename(f);
+  delOkBtn.disabled  = false;
+  delOkBtn.innerHTML = '<i class="fas fa-trash"></i> 削除する';
+  delModal.classList.add('open');
+};
+const closeDeleteModal = () => { delModal.classList.remove('open'); deleteTarget = null; };
+delCancelBtn.onclick = closeDeleteModal;
+delModal.addEventListener('click', e => { if(e.target === delModal) closeDeleteModal(); });
+
+delOkBtn.onclick = async () => {
+  if (!deleteTarget) return;
+  delOkBtn.disabled  = true;
+  delOkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 削除中...';
+  const fn = getFilename(deleteTarget);
   try {
-    const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(getFilename(f))}`, { method:'DELETE' });
-    if (res.ok) { loadFiles(); }
-    else { alert('削除に失敗しました: ' + (await res.text())); }
-  } catch { alert('通信エラーが発生しました。'); }
+    const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(fn)}`, { method:'DELETE' });
+    if (res.ok) {
+      closeDeleteModal();
+      loadFiles();
+    } else {
+      const msg = await res.text();
+      alert('削除に失敗しました:\n' + msg);
+      delOkBtn.disabled  = false;
+      delOkBtn.innerHTML = '<i class="fas fa-trash"></i> 削除する';
+    }
+  } catch (e) {
+    alert('通信エラーが発生しました。');
+    delOkBtn.disabled  = false;
+    delOkBtn.innerHTML = '<i class="fas fa-trash"></i> 削除する';
+  }
 };
 
 // ============================================================
@@ -746,7 +808,7 @@ const renderCards = items => {
     if (canPreview) acts.appendChild(mkBtn('fa-eye',      'プレビュー',     '',    () => openPreview(f)));
     acts.appendChild(mkBtn('fa-download', 'ダウンロード', '',    () => downloadFile(f)));
     acts.appendChild(mkBtn('fa-pen',      '編集',         '',    () => openEdit(f)));
-    acts.appendChild(mkBtn('fa-trash',    '削除',         'red', () => deleteFile(f)));
+    acts.appendChild(mkBtn('fa-trash',    '削除',         'red', () => openDeleteModal(f)));
 
     card.appendChild(acts);
     grid.appendChild(card);
