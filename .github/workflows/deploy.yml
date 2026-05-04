@@ -9,13 +9,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
+      # 1. Cloudflare Tunnel を通すために cloudflared をインストール
+      - name: Install cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      # 2. SSH 実行
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.6
+        uses: appleboy/ssh-action@v1.0.3 # バージョンを少し新しくしました
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          host: ${{ secrets.SERVER_IP }}     # ssh.tayunet-traininfo.com
+          username: ${{ secrets.SERVER_USER }} # yoshi
+          key: ${{ secrets.SERVER_SSH_KEY }}   # さっきの秘密鍵 (id_ed25519_server)
+          # ↓ これが魔法の1行です
+          proxy_command: cloudflared access ssh --hostname %h
           script: |
             bash /mnt/hdd/github-backups/backup.sh
