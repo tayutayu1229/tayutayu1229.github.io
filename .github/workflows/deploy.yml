@@ -17,14 +17,21 @@ jobs:
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      # 2. SSH 実行
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3 # バージョンを少し新しくしました
-        with:
-          host: ${{ secrets.SERVER_IP }}     # ssh.tayunet-traininfo.com
-          username: ${{ secrets.SERVER_USER }} # yoshi
-          key: ${{ secrets.SERVER_SSH_KEY }}   # さっきの秘密鍵 (id_ed25519_server)
-          # ↓ これが魔法の1行です
-          proxy_command: cloudflared access ssh --hostname %h
-          script: |
-            bash /mnt/hdd/github-backups/backup.sh
+      # 2. 標準 SSH コマンドを使用して実行
+      - name: Execute Backup Script via SSH
+        env:
+          # GitHub Secrets から秘密鍵を読み込む
+          PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          # 秘密鍵を一時ファイルとして作成し、権限を設定
+          mkdir -p ~/.ssh
+          echo "$PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # SSH を直接実行
+          # -o StrictHostKeyChecking=no：初回接続時の確認をスキップ
+          # -o ProxyCommand：cloudflared を経由させる
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            -o "ProxyCommand=cloudflared access ssh --hostname %h" \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+            "bash /mnt/hdd/github-backups/backup.sh"
