@@ -94,6 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error("FATAL ERROR: Firebase SDK 初期化失敗 (認証ガード)", e);
         alert('システムエラー: 認証システムの初期化に失敗しました。');
         // 致命的なエラー時は安全のためログインページへ強制リダイレクト
-        window.location.href = 'index.html'; 
+        window.location.href = '../index.html'; 
     }
 });
