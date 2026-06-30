@@ -43,6 +43,17 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 #selAll,#selNone{background:#777;}
 #selCount{font-size:.85em;color:var(--meta);margin-left:auto;}
 
+/* Type filter (round buttons) */
+.type-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%;margin-top:2px;}
+.type-filter .tf-label{font-size:.8em;font-weight:700;color:var(--meta);white-space:nowrap;}
+.tf-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:2px solid #ddd;border-radius:50%;width:54px;height:54px;cursor:pointer;color:var(--meta);font-size:.62em;font-weight:700;transition:all .15s;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+.tf-btn i{font-size:1.25em;}
+.tf-btn span{line-height:1;}
+.tf-btn:hover{border-color:var(--primary);color:var(--primary);}
+.tf-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.tf-btn .tf-cnt{position:absolute;top:-6px;right:-2px;background:var(--accent);color:#fff;border-radius:9px;font-size:.62em;padding:1px 5px;font-weight:800;}
+.tf-wrap{position:relative;}
+
 /* Date filter */
 .date-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;background:#f0f0f0;border:1px solid #ccc;border-radius:8px;margin-bottom:14px;font-size:.9em;}
 .date-row label{font-weight:600;white-space:nowrap;}
@@ -187,6 +198,11 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 .tagmgr-row select{padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:.85em;}
 .tagdist{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
 .tagdist span{background:#eef5ee;color:var(--primary);padding:4px 10px;border-radius:14px;font-size:.82em;font-weight:600;}
+.adm-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:.88em;}
+.adm-row:last-child{border-bottom:none;}
+.adm-row .adm-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.adm-row .adm-meta{color:var(--meta);white-space:nowrap;font-size:.9em;}
+.adm-empty{color:var(--meta);font-size:.88em;padding:6px 0;}
 
 /* Loading */
 #loading{position:fixed;inset:0;background:rgba(255,255,255,.94);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;}
@@ -235,6 +251,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
   #pmBody iframe{height:100%;}
 }
 @media (max-width:480px){
+  .tf-btn{width:46px;height:46px;font-size:.58em;}
   .hdr{gap:6px;}
   .hdr h1{font-size:1.1em;}
   .back-btn{padding:7px 10px;font-size:.85em;}
@@ -345,14 +362,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
       <option value="name_asc">名前順</option>
       <option value="size_desc">サイズ順</option>
     </select>
-    <select id="typeFilter">
-      <option value="all">種類: すべて</option>
-      <option value="pdf">PDF</option>
-      <option value="image">画像</option>
-      <option value="word">Word</option>
-      <option value="excel">Excel</option>
-      <option value="other">その他</option>
-    </select>
     <div class="layout-sw">
       <button class="layout-btn active" data-layout="g-cards" title="カード"><i class="fas fa-th-large"></i></button>
       <button class="layout-btn" data-layout="g-list"  title="リスト"><i class="fas fa-list"></i></button>
@@ -364,6 +373,11 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
       <button id="bulkDl"><i class="fas fa-download"></i> 選択ダウンロード</button>
       <span id="selCount">0件選択中</span>
     </div>
+  </div>
+
+  <!-- File-type round buttons -->
+  <div class="type-filter" id="typeFilter">
+    <span class="tf-label">種類で絞り込み:</span>
   </div>
 
   <!-- Upload panel -->
@@ -412,17 +426,43 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
     <h2><i class="fas fa-cogs"></i> 管理者向け情報</h2>
     <div id="adminStats" class="admin-stats"></div>
     <p style="font-size:.9em;">APIエンドポイント: <code>https://api.tayunet-traininfo.com/api/files</code></p>
+  </div>
+
+  <div class="admin-card">
+    <h3><i class="fas fa-chart-pie"></i> ファイル種別の分布</h3>
+    <div class="tagdist" id="typeDist"></div>
+  </div>
+
+  <div class="admin-card">
+    <h3><i class="fas fa-tags"></i> タグ別の分布</h3>
     <div class="tagdist" id="tagDist"></div>
   </div>
 
   <div class="admin-card">
     <h3><i class="fas fa-tags"></i> タグ一覧（種別タグ）</h3>
-    <p style="font-size:.85em;color:var(--meta);margin-top:0;">タグの種類はこのページのコード内に定義されています。新しい種別が必要な場合はこの一覧に追記してください。各ファイルのタグ自体は、ファイル一覧の「編集」からファイルごとに変更できます。</p>
+    <p style="font-size:.85em;color:var(--meta);margin-top:0;">タグの種類はこのページのコード内に定義されています。新しい種別が必要な場合はこの一覧に追記してください。各ファイルのタグ自体は、ファイル一覧の「編集」またはこの下の一括変更欄から変更できます。</p>
     <div id="tagListView" class="tagdist"></div>
   </div>
 
   <div class="admin-card">
+    <h3><i class="fas fa-clock-rotate-left"></i> 最近追加されたファイル（直近10件）</h3>
+    <div id="recentFiles"></div>
+  </div>
+
+  <div class="admin-card">
+    <h3><i class="fas fa-weight-hanging"></i> サイズが大きいファイル（上位10件）</h3>
+    <div id="biggestFiles"></div>
+  </div>
+
+  <div class="admin-card">
+    <h3><i class="fas fa-triangle-exclamation"></i> 確認が必要なファイル</h3>
+    <p style="font-size:.85em;color:var(--meta);margin-top:0;">説明が未入力、または日本語ファイル名のまま保存されているファイルです。</p>
+    <div id="needsAttention"></div>
+  </div>
+
+  <div class="admin-card">
     <h3><i class="fas fa-list-check"></i> ファイルのタグを一括確認・変更</h3>
+    <input type="text" id="tagMgrSearch" placeholder="ファイル名・タイトルで絞り込み..." style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;margin-bottom:10px;font-size:.9em;">
     <div id="tagMgrList"></div>
   </div>
 </div>
@@ -458,7 +498,7 @@ const TYPE_INFO = {
 };
 
 const IS_TOUCH = matchMedia('(hover:none)').matches || /iPad|iPhone|Android/i.test(navigator.userAgent);
-const NEW_DAYS = 7;          // 何日以内を「NEW」とするか
+const NEW_DAYS = 2;          // 何日以内を「NEW」とするか
 const PAGE_SIZE = 60;        // 1度に描画する件数（無限スクロール）
 const MAX_BATCH_SELECT = 80; // 一度に選択した場合に確認を出す件数
 
@@ -716,7 +756,7 @@ emSaveBtn.onclick = async () => {
     emSaveBtn.innerHTML = '<i class="fas fa-check"></i> 保存完了';
     emDirty = false;
     toast('保存しました', 'ok');
-    setTimeout(() => { closeEdit(true); applyFilter(); buildTagNav(fileData); loadFiles(true); }, 500);
+    setTimeout(() => { closeEdit(true); applyFilter(); buildTagNav(fileData); buildTypeFilter(fileData); loadFiles(true); }, 500);
   } catch (e) {
     resetEmSaveBtn();
     toast('保存に失敗しました: ' + e.message, 'err');
@@ -940,6 +980,49 @@ const runUpload = async (items) => {
 
 doUploadBtn.addEventListener('click', () => { if (stagedFiles.length) runUpload(stagedFiles.slice()); });
 retryBtn.addEventListener('click', () => { if (lastFailedUploads.length) runUpload(lastFailedUploads.slice()); });
+
+// ============================================================
+// File-type round buttons（全て／PDF／画像／Word／Excel／その他）
+// ============================================================
+const TYPE_FILTER_DEFS = [
+  { key:'all',   icon:'fa-border-all', label:'全て' },
+  { key:'pdf',   icon:'fa-file-pdf',   label:'PDF' },
+  { key:'image', icon:'fa-image',      label:'画像' },
+  { key:'word',  icon:'fa-file-word',  label:'Word' },
+  { key:'excel', icon:'fa-file-excel', label:'Excel' },
+  { key:'other', icon:'fa-file',       label:'他' },
+];
+const buildTypeFilter = data => {
+  const counts = { all: data.length };
+  data.forEach(f => { counts[f.type] = (counts[f.type]||0) + 1; });
+  const wrap = document.getElementById('typeFilter');
+  wrap.querySelectorAll('.tf-wrap').forEach(el => el.remove());
+  TYPE_FILTER_DEFS.forEach(def => {
+    if (def.key !== 'all' && !counts[def.key]) return;
+    const outer = document.createElement('div');
+    outer.className = 'tf-wrap';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `tf-btn${currentType===def.key?' active':''}`;
+    btn.title = def.label;
+    btn.dataset.key = def.key;
+    btn.innerHTML = `<i class="fas ${def.icon}"></i><span>${def.label}</span>`;
+    btn.onclick = () => { currentType = def.key; refreshTypeFilterActive(); applyFilter(); };
+    outer.appendChild(btn);
+    if (counts[def.key]) {
+      const cnt = document.createElement('span');
+      cnt.className = 'tf-cnt';
+      cnt.textContent = counts[def.key];
+      outer.appendChild(cnt);
+    }
+    wrap.appendChild(outer);
+  });
+};
+const refreshTypeFilterActive = () => {
+  document.querySelectorAll('#typeFilter .tf-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.key === currentType);
+  });
+};
 
 // ============================================================
 // Tag nav（種別タグでの絞り込み）
@@ -1229,7 +1312,6 @@ document.getElementById('searchInput').addEventListener('input', () => {
   searchDebounce = setTimeout(applyFilter, 180);
 });
 document.getElementById('sortSelect').addEventListener('change', applyFilter);
-document.getElementById('typeFilter').addEventListener('change', e => { currentType = e.target.value; applyFilter(); });
 
 // ============================================================
 // Date filter
@@ -1256,22 +1338,93 @@ document.getElementById('clearDate').addEventListener('click', () => {
 // ============================================================
 const renderAdmin = () => {
   const total = fileData.reduce((s,f) => s + (f.size_kb||0), 0);
+  const noDesc = fileData.filter(f => !(f.description||'').trim()).length;
+  const newCount = fileData.filter(isNewFile).length;
   document.getElementById('adminStats').innerHTML = `
     <p>合計ファイル数: ${fileData.length} 件</p>
-    <p>合計サイズ: ${formatSize(total)}</p>`;
+    <p>合計サイズ: ${formatSize(total)}</p>
+    <p>NEW(${NEW_DAYS}日以内): ${newCount} 件</p>
+    <p>説明未入力: ${noDesc} 件</p>`;
 
-  const counts = {};
-  fileData.forEach(f => { const t = f.tag || 'other'; counts[t] = (counts[t]||0) + 1; });
+  // 種別ごとの分布
+  const typeCounts = {};
+  fileData.forEach(f => { typeCounts[f.type] = (typeCounts[f.type]||0) + 1; });
+  document.getElementById('typeDist').innerHTML = Object.keys(TYPE_INFO)
+    .filter(t => typeCounts[t])
+    .map(t => `<span>${TYPE_INFO[t].label}: ${typeCounts[t]}件</span>`).join('') || '<span class="adm-empty">データなし</span>';
+
+  // タグごとの分布
+  const tagCounts = {};
+  fileData.forEach(f => { const t = f.tag || 'other'; tagCounts[t] = (tagCounts[t]||0) + 1; });
   document.getElementById('tagDist').innerHTML = TAG_ORDER
-    .filter(t => counts[t])
-    .map(t => `<span>${TAG_LABELS[t]}: ${counts[t]}件</span>`).join('');
+    .filter(t => tagCounts[t])
+    .map(t => `<span>${TAG_LABELS[t]}: ${tagCounts[t]}件</span>`).join('') || '<span class="adm-empty">データなし</span>';
 
   document.getElementById('tagListView').innerHTML = TAG_ORDER
     .map(t => `<span>${TAG_LABELS[t]}</span>`).join('');
 
+  // 最近追加されたファイル（日付の新しい順、上位10件）
+  const recent = fileData.slice()
+    .sort((a,b) => (parseDate(b.date)||0) - (parseDate(a.date)||0))
+    .slice(0, 10);
+  document.getElementById('recentFiles').innerHTML = recent.length
+    ? recent.map(f => `
+      <div class="adm-row">
+        <i class="fas ${typeOf(f).icon}" style="color:var(--meta);"></i>
+        <span class="adm-name">${escHtml(f.title || getFilename(f))}${isNewFile(f) ? ' <span style=\"color:var(--accent);font-weight:800;\">NEW</span>' : ''}</span>
+        <span class="adm-meta">${f.date||'N/A'}</span>
+      </div>`).join('')
+    : '<p class="adm-empty">データなし</p>';
+
+  // サイズが大きいファイル上位10件
+  const biggest = fileData.slice().sort((a,b) => (b.size_kb||0) - (a.size_kb||0)).slice(0, 10);
+  document.getElementById('biggestFiles').innerHTML = biggest.length
+    ? biggest.map(f => `
+      <div class="adm-row">
+        <i class="fas ${typeOf(f).icon}" style="color:var(--meta);"></i>
+        <span class="adm-name">${escHtml(f.title || getFilename(f))}</span>
+        <span class="adm-meta">${formatSize(f.size_kb)}</span>
+      </div>`).join('')
+    : '<p class="adm-empty">データなし</p>';
+
+  // 確認が必要なファイル（説明なし／非ASCIIファイル名）
+  const needsAttn = fileData.filter(f => {
+    const fn = getFilename(f);
+    const base = fn.replace(/\.[^.]+$/, '');
+    const nonAscii = !/^[a-zA-Z0-9 _\-()\[\].]+$/.test(base);
+    return !(f.description||'').trim() || nonAscii;
+  });
+  document.getElementById('needsAttention').innerHTML = needsAttn.length
+    ? needsAttn.slice(0, 30).map(f => {
+        const fn = getFilename(f);
+        const base = fn.replace(/\.[^.]+$/, '');
+        const nonAscii = !/^[a-zA-Z0-9 _\-()\[\].]+$/.test(base);
+        const reasons = [];
+        if (!(f.description||'').trim()) reasons.push('説明なし');
+        if (nonAscii) reasons.push('ファイル名が非ASCII');
+        return `
+        <div class="adm-row">
+          <i class="fas fa-triangle-exclamation" style="color:var(--accent);"></i>
+          <span class="adm-name">${escHtml(f.title || fn)}</span>
+          <span class="adm-meta">${reasons.join(' / ')}</span>
+        </div>`;
+      }).join('') + (needsAttn.length > 30 ? `<p class="adm-empty">他 ${needsAttn.length - 30} 件あります</p>` : '')
+    : '<p class="adm-empty">該当するファイルはありません</p>';
+
+  renderTagMgrList(document.getElementById('tagMgrSearch').value);
+};
+
+const renderTagMgrList = (query) => {
+  const q = (query||'').toLowerCase();
   const list = document.getElementById('tagMgrList');
   list.innerHTML = '';
-  fileData.slice().sort((a,b)=> (a.title||'').localeCompare(b.title||'','ja')).forEach(f => {
+  const rows = fileData
+    .filter(f => !q || (f.title||'').toLowerCase().includes(q) || getFilename(f).toLowerCase().includes(q))
+    .slice().sort((a,b)=> (a.title||'').localeCompare(b.title||'','ja'));
+
+  if (!rows.length) { list.innerHTML = '<p class="adm-empty">該当するファイルがありません</p>'; return; }
+
+  rows.forEach(f => {
     const row = document.createElement('div');
     row.className = 'tagmgr-row';
     row.innerHTML = `
@@ -1290,7 +1443,7 @@ const renderAdmin = () => {
         const target = fileData.find(x => getFilename(x) === fn);
         if (target) target.tag = newTag;
         toast('タグを更新しました', 'ok');
-        buildTagNav(fileData);
+        buildTagNav(fileData); buildTypeFilter(fileData);
         renderAdmin();
       } catch (err) {
         toast('タグ更新に失敗しました: ' + err.message, 'err');
@@ -1299,6 +1452,13 @@ const renderAdmin = () => {
     list.appendChild(row);
   });
 };
+
+let tagMgrSearchDebounce;
+document.getElementById('tagMgrSearch').addEventListener('input', e => {
+  clearTimeout(tagMgrSearchDebounce);
+  const v = e.target.value;
+  tagMgrSearchDebounce = setTimeout(() => renderTagMgrList(v), 150);
+});
 
 // ============================================================
 // Load files（大量件数でも失敗しにくいよう、タイムアウト＆リトライ＆段階描画）
@@ -1320,7 +1480,7 @@ const loadFiles = async (silent) => {
       const data = await res.json();
       data.forEach(f => { if (!f.filename) f.filename = f.title; if (!f.tag) f.tag = 'other'; });
       fileData = data;
-      buildTagNav(fileData);
+      buildTagNav(fileData); buildTypeFilter(fileData);
       applyFilter();
       setupInfiniteScroll();
       if (document.getElementById('admin-area') && !document.getElementById('admin-area').classList.contains('hidden')) renderAdmin();
