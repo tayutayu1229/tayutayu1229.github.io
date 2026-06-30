@@ -44,15 +44,16 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 #selCount{font-size:.85em;color:var(--meta);margin-left:auto;}
 
 /* Type filter (round buttons) */
-.type-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%;margin-top:2px;}
-.type-filter .tf-label{font-size:.8em;font-weight:700;color:var(--meta);white-space:nowrap;}
-.tf-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:2px solid #ddd;border-radius:50%;width:54px;height:54px;cursor:pointer;color:var(--meta);font-size:.62em;font-weight:700;transition:all .15s;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
-.tf-btn i{font-size:1.25em;}
-.tf-btn span{line-height:1;}
+.type-filter{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;width:100%;margin-top:4px;}
+.type-filter .tf-label{font-size:.8em;font-weight:700;color:var(--meta);white-space:nowrap;align-self:center;}
+.tf-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;width:56px;flex-shrink:0;}
+.tf-btn{display:flex;align-items:center;justify-content:center;background:#fff;border:2px solid #ddd;border-radius:50%;width:50px;height:50px;cursor:pointer;color:var(--meta);transition:all .15s;flex-shrink:0;padding:0;-webkit-tap-highlight-color:transparent;}
+.tf-btn i{font-size:1.3em;line-height:1;}
 .tf-btn:hover{border-color:var(--primary);color:var(--primary);}
 .tf-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
-.tf-btn .tf-cnt{position:absolute;top:-6px;right:-2px;background:var(--accent);color:#fff;border-radius:9px;font-size:.62em;padding:1px 5px;font-weight:800;}
-.tf-wrap{position:relative;}
+.tf-text{font-size:.72em;font-weight:600;color:var(--meta);text-align:center;white-space:nowrap;line-height:1.1;}
+.tf-wrap.active .tf-text{color:var(--primary);font-weight:700;}
+.tf-cnt{position:absolute;top:-4px;right:1px;background:var(--accent);color:#fff;border-radius:9px;font-size:.62em;padding:1px 5px;font-weight:800;min-width:16px;text-align:center;line-height:1.3;}
 
 /* Date filter */
 .date-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;background:#f0f0f0;border:1px solid #ccc;border-radius:8px;margin-bottom:14px;font-size:.9em;}
@@ -144,8 +145,11 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 .g-thumb .card-info{padding:7px 7px 36px;}
 .g-thumb .card-info h2{font-size:.84em;margin:0;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .g-thumb .tag-chip,.g-thumb .meta-detail{display:none;}
-.g-thumb .sel-cb,.g-thumb .sel-cb+label{top:6px;left:6px;width:20px;height:20px;}
-.g-thumb .card-acts{bottom:6px;right:6px;}
+.g-thumb .sel-cb,.g-thumb .sel-cb+label{top:6px;left:6px;width:18px;height:18px;}
+.g-thumb .sel-cb:checked+label::after{font-size:9px;top:3px;left:3px;}
+.g-thumb .card-acts{bottom:5px;right:5px;gap:4px;}
+.g-thumb .act{width:22px;height:22px;font-size:9px;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+.g-thumb .act[title="リンクをコピー"]{display:none;}
 
 /* infinite scroll sentinel / load more */
 #scrollSentinel{height:1px;}
@@ -236,6 +240,10 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 /* ===== Responsive ===== */
 @media (max-width:1024px){
   .g-cards{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));}
+  .pm-topbar{flex-wrap:wrap;row-gap:8px;padding:10px 12px;}
+  .pm-topbar>div[style]{width:100%;justify-content:space-between;}
+  .pm-tabs{flex:1 1 auto;}
+  .pm-openext span,.pm-openext{white-space:nowrap;}
 }
 @media (max-width:768px){
   body{padding:12px 10px 60px;}
@@ -246,12 +254,19 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
   .g-thumb{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));}
   .card-preview{height:120px;}
   .em-box,.del-box{padding:18px;}
-  .pm-tabs button,.pm-openext{padding:8px 12px;font-size:.82em;}
-  .pm-close{font-size:30px;}
+  .pm-topbar{padding:8px 10px;}
+  .pm-tabs{gap:6px;}
+  .pm-tabs button,.pm-openext{padding:7px 11px;font-size:.8em;}
+  .pm-openext{flex:1 1 auto;justify-content:center;}
+  .pm-close{font-size:28px;flex-shrink:0;}
+  .pm-cap{font-size:.8em;padding:6px 10px;}
   #pmBody iframe{height:100%;}
 }
 @media (max-width:480px){
-  .tf-btn{width:46px;height:46px;font-size:.58em;}
+  .tf-wrap{width:48px;}
+  .tf-btn{width:42px;height:42px;}
+  .tf-btn i{font-size:1.1em;}
+  .tf-text{font-size:.66em;}
   .hdr{gap:6px;}
   .hdr h1{font-size:1.1em;}
   .back-btn{padding:7px 10px;font-size:.85em;}
@@ -1000,15 +1015,23 @@ const buildTypeFilter = data => {
   TYPE_FILTER_DEFS.forEach(def => {
     if (def.key !== 'all' && !counts[def.key]) return;
     const outer = document.createElement('div');
-    outer.className = 'tf-wrap';
+    outer.className = `tf-wrap${currentType===def.key?' active':''}`;
+    outer.dataset.key = def.key;
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `tf-btn${currentType===def.key?' active':''}`;
     btn.title = def.label;
     btn.dataset.key = def.key;
-    btn.innerHTML = `<i class="fas ${def.icon}"></i><span>${def.label}</span>`;
+    btn.innerHTML = `<i class="fas ${def.icon}"></i>`;
     btn.onclick = () => { currentType = def.key; refreshTypeFilterActive(); applyFilter(); };
     outer.appendChild(btn);
+
+    const label = document.createElement('span');
+    label.className = 'tf-text';
+    label.textContent = def.label;
+    outer.appendChild(label);
+
     if (counts[def.key]) {
       const cnt = document.createElement('span');
       cnt.className = 'tf-cnt';
@@ -1019,8 +1042,10 @@ const buildTypeFilter = data => {
   });
 };
 const refreshTypeFilterActive = () => {
-  document.querySelectorAll('#typeFilter .tf-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.key === currentType);
+  document.querySelectorAll('#typeFilter .tf-wrap').forEach(b => {
+    const active = b.dataset.key === currentType;
+    b.classList.toggle('active', active);
+    b.querySelector('.tf-btn').classList.toggle('active', active);
   });
 };
 
