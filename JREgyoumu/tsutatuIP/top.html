@@ -2,179 +2,456 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>列車選択</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* --- 業務システム風・白ベース・硬質UI --- */
+        /* ============================================================
+           Windows 11 Fluent 風デザイン ― 運転計画 B報編 列車選択
+           ============================================================ */
 
-        body.selection-page {
-            background-color: #f3f4f6;
-            color: #1a1a1a;
-            margin: 0;
-            font-family: "Segoe UI", "Roboto", "Noto Sans JP", sans-serif;
+        :root{
+            --win-bg: #f3f3f3;
+            --win-surface: #ffffff;
+            --win-surface-alt: #fafafa;
+            --win-border: #e5e5e5;
+            --win-border-strong: #d7d7d7;
+            --accent: #0067c0;
+            --accent-hover: #005a9e;
+            --accent-press: #004b83;
+            --accent-light: #e8f1fb;
+            --text-primary: #1b1b1b;
+            --text-secondary: #5f5f5f;
+            --text-tertiary: #8a8a8a;
+            --weekday: #0067c0;
+            --holiday: #c42b1c;
+            --holiday-light: #fbeae8;
+            --unknown: #8a8886;
+            --unknown-light: #f2f1f0;
+            --radius-sm: 4px;
+            --radius: 8px;
+            --radius-lg: 10px;
+            --shadow-1: 0 1px 2px rgba(0,0,0,.06);
+            --shadow-2: 0 2px 6px rgba(0,0,0,.08), 0 0 1px rgba(0,0,0,.08);
+            --font-ui: "Segoe UI Variable Text", "Segoe UI", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+            --font-data: "Cascadia Mono", "Consolas", "SFMono-Regular", Menlo, monospace;
         }
 
-        /* ヘッダー */
+        *{ box-sizing: border-box; }
+
+        body.selection-page {
+            background: var(--win-bg);
+            color: var(--text-primary);
+            margin: 0;
+            font-family: var(--font-ui);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---------------- ヘッダー（Mica / アクリル風） ---------------- */
         .admin-header {
-            background: #ffffff;
-            border-bottom: 1px solid #cfd2d6;
-            padding: 10px 16px;
+            background: rgba(255,255,255,.82);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid var(--win-border);
+            padding: 8px 16px;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
             position: sticky;
             top: 0;
             z-index: 100;
         }
 
         .back-btn {
-            color: #005a9e;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            flex: 0 0 auto;
+            color: var(--text-primary);
             text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 600;
-            padding: 4px 8px;
-            border: 1px solid #b8c4ce;
-            border-radius: 2px;
-            background: #f8fafc;
+            border: 1px solid transparent;
+            border-radius: 50%;
+            background: transparent;
+            transition: background .1s ease, border-color .1s ease;
+            order: -1; /* 常に左端に固定 */
         }
-        .back-btn:hover { background: #e9eef3; }
+        .back-btn svg { width: 16px; height: 16px; display: block; }
+        .back-btn:hover { background: var(--win-border); }
+        .back-btn:active { background: var(--win-border-strong); }
+
+        .header-titles {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.25;
+            min-width: 0;
+        }
 
         .header-title {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #111;
-            flex-grow: 1;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
         }
 
-        /* 検索・施行日入力コンテナ */
+        .header-subtitle {
+            font-size: 0.72rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .header-spacer { flex: 1 1 auto; }
+
+        .header-count {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: var(--font-data);
+            white-space: nowrap;
+        }
+
+        /* ---------------- 検索・フィルターバー ---------------- */
         .search-container {
-            background: #ffffff;
-            border-bottom: 1px solid #d6d9dd;
+            background: rgba(250,250,250,.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--win-border);
             padding: 10px 16px;
             position: sticky;
-            top: 48px;
+            top: 51px;
             z-index: 90;
         }
 
         .search-box {
             display: flex;
-            gap: 6px;
-            max-width: 760px;
+            gap: 8px;
+            max-width: 820px;
             margin: 0 auto;
+            flex-wrap: wrap;
+        }
+
+        .field-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .field-icon {
+            position: absolute;
+            left: 9px;
+            width: 14px;
+            height: 14px;
+            color: var(--text-tertiary);
+            pointer-events: none;
         }
 
         .search-input {
-            padding: 7px 10px;
-            border: 1px solid #bfc3c7;
-            border-radius: 2px;
-            background: #fff;
-            font-size: 14px;
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid var(--win-border-strong);
+            border-radius: var(--radius-sm);
+            background: var(--win-surface);
+            font-size: 13.5px;
+            font-family: var(--font-ui);
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color .1s ease, box-shadow .1s ease;
         }
-        .search-input:focus { border-color: #0078d4; outline: none; }
+        .search-input::placeholder{ color: var(--text-tertiary); }
+        .search-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
 
-        /* 施行日入力欄 */
         #execution-date {
-            width: 100px;
-            background: #fffef0;
+            width: 116px;
+            font-family: var(--font-data);
+            background: #fffef4;
         }
 
-        /* 検索キーワード欄 */
-        #search-query { flex: 1; }
+        #search-query {
+            flex: 1;
+            min-width: 160px;
+            padding-left: 30px;
+        }
 
         .btn-search {
-            padding: 0 18px;
-            background: #0078d4;
+            height: 34px;
+            padding: 0 20px;
+            background: var(--accent);
             color: #fff;
-            border: 1px solid #006bb3;
-            border-radius: 2px;
+            border: 1px solid var(--accent);
+            border-radius: var(--radius-sm);
             font-size: 13px;
             font-weight: 600;
+            font-family: var(--font-ui);
             cursor: pointer;
+            transition: background .1s ease;
         }
-        .btn-search:hover { background: #006bb3; }
+        .btn-search:hover { background: var(--accent-hover); }
+        .btn-search:active { background: var(--accent-press); }
 
-        /* リスト全体 */
-        .list-container {
-            max-width: 760px;
-            margin: 14px auto;
+        /* フィルターチップ */
+        .filter-chips {
+            display: flex;
+            gap: 6px;
+            max-width: 820px;
+            margin: 8px auto 0;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            height: 28px;
             padding: 0 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--win-border-strong);
+            border-radius: 999px;
+            background: var(--win-surface);
+            color: var(--text-secondary);
+            font-size: 12.5px;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            transition: all .1s ease;
+        }
+        .chip:hover { background: var(--win-border); }
+        .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); }
+        .chip[data-type="weekday"] .dot { background: var(--weekday); }
+        .chip[data-type="holiday"] .dot { background: var(--holiday); }
+        .chip[data-type="unknown"] .dot { background: var(--unknown); }
+
+        .chip.active {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            color: var(--accent-hover);
+        }
+        .chip.active[data-type="holiday"] { background: var(--holiday-light); border-color: var(--holiday); color: var(--holiday); }
+        .chip.active[data-type="unknown"] { background: var(--unknown-light); border-color: var(--unknown); color: #5c5a58; }
+
+        /* ---------------- リスト全体 ---------------- */
+        .list-container {
+            max-width: 820px;
+            margin: 16px auto;
+            padding: 0 16px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-tertiary);
+            font-size: 13.5px;
+        }
+        .empty-state svg { width: 40px; height: 40px; margin-bottom: 10px; opacity: .5; }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+            font-size: 13.5px;
         }
 
         .train-item {
-            background: #ffffff;
-            padding: 10px 12px;
-            margin-bottom: 6px;
-            border: 1px solid #d1d4d8;
-            border-radius: 2px;
+            background: var(--win-surface);
+            border: 1px solid var(--win-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-1);
             cursor: pointer;
             display: flex;
-            justify-content: space-between;
+            align-items: stretch;
+            overflow: hidden;
+            transition: box-shadow .12s ease, border-color .12s ease, transform .08s ease;
+            position: relative;
+        }
+        .train-item:hover {
+            box-shadow: var(--shadow-2);
+            border-color: var(--win-border-strong);
+        }
+        .train-item:active { transform: scale(0.997); }
+
+        /* 左端の区分カラーバー */
+        .item-bar {
+            width: 4px;
+            flex: 0 0 4px;
+            background: var(--unknown);
+        }
+        .item-bar.weekday { background: var(--weekday); }
+        .item-bar.holiday { background: var(--holiday); }
+
+        .item-body {
+            flex: 1;
+            padding: 12px 14px;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .item-top-row {
+            display: flex;
             align-items: center;
-            transition: background 0.08s, border-color 0.08s;
+            gap: 8px;
+            flex-wrap: wrap;
         }
-        .train-item:hover { background: #eef2f5; border-color: #b8bcc0; }
 
-        .train-info-main { display: flex; flex-direction: column; gap: 2px; }
-
-        .train-date-num {
-            font-size: 0.95rem;
+        .train-date {
+            font-family: var(--font-data);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
             font-weight: 600;
-            color: #111;
         }
 
-        /* 区分ラベル設定 */
+        .train-num {
+            font-family: var(--font-data);
+            font-size: 1.02rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: .02em;
+        }
+
+        .type-badge {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--accent-hover);
+            background: var(--accent-light);
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+
         .day-type-tag {
-            font-size: 0.75rem;
-            margin-left: 8px;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-weight: normal;
+            font-size: 0.72rem;
+            margin-left: auto;
+            padding: 2px 9px;
+            border-radius: 999px;
+            font-weight: 600;
+            white-space: nowrap;
         }
-        .tag-weekday { color: #1a73e8; border: 1px solid #1a73e8; } /* 青 */
-        .tag-holiday { color: #d93025; border: 1px solid #d93025; } /* 赤 */
-        /* データなし・不明時の灰色スタイル */
-        .tag-unknown { color: #70757a; border: 1px solid #dadce0; background: #f1f3f4; } 
+        .tag-weekday { color: var(--weekday); background: var(--accent-light); }
+        .tag-holiday { color: var(--holiday); background: var(--holiday-light); }
+        .tag-unknown { color: var(--unknown); background: var(--unknown-light); }
 
-        .train-type-label { font-size: 0.75rem; color: #6c757d; }
+        /* 経路（始発 → 終着）表示 */
+        .route-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            min-width: 0;
+        }
+        .route-station { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .route-time { font-family: var(--font-data); font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+        .route-line {
+            flex: 1;
+            min-width: 20px;
+            height: 1px;
+            background: repeating-linear-gradient(to right, var(--win-border-strong) 0, var(--win-border-strong) 4px, transparent 4px, transparent 8px);
+            position: relative;
+        }
+        .route-stop-count {
+            font-size: 0.68rem;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            background: var(--win-surface-alt);
+            border: 1px solid var(--win-border);
+            padding: 1px 6px;
+            border-radius: 999px;
+        }
+        .route-arrow { color: var(--text-tertiary); font-size: 0.8rem; }
 
-        .arrow-icon { color: #9aa0a6; font-size: 1.1rem; font-family: serif; }
-
-        #result-count {
-            font-size: 0.7rem;
-            color: #7d8288;
-            text-align: right;
-            margin: 4px auto 0;
-            max-width: 760px;
+        .arrow-icon {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
             padding: 0 12px;
+            color: var(--text-tertiary);
+        }
+        .arrow-icon svg { width: 16px; height: 16px; }
+
+        #result-count { display: none; } /* header-count に統合 */
+
+        /* ---------------- レスポンシブ ---------------- */
+
+        /* タブレット (iPad想定) */
+        @media (max-width: 900px) {
+            .list-container, .search-box, .filter-chips { max-width: 100%; }
+            .header-subtitle { display: none; }
+        }
+
+        /* スマートフォン */
+        @media (max-width: 600px) {
+            .admin-header { padding: 8px 10px; gap: 8px; }
+            .header-title { font-size: 0.95rem; }
+            .search-container { padding: 8px 10px; top: 47px; }
+            .search-box { gap: 6px; }
+            #execution-date { width: 92px; font-size: 12.5px; }
+            .search-input { font-size: 13px; }
+            .btn-search { padding: 0 14px; font-size: 12.5px; }
+            .list-container { padding: 0 10px 32px; margin: 12px auto; gap: 6px; }
+            .item-body { padding: 10px 11px; gap: 5px; }
+            .train-num { font-size: 0.92rem; }
+            .type-badge { font-size: 0.68rem; }
+            .day-type-tag { font-size: 0.68rem; }
+            .route-row { font-size: 0.78rem; }
+            .route-station { max-width: 34vw; }
+            .arrow-icon { padding: 0 8px; }
+            .header-count { display: none; }
+        }
+
+        @media (max-width: 380px) {
+            #execution-date { width: 80px; }
+            .route-time { display: none; }
         }
     </style>
 </head>
 <body class="selection-page">
     <header class="admin-header">
-        <div class="header-title">列車選択</div>
-        <div style="font-size: 0.75rem; font-weight: normal; color: #6c757d;">運転計画 B報編</div>
-        <a href="../JREtop.html" class="back-btn">← 戻る</a>
+        <a href="../JREtop.html" class="back-btn" title="戻る" aria-label="戻る">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg>
+        </a>
+        <div class="header-titles">
+            <div class="header-title">列車選択</div>
+            <div class="header-subtitle">運転計画 B報編</div>
+        </div>
+        <div class="header-spacer"></div>
+        <div class="header-count" id="header-count"></div>
     </header>
 
     <div class="search-container">
         <div class="search-box">
-            <input type="text" id="execution-date" class="search-input" placeholder="施行日(任意)" title="ここに入力した日付がview.htmlに反映されます" autocomplete="off">
-            <input type="text" id="search-query" class="search-input" placeholder="列番、種別、駅名で検索..." autocomplete="off">
+            <div class="field-wrap">
+                <input type="text" id="execution-date" class="search-input" placeholder="施行日(任意)" title="ここに入力した日付がview.htmlに反映されます" autocomplete="off">
+            </div>
+            <div class="field-wrap" style="flex:1; min-width:160px;">
+                <svg class="field-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="6"/><path d="M17 17l-4-4" stroke-linecap="round"/></svg>
+                <input type="text" id="search-query" class="search-input" placeholder="列番、種別、駅名で検索..." autocomplete="off" style="width:100%;">
+            </div>
             <button class="btn-search" id="search-btn">検索</button>
+        </div>
+        <div class="filter-chips" id="filter-chips">
+            <div class="chip active" data-type="all"><span class="dot"></span>すべて</div>
+            <div class="chip" data-type="weekday"><span class="dot"></span>平日</div>
+            <div class="chip" data-type="holiday"><span class="dot"></span>休日</div>
+            <div class="chip" data-type="unknown"><span class="dot"></span>不明</div>
         </div>
         <div id="result-count"></div>
     </div>
 
     <div class="screen">
         <div id="train-list" class="list-container">
-            <p>データを読み込み中...</p>
+            <div class="loading-state">データを読み込み中...</div>
         </div>
     </div>
 
     <script>
         const JSON_PATH = '../../T-time/timetables.json';
         let allTrainGroups = [];
+        let currentFilter = 'all';
 
         function formatDate(dateStr) {
             if (!dateStr) return "";
@@ -183,77 +460,131 @@
             return dateStr;
         }
 
+        // stopsの要素から時刻らしきフィールドを柔軟に拾う
+        function pickTime(stop, keys) {
+            if (!stop) return "";
+            for (const k of keys) {
+                if (stop[k]) return stop[k];
+            }
+            return "";
+        }
+
+        function getDepTime(stop) {
+            return pickTime(stop, ['departureTime', 'departure', 'dep', 'depTime', 'time']);
+        }
+        function getArrTime(stop) {
+            return pickTime(stop, ['arrivalTime', 'arrival', 'arr', 'arrTime', 'time']);
+        }
+
         async function loadData() {
             try {
                 const response = await fetch(JSON_PATH);
                 if (!response.ok) throw new Error('JSON読み込み失敗');
                 const rawData = await response.json();
-                
+
                 const groupsMap = new Map();
 
                 rawData.forEach(item => {
                     const dateStr = formatDate(item.startDate || item.dayType);
                     const dayType = item.dayType || "";
                     const key = `${dateStr}_${item.trainNumber}`;
-                    
+                    const stops = item.stops || [];
+
                     if (!groupsMap.has(key)) {
+                        const first = stops[0];
+                        const last = stops[stops.length - 1];
                         groupsMap.set(key, {
                             id: key,
                             date: dateStr,
                             dayType: dayType,
                             trainNumber: item.trainNumber || "",
                             type: item.type || "",
-                            stations: (item.stops || []).map(s => s.station).join(' ')
+                            stations: (stops.map(s => s.station).join(' ')).toLowerCase(),
+                            startStation: first ? first.station : "",
+                            endStation: last ? last.station : "",
+                            startTime: getDepTime(first),
+                            endTime: getArrTime(last),
+                            stopCount: stops.length
                         });
                     }
                 });
-                
+
                 allTrainGroups = Array.from(groupsMap.values()).reverse();
-                
+
                 restoreState();
                 renderList();
 
             } catch (error) {
-                document.getElementById('train-list').innerHTML = "Error: " + error.message;
+                document.getElementById('train-list').innerHTML =
+                    `<div class="empty-state">読み込みエラー: ${error.message}</div>`;
             }
+        }
+
+        function dayTypeCategory(dayType) {
+            if (dayType) {
+                if (dayType.includes("休日") || dayType.includes("土曜") || dayType.includes("日曜")) return "holiday";
+                if (dayType.includes("平日")) return "weekday";
+            }
+            return "unknown";
         }
 
         function renderList() {
             const query = document.getElementById('search-query').value.toLowerCase();
-            const filtered = allTrainGroups.filter(t => 
-                t.trainNumber.toLowerCase().includes(query) || 
-                t.type.toLowerCase().includes(query) || 
-                t.stations.includes(query)
-            );
+
+            const filtered = allTrainGroups.filter(t => {
+                const matchesQuery =
+                    t.trainNumber.toLowerCase().includes(query) ||
+                    t.type.toLowerCase().includes(query) ||
+                    t.stations.includes(query);
+                const matchesFilter = currentFilter === 'all' || dayTypeCategory(t.dayType) === currentFilter;
+                return matchesQuery && matchesFilter;
+            });
 
             const listElement = document.getElementById('train-list');
-            listElement.innerHTML = filtered.map(t => {
-                // 判定ロジック
-                let tagClass = "tag-unknown"; 
-                if (t.dayType) {
-                    if (t.dayType.includes("休日") || t.dayType.includes("土曜") || t.dayType.includes("日曜")) {
-                        tagClass = "tag-holiday";
-                    } else if (t.dayType.includes("平日")) {
-                        tagClass = "tag-weekday";
-                    }
-                }
-                
-                const displayDayType = t.dayType || "不明";
 
-                return `
-                <div class="train-item" onclick="saveAndGo('${t.id}', '${t.date}')">
-                    <div class="train-info-main">
-                        <div class="train-date-num">
-                            ${t.date} | ${t.trainNumber}
-                            <span class="day-type-tag ${tagClass}">${displayDayType}</span>
+            if (filtered.length === 0) {
+                listElement.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+                        <div>条件に一致する列車が見つかりません</div>
+                    </div>`;
+            } else {
+                listElement.innerHTML = filtered.map(t => {
+                    const cat = dayTypeCategory(t.dayType);
+                    const tagClassMap = { weekday: 'tag-weekday', holiday: 'tag-holiday', unknown: 'tag-unknown' };
+                    const displayDayType = t.dayType || "不明";
+
+                    const routeHtml = (t.startStation || t.endStation) ? `
+                        <div class="route-row">
+                            ${t.startTime ? `<span class="route-time">${t.startTime}</span>` : ''}
+                            <span class="route-station">${t.startStation || '?'}</span>
+                            <span class="route-line"></span>
+                            <span class="route-stop-count">${t.stopCount}駅</span>
+                            <span class="route-line"></span>
+                            <span class="route-station">${t.endStation || '?'}</span>
+                            ${t.endTime ? `<span class="route-time">${t.endTime}</span>` : ''}
+                        </div>` : '';
+
+                    return `
+                    <div class="train-item" onclick="saveAndGo('${t.id}', '${t.date}')">
+                        <div class="item-bar ${cat}"></div>
+                        <div class="item-body">
+                            <div class="item-top-row">
+                                <span class="train-date">${t.date}</span>
+                                <span class="train-num">${t.trainNumber}</span>
+                                ${t.type ? `<span class="type-badge">${t.type}</span>` : ''}
+                                <span class="day-type-tag ${tagClassMap[cat]}">${displayDayType}</span>
+                            </div>
+                            ${routeHtml}
                         </div>
-                        <div class="train-type-label">${t.type}</div>
-                    </div>
-                    <div class="arrow-icon">&rsaquo;</div>
-                </div>
-            `}).join('');
+                        <div class="arrow-icon">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4l6 6-6 6"/></svg>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
 
-            document.getElementById('result-count').innerText = `${filtered.length} 件表示中`;
+            document.getElementById('header-count').innerText = `${filtered.length} 件表示中`;
         }
 
         function saveAndGo(id, originalDate) {
@@ -262,7 +593,7 @@
 
             sessionStorage.setItem('train_search_pos', window.scrollY);
             sessionStorage.setItem('train_search_query', document.getElementById('search-query').value);
-            sessionStorage.setItem('train_execution_date', customDate); 
+            sessionStorage.setItem('train_execution_date', customDate);
 
             location.href = `view.html?id=${encodeURIComponent(id)}&date=${encodeURIComponent(finalDate)}`;
         }
@@ -284,12 +615,20 @@
         document.getElementById('search-query').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') renderList();
         });
+        document.getElementById('filter-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('.chip');
+            if (!chip) return;
+            document.querySelectorAll('#filter-chips .chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentFilter = chip.dataset.type;
+            renderList();
+        });
 
         loadData();
     </script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../../auth_guard.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="../../auth_guard.js"></script>
 </body>
 </html>
