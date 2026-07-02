@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>列車選択</title>
+    <title>運転計画B報編 列車選択</title>
     <link rel="stylesheet" href="style.css">
     <style>
         /* ============================================================
-           Windows 11 Fluent 風デザイン ― 運転計画 B報編 列車選択
+           運転計画 B報編 列車選択
            ============================================================ */
 
         :root{
@@ -28,9 +28,9 @@
             --holiday-light: #fbeae8;
             --unknown: #8a8886;
             --unknown-light: #f2f1f0;
-            --radius-sm: 4px;
-            --radius: 8px;
-            --radius-lg: 10px;
+            --radius-sm: 2px;
+            --radius: 3px;
+            --radius-lg: 3px;
             --shadow-1: 0 1px 2px rgba(0,0,0,.06);
             --shadow-2: 0 2px 6px rgba(0,0,0,.08), 0 0 1px rgba(0,0,0,.08);
             --font-ui: "Segoe UI Variable Text", "Segoe UI", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
@@ -72,7 +72,7 @@
             color: var(--text-primary);
             text-decoration: none;
             border: 1px solid transparent;
-            border-radius: 50%;
+            border-radius: var(--radius-sm);
             background: transparent;
             transition: background .1s ease, border-color .1s ease;
             order: -1; /* 常に左端に固定 */
@@ -208,7 +208,7 @@
             align-items: center;
             gap: 6px;
             border: 1px solid var(--win-border-strong);
-            border-radius: 999px;
+            border-radius: var(--radius-sm);
             background: var(--win-surface);
             color: var(--text-secondary);
             font-size: 12.5px;
@@ -234,11 +234,11 @@
         /* ---------------- リスト全体 ---------------- */
         .list-container {
             max-width: 820px;
-            margin: 16px auto;
+            margin: 10px auto;
             padding: 0 16px 40px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
 
         .empty-state {
@@ -285,11 +285,11 @@
 
         .item-body {
             flex: 1;
-            padding: 12px 14px;
+            padding: 7px 12px;
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 3px;
         }
 
         .item-top-row {
@@ -320,14 +320,14 @@
             color: var(--accent-hover);
             background: var(--accent-light);
             padding: 2px 8px;
-            border-radius: 999px;
+            border-radius: var(--radius-sm);
         }
 
         .day-type-tag {
             font-size: 0.72rem;
             margin-left: auto;
             padding: 2px 9px;
-            border-radius: 999px;
+            border-radius: var(--radius-sm);
             font-weight: 600;
             white-space: nowrap;
         }
@@ -360,9 +360,30 @@
             background: var(--win-surface-alt);
             border: 1px solid var(--win-border);
             padding: 1px 6px;
-            border-radius: 999px;
+            border-radius: var(--radius-sm);
         }
         .route-arrow { color: var(--text-tertiary); font-size: 0.8rem; }
+
+        /* 経由線区表示 */
+        .via-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.72rem;
+            color: var(--text-tertiary);
+            flex-wrap: wrap;
+        }
+        .via-row svg { width: 12px; height: 12px; flex: 0 0 auto; }
+        .via-label { color: var(--text-tertiary); }
+        .via-chain { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .via-line {
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--win-surface-alt);
+            border: 1px solid var(--win-border);
+            padding: 0 6px;
+            border-radius: var(--radius-sm);
+        }
 
         .arrow-icon {
             flex: 0 0 auto;
@@ -393,7 +414,7 @@
             .search-input { font-size: 13px; }
             .btn-search { padding: 0 14px; font-size: 12.5px; }
             .list-container { padding: 0 10px 32px; margin: 12px auto; gap: 6px; }
-            .item-body { padding: 10px 11px; gap: 5px; }
+            .item-body { padding: 6px 10px; gap: 3px; }
             .train-num { font-size: 0.92rem; }
             .type-badge { font-size: 0.68rem; }
             .day-type-tag { font-size: 0.68rem; }
@@ -460,20 +481,104 @@
             return dateStr;
         }
 
-        // stopsの要素から時刻らしきフィールドを柔軟に拾う
-        function pickTime(stop, keys) {
-            if (!stop) return "";
-            for (const k of keys) {
-                if (stop[k]) return stop[k];
-            }
-            return "";
+        // 元データは同一列車・同一日でも線区(line)ごとにレコードが分かれているため、
+        // 同じ施行日+列番のレコードをすべて集約し、区間をまたいで全区間分の停車駅を連結する。
+
+        function isMeaningfulTime(t) {
+            if (!t) return false;
+            const s = String(t).trim();
+            return s !== '' && s !== '…' && s !== '||' && s !== '　';
         }
 
-        function getDepTime(stop) {
-            return pickTime(stop, ['departureTime', 'departure', 'dep', 'depTime', 'time']);
+        function firstMeaningfulTime(list, keys) {
+            for (const s of list) {
+                for (const k of keys) {
+                    if (isMeaningfulTime(s[k])) return s[k];
+                }
+            }
+            return '';
         }
-        function getArrTime(stop) {
-            return pickTime(stop, ['arrivalTime', 'arrival', 'arr', 'arrTime', 'time']);
+
+        // 駅名比較用の正規化（全角/半角スペース除去）
+        function normalizeStation(name) {
+            return (name || '').replace(/[\s\u3000]/g, '');
+        }
+        // 表示用の駅名整形（詰め用の全角スペースを除去）
+        function cleanStationName(name) {
+            return (name || '').replace(/[\s\u3000]/g, '');
+        }
+
+        // kid1/kid2（区間の接続キー）を辿って線区レコードを正しい順序に並べる。
+        // キーが無い/不整合な場合は元データの並び順にフォールバックする。
+        function orderSegments(segments) {
+            if (segments.length <= 1) return segments.slice();
+
+            const hasChainKeys = segments.some(s => s.kid1 || s.kid2);
+            if (!hasChainKeys) return segments.slice();
+
+            const remaining = segments.slice();
+            const startIdx = remaining.findIndex(s => !s.kid1);
+            if (startIdx === -1) return segments.slice();
+
+            const ordered = [remaining.splice(startIdx, 1)[0]];
+            while (remaining.length) {
+                const last = ordered[ordered.length - 1];
+                const nextIdx = remaining.findIndex(s => s.kid1 === last.kid2);
+                if (nextIdx === -1) break;
+                ordered.push(remaining.splice(nextIdx, 1)[0]);
+            }
+            // 繋がらなかった残りは末尾にそのまま追加（データ欠落防止）
+            return ordered.concat(remaining);
+        }
+
+        // 線区の境界で重複する駅（前区間の終点=次区間の起点）を1件に統合しつつ全停車駅を連結
+        function mergeStops(orderedSegments) {
+            const merged = [];
+            orderedSegments.forEach(seg => {
+                const stops = seg.stops || [];
+                stops.forEach((s, idx) => {
+                    const prev = merged[merged.length - 1];
+                    if (idx === 0 && prev && normalizeStation(prev.station) === normalizeStation(s.station)) {
+                        // 境界の同一駅：時刻情報を補完して1件に統合する
+                        if (!isMeaningfulTime(prev.arrival) && isMeaningfulTime(s.arrival)) prev.arrival = s.arrival;
+                        if (!isMeaningfulTime(prev.departure) && isMeaningfulTime(s.departure)) prev.departure = s.departure;
+                        return;
+                    }
+                    merged.push({
+                        station: s.station || '',
+                        arrival: s.arrival || '',
+                        departure: s.departure || ''
+                    });
+                });
+            });
+            return merged;
+        }
+
+        function buildGroupDetails(group) {
+            const ordered = orderSegments(group.segments);
+            const merged = mergeStops(ordered);
+            const first = ordered[0] || {};
+
+            // 通過線区（重複を除いた順序）
+            const lines = [];
+            ordered.forEach(s => {
+                if (s.line && lines[lines.length - 1] !== s.line) lines.push(s.line);
+            });
+
+            return {
+                id: group.id,
+                date: group.date,
+                dayType: first.dayType || '',
+                trainNumber: first.trainNumber || '',
+                type: first.type || '',
+                startStation: cleanStationName(first.origin) || (merged[0] ? cleanStationName(merged[0].station) : ''),
+                endStation: cleanStationName(first.destination) || (merged.length ? cleanStationName(merged[merged.length - 1].station) : ''),
+                startTime: firstMeaningfulTime(merged, ['departure', 'arrival']),
+                endTime: firstMeaningfulTime(merged.slice().reverse(), ['arrival', 'departure']),
+                stopCount: merged.length,
+                stations: merged.map(s => cleanStationName(s.station)).join(' ').toLowerCase(),
+                lines: lines
+            };
         }
 
         async function loadData() {
@@ -482,34 +587,20 @@
                 if (!response.ok) throw new Error('JSON読み込み失敗');
                 const rawData = await response.json();
 
-                const groupsMap = new Map();
-
+                // 施行日+列番でレコードをグループ化（線区分割レコードをすべて集約）
+                const rawGroups = new Map();
                 rawData.forEach(item => {
                     const dateStr = formatDate(item.startDate || item.dayType);
-                    const dayType = item.dayType || "";
                     const key = `${dateStr}_${item.trainNumber}`;
-                    const stops = item.stops || [];
-
-                    if (!groupsMap.has(key)) {
-                        const first = stops[0];
-                        const last = stops[stops.length - 1];
-                        groupsMap.set(key, {
-                            id: key,
-                            date: dateStr,
-                            dayType: dayType,
-                            trainNumber: item.trainNumber || "",
-                            type: item.type || "",
-                            stations: (stops.map(s => s.station).join(' ')).toLowerCase(),
-                            startStation: first ? first.station : "",
-                            endStation: last ? last.station : "",
-                            startTime: getDepTime(first),
-                            endTime: getArrTime(last),
-                            stopCount: stops.length
-                        });
+                    if (!rawGroups.has(key)) {
+                        rawGroups.set(key, { id: key, date: dateStr, segments: [] });
                     }
+                    rawGroups.get(key).segments.push(item);
                 });
 
-                allTrainGroups = Array.from(groupsMap.values()).reverse();
+                allTrainGroups = Array.from(rawGroups.values())
+                    .map(buildGroupDetails)
+                    .reverse();
 
                 restoreState();
                 renderList();
@@ -565,6 +656,14 @@
                             ${t.endTime ? `<span class="route-time">${t.endTime}</span>` : ''}
                         </div>` : '';
 
+                    // 複数線区にまたがる列車のみ経由線区を表示
+                    const viaHtml = (t.lines && t.lines.length > 1) ? `
+                        <div class="via-row">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h14M13 5l5 5-5 5"/></svg>
+                            <span class="via-label">経由</span>
+                            <span class="via-chain">${t.lines.map(l => `<span class="via-line">${l.endsWith('線') ? l : l + '線'}</span>`).join('<span class="route-arrow">→</span>')}</span>
+                        </div>` : '';
+
                     return `
                     <div class="train-item" onclick="saveAndGo('${t.id}', '${t.date}')">
                         <div class="item-bar ${cat}"></div>
@@ -576,6 +675,7 @@
                                 <span class="day-type-tag ${tagClassMap[cat]}">${displayDayType}</span>
                             </div>
                             ${routeHtml}
+                            ${viaHtml}
                         </div>
                         <div class="arrow-icon">
                             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4l6 6-6 6"/></svg>
