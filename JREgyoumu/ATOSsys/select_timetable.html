@@ -101,10 +101,52 @@
             background-color: #d0d0d0;
         }
 
+        /* ソートアイコン（絵文字化を避けるためCSSの三角形で描画） */
         .select-table th .sort-icon {
-            margin-left: 4px;
-            font-size: 11px;
-            color: #555;
+            display: inline-block;
+            width: 9px;
+            height: 11px;
+            margin-left: 5px;
+            position: relative;
+            vertical-align: middle;
+        }
+
+        .select-table th .sort-icon::before,
+        .select-table th .sort-icon::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+
+        /* 未ソート状態：上下両方の三角形を薄く表示 */
+        .select-table th .sort-icon::before {
+            top: 0;
+            border-bottom: 4px solid #999999;
+        }
+
+        .select-table th .sort-icon::after {
+            bottom: 0;
+            border-top: 4px solid #999999;
+        }
+
+        /* 昇順：上向き三角形のみ濃く表示 */
+        .select-table th .sort-icon.sort-asc::before {
+            border-bottom-color: #000000;
+        }
+        .select-table th .sort-icon.sort-asc::after {
+            display: none;
+        }
+
+        /* 降順：下向き三角形のみ濃く表示 */
+        .select-table th .sort-icon.sort-desc::after {
+            border-top-color: #000000;
+        }
+        .select-table th .sort-icon.sort-desc::before {
+            display: none;
         }
 
         .select-table tbody tr {
@@ -204,10 +246,10 @@
             <table class="select-table" id="timetable-list">
                 <thead>
                     <tr>
-                        <th style="width: 15%;" data-col="startDate">施行日<span class="sort-icon">↕</span></th>
-                        <th style="width: 10%;" data-col="type">列車種別<span class="sort-icon">↕</span></th>
-                        <th style="width: 15%;" data-col="trainNumber">列車番号<span class="sort-icon">↕</span></th>
-                        <th style="width: 50%;" data-col="section">区間（始発〜終着）<span class="sort-icon">↕</span></th>
+                        <th style="width: 15%;" data-col="startDate">施行日<span class="sort-icon"></span></th>
+                        <th style="width: 10%;" data-col="type">列車種別<span class="sort-icon"></span></th>
+                        <th style="width: 15%;" data-col="trainNumber">列車番号<span class="sort-icon"></span></th>
+                        <th style="width: 50%;" data-col="section">区間（始発〜終着）<span class="sort-icon"></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -254,10 +296,9 @@
                     const icon = th.querySelector('.sort-icon');
                     if (!icon) return;
                     const col = th.getAttribute('data-col');
+                    icon.classList.remove('sort-asc', 'sort-desc');
                     if (col === sortCol) {
-                        icon.textContent = sortDir === 'asc' ? '▲' : '▼';
-                    } else {
-                        icon.textContent = '↕';
+                        icon.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
                     }
                 });
             };
