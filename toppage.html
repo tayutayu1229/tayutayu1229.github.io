@@ -1,157 +1,420 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>東京圏輸送情報システム トップページ</title>
-    <style>
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            max-width: 800px;
-            width: 95%;
-            /* 認証ガードが成功するまで非表示 */
-            display: none; 
-        }
-        h1 {
-            color: #01977a;
-            text-align: center;
-            margin-bottom: 1.5rem;
-            font-size: 1.8rem;
-        }
-        .button-container {
-            display: grid;
-            gap: 0.8rem;
-        }
-        .button {
-            background-color: #01977a;
-            color: white;
-            border: none;
-            padding: 0.8rem;
-            border-radius: 3px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            text-align: left;
-            font-weight: bold;
-        }
-        .button:hover {
-            background-color: #017a64;
-        }
-        /* 管理ページへのボタンを追加 */
-        .management-button {
-            background-color: #3f51b5;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        .management-button:hover {
-            background-color: #303f9f;
-        }
-        .info {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            background-color: #e8f8f5;
-            border-left: 5px solid #01977a;
-        }
-        .info h2 {
-            color: #01977a;
-            margin-top: 0;
-            font-size: 1.2rem;
-            margin-bottom: 6px;
-        }
-        .additional-section {
-            margin-top: 2rem;
-            padding: 1rem;
-            background-color: #f9f9f9;
-            border-radius: 3px;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-        }
-        .logout-container {
-            text-align: right;
-            margin-top: 1rem;
-        }
-        .logout-button {
-            background-color: #d9534f;
-            color: white;
-            border: none;
-            padding: 0.8rem 1.2rem;
-            border-radius: 3px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .logout-button:hover {
-            background-color: #c9302c;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>東京圏輸送情報システム トップページ</title>
+<style>
+    :root {
+        --bg: #f3f3f3;
+        --surface: #ffffff;
+        --border: #e1e1e1;
+        --border2: #c8c8c8;
+        --text: #1b1b1b;
+        --text2: #3a3a3a;
+        --text3: #5f6368;
+        --text4: #8a8a8a;
+
+        --green: #0a5c2e;
+        --green2: #0a7a3d;
+        --green3: #0a9448;
+        --green-lt: #e9f7ee;
+
+        --orange: #8a4a00;
+        --orange2: #c77700;
+        --orange-lt: #fff4e6;
+
+        --blue: #0067b8;
+        --blue2: #005a9e;
+        --blue-lt: #f0f7fd;
+
+        --gray: #4a4a4a;
+        --gray-lt: #eeeeee;
+
+        --indigo: #33408a;
+        --indigo2: #262f6b;
+
+        --red: #b3181c;
+        --red-lt: #fdf2f2;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+        margin: 0; padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+        font-size: 14px;
+    }
+
+    /* ===== ヘッダー ===== */
+    #header {
+        background: var(--green);
+        border-bottom: 3px solid var(--green3);
+        padding: 0 24px;
+        height: 62px;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .sys-title-block { display: flex; align-items: center; gap: 12px; }
+    .sys-mark {
+        width: 34px; height: 34px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.35);
+        color: #fff; font-weight: 900; font-size: 0.85em;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .sys-title { color: #fff; font-size: 1.1rem; font-weight: 900; letter-spacing: 0.04em; }
+    .sys-sub { color: rgba(255,255,255,0.65); font-size: 0.68rem; margin-top: 1px; letter-spacing: 0.03em; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    #user-info {
+        color: #eafff0; font-size: 0.8rem; font-weight: 600;
+        margin: 0; white-space: nowrap;
+    }
+    .logout-button {
+        background: rgba(255,255,255,0.10);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: #fff;
+        padding: 8px 16px;
+        font-size: 0.82rem; font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color 0.15s;
+    }
+    .logout-button:hover { background: rgba(217,83,79,0.85); border-color: #d9534f; }
+
+    /* ===== メイン ===== */
+    #main-content {
+        display: none;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px 20px 48px;
+    }
+
+    .search-row {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        padding: 10px 14px;
+        margin-bottom: 22px;
+    }
+    .search-row svg { flex-shrink: 0; color: var(--text4); }
+    .search-row input {
+        border: none; outline: none; background: none;
+        font-size: 0.95rem; width: 100%;
+        font-family: inherit; color: var(--text);
+    }
+    .search-hint { font-size: 0.72rem; color: var(--text4); white-space: nowrap; }
+
+    .quick-jump {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        margin-bottom: 26px;
+    }
+    .quick-jump a {
+        font-size: 0.75rem; color: var(--text3);
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        padding: 5px 12px;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .quick-jump a:hover { background: var(--green-lt); color: var(--green); border-color: var(--green2); }
+
+    .section { margin-bottom: 30px; scroll-margin-top: 14px; }
+    .section-head {
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 12px;
+    }
+    .section-bar { width: 5px; height: 18px; flex-shrink: 0; }
+    .section-title { font-size: 1rem; font-weight: 900; letter-spacing: 0.03em; }
+    .section-desc { font-size: 0.75rem; color: var(--text4); margin-left: 4px; }
+
+    .tile-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 10px;
+    }
+
+    .tile {
+        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-top: 4px solid var(--border2);
+        padding: 16px 14px 14px;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        display: flex; flex-direction: column; gap: 10px;
+        min-height: 108px;
+        transition: background-color 0.12s, border-color 0.12s;
+    }
+    .tile:hover { background: var(--gray-lt); }
+    .tile:active { background: var(--border); }
+    .tile .tile-icon { width: 26px; height: 26px; }
+    .tile .tile-label { font-size: 0.87rem; font-weight: 700; color: var(--text); line-height: 1.35; }
+    .tile .tile-note { font-size: 0.68rem; color: var(--text4); margin-top: -6px; }
+
+    .tile.c-green  { border-top-color: var(--green2); }
+    .tile.c-green  .tile-icon { color: var(--green2); }
+    .tile.c-orange { border-top-color: var(--orange2); }
+    .tile.c-orange .tile-icon { color: var(--orange2); }
+    .tile.c-blue   { border-top-color: var(--blue2); }
+    .tile.c-blue   .tile-icon { color: var(--blue2); }
+    .tile.c-gray   { border-top-color: var(--border2); }
+    .tile.c-gray   .tile-icon { color: var(--text3); }
+    .tile.c-indigo { border-top-color: var(--indigo); }
+    .tile.c-indigo .tile-icon { color: var(--indigo); }
+
+    .tile.suspended { background: var(--gray-lt); }
+    .tile.suspended .tile-icon { color: var(--text4); opacity: 0.7; }
+    .tile.suspended .tile-label { color: var(--text3); }
+    .suspend-badge {
+        position: absolute; top: 8px; right: 8px;
+        background: var(--orange2); color: #fff;
+        font-size: 0.6rem; font-weight: 700;
+        padding: 2px 6px; letter-spacing: 0.02em;
+    }
+
+    .tile.admin-tile {
+        background: var(--indigo);
+        border-top-color: var(--indigo2);
+    }
+    .tile.admin-tile .tile-icon { color: #fff; }
+    .tile.admin-tile .tile-label { color: #fff; }
+    .tile.admin-tile:hover { background: var(--indigo2); }
+
+    .tile.hidden-by-search { display: none; }
+
+    /* ===== 情報パネル ===== */
+    .info-panel {
+        margin-top: 28px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 5px solid var(--green2);
+        padding: 14px 18px;
+    }
+    .info-panel h2 {
+        color: var(--green2);
+        margin: 0 0 6px 0;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+    .info-panel p { margin: 4px 0; font-size: 0.85rem; color: var(--text2); }
+    .info-panel a { color: var(--blue2); font-weight: 600; }
+
+    .empty-msg {
+        text-align: center; color: var(--text4);
+        padding: 26px; border: 1px dashed var(--border2);
+        font-size: 0.85rem;
+    }
+
+    @media (max-width: 560px) {
+        #header { padding: 0 14px; height: 56px; }
+        .sys-title { font-size: 0.95rem; }
+        #user-info { display: none; }
+        .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    }
+</style>
 </head>
 <body>
-    
-    <div class="container" id="main-content">
-        
-        <p id="user-info" style="text-align: right; margin-bottom: 1rem; font-weight: bold;">(認証チェック中)</p>
-        
-        <h1>東京圏輸送情報システム</h1>
-        
-        
 
-        <div class="button-container">
-            <button class="button" onclick="location.href='NewHome.html'">統合情報モニタ</button>
-            <button class="button" onclick="location.href='ATOSlocation.html'">ATOS在線モニタ（使用停止中）</button>
-            <button class="button" onclick="location.href='train_zai-data.html'">列車在線状況一覧表（使用停止中）</button>
-            <button class="button" onclick="location.href='train_grasp.html'">運行把握モニタ（使用停止中）</button>
-            <button class="button" onclick="location.href='T-time/mobileatos.html'">ATOS列車別ダイヤモニタ</button>
-            <button class="button" onclick="location.href='T-time/ekibetuatos.html'">ATOS駅別ダイヤモニタ</button>
-            <button class="button" onclick="location.href='train_info.html'">運行情報一覧</button>
-            <button class="button" onclick="location.href='JRFtest/jr_freight_status.html'">貨物輸送状況</button>
-            <button class="button" onclick="location.href='JRFsys/index.html'">貨物輸送列車順序管理システム</button>
-            <button class="button" onclick="location.href='JREgyoumu/JREtop.html'">東日本旅客鉄道システムページ</button>
-            <button class="button" onclick="location.href='T-time/T-time.html'">列車検索システム</button>
-            <button class="button" onclick="location.href='unnyou/index.html'">車両運用システム</button>
-            <button class="button" onclick="location.href='timeedit.html'">時刻表データ作成ツール</button>
-            <button class="button" onclick="location.href='tobu-zai.html'">東武線在線モニタ</button>
-            <button class="button" onclick="location.href='keisei-zai.html'">京成線在線モニタ</button>
-            <button class="button" onclick="location.href='flight/DAsystem.html'">航空統合管制システム</button>
-        </div>
-        
-        <div class="info">
-            <h2>ご利用にあたって</h2>
-            <p>本ウェブサイトに関するご質問やご意見は、以下のメールアドレスまでご連絡ください。</p>
-            <p><a href="mailto:systemadmin@tayunet-traininfo.com">systemadmin@tayunet-traininfo.com</a></p>
-        </div>
-
-        <div class="additional-section">
-            <h2>その他</h2>
-            <div class="button-container">
-                <button class="button" onclick="location.href='outside.html'">外部サイト</button>
-                <button class="" onclick="location.href=''"></button>
-            </div>
-        </div>
-        <button class="button management-button" onclick="location.href='account_management.html'">
-            アカウント管理・ユーザー承認
-        </button>
-        <div class="logout-container">
-            <button class="logout-button" id="firebase-logout-button">ログアウト</button>
+<div id="header">
+    <div class="sys-title-block">
+        <div class="sys-mark">東</div>
+        <div>
+            <div class="sys-title">東京圏輸送情報システム</div>
+            <div class="sys-sub">トップページ・システム一覧</div>
         </div>
     </div>
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <div class="header-right">
+        <p id="user-info">(認証チェック中)</p>
+        <button class="logout-button" id="firebase-logout-button">ログアウト</button>
+    </div>
+</div>
 
-    <script src="auth_guard.js"></script>
-    
+<div id="main-content">
+
+    <div class="search-row">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input type="text" id="tile-search" placeholder="システム名で検索...（例: ATOS、貨物、運転時刻）" oninput="filterTiles()">
+        <span class="search-hint" id="search-count"></span>
+    </div>
+
+    <div class="quick-jump">
+        <a href="#sec-core">重要指令システム</a>
+        <a href="#sec-zaisen">在線・運行把握</a>
+        <a href="#sec-freight">貨物・車両</a>
+        <a href="#sec-other">私鉄・航空・外部</a>
+        <a href="#sec-admin">システム管理</a>
+    </div>
+
+    <!-- ===== 重要指令システム ===== -->
+    <div class="section" id="sec-core">
+        <div class="section-head">
+            <div class="section-bar" style="background:var(--green2)"></div>
+            <div class="section-title">重要指令システム</div>
+            <div class="section-desc">よく使う運行情報・ダイヤ照会</div>
+        </div>
+        <div class="tile-grid">
+            <button class="tile c-green" data-name="統合情報モニタ" onclick="location.href='NewHome.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="8" height="7" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="4" width="8" height="16" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="13" width="8" height="7" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="tile-label">統合情報モニタ</span>
+            </button>
+            <button class="tile c-green" data-name="運行情報一覧" onclick="location.href='train_info.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v6l4 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span class="tile-label">運行情報一覧</span>
+            </button>
+            <button class="tile c-green" data-name="ATOS列車別ダイヤモニタ" onclick="location.href='T-time/mobileatos.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="13" stroke="currentColor" stroke-width="1.6"/><path d="M8 19h8M12 16v3" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="tile-label">ATOS列車別ダイヤモニタ</span>
+            </button>
+            <button class="tile c-green" data-name="ATOS駅別ダイヤモニタ" onclick="location.href='T-time/ekibetuatos.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 20V9l8-5 8 5v11" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 20v-6h8v6" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="tile-label">ATOS駅別ダイヤモニタ</span>
+            </button>
+            <button class="tile c-green" data-name="列車検索システム" onclick="location.href='T-time/T-time.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span class="tile-label">列車検索システム</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== 在線・運行把握 ===== -->
+    <div class="section" id="sec-zaisen">
+        <div class="section-head">
+            <div class="section-bar" style="background:var(--text4)"></div>
+            <div class="section-title">在線・運行把握モニタ</div>
+            <div class="section-desc">一部機能は現在使用停止中です</div>
+        </div>
+        <div class="tile-grid">
+            <button class="tile c-gray suspended" data-name="ATOS在線モニタ" onclick="location.href='ATOSlocation.html'">
+                <span class="suspend-badge">停止中</span>
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="10" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="19" r="1.6" fill="currentColor"/><circle cx="16" cy="19" r="1.6" fill="currentColor"/></svg>
+                <span class="tile-label">ATOS在線モニタ</span>
+            </button>
+            <button class="tile c-gray suspended" data-name="列車在線状況一覧表" onclick="location.href='train_zai-data.html'">
+                <span class="suspend-badge">停止中</span>
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span class="tile-label">列車在線状況一覧表</span>
+            </button>
+            <button class="tile c-gray suspended" data-name="運行把握モニタ" onclick="location.href='train_grasp.html'">
+                <span class="suspend-badge">停止中</span>
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 18l5-6 4 3 7-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="tile-label">運行把握モニタ</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== 貨物・車両システム ===== -->
+    <div class="section" id="sec-freight">
+        <div class="section-head">
+            <div class="section-bar" style="background:var(--orange2)"></div>
+            <div class="section-title">貨物・車両システム</div>
+        </div>
+        <div class="tile-grid">
+            <button class="tile c-orange" data-name="貨物輸送状況" onclick="location.href='JRFtest/jr_freight_status.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="12" height="9" stroke="currentColor" stroke-width="1.6"/><path d="M14 10h4l3 3v3h-7v-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="currentColor" stroke-width="1.5"/><circle cx="18" cy="18" r="1.7" stroke="currentColor" stroke-width="1.5"/></svg>
+                <span class="tile-label">貨物輸送状況</span>
+            </button>
+            <button class="tile c-orange" data-name="貨物輸送列車順序管理システム" onclick="location.href='JRFsys/index.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="4" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="10" width="16" height="4" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="16" width="10" height="4" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="tile-label">貨物輸送列車順序管理システム</span>
+            </button>
+            <button class="tile c-orange" data-name="車両運用システム" onclick="location.href='unnyou/index.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <span class="tile-label">車両運用システム</span>
+            </button>
+            <button class="tile c-orange" data-name="時刻表データ作成ツール" onclick="location.href='timeedit.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 20l1-4 12-12 3 3-12 12-4 1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                <span class="tile-label">時刻表データ作成ツール</span>
+            </button>
+            <button class="tile c-orange" data-name="東日本旅客鉄道システムページ" onclick="location.href='JREgyoumu/JREtop.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" stroke="currentColor" stroke-width="1.6"/><path d="M8 8h2M14 8h2M8 12h2M14 12h2M9 21v-4h6v4" stroke="currentColor" stroke-width="1.5"/></svg>
+                <span class="tile-label">東日本旅客鉄道<br>システムページ</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== 私鉄・航空・外部 ===== -->
+    <div class="section" id="sec-other">
+        <div class="section-head">
+            <div class="section-bar" style="background:var(--blue2)"></div>
+            <div class="section-title">私鉄・航空・外部リンク</div>
+        </div>
+        <div class="tile-grid">
+            <button class="tile c-blue" data-name="東武線在線モニタ" onclick="location.href='tobu-zai.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="10" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="19" r="1.6" fill="currentColor"/><circle cx="16" cy="19" r="1.6" fill="currentColor"/></svg>
+                <span class="tile-label">東武線在線モニタ</span>
+            </button>
+            <button class="tile c-blue" data-name="京成線在線モニタ" onclick="location.href='keisei-zai.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="10" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="19" r="1.6" fill="currentColor"/><circle cx="16" cy="19" r="1.6" fill="currentColor"/></svg>
+                <span class="tile-label">京成線在線モニタ</span>
+            </button>
+            <button class="tile c-blue" data-name="航空統合管制システム" onclick="location.href='flight/DAsystem.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M2 14l8-2 4-9 2 1-2 8 7 3v2l-7-1-2 5-2-1 1-4-9-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                <span class="tile-label">航空統合管制システム</span>
+            </button>
+            <button class="tile c-gray" data-name="外部サイト" onclick="location.href='outside.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M9 15L20 4M20 4h-6M20 4v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="tile-label">外部サイト</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== システム管理 ===== -->
+    <div class="section" id="sec-admin">
+        <div class="section-head">
+            <div class="section-bar" style="background:var(--indigo)"></div>
+            <div class="section-title">システム管理</div>
+        </div>
+        <div class="tile-grid">
+            <button class="tile admin-tile" data-name="アカウント管理・ユーザー承認" onclick="location.href='account_management.html'">
+                <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.2" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 15.5c0.7-1.7 2-2.5 3.5-2.5s2.8 0.8 3.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                <span class="tile-label">アカウント管理・<br>ユーザー承認</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="no-result" class="empty-msg" style="display:none;">該当するシステムが見つかりませんでした。</div>
+
+    <div class="info-panel">
+        <h2>ご利用にあたって</h2>
+        <p>本ウェブサイトに関するご質問やご意見は、以下のメールアドレスまでご連絡ください。</p>
+        <p><a href="mailto:systemadmin@tayunet-traininfo.com">systemadmin@tayunet-traininfo.com</a></p>
+    </div>
+
+</div>
+
+<script>
+    function filterTiles() {
+        const keyword = document.getElementById('tile-search').value.trim().toLowerCase();
+        const tiles = document.querySelectorAll('.tile');
+        let visibleCount = 0;
+
+        tiles.forEach(tile => {
+            const name = (tile.dataset.name || '').toLowerCase();
+            const match = !keyword || name.includes(keyword);
+            tile.classList.toggle('hidden-by-search', !match);
+            if (match) visibleCount++;
+        });
+
+        document.querySelectorAll('.section').forEach(section => {
+            const anyVisible = [...section.querySelectorAll('.tile')].some(t => !t.classList.contains('hidden-by-search'));
+            section.style.display = (keyword && !anyVisible) ? 'none' : '';
+        });
+
+        document.getElementById('no-result').style.display = (keyword && visibleCount === 0) ? 'block' : 'none';
+        document.getElementById('search-count').innerText = keyword ? `${visibleCount}件表示中` : '';
+    }
+</script>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<script src="auth_guard.js"></script>
+
 </body>
 </html>
