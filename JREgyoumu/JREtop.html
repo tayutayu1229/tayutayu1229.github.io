@@ -6,16 +6,46 @@
     <title>JR東日本ポータル</title>
 
     <style>
-        body {
-            font-family: 'Meiryo', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            color: #333;
+        :root {
+            --bg: #f3f3f3;
+            --surface: #ffffff;
+            --border: #e1e1e1;
+            --border2: #c8c8c8;
+            --text: #1b1b1b;
+            --text2: #3a3a3a;
+            --text3: #5f6368;
+            --text4: #8a8a8a;
+
+            /* このポータル固有のグリーン（ヘッダーの色を踏襲） */
+            --green: #328132;
+            --green-dark: #2a6b2a;
+            --green-lt: #e8f3e8;
+
+            --orange: #a15c00;
+            --orange2: #c77700;
+            --orange-lt: #fff4e6;
+
+            --red: #b3181c;
+            --red-lt: #fdf2f2;
+
+            --gray: #767676;
+            --gray-dark: #5d5d5d;
         }
 
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: "Segoe UI", 'Meiryo', "Yu Gothic UI", "Hiragino Kaku Gothic ProN", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text2);
+            font-size: 14px;
+        }
+
+        /* --- ヘッダー（変更なし・レスポンシブのみ対応） --- */
         header {
-            background-color: #328132;
+            background-color: var(--green);
             color: white;
             padding: 15px 30px;
             font-size: 24px;
@@ -23,14 +53,38 @@
         }
 
         main {
-            padding: 20px 30px;
+            padding: 24px 30px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
         }
 
-        h2 {
-            border-bottom: 3px solid #328132;
-            padding-bottom: 5px;
-            margin-bottom: 20px;
+        .section-head {
+            display: flex; align-items: baseline; justify-content: space-between;
+            flex-wrap: wrap; gap: 8px;
+            border-bottom: 3px solid var(--green);
+            padding-bottom: 6px;
+            margin-bottom: 18px;
         }
+        .section-head h2 {
+            font-size: 1.15rem;
+            color: var(--text);
+            margin: 0;
+        }
+
+        section { margin-bottom: 34px; }
+
+        .mark-all-read {
+            background: none;
+            border: 1px solid var(--border2);
+            color: var(--text3);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 5px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.12s;
+        }
+        .mark-all-read:hover { background: var(--bg); color: var(--text); }
 
         /* --- お知らせ --- */
         .news-list {
@@ -38,77 +92,153 @@
             padding: 0;
         }
         .news-list li {
-            background-color: white;
-            border-left: 5px solid #328132;
-            padding: 15px;
-            margin-bottom: 10px;
-            transition: 0.15s ease;
+            position: relative;
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--green);
+            padding: 14px 44px 14px 16px;
+            margin-bottom: 8px;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: background-color 0.12s ease;
         }
         .news-list li:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+            background-color: var(--green-lt);
+        }
+        .news-list li.is-read {
+            border-left-color: var(--border2);
+            color: var(--text3);
         }
         .news-list .date {
-            font-weight: bold;
-            font-size: 17px;
-            margin-right: 15px;
-            color: #2a6b2a;
+            display: inline-block;
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-right: 12px;
+            color: var(--green-dark);
+            background: var(--green-lt);
+            border: 1px solid var(--green);
+            padding: 2px 8px;
+        }
+        .news-list li.is-read .date {
+            color: var(--text3);
+            background: var(--bg);
+            border-color: var(--border2);
+        }
+        .new-badge {
+            position: absolute;
+            top: 10px; right: 12px;
+            background: var(--red);
+            color: #fff;
+            font-size: 0.62rem;
+            font-weight: 900;
+            letter-spacing: 0.05em;
+            padding: 2px 7px;
+        }
+        .read-hint {
+            display: block;
+            font-size: 0.68rem;
+            color: var(--text4);
+            margin-top: 6px;
         }
 
         /* --- ボタンカードグリッド --- */
         .button-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-top: 30px;
+            gap: 10px;
         }
 
         .btn-card {
-            background-color: white;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 20px;
-            text-align: center;
-            font-size: 16px;
+            position: relative;
+            background-color: var(--surface);
+            border: 1px solid var(--border2);
+            border-top: 4px solid var(--green);
+            border-radius: 0;
+            padding: 16px 16px 14px;
             text-decoration: none;
-            color: #328132;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: 0.2s ease;
+            color: var(--text);
+            transition: background-color 0.12s ease;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 70px;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 92px;
+        }
+        .btn-card:hover { background-color: var(--green-lt); }
+        .btn-card:active { background-color: #d9ecd9; }
+
+        .card-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--green-dark);
+            line-height: 1.4;
+            padding-right: 62px;
+        }
+        .card-desc {
+            font-size: 0.74rem;
+            color: var(--text3);
+            line-height: 1.5;
         }
 
-        .btn-card:hover {
-            background-color: #e8f3e8;
-            transform: translateY(-3px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        .status-badge {
+            position: absolute;
+            top: 12px; right: 12px;
+            font-size: 0.6rem;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            padding: 2px 8px;
+            border: 1px solid;
+            white-space: nowrap;
         }
+        .status-active      { color: var(--green-dark); background: var(--green-lt); border-color: var(--green); }
+        .status-maintenance { color: var(--orange); background: var(--orange-lt); border-color: var(--orange2); }
+        .status-suspended   { color: var(--text3); background: var(--bg); border-color: var(--border2); }
+
+        /* 使用停止中の項目は視覚的に区別 */
+        .btn-card.is-suspended { border-top-color: var(--border2); }
+        .btn-card.is-suspended .card-title { color: var(--text3); }
+        .btn-card.is-suspended:hover { background-color: var(--bg); }
 
         /* --- 戻るボタン --- */
         .btn-secondary {
-            background-color: #767676;
+            background-color: var(--gray);
             color: white;
-            padding: 12px 24px;
-            border-radius: 5px;
+            padding: 11px 22px;
+            border-radius: 0;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            margin-top: 20px;
+            margin-top: 22px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            transition: background-color 0.12s ease;
         }
         .btn-secondary:hover {
-            background-color: #5d5d5d;
+            background-color: var(--gray-dark);
         }
 
         footer {
             text-align: center;
-            padding: 20px;
-            margin-top: 40px;
-            background-color: #e0e0e0;
-            font-size: 12px;
-            color: #555;
+            padding: 18px;
+            margin-top: 20px;
+            background-color: #e6e6e6;
+            border-top: 1px solid var(--border2);
+            font-size: 0.72rem;
+            color: var(--text3);
+        }
+
+        /* --- レスポンシブ --- */
+        @media (max-width: 720px) {
+            header { padding: 12px 18px; font-size: 1.25rem; }
+            main { padding: 18px 16px 30px; }
+            .section-head h2 { font-size: 1.05rem; }
+            .button-grid { grid-template-columns: 1fr; }
+            .news-list li { padding: 12px 40px 12px 14px; font-size: 0.85rem; }
+            .news-list .date { display: block; margin-bottom: 6px; width: fit-content; }
+        }
+
+        @media (max-width: 420px) {
+            header { font-size: 1.1rem; padding: 10px 14px; }
+            .btn-secondary { display: block; text-align: center; }
         }
     </style>
 </head>
@@ -122,38 +252,25 @@
 <main>
 
     <section>
-        <h2>お知らせ</h2>
-        <ul class="news-list">
-            <li>
-                <span class="date auto-day"></span>
-                【重要】文書共有システムを確認してください
-            </li>
-            <li>
-                <span class="date auto-month"></span>
-                【重要】システムメンテナンスのお知らせ (今月 16.28日 1:00-3:00)
-            </li>
-            <li>
-                <span class="date auto-month"></span>
-                【社内報】今月号が発行されました
-            </li>
+        <div class="section-head">
+            <h2>お知らせ</h2>
+            <button class="mark-all-read" id="mark-all-read-btn">すべて既読にする</button>
+        </div>
+        <ul class="news-list" id="news-list">
+            <!-- JSで描画 -->
         </ul>
     </section>
 
     <section>
-        <h2>業務システム</h2>
-
-        <div class="button-grid">
-            <a href="ATOSsys/select_timetable.html" class="btn-card">列車時刻表閲覧システム</a>
-            <a href="tsutatuIP/top.html" class="btn-card">運転計画 B報</a>
-            <a href="JREdiaA.html" class="btn-card">運行図表表示 使用停止中</a>
-            <a href="JRchrlogin.html" class="btn-card">輸送障害管理システム</a>
-            <a href="D-TAC/train_list.html" class="btn-card">D-TAC</a>
-            <a href="LineSystem/sysindex.html" class="btn-card">列車旅客案内システム 使用停止中</a>
-            <a href="DocuBase/index.html" class="btn-card">文書共有システム</a>
-            <a href="JREmanual.html" class="btn-card">各種マニュアル</a>
+        <div class="section-head">
+            <h2>業務システム</h2>
         </div>
 
-        <a href="../toppage.html" class="btn-secondary">メインメニューに戻る</a>
+        <div class="button-grid" id="system-grid">
+            <!-- JSで描画 -->
+        </div>
+
+        <a href="../toppage.html" class="btn-secondary">← メインメニューに戻る</a>
     </section>
 
 </main>
@@ -162,27 +279,102 @@
     East Japan Railway Company, System Portal.
 </footer>
 
-<!-- --- 今月・今日の日付を自動生成 --- -->
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const now = new Date();
+    /* ===== お知らせデータ ===== */
+    /* dateType: 'day'  = 今日の日付を表示 / 'month' = 今月1日の日付を表示 */
+    const newsItems = [
+        { id: 'news-1', dateType: 'day',   text: '【重要】文書共有システムを確認してください' },
+        { id: 'news-2', dateType: 'month', text: '【重要】システムメンテナンスのお知らせ（当システム全体、今月16日・28日 1:00-3:00）' },
+        { id: 'news-3', dateType: 'month', text: '【社内報】今月号が発行されました' },
+    ];
 
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
+    /* ===== 業務システムデータ ===== */
+    /* status: 'active' 稼働中 / 'maintenance' メンテナンス中 / 'suspended' 使用停止中 */
+    const systems = [
+        { href: 'ATOSsys/select_timetable.html', title: '列車時刻表閲覧システム', desc: '各列車の時刻表を検索・閲覧できます', status: 'active' },
+        { href: 'tsutatuIP/top.html',             title: '運転計画 B報',           desc: '当日の運転時刻を確認します', status: 'active' },
+        { href: 'JREdiaA.html',                   title: '運行図表表示',           desc: 'ダイヤグラムの表示・確認を行います', status: 'suspended' },
+        { href: 'JRchrlogin.html',                title: '輸送障害管理システム',   desc: '輸送障害発生時の記録・共有を行います', status: 'active' },
+        { href: 'D-TAC/train_list.html',          title: 'D-TAC',                  desc: '運転士が運転時刻表を閲覧するシステムです', status: 'active' },
+        { href: 'LineSystem/sysindex.html',       title: '列車旅客案内システム',   desc: '駅社員向けの案内情報を提供します', status: 'suspended' },
+        { href: 'DocuBase/index.html',            title: '文書共有システム',       desc: '社内文書・マニュアル等を共有します', status: 'active' },
+        { href: 'JREmanual.html',                 title: '各種マニュアル',         desc: '業務マニュアル・手順書を閲覧します', status: 'active' },
+    ];
 
-    // 毎月1日
-    const monthFormatted = `${year}/${month}/1`;
-    document.querySelectorAll(".auto-month").forEach(el => {
-        el.textContent = monthFormatted;
+    const STATUS_LABEL = { active: '稼働中', maintenance: 'メンテナンス中', suspended: '使用停止中' };
+    const READ_KEY = 'jre_portal_read_news';
+
+    function getReadIds() {
+        try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]')); }
+        catch (e) { return new Set(); }
+    }
+    function saveReadIds(set) {
+        localStorage.setItem(READ_KEY, JSON.stringify([...set]));
+    }
+
+    function renderNews() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const dayFormatted = `${year}/${month}/${day}`;
+        const monthFormatted = `${year}/${month}/1`;
+
+        const readIds = getReadIds();
+        const list = document.getElementById('news-list');
+        list.innerHTML = '';
+
+        newsItems.forEach(item => {
+            const isRead = readIds.has(item.id);
+            const dateText = item.dateType === 'day' ? dayFormatted : monthFormatted;
+
+            const li = document.createElement('li');
+            li.dataset.id = item.id;
+            if (isRead) li.classList.add('is-read');
+            li.innerHTML = `
+                ${!isRead ? '<span class="new-badge">NEW</span>' : ''}
+                <span class="date">${dateText}</span>${item.text}
+                <span class="read-hint">${isRead ? '既読' : 'クリックして既読にする'}</span>
+            `;
+            li.addEventListener('click', () => {
+                const ids = getReadIds();
+                ids.add(item.id);
+                saveReadIds(ids);
+                renderNews();
+            });
+            list.appendChild(li);
+        });
+    }
+
+    function markAllRead() {
+        const ids = getReadIds();
+        newsItems.forEach(item => ids.add(item.id));
+        saveReadIds(ids);
+        renderNews();
+    }
+
+    function renderSystems() {
+        const grid = document.getElementById('system-grid');
+        grid.innerHTML = '';
+
+        systems.forEach(sys => {
+            const a = document.createElement('a');
+            a.href = sys.href;
+            a.className = 'btn-card' + (sys.status === 'suspended' ? ' is-suspended' : '');
+            a.innerHTML = `
+                <span class="status-badge status-${sys.status}">${STATUS_LABEL[sys.status]}</span>
+                <span class="card-title">${sys.title}</span>
+                <span class="card-desc">${sys.desc}</span>
+            `;
+            grid.appendChild(a);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderNews();
+        renderSystems();
+        document.getElementById('mark-all-read-btn').addEventListener('click', markAllRead);
     });
-
-    // 今日の日付
-    const dayFormatted = `${year}/${month}/${day}`;
-    document.querySelectorAll(".auto-day").forEach(el => {
-        el.textContent = dayFormatted;
-    });
-});
 </script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
