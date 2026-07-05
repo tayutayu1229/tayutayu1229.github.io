@@ -1,299 +1,967 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理者パネル - 東京圏輸送情報システム</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者パネル - 東京圏輸送情報システム</title>
 
-    <style>
-        /* ================================
-           全体レイアウト
-        ================================= */
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: "Helvetica Neue", Arial, sans-serif;
-            background-color: #f4f6f5;
-            color: #222;
-        }
+<style>
+    :root {
+        --bg: #f3f3f3;
+        --surface: #ffffff;
+        --border: #e1e1e1;
+        --border2: #c8c8c8;
+        --border3: #a6a6a6;
+        --text: #1b1b1b;
+        --text2: #3a3a3a;
+        --text3: #5f6368;
+        --text4: #8a8a8a;
 
-        .layout {
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
+        --green: #009944;
+        --green-dark: #007533;
+        --green-lt: #e6f4ee;
 
-        /* ================================
-           左メニュー（JR東日本風）
-        ================================= */
-        .sidebar {
-            width: 230px;
-            background-color: #ffffff;
-            border-right: 2px solid #009944;
-            display: flex;
-            flex-direction: column;
-            padding-top: 1rem;
-        }
+        --red: #c62828;
+        --red-lt: #fdecea;
+        --red-dark: #a01f1f;
 
-        .sidebar h2 {
-            font-size: 1.1rem;
-            font-weight: bold;
-            padding: 0 1rem 1rem;
-            border-bottom: 1px solid #ccc;
-            margin-bottom: 1rem;
-            color: #009944;
-        }
+        --blue: #084298;
+        --blue-lt: #e6f0ff;
 
-        .menu-item {
-            padding: 0.9rem 1.2rem;
-            cursor: pointer;
-            border-left: 4px solid transparent;
-            font-size: 0.95rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+        --gray: #333333;
+        --gray2: #767676;
+        --gray2-dark: #5d5d5d;
+    }
 
-        .menu-item:hover {
-            background-color: #e6f4ee;
-        }
+    * { box-sizing: border-box; }
 
-        .menu-item.active {
-            border-left: 4px solid #009944;
-            background-color: #e6f4ee;
-            font-weight: bold;
-        }
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+    }
 
-        /* 承認待ち件数バッジ（LINE風） */
-        .badge {
-            min-width: 18px;
-            padding: 2px 6px;
-            border-radius: 999px;
-            background-color: #c62828;
-            color: #fff;
-            font-size: 0.7rem;
-            text-align: center;
-        }
+    .layout { display: flex; height: 100vh; overflow: hidden; }
 
-        /* ================================
-           右側コンテンツ
-        ================================= */
-        .content {
-            flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
-            display: none; /* JSでログイン後に表示 */
-        }
+    /* ===== サイドバー ===== */
+    .sidebar {
+        width: 232px; flex-shrink: 0;
+        background-color: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex; flex-direction: column;
+    }
+    .sidebar-header { display: flex; align-items: center; gap: 10px; padding: 18px 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-mark { width: 34px; height: 34px; background: var(--green); color: #fff; font-weight: 900; font-size: 0.85em; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sidebar-header h2 { font-size: 0.92rem; font-weight: 800; color: var(--text); margin: 0; line-height: 1.3; }
+    .sidebar-header .sub { font-size: 0.65rem; color: var(--text4); margin-top: 1px; }
+    .menu-group { padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .menu-group + .menu-group { border-top: 1px solid var(--border); }
+    .menu-item { padding: 10px 12px; cursor: pointer; border-left: 3px solid transparent; font-size: 0.86rem; font-weight: 600; color: var(--text3); display: flex; align-items: center; gap: 10px; justify-content: space-between; transition: background-color 0.1s, color 0.1s; }
+    .menu-item .mi-left { display: flex; align-items: center; gap: 10px; }
+    .menu-item svg { flex-shrink: 0; }
+    .menu-item:hover { background-color: var(--green-lt); color: var(--green-dark); }
+    .menu-item.active { border-left-color: var(--green); background-color: var(--green-lt); color: var(--green-dark); font-weight: 800; }
+    .menu-spacer { margin-top: auto; }
+    .badge { min-width: 18px; padding: 2px 7px; background-color: var(--red); color: #fff; font-size: 0.66rem; font-weight: 800; text-align: center; }
+    .badge.gray { background-color: var(--gray2); }
 
-        .section {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            border-radius: 4px;
-        }
+    /* ===== コンテンツ ===== */
+    .content { flex: 1; padding: 22px 26px 40px; overflow-y: auto; display: none; }
+    .content-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .content-title { font-size: 1.2rem; font-weight: 900; color: var(--text); }
+    #user-info { font-weight: 700; font-size: 0.82rem; color: var(--text3); background: var(--surface); border: 1px solid var(--border2); padding: 6px 14px; margin: 0; }
 
-        .section h3 {
-            margin-top: 0;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #009944;
-            font-size: 1.2rem;
-        }
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border2); border-left: 4px solid var(--border3); padding: 12px 16px; }
+    .stat-card .stat-num { font-size: 1.6rem; font-weight: 900; line-height: 1.1; }
+    .stat-card .stat-label { font-size: 0.72rem; color: var(--text3); margin-top: 3px; }
+    .stat-card.total { border-left-color: var(--blue); } .stat-card.total .stat-num { color: var(--blue); }
+    .stat-card.pending { border-left-color: var(--red); } .stat-card.pending .stat-num { color: var(--red); }
+    .stat-card.disabled { border-left-color: var(--gray2); } .stat-card.disabled .stat-num { color: var(--gray2); }
+    .stat-card.admin { border-left-color: var(--green); } .stat-card.admin .stat-num { color: var(--green-dark); }
 
-        /* ================================
-           テーブル
-        ================================= */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            font-size: 0.9rem;
-        }
+    .section { background-color: var(--surface); border: 1px solid var(--border2); padding: 0; margin-bottom: 22px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-bottom: 2px solid var(--green); background: var(--bg); }
+    .section-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+    .section-head-actions { display: flex; gap: 6px; align-items: center; }
+    .section-body { padding: 16px 18px; }
 
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px 10px;
-            text-align: left;
-        }
+    .toolbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .search-box { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border3); background: #fafafa; padding: 6px 10px; flex: 1 1 220px; min-width: 180px; }
+    .search-box svg { flex-shrink: 0; color: var(--text4); }
+    .search-box input { border: none; outline: none; background: none; width: 100%; font-size: 0.85rem; font-family: inherit; color: var(--text); }
+    .refresh-btn, .bulk-btn { background: var(--surface); border: 1px solid var(--border3); padding: 7px 14px; font-size: 0.8rem; font-weight: 700; color: var(--text2); cursor: pointer; white-space: nowrap; }
+    .refresh-btn:hover { background: var(--bg); }
+    .bulk-btn { background: var(--green); color: #fff; border-color: var(--green); }
+    .bulk-btn:hover { background: var(--green-dark); }
+    .bulk-btn.danger { background: var(--red); border-color: var(--red); }
+    .bulk-btn.danger:hover { background: var(--red-dark); }
+    .bulk-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        th {
-            background-color: #e6f4ee;
-            font-weight: bold;
-        }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; }
+    th { background-color: var(--bg); font-weight: 800; font-size: 0.78rem; color: var(--text2); }
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { background-color: #e6e6e6; }
+    th.sortable .sort-arrow { font-size: 0.7rem; color: var(--text4); margin-left: 3px; }
+    tbody tr:hover { background-color: var(--green-lt); }
+    tbody tr.row-hidden { display: none; }
+    td.chk-col, th.chk-col { width: 34px; text-align: center; }
 
-        tr:hover {
-            background-color: #eef7f3;
-        }
+    .status-badge { padding: 3px 9px; font-size: 0.72rem; font-weight: 800; display: inline-block; border: 1px solid; }
+    .status-active { background-color: var(--bg); color: var(--text2); border-color: var(--border3); }
+    .status-disabled { background-color: var(--red-lt); color: var(--red-dark); border-color: var(--red); }
+    .status-admin { background-color: var(--blue-lt); color: var(--blue); border-color: var(--blue); }
 
-        /* ================================
-           バッジ（状態表示）
-        ================================= */
-        .status-badge {
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
+    button { padding: 7px 12px; border: none; border-radius: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; margin-right: 4px; margin-bottom: 4px; transition: opacity 0.1s; }
+    button:hover { opacity: 0.88; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-approve { background-color: var(--green); color: white; }
+    .btn-disable { background-color: var(--gray); color: white; }
+    .btn-enable { background-color: var(--gray2); color: white; }
+    .btn-delete { background-color: var(--red); color: white; }
+    .btn-admin { background-color: var(--gray); color: white; }
+    .btn-revoke { background-color: var(--gray2); color: white; }
 
-        .status-active { background-color: #e8e8e8; color: #222; }
-        .status-disabled { background-color: #f8d7da; color: #721c24; }
-        .status-admin { background-color: #e6f0ff; color: #084298; }
+    .empty-msg { color: var(--text4); font-size: 0.85rem; padding: 14px 0; }
+    .loading-msg { color: var(--text3); font-size: 0.85rem; padding: 14px 0; display: flex; align-items: center; gap: 10px; }
+    .h-spinner { width: 18px; height: 18px; border: 2.5px solid var(--border2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ================================
-           ボタン
-        ================================= */
-        button {
-            padding: 6px 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            margin-right: 4px;
-        }
+    /* ===== モーダル ===== */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 10000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border3); width: 92%; max-width: 420px; box-shadow: 0 4px 18px rgba(0,0,0,0.2); }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg); border-bottom: 2px solid var(--green); }
+    .modal-head h3 { margin: 0; font-size: 0.95rem; font-weight: 800; }
+    .modal-close-btn { background: none; border: 1px solid var(--border3); width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; margin: 0; }
+    .modal-close-btn:hover { background: var(--border); }
+    .modal-body { padding: 18px; font-size: 0.86rem; color: var(--text2); }
+    .modal-body p { margin: 0 0 14px 0; }
+    .modal-body label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text3); margin-bottom: 4px; margin-top: 10px; }
+    .modal-body label:first-child { margin-top: 0; }
+    .modal-body input { width: 100%; padding: 8px 10px; border: 1px solid var(--border3); font-size: 0.86rem; font-family: inherit; outline: none; }
+    .modal-body input:focus { border-color: var(--green); }
+    .modal-error { color: var(--red-dark); font-size: 0.78rem; margin-top: 8px; display: none; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    .modal-actions button { margin: 0; }
+    .btn-cancel { background: var(--surface); border: 1px solid var(--border3); color: var(--text2); }
+    .btn-cancel:hover { background: var(--bg); }
+    .btn-confirm { background: var(--green); color: #fff; }
+    .btn-confirm.danger { background: var(--red); }
 
-        .btn-approve { background-color: #009944; color: white; }
-        .btn-disable { background-color: #333; color: white; }
-        .btn-enable { background-color: #777; color: white; }
-        .btn-delete { background-color: #c62828; color: white; }
-        .btn-admin { background-color: #333; color: white; }
-        .btn-revoke { background-color: #777; color: white; }
+    /* ===== トースト ===== */
+    #toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+    .toast { background: var(--surface); border: 1px solid var(--border3); border-left: 4px solid var(--green); padding: 10px 16px; font-size: 0.82rem; color: var(--text2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 220px; animation: toast-in 0.15s ease; }
+    .toast.error { border-left-color: var(--red); color: var(--red-dark); }
+    @keyframes toast-in { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
 
-        /* ================================
-           ログイン情報
-        ================================= */
-        #user-info {
-            text-align: right;
-            font-weight: bold;
-            margin-bottom: 1rem;
-        }
-    </style>
+    @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 720px) {
+        .layout { flex-direction: column; height: auto; }
+        .sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
+        .sidebar-header { display: none; }
+        .menu-group { flex-direction: row; }
+        .menu-group + .menu-group { border-top: none; border-left: 1px solid var(--border); }
+        .menu-spacer { margin-top: 0; }
+        .content { padding: 16px; }
+        table { font-size: 0.78rem; }
+        th, td { padding: 6px 8px; }
+    }
+</style>
 </head>
 
 <body>
 <div class="layout">
 
-    <!-- ================================
-         左メニュー
-         ※ 初期表示は「ユーザー管理」
-    ================================= -->
+    <!-- ===== サイドバー ===== -->
     <div class="sidebar">
-        <h2>管理メニュー</h2>
-
-        <!-- トップページへ戻る -->
-        <div class="menu-item" id="menu-back-main">
-            <span>メインメニューへ戻る</span>
+        <div class="sidebar-header">
+            <div class="sidebar-mark">管</div>
+            <div>
+                <h2>管理メニュー</h2>
+                <div class="sub">東京圏輸送情報システム</div>
+            </div>
         </div>
 
-        <!-- ダッシュボード -->
-        <div class="menu-item" data-target="dashboard">
-            <span>ダッシュボード</span>
+        <div class="menu-group">
+            <div class="menu-item" id="menu-back-main">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 9.5 10 3l7 6.5M5 8.5V17h10V8.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    メインメニューへ戻る
+                </span>
+            </div>
         </div>
 
-        <!-- 承認待ち（バッジ付き） -->
-        <div class="menu-item" data-target="pending">
-            <span>承認待ち</span>
-            <span id="pending-badge" class="badge" style="display:none;">0</span>
+        <div class="menu-group">
+            <div class="menu-item" data-target="dashboard">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="7" height="6" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="7" height="10" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="11" width="7" height="6" stroke="currentColor" stroke-width="1.5"/></svg>
+                    ダッシュボード
+                </span>
+            </div>
+            <div class="menu-item" data-target="pending">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    承認待ち
+                </span>
+                <span id="pending-badge" class="badge" style="display:none;">0</span>
+            </div>
+            <div class="menu-item active" data-target="users">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c0.8-3.2 3-4.5 6-4.5s5.2 1.3 6 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    ユーザー管理
+                </span>
+            </div>
+            <div class="menu-item" data-target="disabled-users">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    無効化ユーザー
+                </span>
+                <span id="disabled-badge" class="badge gray" style="display:none;">0</span>
+            </div>
+            <div class="menu-item" data-target="account">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 2l1.2 2.4 2.6 0.4-1.9 1.9 0.5 2.6-2.4-1.3-2.4 1.3 0.5-2.6-1.9-1.9 2.6-0.4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/></svg>
+                    アカウント設定
+                </span>
+            </div>
         </div>
 
-        <!-- ユーザー管理（アクティブユーザー） -->
-        <div class="menu-item active" data-target="users">
-            <span>ユーザー管理</span>
-        </div>
-
-        <!-- 無効化ユーザー（新規追加） -->
-        <div class="menu-item" data-target="disabled-users">
-            <span>無効化ユーザー</span>
-        </div>
-
-        <!-- アカウント設定 -->
-        <div class="menu-item" data-target="account">
-            <span>アカウント設定</span>
-        </div>
-
-        <!-- ログアウト -->
-        <div class="menu-item" id="logout-button">
-            <span>ログアウト</span>
+        <div class="menu-group menu-spacer">
+            <div class="menu-item" id="logout-button">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M8 3H4v14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 6l4 4-4 4M16 10H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    ログアウト
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- ================================
-         右側コンテンツ
-    ================================= -->
+    <!-- ===== コンテンツ ===== -->
     <div class="content">
 
-        <p id="user-info"></p>
+        <div class="content-top">
+            <div class="content-title">管理者パネル</div>
+            <p id="user-info"></p>
+        </div>
 
-        <!-- ダッシュボード（初期非表示） -->
+        <div class="stat-row">
+            <div class="stat-card total"><div class="stat-num" id="stat-total">-</div><div class="stat-label">総ユーザー数</div></div>
+            <div class="stat-card pending"><div class="stat-num" id="stat-pending">-</div><div class="stat-label">承認待ち</div></div>
+            <div class="stat-card disabled"><div class="stat-num" id="stat-disabled">-</div><div class="stat-label">無効化済み</div></div>
+            <div class="stat-card admin"><div class="stat-num" id="stat-admin">-</div><div class="stat-label">管理者数</div></div>
+        </div>
+
         <div id="dashboard" class="section" style="display:none;">
-            <h3>ダッシュボード</h3>
-            <p>管理者パネルへようこそ。</p>
+            <div class="section-head"><h3>ダッシュボード</h3></div>
+            <div class="section-body"><p>管理者パネルへようこそ。左のメニューからユーザーの承認・管理を行えます。</p></div>
         </div>
 
         <!-- 承認待ち -->
         <div id="pending" class="section" style="display:none;">
-            <h3>承認待ちユーザー</h3>
-            <div id="pending-users-list">読み込み中...</div>
+            <div class="section-head">
+                <h3>承認待ちユーザー</h3>
+                <div class="section-head-actions">
+                    <button class="refresh-btn" onclick="refreshUsers()">更新</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="pending-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                    <button class="bulk-btn" id="bulk-approve-btn" onclick="bulkApprove()" disabled>選択した項目を承認 (<span id="bulk-approve-count">0</span>)</button>
+                </div>
+                <div id="pending-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
         </div>
 
-        <!-- アクティブユーザー（初期表示） -->
+        <!-- アクティブユーザー -->
         <div id="users" class="section" style="display:block;">
-            <h3>ユーザー管理</h3>
-            <div id="existing-users-list">読み込み中...</div>
+            <div class="section-head">
+                <h3>ユーザー管理</h3>
+                <div class="section-head-actions">
+                    <button class="refresh-btn" onclick="refreshUsers()">更新</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="existing-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                </div>
+                <div id="existing-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
         </div>
 
         <!-- 無効化ユーザー -->
         <div id="disabled-users" class="section" style="display:none;">
-            <h3>無効化ユーザー</h3>
-            <div id="disabled-users-list">読み込み中...</div>
+            <div class="section-head">
+                <h3>無効化ユーザー</h3>
+                <div class="section-head-actions">
+                    <button class="refresh-btn" onclick="refreshUsers()">更新</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="disabled-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                    <button class="bulk-btn danger" id="bulk-delete-btn" onclick="bulkDelete()" disabled>選択した項目を削除 (<span id="bulk-delete-count">0</span>)</button>
+                </div>
+                <div id="disabled-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
         </div>
 
         <!-- アカウント設定 -->
         <div id="account" class="section" style="display:none;">
-            <h3>アカウント設定</h3>
-            <button id="change-email-button">メールアドレス変更</button>
-            <button id="change-password-button">パスワード変更</button>
+            <div class="section-head"><h3>アカウント設定</h3></div>
+            <div class="section-body">
+                <button id="change-email-button">メールアドレス変更</button>
+                <button id="change-password-button">パスワード変更</button>
+            </div>
         </div>
 
     </div>
 </div>
+
+<!-- ===== 汎用モーダル ===== -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3 id="modal-title">タイトル</h3>
+            <button class="modal-close-btn" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+    </div>
+</div>
+
+<div id="toast-stack"></div>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-<!-- 管理JS（前ターンで渡した最新版） -->
-<script src="account_management.js"></script>
-
 <script>
-    /* ================================
-       左メニューの切り替え処理
-       ※ data-target の ID を表示
-    ================================= */
-    document.querySelectorAll(".menu-item").forEach(item => {
-        item.addEventListener("click", () => {
+document.addEventListener("DOMContentLoaded", function () {
 
-            /* トップページへ戻る */
-            if (item.id === "menu-back-main") {
-                window.location.href = "toppage.html";
+    /* ============================
+       Firebase 初期化
+    ============================ */
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
+        authDomain: "tokyo-pass.firebaseapp.com",
+        projectId: "tokyo-pass",
+        storageBucket: "tokyo-pass.firebasestorage.app",
+        messagingSenderId: "950120670058",
+        appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
+        measurementId: "G-DSQQ31EZE9"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let CURRENT_USER_UID = null;
+
+    /* ============================
+       状態（テーブルデータ・並び替え）
+    ============================ */
+    let pendingUsers = [];
+    let activeUsers = [];
+    let disabledUsers = [];
+    const sortState = {
+        pending: { key: 'registeredAt', dir: 'desc' },
+        users: { key: 'email', dir: 'asc' },
+        disabled: { key: 'email', dir: 'asc' }
+    };
+
+    /* ============================
+       HTML 要素
+    ============================ */
+    const userInfo = document.getElementById("user-info");
+    const pendingUsersList = document.getElementById("pending-users-list");
+    const existingUsersList = document.getElementById("existing-users-list");
+    const disabledUsersList = document.getElementById("disabled-users-list");
+    const pendingBadge = document.getElementById("pending-badge");
+    const disabledBadge = document.getElementById("disabled-badge");
+    const statTotal = document.getElementById("stat-total");
+    const statPending = document.getElementById("stat-pending");
+    const statDisabled = document.getElementById("stat-disabled");
+    const statAdmin = document.getElementById("stat-admin");
+    const logoutButton = document.getElementById("logout-button");
+    const contentArea = document.querySelector(".content");
+
+    /* ============================
+       トースト通知
+    ============================ */
+    function showToast(message, type) {
+        const stack = document.getElementById("toast-stack");
+        if (!stack) return;
+        const toast = document.createElement("div");
+        toast.className = "toast" + (type === "error" ? " error" : "");
+        toast.textContent = message;
+        stack.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transition = "opacity 0.3s";
+            setTimeout(() => toast.remove(), 300);
+        }, 2500);
+    }
+
+    /* ============================
+       汎用モーダル
+    ============================ */
+    const modalOverlay = document.getElementById("modal-overlay");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+
+    function openModal(title, bodyHtml) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = bodyHtml;
+        modalOverlay.classList.add("open");
+    }
+    function closeModal() {
+        modalOverlay.classList.remove("open");
+        modalBody.innerHTML = "";
+    }
+    window.closeModal = closeModal;
+    modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+
+    function confirmModal(message, confirmLabel, danger, onConfirm) {
+        openModal("確認", `
+            <p>${message}</p>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-confirm ${danger ? 'danger' : ''}" id="modal-confirm-btn">${confirmLabel}</button>
+            </div>
+        `);
+        document.getElementById("modal-confirm-btn").addEventListener("click", async () => {
+            const btn = document.getElementById("modal-confirm-btn");
+            btn.disabled = true;
+            btn.textContent = "処理中...";
+            await onConfirm();
+            closeModal();
+        });
+    }
+
+    /* ============================
+       認証状態チェック
+    ============================ */
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = "index.html"; return; }
+        CURRENT_USER_UID = user.uid;
+
+        try {
+            const userDoc = await db.collection("users").doc(user.uid).get();
+            if (!userDoc.exists) {
+                alert("ユーザーデータが存在しません。");
+                await auth.signOut();
+                return;
+            }
+            const data = userDoc.data();
+            if (data.status !== "active") {
+                alert("アクセス権限がありません。管理者の承認をお待ちください。");
+                await auth.signOut();
                 return;
             }
 
-            /* ログアウトは JS 側で処理 */
-            if (item.id === "logout-button") return;
+            userInfo.textContent = `${user.email} でログイン中`;
 
+            if (data.isAdmin === true) {
+                loadAllUsers();
+            } else {
+                document.getElementById("pending").style.display = "none";
+                document.getElementById("users").style.display = "none";
+                document.getElementById("disabled-users").style.display = "none";
+            }
+            contentArea.style.display = "block";
+        } catch (e) {
+            console.error("Auth check error:", e);
+            await auth.signOut();
+        }
+    });
+
+    /* ============================
+       全ユーザー読み込み
+    ============================ */
+    async function loadAllUsers() {
+        try {
+            const snapshot = await db.collection("users").orderBy("registeredAt", "desc").get();
+
+            pendingUsers = [];
+            activeUsers = [];
+            disabledUsers = [];
+            let adminCount = 0;
+
+            snapshot.forEach(doc => {
+                const u = doc.data();
+                const row = {
+                    uid: doc.id,
+                    email: u.email || "",
+                    isAdmin: !!u.isAdmin,
+                    status: u.status,
+                    registeredAt: u.registeredAt ? u.registeredAt.toDate() : null
+                };
+                if (row.isAdmin) adminCount++;
+
+                if (u.status === "pending") pendingUsers.push(row);
+                else if (u.status === "disabled") disabledUsers.push(row);
+                else activeUsers.push(row);
+            });
+
+            renderPending();
+            renderUsers();
+            renderDisabled();
+
+            statTotal.textContent = snapshot.size;
+            statPending.textContent = pendingUsers.length;
+            statDisabled.textContent = disabledUsers.length;
+            statAdmin.textContent = adminCount;
+
+            pendingBadge.style.display = pendingUsers.length > 0 ? "inline-block" : "none";
+            pendingBadge.textContent = pendingUsers.length;
+            disabledBadge.style.display = disabledUsers.length > 0 ? "inline-block" : "none";
+            disabledBadge.textContent = disabledUsers.length;
+
+            updateBulkButtons();
+        } catch (e) {
+            console.error("Load users error:", e);
+            showToast("ユーザー一覧の読み込みに失敗しました。", "error");
+        }
+    }
+    window.refreshUsers = loadAllUsers;
+
+    /* ============================
+       並び替えユーティリティ
+    ============================ */
+    function sortRows(rows, key, dir) {
+        const sorted = [...rows].sort((a, b) => {
+            let av = a[key], bv = b[key];
+            if (key === 'registeredAt') { av = av ? av.getTime() : 0; bv = bv ? bv.getTime() : 0; }
+            else { av = (av || '').toString().toLowerCase(); bv = (bv || '').toString().toLowerCase(); }
+            if (av < bv) return dir === 'asc' ? -1 : 1;
+            if (av > bv) return dir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return sorted;
+    }
+
+    function sortArrow(table, key) {
+        const s = sortState[table];
+        if (s.key !== key) return '';
+        return s.dir === 'asc' ? '▲' : '▼';
+    }
+
+    window.toggleSort = function (table, key) {
+        const s = sortState[table];
+        if (s.key === key) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+        else { s.key = key; s.dir = 'asc'; }
+        if (table === 'pending') renderPending();
+        else if (table === 'users') renderUsers();
+        else renderDisabled();
+    };
+
+    /* ============================
+       承認待ちテーブル描画
+    ============================ */
+    function renderPending() {
+        if (pendingUsers.length === 0) {
+            pendingUsersList.innerHTML = `<div class="empty-msg">承認待ちのユーザーはいません。</div>`;
+            return;
+        }
+        const rows = sortRows(pendingUsers, sortState.pending.key, sortState.pending.dir);
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th class="chk-col"><input type="checkbox" id="pending-select-all" onchange="toggleSelectAll('pending', this.checked)"></th>
+                        <th class="sortable" onclick="toggleSort('pending','email')">メール <span class="sort-arrow">${sortArrow('pending','email')}</span></th>
+                        <th class="sortable" onclick="toggleSort('pending','registeredAt')">登録日 <span class="sort-arrow">${sortArrow('pending','registeredAt')}</span></th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        rows.forEach(u => {
+            html += `
+                <tr>
+                    <td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+                    <td>${u.email}</td>
+                    <td>${u.registeredAt ? u.registeredAt.toLocaleString("ja-JP") : "-"}</td>
+                    <td>
+                        <button class="btn-approve" onclick="approveUser('${u.uid}')">承認</button>
+                        <button class="btn-disable" onclick="disableUser('${u.uid}')">無効化</button>
+                    </td>
+                </tr>
+            `;
+        });
+        html += "</tbody></table>";
+        pendingUsersList.innerHTML = html;
+        applyTableFilter('pending-users-list');
+    }
+
+    /* ============================
+       アクティブユーザーテーブル描画
+    ============================ */
+    function renderUsers() {
+        if (activeUsers.length === 0) {
+            existingUsersList.innerHTML = `<div class="empty-msg">ユーザーがいません。</div>`;
+            return;
+        }
+        const rows = sortRows(activeUsers, sortState.users.key, sortState.users.dir);
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th class="sortable" onclick="toggleSort('users','email')">メール <span class="sort-arrow">${sortArrow('users','email')}</span></th>
+                        <th>状態</th>
+                        <th class="sortable" onclick="toggleSort('users','isAdmin')">権限 <span class="sort-arrow">${sortArrow('users','isAdmin')}</span></th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        rows.forEach(u => {
+            const statusBadge = `<span class="status-badge status-active">利用可能</span>`;
+            const roleBadge = u.isAdmin ? `<span class="status-badge status-admin">管理者</span>` : "一般";
+            let buttons = "";
+            if (u.uid !== CURRENT_USER_UID) {
+                buttons += `<button class="btn-disable" onclick="disableUser('${u.uid}')">無効化</button>`;
+                buttons += u.isAdmin
+                    ? `<button class="btn-revoke" onclick="revokeAdmin('${u.uid}')">権限剥奪</button>`
+                    : `<button class="btn-admin" onclick="promoteAdmin('${u.uid}')">管理者付与</button>`;
+            } else {
+                buttons = "自分自身";
+            }
+            html += `
+                <tr>
+                    <td>${u.email}</td>
+                    <td>${statusBadge}</td>
+                    <td>${roleBadge}</td>
+                    <td>${buttons}</td>
+                </tr>
+            `;
+        });
+        html += "</tbody></table>";
+        existingUsersList.innerHTML = html;
+        applyTableFilter('existing-users-list');
+    }
+
+    /* ============================
+       無効化ユーザーテーブル描画
+    ============================ */
+    function renderDisabled() {
+        if (disabledUsers.length === 0) {
+            disabledUsersList.innerHTML = `<div class="empty-msg">無効化されたユーザーはいません。</div>`;
+            return;
+        }
+        const rows = sortRows(disabledUsers, sortState.disabled.key, sortState.disabled.dir);
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th class="chk-col"><input type="checkbox" id="disabled-select-all" onchange="toggleSelectAll('disabled', this.checked)"></th>
+                        <th class="sortable" onclick="toggleSort('disabled','email')">メール <span class="sort-arrow">${sortArrow('disabled','email')}</span></th>
+                        <th>状態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        rows.forEach(u => {
+            html += `
+                <tr>
+                    <td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+                    <td>${u.email}</td>
+                    <td><span class="status-badge status-disabled">停止中</span></td>
+                    <td>
+                        <button class="btn-enable" onclick="enableUser('${u.uid}')">再有効化</button>
+                        <button class="btn-delete" onclick="deleteUser('${u.uid}')">削除</button>
+                    </td>
+                </tr>
+            `;
+        });
+        html += "</tbody></table>";
+        disabledUsersList.innerHTML = html;
+        applyTableFilter('disabled-users-list');
+    }
+
+    /* ============================
+       検索フィルタの再適用
+    ============================ */
+    function applyTableFilter(containerId) {
+        const input = document.querySelector(`.table-search[data-target-table="${containerId}"]`);
+        if (!input || !input.value.trim()) return;
+        const keyword = input.value.trim().toLowerCase();
+        const container = document.getElementById(containerId);
+        container.querySelectorAll("tbody tr").forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.classList.toggle("row-hidden", !text.includes(keyword));
+        });
+    }
+
+    document.querySelectorAll(".table-search").forEach(input => {
+        input.addEventListener("input", () => {
+            const keyword = input.value.trim().toLowerCase();
+            const container = document.getElementById(input.dataset.targetTable);
+            if (!container) return;
+            container.querySelectorAll("tbody tr").forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.classList.toggle("row-hidden", !!keyword && !text.includes(keyword));
+            });
+        });
+    });
+
+    /* ============================
+       一括選択・一括操作
+    ============================ */
+    window.toggleSelectAll = function (table, checked) {
+        const cls = table === 'pending' ? '.pending-chk' : '.disabled-chk';
+        document.querySelectorAll(cls).forEach(chk => { chk.checked = checked; });
+        updateBulkButtons();
+    };
+
+    window.updateBulkButtons = function () {
+        const pendingChecked = document.querySelectorAll('.pending-chk:checked').length;
+        const disabledChecked = document.querySelectorAll('.disabled-chk:checked').length;
+        const approveBtn = document.getElementById('bulk-approve-btn');
+        const deleteBtn = document.getElementById('bulk-delete-btn');
+        if (approveBtn) {
+            approveBtn.disabled = pendingChecked === 0;
+            document.getElementById('bulk-approve-count').textContent = pendingChecked;
+        }
+        if (deleteBtn) {
+            deleteBtn.disabled = disabledChecked === 0;
+            document.getElementById('bulk-delete-count').textContent = disabledChecked;
+        }
+    };
+
+    window.bulkApprove = function () {
+        const uids = [...document.querySelectorAll('.pending-chk:checked')].map(el => el.dataset.uid);
+        if (uids.length === 0) return;
+        confirmModal(`選択した${uids.length}件のユーザーを承認します。よろしいですか？`, "承認する", false, async () => {
+            try {
+                await Promise.all(uids.map(uid => db.collection("users").doc(uid).update({ status: "active" })));
+                showToast(`${uids.length}件のユーザーを承認しました。`);
+                loadAllUsers();
+            } catch (e) {
+                console.error(e);
+                showToast("一括承認に失敗しました。", "error");
+            }
+        });
+    };
+
+    window.bulkDelete = function () {
+        const uids = [...document.querySelectorAll('.disabled-chk:checked')].map(el => el.dataset.uid);
+        if (uids.length === 0) return;
+        confirmModal(`選択した${uids.length}件のユーザーを完全に削除します。この操作は取り消せません。よろしいですか？`, "削除する", true, async () => {
+            try {
+                await Promise.all(uids.map(uid => db.collection("users").doc(uid).delete()));
+                showToast(`${uids.length}件のユーザーを削除しました。`);
+                loadAllUsers();
+            } catch (e) {
+                console.error(e);
+                showToast("一括削除に失敗しました。", "error");
+            }
+        });
+    };
+
+    /* ============================
+       個別の管理者操作
+    ============================ */
+    window.approveUser = async function (uid) {
+        try {
+            await db.collection("users").doc(uid).update({ status: "active" });
+            showToast("ユーザーを承認しました。");
+            loadAllUsers();
+        } catch (e) { console.error(e); showToast("承認に失敗しました。", "error"); }
+    };
+
+    window.disableUser = function (uid) {
+        confirmModal("このユーザーを無効化します。よろしいですか？", "無効化する", true, async () => {
+            try {
+                await db.collection("users").doc(uid).update({ status: "disabled" });
+                showToast("ユーザーを無効化しました。");
+                loadAllUsers();
+            } catch (e) { console.error(e); showToast("無効化に失敗しました。", "error"); }
+        });
+    };
+
+    window.enableUser = async function (uid) {
+        try {
+            await db.collection("users").doc(uid).update({ status: "active" });
+            showToast("ユーザーを再有効化しました。");
+            loadAllUsers();
+        } catch (e) { console.error(e); showToast("再有効化に失敗しました。", "error"); }
+    };
+
+    window.deleteUser = function (uid) {
+        confirmModal("このユーザーを完全に削除します。この操作は取り消せません。よろしいですか？", "削除する", true, async () => {
+            try {
+                await db.collection("users").doc(uid).delete();
+                showToast("ユーザーを削除しました。");
+                loadAllUsers();
+            } catch (e) { console.error(e); showToast("削除に失敗しました。", "error"); }
+        });
+    };
+
+    window.promoteAdmin = function (uid) {
+        confirmModal("このユーザーに管理者権限を付与します。よろしいですか？", "付与する", false, async () => {
+            try {
+                await db.collection("users").doc(uid).update({ isAdmin: true });
+                showToast("管理者権限を付与しました。");
+                loadAllUsers();
+            } catch (e) { console.error(e); showToast("権限付与に失敗しました。", "error"); }
+        });
+    };
+
+    window.revokeAdmin = function (uid) {
+        confirmModal("このユーザーの管理者権限を剥奪します。よろしいですか？", "剥奪する", true, async () => {
+            try {
+                await db.collection("users").doc(uid).update({ isAdmin: false });
+                showToast("管理者権限を剥奪しました。");
+                loadAllUsers();
+            } catch (e) { console.error(e); showToast("権限剥奪に失敗しました。", "error"); }
+        });
+    };
+
+    /* ============================
+       メニュー切り替え
+    ============================ */
+    document.querySelectorAll(".menu-item").forEach(item => {
+        item.addEventListener("click", () => {
+            if (item.id === "menu-back-main") { window.location.href = "toppage.html"; return; }
+            if (item.id === "logout-button") return;
             const target = item.dataset.target;
             if (!target) return;
-
-            /* メニューの active 切り替え */
             document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
             item.classList.add("active");
-
-            /* セクションの表示切り替え */
             document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
             document.getElementById(target).style.display = "block";
         });
     });
+
+    /* ============================
+       ログアウト（二重確認 → モーダル化）
+    ============================ */
+    logoutButton.addEventListener("click", () => {
+        confirmModal("ログアウトします。よろしいですか？", "ログアウト", true, async () => {
+            await auth.signOut();
+        });
+    });
+
+    /* ============================
+       メールアドレス変更（モーダルフォーム化）
+    ============================ */
+    document.getElementById("change-email-button").addEventListener("click", () => {
+        openModal("メールアドレス変更", `
+            <label>新しいメールアドレス</label>
+            <input type="email" id="new-email-input" placeholder="new@example.com">
+            <label>現在のパスワード（再認証が必要です）</label>
+            <input type="password" id="reauth-password-input-email">
+            <div class="modal-error" id="email-modal-error"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-confirm" id="email-submit-btn">変更する</button>
+            </div>
+        `);
+        document.getElementById("email-submit-btn").addEventListener("click", async () => {
+            const newEmail = document.getElementById("new-email-input").value.trim();
+            const password = document.getElementById("reauth-password-input-email").value;
+            const errorBox = document.getElementById("email-modal-error");
+            errorBox.style.display = "none";
+
+            if (!newEmail || !password) {
+                errorBox.textContent = "すべての項目を入力してください。";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            const btn = document.getElementById("email-submit-btn");
+            btn.disabled = true; btn.textContent = "処理中...";
+
+            try {
+                const user = auth.currentUser;
+                const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+                await user.reauthenticateWithCredential(credential);
+                await user.updateEmail(newEmail);
+                await db.collection("users").doc(user.uid).update({ email: newEmail });
+
+                userInfo.textContent = `${newEmail} でログイン中`;
+                showToast("メールアドレスを変更しました。");
+                closeModal();
+            } catch (e) {
+                console.error(e);
+                errorBox.textContent = "変更に失敗しました。パスワードが違う可能性があります。";
+                errorBox.style.display = "block";
+                btn.disabled = false; btn.textContent = "変更する";
+            }
+        });
+    });
+
+    /* ============================
+       パスワード変更（モーダルフォーム化）
+    ============================ */
+    document.getElementById("change-password-button").addEventListener("click", () => {
+        openModal("パスワード変更", `
+            <label>現在のパスワード（再認証が必要です）</label>
+            <input type="password" id="old-password-input">
+            <label>新しいパスワード</label>
+            <input type="password" id="new-password-input">
+            <label>新しいパスワード（確認）</label>
+            <input type="password" id="new-password-confirm-input">
+            <div class="modal-error" id="password-modal-error"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-confirm" id="password-submit-btn">変更する</button>
+            </div>
+        `);
+        document.getElementById("password-submit-btn").addEventListener("click", async () => {
+            const oldPassword = document.getElementById("old-password-input").value;
+            const newPassword = document.getElementById("new-password-input").value;
+            const confirmPassword = document.getElementById("new-password-confirm-input").value;
+            const errorBox = document.getElementById("password-modal-error");
+            errorBox.style.display = "none";
+
+            if (!oldPassword || !newPassword || !confirmPassword) {
+                errorBox.textContent = "すべての項目を入力してください。";
+                errorBox.style.display = "block";
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                errorBox.textContent = "新しいパスワードが一致しません。";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            const btn = document.getElementById("password-submit-btn");
+            btn.disabled = true; btn.textContent = "処理中...";
+
+            try {
+                const user = auth.currentUser;
+                const credential = firebase.auth.EmailAuthProvider.credential(user.email, oldPassword);
+                await user.reauthenticateWithCredential(credential);
+                await user.updatePassword(newPassword);
+                showToast("パスワードを変更しました。");
+                closeModal();
+            } catch (e) {
+                console.error(e);
+                errorBox.textContent = "変更に失敗しました。現在のパスワードが違う可能性があります。";
+                errorBox.style.display = "block";
+                btn.disabled = false; btn.textContent = "変更する";
+            }
+        });
+    });
+
+});
 </script>
 
 </body>
