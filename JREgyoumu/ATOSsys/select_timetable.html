@@ -224,11 +224,16 @@
                 min-width: 520px;
             }
         }
-    </style>
+    
+.back-button{padding:8px 14px;margin-bottom:10px;cursor:pointer;}
+.search-form input{flex:1;min-width:180px;}
+
+</style>
 </head>
 <body>
 
     <div class="container">
+<button class="back-button" onclick="history.back()">← 前の画面へ戻る</button>
         <h2>【列車時刻表 選択】</h2>
         
         <div class="search-form">
@@ -236,10 +241,11 @@
             <input type="text" id="search-date" placeholder="例: 2025/03/15">
             
             <label for="search-number">列車番号：</label>
-            <input type="text" id="search-number" placeholder="例: 回3174M">
+            <input type="search" id="search-number" placeholder="例: 回3174M">
+            <label for="search-station">駅名：</label>
+            <input type="search" id="search-station" placeholder="例: 大宮">
             
-            <button id="search-button">検索</button>
-            <button id="reset-button">リセット</button>
+            
         </div>
 
         <div class="table-wrapper">
@@ -265,8 +271,7 @@
             const listBody = document.querySelector('#timetable-list tbody');
             const searchDateInput = document.getElementById('search-date');
             const searchNumberInput = document.getElementById('search-number');
-            const searchButton = document.getElementById('search-button');
-            const resetButton = document.getElementById('reset-button');
+            const searchStationInput=document.getElementById('search-station');
             
             let cachedAllData = [];
 
@@ -382,6 +387,7 @@
             const applySearchFilter = () => {
                 const dateFilter = searchDateInput.value.trim().toLowerCase();
                 const numberFilter = searchNumberInput.value.trim().toLowerCase();
+                const stationFilter=searchStationInput.value.trim().toLowerCase();
                 
                 const filteredData = cachedAllData.filter(train => {
                     let dateMatch = true;
@@ -395,7 +401,11 @@
                         numberMatch = (train.trainNumber && train.trainNumber.toLowerCase().includes(numberFilter));
                     }
                     
-                    return dateMatch && numberMatch;
+                    let stationMatch=true;
+                    if(stationFilter){
+                      stationMatch=((train.origin||'').toLowerCase().includes(stationFilter)|| (train.destination||'').toLowerCase().includes(stationFilter));
+                    }
+                    return dateMatch && numberMatch && stationMatch;
                 });
                 
                 renderTimetableList(filteredData);
