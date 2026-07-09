@@ -41,12 +41,24 @@
   }
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;margin:0;}
+  html,body{margin:0;}
+  html{
+    height:100%;
+    overflow:hidden;
+  }
   body{
     font-family:var(--font-body);
     color:var(--ink);
     background:var(--paper-soft);
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100vh;
+    height:100dvh; /* iOS Safari等のツールバー変動によるビューポート誤差を吸収 */
+    margin:0;
     overflow:hidden;
+    overscroll-behavior:none;
+    -webkit-text-size-adjust:100%;
   }
   button{font-family:var(--font-body);}
 
@@ -58,17 +70,23 @@
     margin-right: calc(var(--safe-r) + 10px);
   }
 
-  /* ---------- Top bar ---------- */
-  .topbar{
+  /* ---------- Top HUD (topbar + filters are stacked in normal flow, no manual offsets) ---------- */
+  .hud-top{
     position:absolute;
     top: calc(var(--safe-t) + 12px);
     left: calc(var(--safe-l) + 12px);
     right: calc(var(--safe-r) + 12px);
     z-index:1000;
     display:flex;
-    align-items:flex-start;
+    flex-direction:column;
     gap:10px;
     pointer-events:none;
+    padding-right:54px; /* 右上のtool-stack分の余白を確保（衝突防止） */
+  }
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
     flex-wrap:wrap;
   }
 
@@ -130,11 +148,6 @@
 
   /* ---------- Filter pill row ---------- */
   .filter-row{
-    position:absolute;
-    top: calc(var(--safe-t) + 76px);
-    left: calc(var(--safe-l) + 12px);
-    right: calc(var(--safe-r) + 12px);
-    z-index:999;
     display:flex;
     gap:7px;
     pointer-events:none;
@@ -199,7 +212,7 @@
   }
   @media (max-width:640px){
     .tool-stack{ top:auto; bottom: calc(var(--safe-b) + 92px); right: calc(var(--safe-r) + 10px); }
-    .filter-row{ top: calc(var(--safe-t) + 66px); right: calc(var(--safe-r) + 12px); }
+    .hud-top{ padding-right:0; }
   }
   @media (max-width:480px){
     .brand-card{ padding:10px 12px; }
@@ -439,37 +452,39 @@
 <div class="toast" id="toast"></div>
 <div class="region-chip" id="regionChip"><span class="mini-spin"></span><span id="regionChipText">この範囲を更新中…</span></div>
 
-<div class="topbar">
-  <div class="brand-card">
-    <div class="brand-mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 100-2 1 1 0 000 2zM12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+<div class="hud-top">
+  <div class="topbar">
+    <div class="brand-card">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 100-2 1 1 0 000 2zM12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>HELLO CYCLING マップ</h1>
+        <p>全国シェアサイクル ステーション情報</p>
+      </div>
     </div>
-    <div class="brand-text">
-      <h1>HELLO CYCLING マップ</h1>
-      <p>全国シェアサイクル ステーション情報</p>
+
+    <div class="search-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="searchInput" placeholder="ステーション名・住所で検索…">
+      <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat"><div class="num" id="statTotal">–</div><div class="lbl">ステーション</div></div>
+      <div class="stat"><div class="num" id="statBikes">–</div><div class="lbl">貸出可能</div></div>
+      <div class="stat"><div class="num" id="statDocks">–</div><div class="lbl">返却可能</div></div>
+      <div class="stat"><div class="num" id="statShown">–</div><div class="lbl">表示中</div></div>
     </div>
   </div>
 
-  <div class="search-card">
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input type="text" id="searchInput" placeholder="ステーション名・住所で検索…">
-    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+  <div class="filter-row" id="filterRow">
+    <button class="pill active" data-filter="all">すべて表示</button>
+    <button class="pill" data-filter="available">貸出可能のみ</button>
+    <button class="pill" data-filter="returnable">返却可能のみ</button>
+    <button class="pill" data-filter="charging">充電ポートあり</button>
+    <button class="pill" data-filter="favorite"><span class="star">★</span> お気に入り</button>
   </div>
-
-  <div class="stat-card">
-    <div class="stat"><div class="num" id="statTotal">–</div><div class="lbl">ステーション</div></div>
-    <div class="stat"><div class="num" id="statBikes">–</div><div class="lbl">貸出可能</div></div>
-    <div class="stat"><div class="num" id="statDocks">–</div><div class="lbl">返却可能</div></div>
-    <div class="stat"><div class="num" id="statShown">–</div><div class="lbl">表示中</div></div>
-  </div>
-</div>
-
-<div class="filter-row" id="filterRow">
-  <button class="pill active" data-filter="all">すべて表示</button>
-  <button class="pill" data-filter="available">貸出可能のみ</button>
-  <button class="pill" data-filter="returnable">返却可能のみ</button>
-  <button class="pill" data-filter="charging">充電ポートあり</button>
-  <button class="pill" data-filter="favorite"><span class="star">★</span> お気に入り</button>
 </div>
 
 <div class="tool-stack">
@@ -595,6 +610,14 @@ function initMap(){
 
   const debouncedRender = debounce(()=>renderVisible(true), 350);
   map.on('moveend zoomend', debouncedRender);
+
+  // iPadの回転やSafariのツールバー表示/非表示でビューポートが変わった際に地図サイズを再計算
+  const invalidate = debounce(()=>map.invalidateSize(), 200);
+  window.addEventListener('resize', invalidate);
+  window.addEventListener('orientationchange', ()=>setTimeout(()=>map.invalidateSize(), 300));
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', invalidate);
+  }
 
   buildLayerOptions();
 }
