@@ -36,6 +36,36 @@
 
         --red: #b3181c;
         --red-lt: #fdf2f2;
+
+        /* ===== 追加カラーパレット（自由に使えます） ===== */
+        --purple: #6b3fa0;
+        --purple2: #5a3488;
+        --purple-lt: #f3edfa;
+
+        --teal: #0f7a72;
+        --teal2: #0c645d;
+        --teal-lt: #e8f5f4;
+
+        --pink: #a3315c;
+        --pink2: #872750;
+        --pink-lt: #fbeef2;
+
+        --cyan: #0d7f94;
+        --cyan2: #0a6879;
+        --cyan-lt: #e7f6f9;
+
+        --brown: #6b4423;
+        --brown2: #58371c;
+        --brown-lt: #f5efe8;
+
+        /* ===================================================
+           セクション別カラー設定
+           ここを var(--purple) → var(--teal) 等に変えるだけで
+           「在線・運行把握モニタ」セクションの色を一括変更できます。
+           選べる色: green / orange / blue / indigo / purple / teal / pink / cyan / brown
+           =================================================== */
+        --zaisen-accent: var(--purple);
+        --zaisen-accent2: var(--purple2);
     }
 
     * { box-sizing: border-box; }
@@ -167,6 +197,8 @@
     .tile.c-gray   .tile-icon { color: var(--text3); }
     .tile.c-indigo { border-top-color: var(--indigo); }
     .tile.c-indigo .tile-icon { color: var(--indigo); }
+    .tile.c-zaisen { border-top-color: var(--zaisen-accent); }
+    .tile.c-zaisen .tile-icon { color: var(--zaisen-accent); }
 
     .tile.suspended { background: var(--gray-lt); }
     .tile.suspended .tile-icon { color: var(--text4); opacity: 0.7; }
@@ -203,6 +235,13 @@
         --orange-lt: #2e2210;
         --blue-lt: #10202e;
         --gray-lt: #333333;
+
+        /* 暗背景でも視認しやすいよう明るめに調整 */
+        --purple: #a479d6;
+        --teal: #35b0a5;
+        --pink: #d0688c;
+        --cyan: #3fb6cd;
+        --brown: #b5895f;
     }
     html[data-theme="dark"] .tile.admin-tile { background: var(--indigo2); }
 
@@ -250,19 +289,36 @@
         display: inline-flex;
         white-space: nowrap;
         will-change: transform;
-        animation: announce-scroll 32s linear infinite;
+        animation: announce-scroll 40s linear infinite;
         padding-left: 100%;
     }
     #announce-track .announce-item {
         font-size: 0.78rem;
         color: var(--text2);
-        margin-right: 60px;
+        margin-right: 100px;
+        display: inline-flex;
+        align-items: center;
+    }
+    #announce-track .announce-item.important {
+        color: var(--red);
+        font-weight: 800;
+    }
+    #announce-track .announce-item.important::before {
+        content: '⚠';
+        margin-right: 5px;
     }
     @keyframes announce-scroll {
         from { transform: translateX(0); }
         to   { transform: translateX(-50%); }
     }
     #announce-bar.paused #announce-track { animation-play-state: paused; }
+
+    @media (max-width: 560px) {
+        #announce-bar { height: 26px; }
+        #announce-bar .announce-label { font-size: 0.6rem; padding: 0 8px; }
+        #announce-track { animation-duration: 26s; }
+        #announce-track .announce-item { font-size: 0.7rem; margin-right: 56px; }
+    }
 
     .tile.admin-tile {
         background: var(--indigo);
@@ -303,6 +359,52 @@
         #user-info { display: none; }
         .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     }
+
+    /* ===== 汎用モーダル（緊急告知／セッションタイムアウト警告） ===== */
+    .app-modal-overlay {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(20,20,20,0.55);
+        z-index: 2000;
+        align-items: center; justify-content: center;
+        padding: 20px;
+    }
+    .app-modal-overlay.open { display: flex; }
+    .app-modal {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        max-width: 420px; width: 100%;
+        text-align: center;
+        box-shadow: 0 12px 44px rgba(0,0,0,0.35);
+    }
+    .app-modal-head {
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        padding: 24px 22px 4px;
+    }
+    .app-modal-icon { font-size: 2rem; line-height: 1; }
+    .app-modal h2 { margin: 0; font-size: 1rem; font-weight: 900; }
+    .app-modal p { font-size: 0.85rem; color: var(--text2); line-height: 1.7; padding: 10px 22px 0; margin: 0; }
+    .app-modal-btn {
+        margin: 20px 22px 22px;
+        width: calc(100% - 44px);
+        padding: 11px 0;
+        font-size: 0.85rem; font-weight: 700;
+        border: none;
+        cursor: pointer;
+        color: #fff;
+    }
+
+    .app-modal.emergency { border-top: 5px solid var(--red); }
+    .app-modal.emergency h2 { color: var(--red); }
+    .app-modal.emergency .app-modal-icon { color: var(--red); }
+    .app-modal.emergency .app-modal-btn { background: var(--red); }
+    .app-modal.emergency .app-modal-btn:hover { background: #8f1317; }
+
+    .app-modal.idle-warning { border-top: 5px solid var(--orange2); }
+    .app-modal.idle-warning h2 { color: var(--orange); }
+    .app-modal.idle-warning .app-modal-icon { color: var(--orange2); }
+    .app-modal.idle-warning .app-modal-btn { background: var(--orange2); }
+    .app-modal.idle-warning .app-modal-btn:hover { background: var(--orange); }
 </style>
 </head>
 <body>
@@ -380,20 +482,20 @@
     <!-- ===== 在線・運行把握 ===== -->
     <div class="section" id="sec-zaisen">
         <div class="section-head">
-            <div class="section-bar" style="background:var(--text4)"></div>
+            <div class="section-bar" style="background:var(--zaisen-accent)"></div>
             <div class="section-title">在線・運行把握モニタ</div>
-            <div class="section-desc">一部機能は現在使用停止中です</div>
+            <div class="section-desc">一部機能は現在使用停止中・メンテナンス中です</div>
         </div>
         <div class="tile-grid">
-            <button class="tile c-gray" data-name="ATOS在線モニタ" onclick="location.href='ATOSlocation.html'">
+            <button class="tile c-zaisen" data-name="ATOS在線モニタ" onclick="location.href='ATOSlocation.html'">
                 <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="10" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="19" r="1.6" fill="currentColor"/><circle cx="16" cy="19" r="1.6" fill="currentColor"/></svg>
                 <span class="tile-label">ATOS在線モニタ</span>
             </button>
-            <button class="tile c-gray" data-name="列車在線状況一覧表" onclick="location.href='train_zai-data.html'">
+            <button class="tile c-zaisen" data-name="列車在線状況一覧表" onclick="location.href='train_zai-data.html'">
                 <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
                 <span class="tile-label">列車在線状況一覧表</span>
             </button>
-            <button class="tile c-gray" data-name="運行把握モニタ" onclick="location.href='train_grasp.html'">
+            <button class="tile c-zaisen" data-name="運行把握モニタ" onclick="location.href='train_grasp.html'">
                 <svg class="tile-icon" viewBox="0 0 24 24" fill="none"><path d="M4 18l5-6 4 3 7-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span class="tile-label">運行把握モニタ</span>
             </button>
@@ -480,6 +582,30 @@
 
 </div>
 
+<!-- ===== 緊急告知モーダル ===== -->
+<div class="app-modal-overlay" id="emergency-modal-overlay">
+    <div class="app-modal emergency">
+        <div class="app-modal-head">
+            <span class="app-modal-icon">⚠</span>
+            <h2 id="emergency-modal-title">緊急告知</h2>
+        </div>
+        <p id="emergency-modal-message"></p>
+        <button class="app-modal-btn" onclick="closeEmergencyModal()">確認しました</button>
+    </div>
+</div>
+
+<!-- ===== セッションタイムアウト警告モーダル ===== -->
+<div class="app-modal-overlay" id="idle-warning-overlay">
+    <div class="app-modal idle-warning">
+        <div class="app-modal-head">
+            <span class="app-modal-icon">⏰</span>
+            <h2>セッションタイムアウトの警告</h2>
+        </div>
+        <p>一定時間操作が確認できなかったため、あと <strong id="idle-countdown">60</strong> 秒で自動的にログアウトします。</p>
+        <button class="app-modal-btn" onclick="stayLoggedIn()">操作を続ける</button>
+    </div>
+</div>
+
 <script>
     function filterTiles() {
         const keyword = document.getElementById('tile-search').value.trim().toLowerCase();
@@ -511,7 +637,6 @@
        （name はタイルの data-name 属性と一致させてください）
        =================================================== */
     const TILE_STATUS = [
-        { name: '統合情報モニタ',      status: 'maintenance' },
         { name: 'ATOS在線モニタ',      status: 'suspended' },
         { name: '列車在線状況一覧表',   status: 'maintenance' },
         { name: '運行把握モニタ',      status: 'suspended' },
@@ -565,11 +690,14 @@
     /* ===================================================
        お知らせバー（右から左へ流れる）
        ここを直接編集してお知らせ内容を変更してください。
+       important: true にすると赤字・太字で強調表示されます。
        =================================================== */
     const ANNOUNCEMENTS = [
-        '本システムは順次リニューアル対応を進めています。',
-        'ATOS在線モニタ・列車在線状況一覧表・運行把握モニタ・貨物輸送状況は現在使用停止中です。',
-        'ご不明点は systemadmin@tayunet-traininfo.com までご連絡ください。',
+        { text: '本システムは順次リニューアル対応を進めています。', important: false },
+        { text: '列車在線状況一覧表は現在メンテナンス中です。', important: false },
+        { text: 'ATOS在線モニタ・運行把握モニタ・貨物輸送状況は現在使用停止中です。', important: false },
+        { text: 'ご不明点は systemadmin@tayunet-traininfo.com までご連絡ください。', important: false },
+        // 例: { text: '本日14時より全システムを一時停止します。', important: true },
     ];
 
     function buildAnnounceBar() {
@@ -578,12 +706,125 @@
 
         // シームレスにループさせるため内容を2回連結
         const items = [...ANNOUNCEMENTS, ...ANNOUNCEMENTS];
-        track.innerHTML = items.map(text =>
-            `<span class="announce-item">${text}</span>`
-        ).join('');
+        track.innerHTML = items.map(item => {
+            const cls = 'announce-item' + (item.important ? ' important' : '');
+            return `<span class="${cls}">${item.text}</span>`;
+        }).join('');
     }
 
     buildAnnounceBar();
+</script>
+
+<script>
+    /* ===================================================
+       緊急告知モーダル
+       active を true にすると、ページを開いた瞬間に
+       画面中央へダイアログが表示されます。
+       通常時（false）は何も表示されません。
+       =================================================== */
+    const EMERGENCY_ANNOUNCEMENT = {
+        active: false,
+        title: '緊急告知',
+        message: '本日14時より、メンテナンスのため全システムを一時停止します。'
+    };
+
+    function closeEmergencyModal() {
+        const overlay = document.getElementById('emergency-modal-overlay');
+        if (overlay) overlay.classList.remove('open');
+    }
+
+    function showEmergencyModalIfNeeded() {
+        if (!EMERGENCY_ANNOUNCEMENT || !EMERGENCY_ANNOUNCEMENT.active) return;
+        const overlay = document.getElementById('emergency-modal-overlay');
+        if (!overlay) return;
+        document.getElementById('emergency-modal-title').textContent = EMERGENCY_ANNOUNCEMENT.title || '緊急告知';
+        document.getElementById('emergency-modal-message').textContent = EMERGENCY_ANNOUNCEMENT.message || '';
+        overlay.classList.add('open');
+    }
+
+    showEmergencyModalIfNeeded();
+</script>
+
+<script>
+    /* ===================================================
+       セッションタイムアウト（離席時の自動ログアウト）
+       3時間まったく操作がない場合、自動的にログアウトします。
+       タイムアウトの60秒前に警告ダイアログを表示します。
+       =================================================== */
+    const IDLE_LIMIT_MS = 3 * 60 * 60 * 1000; // 3時間
+    const IDLE_WARNING_LEAD_MS = 60 * 1000;    // 60秒前に警告
+
+    let lastActivityAt = Date.now();
+    let idleWarningShown = false;
+    let idleCountdownTimer = null;
+
+    function resetIdleTimer() {
+        lastActivityAt = Date.now();
+        if (idleWarningShown) {
+            idleWarningShown = false;
+            hideIdleWarning();
+        }
+    }
+
+    ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(evt => {
+        document.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
+    function showIdleWarning() {
+        idleWarningShown = true;
+        const overlay = document.getElementById('idle-warning-overlay');
+        if (!overlay) return;
+        overlay.classList.add('open');
+        startIdleCountdown();
+    }
+
+    function hideIdleWarning() {
+        const overlay = document.getElementById('idle-warning-overlay');
+        if (overlay) overlay.classList.remove('open');
+        if (idleCountdownTimer) {
+            clearInterval(idleCountdownTimer);
+            idleCountdownTimer = null;
+        }
+    }
+
+    function startIdleCountdown() {
+        const countdownEl = document.getElementById('idle-countdown');
+        if (idleCountdownTimer) clearInterval(idleCountdownTimer);
+        idleCountdownTimer = setInterval(() => {
+            const remainMs = IDLE_LIMIT_MS - (Date.now() - lastActivityAt);
+            const remainSec = Math.max(0, Math.ceil(remainMs / 1000));
+            if (countdownEl) countdownEl.textContent = remainSec;
+            if (remainMs <= 0) {
+                clearInterval(idleCountdownTimer);
+                idleCountdownTimer = null;
+            }
+        }, 1000);
+    }
+
+    function stayLoggedIn() {
+        resetIdleTimer();
+    }
+
+    function performAutoLogout() {
+        hideIdleWarning();
+        const logoutBtn = document.getElementById('firebase-logout-button');
+        if (logoutBtn) {
+            logoutBtn.click();
+        } else {
+            location.reload();
+        }
+    }
+
+    function checkIdleStatus() {
+        const idleMs = Date.now() - lastActivityAt;
+        if (idleMs >= IDLE_LIMIT_MS) {
+            performAutoLogout();
+        } else if (idleMs >= IDLE_LIMIT_MS - IDLE_WARNING_LEAD_MS && !idleWarningShown) {
+            showIdleWarning();
+        }
+    }
+
+    setInterval(checkIdleStatus, 5000);
 </script>
 
 <script>
