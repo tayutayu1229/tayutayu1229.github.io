@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>べんりツール集</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="auth_guard.js"></script>
+<style>
+  :root{
+    --accent:#0078D4;
+    --accent-dark:#005A9E;
+    --bg:#F3F3F3;
+    --surface:#FFFFFF;
+    --border:#E1E1E1;
+    --text:#1B1B1B;
+    --text-sub:#616161;
+    --radius:2px;
+    --tile-bg:#FAFAFA;
+    --tile-border:#D6D6D6;
+    --tile-hover:#F0F0F0;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"Yu Gothic UI","Segoe UI","Meiryo UI",sans-serif;
+    height:100%;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{display:flex;flex-direction:column;min-height:100vh;}
+
+  /* ===== Header ===== */
+  header{
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:12px;
+    padding:0 16px;
+    height:52px;
+    flex-shrink:0;
+    position:sticky;top:0;z-index:50;
+  }
+  #homeLink{
+    display:flex;align-items:center;gap:6px;
+    text-decoration:none;color:var(--text);
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:6px 12px;
+    font-size:13px;
+    transition:background .12s;
+  }
+  #homeLink:hover{background:#E7E7E7;}
+  #appTitle{font-size:16px;font-weight:600;flex:1;}
+  #backToGrid{
+    display:none;
+    align-items:center;gap:6px;
+    background:transparent;border:1px solid var(--border);
+    border-radius:var(--radius);padding:6px 12px;font-size:13px;
+    color:var(--text);cursor:pointer;
+  }
+  #backToGrid:hover{background:#E7E7E7;}
+  #backToGrid.show{display:flex;}
+
+  /* ===== Layout ===== */
+  main{flex:1;padding:20px;max-width:1200px;margin:0 auto;width:100%;}
+
+  /* ===== Home grid ===== */
+  #homeView h2{font-weight:500;font-size:20px;margin:4px 0 16px 2px;color:var(--text);}
+  .tile-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+    gap:10px;
+  }
+  .tile{
+    aspect-ratio:1/1;
+    border:1px solid var(--tile-border);
+    border-radius:var(--radius);
+    background:var(--tile-bg);
+    color:var(--text);
+    display:flex;flex-direction:column;justify-content:flex-end;
+    padding:10px;
+    cursor:pointer;
+    font-family:inherit;
+    font-size:13px;
+    text-align:left;
+    line-height:1.35;
+    transition:background .1s, border-color .1s;
+    position:relative;
+    overflow:hidden;
+  }
+  .tile:hover{background:var(--tile-hover);border-color:var(--accent);}
+  .tile:active{background:#E5E5E5;}
+  .tile .icon{font-size:24px;position:absolute;top:10px;left:10px;opacity:.85;filter:grayscale(1);}
+  .tile .label{font-weight:600;}
+
+  /* ===== Tool panel ===== */
+  .panel{
+    display:none;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px 24px 24px;
+    max-width:820px;
+  }
+  .panel.active{display:block;}
+  .panel h2{
+    margin:0 0 4px;font-size:19px;font-weight:600;
+    display:flex;align-items:center;gap:10px;
+  }
+  .panel h2 .ic{font-size:22px;}
+  .panel .desc{color:var(--text-sub);font-size:13px;margin:0 0 18px;}
+  .panel h3{font-size:14px;font-weight:600;margin:22px 0 10px;color:var(--text);border-left:4px solid var(--accent);padding-left:8px;}
+
+  /* ===== Form controls ===== */
+  label{font-size:13px;color:var(--text-sub);display:block;margin-bottom:4px;}
+  input[type=text],input[type=number],input[type=date],input[type=datetime-local],textarea,select{
+    font-family:inherit;font-size:14px;
+    border:1px solid #C8C6C4;border-radius:var(--radius);
+    padding:8px 10px;background:#fff;color:var(--text);width:100%;
+    outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+  textarea{resize:vertical;min-height:90px;font-family:inherit;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .row > div{flex:1;min-width:120px;}
+  .field-inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);}
+  .btn{
+    background:var(--accent);color:#fff;border:none;border-radius:var(--radius);
+    padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit;
+    transition:background .12s;
+  }
+  .btn:hover{background:var(--accent-dark);}
+  .btn.secondary{background:#fff;color:var(--text);border:1px solid #C8C6C4;}
+  .btn.secondary:hover{background:#F3F3F3;}
+  .btn.small{padding:5px 10px;font-size:12px;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .checks{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0;}
+  .result-box{
+    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;margin-top:14px;font-size:14px;
+  }
+  .big-result{font-size:26px;font-weight:600;color:var(--accent);word-break:break-all;}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+  th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;}
+  th{background:var(--bg);font-weight:600;}
+  tr.hl{background:#E5F1FB;}
+  tr.past{color:var(--text-sub);}
+  .hint{font-size:12px;color:var(--text-sub);margin-top:4px;}
+  .pw-item{
+    display:flex;align-items:center;gap:8px;
+    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+    padding:8px 10px;margin-bottom:6px;font-family:Consolas,monospace;font-size:14px;
+  }
+  .pw-item span{flex:1;word-break:break-all;}
+  .copied-msg{color:var(--tile-green);font-size:12px;margin-left:6px;}
+
+  /* Calculator */
+  #calcDisplay{
+    background:#1B1B1B;color:#fff;text-align:right;
+    font-size:34px;padding:16px;border-radius:var(--radius);
+    margin-bottom:10px;word-break:break-all;min-height:1.4em;
+  }
+  #calcSub{color:#9E9E9E;font-size:14px;text-align:right;min-height:1.2em;}
+  .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .calc-grid button{
+    padding:16px 0;font-size:18px;border:none;border-radius:var(--radius);
+    background:#F3F3F3;cursor:pointer;color:var(--text);
+  }
+  .calc-grid button:hover{background:#E1E1E1;}
+  .calc-grid button.op{background:var(--accent);color:#fff;}
+  .calc-grid button.op:hover{background:var(--accent-dark);}
+  .calc-grid button.eq{background:var(--tile-green);color:#fff;grid-row:span 2;}
+  .calc-grid button.func{background:#E1E1E1;}
+
+  /* color tool */
+  #colorSwatch{width:100%;height:70px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px;}
+
+  /* stopwatch */
+  #swDisplay,#timerDisplay{font-size:40px;font-weight:600;text-align:center;padding:14px 0;color:var(--accent);}
+  #lapList{max-height:160px;overflow-y:auto;font-size:13px;}
+  #lapList div{padding:4px 0;border-bottom:1px solid var(--border);}
+
+  footer{text-align:center;color:var(--text-sub);font-size:12px;padding:24px;}
+
+  @media (max-width:600px){
+    .tile-grid{grid-template-columns:repeat(3,1fr);}
+    main{padding:12px;}
+    .panel{padding:16px;}
+  }
+</style>
+</head>
+<body>
+<div id="main-content" style="display:none;">
+<div id="app">
+  <header>
+    <a id="homeLink" href="/toppage.html">🏠 ホーム</a>
+    <div id="appTitle">べんりツール集</div>
+    <button id="backToGrid" onclick="showGrid()">☰ ツール一覧</button>
+  </header>
+
+  <main>
+    <div id="homeView">
+      <h2>ツール一覧</h2>
+      <div class="tile-grid" id="tileGrid"></div>
+    </div>
+
+    <!-- ========== 電卓 ========== -->
+    <section class="panel" id="p-calc">
+      <h2><span class="ic">🧮</span>電卓</h2>
+      <p class="desc">キーボード入力にも対応しています（数字 / + - * / . / Enter / Backspace / Escape）</p>
+      <div id="calcDisplay">0</div>
+      <div id="calcSub">&nbsp;</div>
+      <div class="calc-grid">
+        <button class="func" onclick="calcClearAll()">C</button>
+        <button class="func" onclick="calcBackspace()">⌫</button>
+        <button class="func" onclick="calcPercent()">%</button>
+        <button class="op" onclick="calcOp('/')">÷</button>
+
+        <button onclick="calcNum('7')">7</button>
+        <button onclick="calcNum('8')">8</button>
+        <button onclick="calcNum('9')">9</button>
+        <button class="op" onclick="calcOp('*')">×</button>
+
+        <button onclick="calcNum('4')">4</button>
+        <button onclick="calcNum('5')">5</button>
+        <button onclick="calcNum('6')">6</button>
+        <button class="op" onclick="calcOp('-')">−</button>
+
+        <button onclick="calcNum('1')">1</button>
+        <button onclick="calcNum('2')">2</button>
+        <button onclick="calcNum('3')">3</button>
+        <button class="op" onclick="calcOp('+')">＋</button>
+
+        <button onclick="calcSign()">±</button>
+        <button onclick="calcNum('0')">0</button>
+        <button onclick="calcNum('.')">.</button>
+        <button class="eq" onclick="calcEquals()">＝</button>
+      </div>
+    </section>
+
+    <!-- ========== パスワード生成 ========== -->
+    <section class="panel" id="p-pw">
+      <h2><span class="ic">🔐</span>パスワード生成</h2>
+      <p class="desc">条件を選んで安全なパスワードを生成します。</p>
+      <div class="row">
+        <div>
+          <label>文字数</label>
+          <input type="number" id="pwLength" value="12" min="4" max="128">
+        </div>
+        <div>
+          <label>生成する個数</label>
+          <input type="number" id="pwCount" value="5" min="1" max="50">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary small" onclick="setPwLen(8)">8文字</button>
+        <button class="btn secondary small" onclick="setPwLen(12)">12文字</button>
+        <button class="btn secondary small" onclick="setPwLen(16)">16文字</button>
+        <button class="btn secondary small" onclick="setPwLen(20)">20文字</button>
+      </div>
+      <h3>使用する文字の種類</h3>
+      <div class="checks">
+        <label class="field-inline"><input type="checkbox" id="pwUpper" checked> 大文字（A-Z）</label>
+        <label class="field-inline"><input type="checkbox" id="pwLower" checked> 小文字（a-z）</label>
+        <label class="field-inline"><input type="checkbox" id="pwNum" checked> 数字（0-9）</label>
+        <label class="field-inline"><input type="checkbox" id="pwSym"> 記号（!@#$%など）</label>
+      </div>
+      <div class="checks">
+        <label class="field-inline"><input type="checkbox" id="pwExcludeSimilar"> 似た文字を除外（l, I, 1, O, 0 など）</label>
+        <label class="field-inline"><input type="checkbox" id="pwExcludeAmbig"> 記号のうち紛らわしい物を除外（{}[]()/\'"~,;:.&lt;&gt;など）</label>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="generatePasswords()">生成する</button>
+      </div>
+      <div id="pwResults"></div>
+      <div class="btn-row" id="pwCopyAllRow" style="display:none;">
+        <button class="btn secondary small" onclick="copyAllPasswords()">すべてコピー</button>
+      </div>
+    </section>
+
+    <!-- ========== 文字数カウント ========== -->
+    <section class="panel" id="p-count">
+      <h2><span class="ic">🔤</span>文字数カウント</h2>
+      <p class="desc">入力した文章の文字数・行数・バイト数などをリアルタイムに集計します。</p>
+      <textarea id="cntText" rows="8" placeholder="ここに文章を入力してください"></textarea>
+      <div class="result-box">
+        <div class="row" style="margin-bottom:0;">
+          <div>文字数（改行含む）: <b id="cntAll">0</b></div>
+          <div>文字数（改行除く）: <b id="cntNoBreak">0</b></div>
+          <div>文字数（空白除く）: <b id="cntNoSpace">0</b></div>
+        </div>
+        <div class="row" style="margin-bottom:0;">
+          <div>単語数: <b id="cntWords">0</b></div>
+          <div>行数: <b id="cntLines">0</b></div>
+          <div>バイト数（UTF-8）: <b id="cntBytes">0</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 今何年 ========== -->
+    <section class="panel" id="p-year">
+      <h2><span class="ic">📅</span>今何年？</h2>
+      <p class="desc">今日の西暦・和暦・干支を一目で確認できます。</p>
+      <div class="result-box">
+        <div>今日の日付：<b id="yToday"></b></div>
+        <div>西暦：<b id="ySeireki"></b></div>
+        <div>和暦：<b id="yWareki"></b></div>
+        <div>干支：<b id="yEto"></b></div>
+      </div>
+
+      <h3>元号早見表</h3>
+      <table>
+        <tr><th>元号</th><th>期間</th><th>西暦→和暦の目安</th></tr>
+        <tbody id="yEraTable"></tbody>
+      </table>
+
+      <h3>干支早見表（12支）</h3>
+      <table>
+        <tr><th>干支</th><th>直近の該当年（西暦）</th></tr>
+        <tbody id="yEtoTable"></tbody>
+      </table>
+
+      <h3>西暦・和暦 変換</h3>
+      <div class="row">
+        <div>
+          <label>西暦を入力</label>
+          <input type="number" id="yInputSeireki" placeholder="例: 2026">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn secondary" onclick="convertSeirekiToWareki()">和暦に変換</button>
+        </div>
+      </div>
+      <div id="yConvResult" class="hint"></div>
+    </section>
+
+    <!-- ========== 記念日計算 ========== -->
+    <section class="panel" id="p-anniv">
+      <h2><span class="ic">💝</span>記念日計算</h2>
+      <p class="desc">基準日を入力するだけで「〇日記念日」「〇周年記念日」を自動計算します。</p>
+      <div class="row">
+        <div>
+          <label>基準日</label>
+          <input type="date" id="annivDate">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn" onclick="calcAnniv()">計算する</button>
+        </div>
+      </div>
+      <div id="annivToday" class="result-box" style="display:none;"></div>
+
+      <h3>〇日記念日</h3>
+      <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivDaysTable"></tbody></table>
+
+      <h3>〇周年記念日</h3>
+      <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivYearsTable"></tbody></table>
+
+      <h3>カスタム記念日</h3>
+      <div class="row">
+        <div>
+          <label>種類</label>
+          <select id="annivCustomType">
+            <option value="days">〇日記念日</option>
+            <option value="years">〇周年記念日</option>
+          </select>
+        </div>
+        <div>
+          <label>数値</label>
+          <input type="number" id="annivCustomVal" value="365" min="1">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn secondary" onclick="calcAnnivCustom()">計算</button>
+        </div>
+      </div>
+      <div id="annivCustomResult" class="hint"></div>
+    </section>
+
+    <!-- ========== 年齢計算 ========== -->
+    <section class="panel" id="p-age">
+      <h2><span class="ic">🎂</span>年齢計算</h2>
+      <p class="desc">生年月日から満年齢・数え年・次の誕生日までの日数を計算します。</p>
+      <div class="row">
+        <div>
+          <label>生年月日</label>
+          <input type="date" id="ageDob">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn" onclick="calcAge()">計算する</button>
+        </div>
+      </div>
+      <div id="ageResult" class="result-box" style="display:none;"></div>
+    </section>
+
+    <!-- ========== BMI計算 ========== -->
+    <section class="panel" id="p-bmi">
+      <h2><span class="ic">⚖️</span>BMI計算</h2>
+      <p class="desc">身長・体重からBMIと標準体重を計算します。</p>
+      <div class="row">
+        <div>
+          <label>身長（cm）</label>
+          <input type="number" id="bmiHeight" placeholder="例: 170">
+        </div>
+        <div>
+          <label>体重（kg）</label>
+          <input type="number" id="bmiWeight" placeholder="例: 60">
+        </div>
+      </div>
+      <button class="btn" onclick="calcBmi()">計算する</button>
+      <div id="bmiResult" class="result-box" style="display:none;"></div>
+    </section>
+
+    <!-- ========== 単位換算 ========== -->
+    <section class="panel" id="p-unit">
+      <h2><span class="ic">📏</span>単位換算</h2>
+      <p class="desc">長さ・重さ・温度の単位を換算します。</p>
+      <div class="row">
+        <div>
+          <label>種類</label>
+          <select id="unitCategory" onchange="buildUnitOptions()">
+            <option value="length">長さ</option>
+            <option value="weight">重さ</option>
+            <option value="temp">温度</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>変換前</label>
+          <input type="number" id="unitInput" value="1" oninput="calcUnit()">
+        </div>
+        <div>
+          <label>単位（変換前）</label>
+          <select id="unitFrom" onchange="calcUnit()"></select>
+        </div>
+        <div>
+          <label>単位（変換後）</label>
+          <select id="unitTo" onchange="calcUnit()"></select>
+        </div>
+      </div>
+      <div class="result-box">
+        結果：<span class="big-result" id="unitResult">-</span>
+      </div>
+    </section>
+
+    <!-- ========== カラーコード変換 ========== -->
+    <section class="panel" id="p-color">
+      <h2><span class="ic">🎨</span>カラーコード変換</h2>
+      <p class="desc">HEX・RGB・HSLを相互変換します。</p>
+      <input type="color" id="colorPicker" value="#0078D4" onchange="colorFromPicker()" style="width:100%;height:44px;margin-bottom:10px;">
+      <div id="colorSwatch"></div>
+      <div class="row">
+        <div>
+          <label>HEX</label>
+          <input type="text" id="colorHex" placeholder="#0078D4" oninput="colorFromHex()">
+        </div>
+      </div>
+      <div class="row">
+        <div><label>R</label><input type="number" id="colorR" min="0" max="255" oninput="colorFromRgb()"></div>
+        <div><label>G</label><input type="number" id="colorG" min="0" max="255" oninput="colorFromRgb()"></div>
+        <div><label>B</label><input type="number" id="colorB" min="0" max="255" oninput="colorFromRgb()"></div>
+      </div>
+      <div class="hint">HSL：<span id="colorHsl">-</span></div>
+    </section>
+
+    <!-- ========== Base64 ========== -->
+    <section class="panel" id="p-base64">
+      <h2><span class="ic">🔡</span>Base64 エンコード / デコード</h2>
+      <p class="desc">テキストとBase64を相互変換します。</p>
+      <textarea id="b64Input" rows="5" placeholder="ここに文字列を入力"></textarea>
+      <div class="btn-row">
+        <button class="btn" onclick="b64Encode()">エンコード ▶</button>
+        <button class="btn secondary" onclick="b64Decode()">◀ デコード</button>
+        <button class="btn secondary" onclick="copyText('b64Output')">結果をコピー</button>
+      </div>
+      <textarea id="b64Output" rows="5" placeholder="結果がここに表示されます"></textarea>
+    </section>
+
+    <!-- ========== 文字ケース変換 ========== -->
+    <section class="panel" id="p-case">
+      <h2><span class="ic">🔠</span>文字ケース変換</h2>
+      <p class="desc">大文字・小文字などへ一括変換します。</p>
+      <textarea id="caseInput" rows="6" placeholder="ここに文字列を入力"></textarea>
+      <div class="btn-row">
+        <button class="btn secondary small" onclick="caseConvert('upper')">大文字 (UPPER)</button>
+        <button class="btn secondary small" onclick="caseConvert('lower')">小文字 (lower)</button>
+        <button class="btn secondary small" onclick="caseConvert('title')">先頭大文字 (Title)</button>
+        <button class="btn secondary small" onclick="caseConvert('sentence')">文頭のみ大文字</button>
+        <button class="btn secondary small" onclick="caseConvert('reverse')">反転</button>
+        <button class="btn secondary small" onclick="caseConvert('trim')">前後の空白削除</button>
+        <button class="btn secondary small" onclick="copyText('caseInput')">コピー</button>
+      </div>
+    </section>
+
+    <!-- ========== タイマー / ストップウォッチ ========== -->
+    <section class="panel" id="p-timer">
+      <h2><span class="ic">⏱️</span>タイマー・ストップウォッチ</h2>
+      <p class="desc">カウントダウンタイマーとストップウォッチが使えます。</p>
+      <h3>カウントダウンタイマー</h3>
+      <div class="row">
+        <div><label>分</label><input type="number" id="timerMin" value="5" min="0"></div>
+        <div><label>秒</label><input type="number" id="timerSec" value="0" min="0" max="59"></div>
+      </div>
+      <div id="timerDisplay">05:00</div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn" onclick="timerStart()">開始</button>
+        <button class="btn secondary" onclick="timerPause()">一時停止</button>
+        <button class="btn secondary" onclick="timerReset()">リセット</button>
+      </div>
+
+      <h3>ストップウォッチ</h3>
+      <div id="swDisplay">00:00.00</div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn" onclick="swStart()">開始</button>
+        <button class="btn secondary" onclick="swLap()">ラップ</button>
+        <button class="btn secondary" onclick="swReset()">リセット</button>
+      </div>
+      <div id="lapList"></div>
+    </section>
+
+    <!-- ========== Unix時間変換 ========== -->
+    <section class="panel" id="p-unix">
+      <h2><span class="ic">🕒</span>Unixタイムスタンプ変換</h2>
+      <p class="desc">Unix時間（秒）と日時を相互変換します。</p>
+      <div class="row">
+        <div>
+          <label>Unixタイムスタンプ（秒）</label>
+          <input type="number" id="unixInput" oninput="unixToDate()">
+        </div>
+        <div style="align-self:flex-end;">
+          <button class="btn secondary small" onclick="setUnixNow()">現在時刻を入力</button>
+        </div>
+      </div>
+      <div class="hint" id="unixOutDate">日時：-</div>
+      <h3 style="margin-top:20px;">日時からUnix時間へ</h3>
+      <div class="row">
+        <div>
+          <label>日時を選択</label>
+          <input type="datetime-local" id="unixDateInput" oninput="dateToUnix()">
+        </div>
+      </div>
+      <div class="hint" id="unixOutStamp">Unixタイムスタンプ：-</div>
+    </section>
+
+    <!-- ========== 日付差・曜日計算 ========== -->
+    <section class="panel" id="p-datediff">
+      <h2><span class="ic">📆</span>日付差・曜日計算</h2>
+      <p class="desc">2つの日付の間の日数や、特定日の曜日を調べます。</p>
+      <div class="row">
+        <div><label>日付1</label><input type="date" id="diffDate1"></div>
+        <div><label>日付2</label><input type="date" id="diffDate2"></div>
+      </div>
+      <button class="btn" onclick="calcDateDiff()">計算する</button>
+      <div id="diffResult" class="result-box" style="display:none;"></div>
+    </section>
+
+    <!-- ========== QRコード生成 ========== -->
+    <section class="panel" id="p-qr">
+      <h2><span class="ic">🔳</span>QRコード生成</h2>
+      <p class="desc">テキストやURLからQRコードを生成します。</p>
+      <textarea id="qrInput" rows="3" placeholder="URLやテキストを入力"></textarea>
+      <button class="btn" onclick="genQr()">生成する</button>
+      <div id="qrResultWrap" style="margin-top:14px;display:none;text-align:center;">
+        <img id="qrImg" style="border:1px solid var(--border);border-radius:var(--radius);" width="220" height="220">
+        <div style="margin-top:10px;"><a id="qrDownload" class="btn secondary small" download="qrcode.png">ダウンロード</a></div>
+      </div>
+    </section>
+
+    <!-- ========== 乱数生成 ========== -->
+    <section class="panel" id="p-rand">
+      <h2><span class="ic">🎲</span>乱数生成</h2>
+      <p class="desc">指定範囲のランダムな整数を生成します。</p>
+      <div class="row">
+        <div><label>最小値</label><input type="number" id="randMin" value="1"></div>
+        <div><label>最大値</label><input type="number" id="randMax" value="100"></div>
+        <div><label>個数</label><input type="number" id="randCount" value="1" min="1" max="100"></div>
+      </div>
+      <label class="field-inline" style="margin-bottom:10px;"><input type="checkbox" id="randUnique"> 重複なし</label>
+      <br>
+      <button class="btn" onclick="genRand()">生成する</button>
+      <div id="randResult" class="result-box" style="display:none;"></div>
+    </section>
+
+    <!-- ========== パーセント計算 ========== -->
+    <section class="panel" id="p-percent">
+      <h2><span class="ic">％</span>パーセント計算</h2>
+      <p class="desc">よく使う割合の計算をまとめました。</p>
+
+      <h3>A は B の何％？</h3>
+      <div class="row">
+        <div><input type="number" id="pctA1" placeholder="A"></div>
+        <div>は</div>
+        <div><input type="number" id="pctB1" placeholder="B"></div>
+        <div>の</div>
+      </div>
+      <button class="btn secondary small" onclick="pctCalc1()">計算</button>
+      <div class="hint" id="pctResult1">結果：-</div>
+
+      <h3 style="margin-top:24px;">B の A ％ はいくつ？</h3>
+      <div class="row">
+        <div><input type="number" id="pctB2" placeholder="B"></div>
+        <div>の</div>
+        <div><input type="number" id="pctA2" placeholder="A（%）"></div>
+        <div>％</div>
+      </div>
+      <button class="btn secondary small" onclick="pctCalc2()">計算</button>
+      <div class="hint" id="pctResult2">結果：-</div>
+
+      <h3 style="margin-top:24px;">A → B の増減率</h3>
+      <div class="row">
+        <div><input type="number" id="pctA3" placeholder="変化前"></div>
+        <div>→</div>
+        <div><input type="number" id="pctB3" placeholder="変化後"></div>
+      </div>
+      <button class="btn secondary small" onclick="pctCalc3()">計算</button>
+      <div class="hint" id="pctResult3">結果：-</div>
+    </section>
+
+  </main>
+  <footer>べんりツール集</footer>
+</div>
+</div><!-- /#main-content -->
+
+<script>
+/* =========================================================
+   ツール定義 & 画面切り替え
+========================================================= */
+/*
+ * ツールを追加する手順:
+ *  1. 下のTOOLS配列に {id, icon, label} を1行追加する（idは半角英数字、重複不可）
+ *  2. <main> 内に <section class="panel" id="p-★id★">...</section> を追加する
+ *     （他のpanelと同じ書き方でOK。中身は自由に組んでよい）
+ *  3. 必要なJS処理を <script> 内の末尾あたりに関数として追記する
+ *  4. ホーム画面のタイルは自動生成されるので追加のHTML編集は不要
+ */
+const TOOLS = [
+  {id:'calc',    icon:'🧮', label:'電卓'},
+  {id:'pw',      icon:'🔐', label:'パスワード生成'},
+  {id:'count',   icon:'🔤', label:'文字数カウント'},
+  {id:'year',    icon:'📅', label:'今何年？'},
+  {id:'anniv',   icon:'💝', label:'記念日計算'},
+  {id:'age',     icon:'🎂', label:'年齢計算'},
+  {id:'bmi',     icon:'⚖️', label:'BMI計算'},
+  {id:'unit',    icon:'📏', label:'単位換算'},
+  {id:'color',   icon:'🎨', label:'カラーコード変換'},
+  {id:'base64',  icon:'🔡', label:'Base64変換'},
+  {id:'case',    icon:'🔠', label:'文字ケース変換'},
+  {id:'timer',   icon:'⏱️', label:'タイマー/SW'},
+  {id:'unix',    icon:'🕒', label:'Unix時間変換'},
+  {id:'datediff',icon:'📆', label:'日付差・曜日'},
+  {id:'qr',      icon:'🔳', label:'QRコード生成'},
+  {id:'rand',    icon:'🎲', label:'乱数生成'},
+  {id:'percent', icon:'％', label:'パーセント計算'},
+];
+
+function buildGrid(){
+  const grid = document.getElementById('tileGrid');
+  grid.innerHTML = TOOLS.map(t=>`
+    <button class="tile" onclick="openTool('${t.id}')">
+      <span class="icon">${t.icon}</span>
+      <span class="label">${t.label}</span>
+    </button>
+  `).join('');
+}
+buildGrid();
+
+function openTool(id){
+  document.getElementById('homeView').style.display='none';
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const panel = document.getElementById('p-'+id);
+  if(panel) panel.classList.add('active');
+  document.getElementById('backToGrid').classList.add('show');
+  window.scrollTo(0,0);
+  if(id==='year') initYearTool();
+}
+function showGrid(){
+  document.getElementById('homeView').style.display='block';
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('backToGrid').classList.remove('show');
+  window.scrollTo(0,0);
+}
+
+function copyToClipboard(text){
+  if(navigator.clipboard){ navigator.clipboard.writeText(text); }
+  else{
+    const ta=document.createElement('textarea');
+    ta.value=text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+}
+function copyText(elId){
+  const el = document.getElementById(elId);
+  copyToClipboard(el.value);
+}
+
+/* =========================================================
+   電卓
+========================================================= */
+let calcCur='0', calcPrev=null, calcOperator=null, calcReset=false;
+function calcUpdateDisplay(){
+  document.getElementById('calcDisplay').textContent = calcCur;
+  document.getElementById('calcSub').textContent = calcPrev!==null && calcOperator ? `${calcPrev} ${calcOperator}` : '\u00A0';
+}
+function calcNum(n){
+  if(calcReset){ calcCur = (n==='.') ? '0.' : n; calcReset=false; }
+  else if(calcCur==='0' && n!=='.') calcCur = n;
+  else if(n==='.' && calcCur.includes('.')) { /* ignore */ }
+  else calcCur += n;
+  calcUpdateDisplay();
+}
+function calcOp(op){
+  if(calcOperator && !calcReset){ calcEquals(); }
+  calcPrev = calcCur;
+  calcOperator = op;
+  calcReset = true;
+  calcUpdateDisplay();
+}
+function calcEquals(){
+  if(calcOperator===null || calcPrev===null) return;
+  const a=parseFloat(calcPrev), b=parseFloat(calcCur);
+  let r;
+  switch(calcOperator){
+    case '+': r=a+b; break;
+    case '-': r=a-b; break;
+    case '*': r=a*b; break;
+    case '/': r = b===0 ? NaN : a/b; break;
+    default: r=b;
+  }
+  calcCur = Number.isFinite(r) ? String(Math.round(r*1e10)/1e10) : 'エラー';
+  calcPrev=null; calcOperator=null; calcReset=true;
+  calcUpdateDisplay();
+}
+function calcClearAll(){ calcCur='0'; calcPrev=null; calcOperator=null; calcReset=false; calcUpdateDisplay(); }
+function calcBackspace(){
+  if(calcReset) return;
+  calcCur = calcCur.length>1 ? calcCur.slice(0,-1) : '0';
+  calcUpdateDisplay();
+}
+function calcSign(){ if(calcCur!=='0') calcCur = calcCur.startsWith('-') ? calcCur.slice(1) : '-'+calcCur; calcUpdateDisplay(); }
+function calcPercent(){ calcCur = String(parseFloat(calcCur)/100); calcUpdateDisplay(); }
+
+document.addEventListener('keydown', e=>{
+  if(!document.getElementById('p-calc').classList.contains('active')) return;
+  if(e.key>='0'&&e.key<='9') calcNum(e.key);
+  else if(e.key==='.') calcNum('.');
+  else if(['+','-','*','/'].includes(e.key)) calcOp(e.key);
+  else if(e.key==='Enter'||e.key==='=') { e.preventDefault(); calcEquals(); }
+  else if(e.key==='Backspace') calcBackspace();
+  else if(e.key==='Escape') calcClearAll();
+  else if(e.key==='%') calcPercent();
+});
+calcUpdateDisplay();
+
+/* =========================================================
+   パスワード生成
+========================================================= */
+function setPwLen(n){ document.getElementById('pwLength').value=n; }
+function generatePasswords(){
+  const len = Math.max(4, Math.min(128, parseInt(document.getElementById('pwLength').value)||12));
+  const count = Math.max(1, Math.min(50, parseInt(document.getElementById('pwCount').value)||1));
+  const useUpper = document.getElementById('pwUpper').checked;
+  const useLower = document.getElementById('pwLower').checked;
+  const useNum = document.getElementById('pwNum').checked;
+  const useSym = document.getElementById('pwSym').checked;
+  const exclSimilar = document.getElementById('pwExcludeSimilar').checked;
+  const exclAmbig = document.getElementById('pwExcludeAmbig').checked;
+
+  let upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let lower='abcdefghijklmnopqrstuvwxyz';
+  let nums='0123456789';
+  let syms='!@#$%^&*_-+=?';
+  let ambigSyms='{}[]()/\\\'"`~,;:.<>|';
+
+  if(exclSimilar){
+    const similar=/[ilLI1oO0]/g;
+    upper=upper.replace(similar,''); lower=lower.replace(similar,''); nums=nums.replace(similar,'');
+  }
+  if(!exclAmbig) syms += ambigSyms;
+
+  let pool='';
+  if(useUpper) pool+=upper;
+  if(useLower) pool+=lower;
+  if(useNum) pool+=nums;
+  if(useSym) pool+=syms;
+
+  const resultsDiv = document.getElementById('pwResults');
+  if(!pool){
+    resultsDiv.innerHTML = '<div class="hint">少なくとも1つ以上の文字種を選択してください。</div>';
+    document.getElementById('pwCopyAllRow').style.display='none';
+    return;
+  }
+
+  const required = [];
+  if(useUpper) required.push(upper);
+  if(useLower) required.push(lower);
+  if(useNum) required.push(nums);
+  if(useSym) required.push(syms);
+
+  function randChar(str){ return str[Math.floor(Math.random()*str.length)]; }
+
+  const passwords=[];
+  for(let i=0;i<count;i++){
+    let chars=[];
+    required.forEach(set=>{ if(chars.length<len) chars.push(randChar(set)); });
+    while(chars.length<len) chars.push(randChar(pool));
+    // shuffle
+    for(let j=chars.length-1;j>0;j--){
+      const k=Math.floor(Math.random()*(j+1));
+      [chars[j],chars[k]]=[chars[k],chars[j]];
+    }
+    passwords.push(chars.join(''));
+  }
+
+  window.__lastPasswords = passwords;
+  resultsDiv.innerHTML = passwords.map((p,idx)=>`
+    <div class="pw-item">
+      <span>${p}</span>
+      <button class="btn secondary small" onclick="copySinglePassword(${idx}, this)">コピー</button>
+    </div>
+  `).join('');
+  document.getElementById('pwCopyAllRow').style.display = passwords.length>0 ? 'flex' : 'none';
+}
+function copySinglePassword(idx, btn){
+  copyToClipboard(window.__lastPasswords[idx]);
+  const old = btn.textContent;
+  btn.textContent='コピー済';
+  setTimeout(()=>btn.textContent=old, 1200);
+}
+function copyAllPasswords(){
+  copyToClipboard((window.__lastPasswords||[]).join('\n'));
+}
+
+/* =========================================================
+   文字数カウント
+========================================================= */
+function updateCount(){
+  const text = document.getElementById('cntText').value;
+  document.getElementById('cntAll').textContent = [...text].length;
+  document.getElementById('cntNoBreak').textContent = [...text.replace(/\n/g,'')].length;
+  document.getElementById('cntNoSpace').textContent = [...text.replace(/\s/g,'')].length;
+  document.getElementById('cntWords').textContent = text.trim()==='' ? 0 : text.trim().split(/\s+/).length;
+  document.getElementById('cntLines').textContent = text==='' ? 0 : text.split('\n').length;
+  document.getElementById('cntBytes').textContent = new TextEncoder().encode(text).length;
+}
+document.getElementById('cntText').addEventListener('input', updateCount);
+updateCount();
+
+/* =========================================================
+   今何年？
+========================================================= */
+const ERA_TABLE = [
+  {name:'令和', start:new Date(2019,4,1)},
+  {name:'平成', start:new Date(1989,0,8)},
+  {name:'昭和', start:new Date(1926,11,25)},
+  {name:'大正', start:new Date(1912,6,30)},
+  {name:'明治', start:new Date(1868,0,25)},
+];
+const ETO = ['子(ねずみ)','丑(うし)','寅(とら)','卯(う)','辰(たつ)','巳(み)','午(うま)','未(ひつじ)','申(さる)','酉(とり)','戌(いぬ)','亥(い)'];
+
+function getWareki(date){
+  for(const era of ERA_TABLE){
+    if(date >= era.start){
+      let y = date.getFullYear() - era.start.getFullYear() + 1;
+      return `${era.name}${y===1?'元':y}年`;
+    }
+  }
+  return '該当なし';
+}
+function getEto(year){
+  // 1984年=子年 を基準
+  const idx = ((year - 1984) % 12 + 12) % 12;
+  return ETO[idx];
+}
+let yearToolInit=false;
+function initYearTool(){
+  if(yearToolInit) return;
+  yearToolInit=true;
+  const now = new Date();
+  document.getElementById('yToday').textContent = now.toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  document.getElementById('ySeireki').textContent = now.getFullYear() + '年';
+  document.getElementById('yWareki').textContent = getWareki(now);
+  document.getElementById('yEto').textContent = getEto(now.getFullYear()) + '年';
+
+  document.getElementById('yEraTable').innerHTML = ERA_TABLE.map((e,i)=>{
+    const end = i===0 ? '現在' : (ERA_TABLE[i-1].start.getFullYear()-1)+'年 頃まで';
+    return `<tr><td>${e.name}</td><td>${e.start.getFullYear()}年〜${i===0?'':end}</td><td>${e.name}n年 ＝ 西暦 ${e.start.getFullYear()-1}+n 年</td></tr>`;
+  }).join('');
+
+  const curYear = now.getFullYear();
+  document.getElementById('yEtoTable').innerHTML = ETO.map((e,i)=>{
+    let y = curYear - ((curYear - 1984)%12+12)%12 + i;
+    if(y>curYear) y-=12;
+    while(y+12<=curYear) y+=12;
+    return `<tr><td>${e}</td><td>${y}年</td></tr>`;
+  }).join('');
+}
+function convertSeirekiToWareki(){
+  const y = parseInt(document.getElementById('yInputSeireki').value);
+  const out = document.getElementById('yConvResult');
+  if(!y){ out.textContent=''; return; }
+  const d = new Date(y,5,15); // 年中頃で判定
+  out.textContent = `西暦${y}年 ＝ ${getWareki(d)} ／ 干支：${getEto(y)}`;
+}
+
+/* =========================================================
+   記念日計算
+========================================================= */
+function fmtDate(d){
+  return d.toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+}
+function calcAnniv(){
+  const val = document.getElementById('annivDate').value;
+  if(!val) return;
+  const base = new Date(val+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.round((today - base)/86400000) + 1; // 基準日を1日目とする
+
+  document.getElementById('annivToday').style.display='block';
+  document.getElementById('annivToday').innerHTML = `基準日：<b>${fmtDate(base)}</b>　→　今日で <span class="big-result">${diffDays}</span> 日目です`;
+
+  const daysMilestones = [100,200,300,500,777,1000,2000,3000,5000,10000];
+  const daysRows = daysMilestones.map(n=>{
+    const d = new Date(base); d.setDate(d.getDate()+n-1);
+    const isFuture = d>=today;
+    const isSoon = isFuture && (d-today)/86400000 <= 30;
+    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}日記念日</td><td>${fmtDate(d)}</td><td>${d<today?'✅ 経過済み':(isSoon?'🎉 まもなく':'未来')}</td></tr>`;
+  }).join('');
+  document.getElementById('annivDaysTable').innerHTML = daysRows;
+
+  const yearRows = Array.from({length:15},(_,i)=>i+1).map(n=>{
+    const d = new Date(base); d.setFullYear(d.getFullYear()+n);
+    const isFuture = d>=today;
+    const isSoon = isFuture && (d-today)/86400000 <= 30;
+    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}周年記念日</td><td>${fmtDate(d)}</td><td>${d<today?'✅ 経過済み':(isSoon?'🎉 まもなく':'未来')}</td></tr>`;
+  }).join('');
+  document.getElementById('annivYearsTable').innerHTML = yearRows;
+}
+function calcAnnivCustom(){
+  const val = document.getElementById('annivDate').value;
+  const out = document.getElementById('annivCustomResult');
+  if(!val){ out.textContent='先に基準日を入力してください。'; return; }
+  const base = new Date(val+'T00:00:00');
+  const type = document.getElementById('annivCustomType').value;
+  const num = parseInt(document.getElementById('annivCustomVal').value)||0;
+  const d = new Date(base);
+  if(type==='days') d.setDate(d.getDate()+num-1);
+  else d.setFullYear(d.getFullYear()+num);
+  out.textContent = `${type==='days'?num+'日記念日':num+'周年記念日'} ＝ ${fmtDate(d)}`;
+}
+
+/* =========================================================
+   年齢計算
+========================================================= */
+function calcAge(){
+  const val = document.getElementById('ageDob').value;
+  if(!val) return;
+  const dob = new Date(val+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  let age = today.getFullYear() - dob.getFullYear();
+  const hasHadBirthday = (today.getMonth()>dob.getMonth()) || (today.getMonth()===dob.getMonth() && today.getDate()>=dob.getDate());
+  if(!hasHadBirthday) age--;
+
+  let nextBday = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+  if(nextBday < today) nextBday.setFullYear(nextBday.getFullYear()+1);
+  const daysToNext = Math.round((nextBday-today)/86400000);
+
+  const kazoedoshi = today.getFullYear() - dob.getFullYear() + 1;
+
+  document.getElementById('ageResult').style.display='block';
+  document.getElementById('ageResult').innerHTML = `
+    満年齢：<span class="big-result">${age}</span> 歳<br>
+    数え年：<b>${kazoedoshi}</b> 歳<br>
+    次の誕生日：<b>${fmtDate(nextBday)}</b>（あと ${daysToNext} 日）
+  `;
+}
+
+/* =========================================================
+   BMI計算
+========================================================= */
+function calcBmi(){
+  const h = parseFloat(document.getElementById('bmiHeight').value)/100;
+  const w = parseFloat(document.getElementById('bmiWeight').value);
+  if(!h || !w){ return; }
+  const bmi = w/(h*h);
+  const std = 22*h*h;
+  let judge='標準';
+  if(bmi<18.5) judge='低体重（やせ型）';
+  else if(bmi>=25 && bmi<30) judge='肥満（1度）';
+  else if(bmi>=30 && bmi<35) judge='肥満（2度）';
+  else if(bmi>=35) judge='肥満（3度以上）';
+  document.getElementById('bmiResult').style.display='block';
+  document.getElementById('bmiResult').innerHTML = `
+    BMI：<span class="big-result">${bmi.toFixed(1)}</span>（${judge}）<br>
+    標準体重（BMI22）：<b>${std.toFixed(1)} kg</b>
+  `;
+}
+
+/* =========================================================
+   単位換算
+========================================================= */
+const UNIT_DATA = {
+  length:{ mm:0.001, cm:0.01, m:1, km:1000, inch:0.0254, feet:0.3048, yard:0.9144, mile:1609.344, ri:3927.27 },
+  weight:{ mg:0.001, g:1, kg:1000, t:1000000, oz:28.3495, lb:453.592, kan:3750 },
+};
+function buildUnitOptions(){
+  const cat = document.getElementById('unitCategory').value;
+  const from = document.getElementById('unitFrom');
+  const to = document.getElementById('unitTo');
+  if(cat==='temp'){
+    from.innerHTML = to.innerHTML = ['C','F','K'].map(u=>`<option value="${u}">${u==='C'?'摂氏(°C)':u==='F'?'華氏(°F)':'ケルビン(K)'}</option>`).join('');
+    to.value='F';
+  } else {
+    const units = Object.keys(UNIT_DATA[cat]);
+    from.innerHTML = to.innerHTML = units.map(u=>`<option value="${u}">${u}</option>`).join('');
+    to.selectedIndex = 1;
+  }
+  calcUnit();
+}
+function calcUnit(){
+  const cat = document.getElementById('unitCategory').value;
+  const val = parseFloat(document.getElementById('unitInput').value);
+  const from = document.getElementById('unitFrom').value;
+  const to = document.getElementById('unitTo').value;
+  const out = document.getElementById('unitResult');
+  if(isNaN(val)){ out.textContent='-'; return; }
+  let result;
+  if(cat==='temp'){
+    let c;
+    if(from==='C') c=val; else if(from==='F') c=(val-32)*5/9; else c=val-273.15;
+    if(to==='C') result=c; else if(to==='F') result=c*9/5+32; else result=c+273.15;
+  } else {
+    const base = val * UNIT_DATA[cat][from];
+    result = base / UNIT_DATA[cat][to];
+  }
+  out.textContent = (Math.round(result*100000)/100000) + ' ' + to;
+}
+buildUnitOptions();
+
+/* =========================================================
+   カラーコード変換
+========================================================= */
+function colorUpdateAll(hex){
+  hex = hex.replace('#','');
+  if(hex.length!==6) return;
+  const r=parseInt(hex.substr(0,2),16), g=parseInt(hex.substr(2,2),16), b=parseInt(hex.substr(4,2),16);
+  document.getElementById('colorPicker').value='#'+hex;
+  document.getElementById('colorHex').value='#'+hex;
+  document.getElementById('colorR').value=r;
+  document.getElementById('colorG').value=g;
+  document.getElementById('colorB').value=b;
+  document.getElementById('colorSwatch').style.background='#'+hex;
+
+  const rN=r/255, gN=g/255, bN=b/255;
+  const max=Math.max(rN,gN,bN), min=Math.min(rN,gN,bN);
+  let h,s,l=(max+min)/2;
+  if(max===min){h=s=0;}
+  else{
+    const d=max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case rN: h=(gN-bN)/d+(gN<bN?6:0); break;
+      case gN: h=(bN-rN)/d+2; break;
+      case bN: h=(rN-gN)/d+4; break;
+    }
+    h/=6;
+  }
+  document.getElementById('colorHsl').textContent = `hsl(${Math.round(h*360)}, ${Math.round(s*100)}%, ${Math.round(l*100)}%)`;
+}
+function colorFromPicker(){ colorUpdateAll(document.getElementById('colorPicker').value); }
+function colorFromHex(){
+  let v = document.getElementById('colorHex').value.trim();
+  if(/^#?[0-9A-Fa-f]{6}$/.test(v)) colorUpdateAll(v.startsWith('#')?v:'#'+v);
+}
+function colorFromRgb(){
+  const r=Math.min(255,Math.max(0,parseInt(document.getElementById('colorR').value)||0));
+  const g=Math.min(255,Math.max(0,parseInt(document.getElementById('colorG').value)||0));
+  const b=Math.min(255,Math.max(0,parseInt(document.getElementById('colorB').value)||0));
+  const hex = '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+  colorUpdateAll(hex);
+}
+colorUpdateAll('#0078D4');
+
+/* =========================================================
+   Base64
+========================================================= */
+function b64Encode(){
+  try{
+    const input = document.getElementById('b64Input').value;
+    document.getElementById('b64Output').value = btoa(unescape(encodeURIComponent(input)));
+  }catch(e){ document.getElementById('b64Output').value = 'エンコードに失敗しました'; }
+}
+function b64Decode(){
+  try{
+    const input = document.getElementById('b64Input').value;
+    document.getElementById('b64Output').value = decodeURIComponent(escape(atob(input)));
+  }catch(e){ document.getElementById('b64Output').value = 'デコードに失敗しました（正しいBase64か確認してください）'; }
+}
+
+/* =========================================================
+   文字ケース変換
+========================================================= */
+function caseConvert(type){
+  const el = document.getElementById('caseInput');
+  let t = el.value;
+  switch(type){
+    case 'upper': t=t.toUpperCase(); break;
+    case 'lower': t=t.toLowerCase(); break;
+    case 'title': t=t.replace(/\w\S*/g, w=>w[0].toUpperCase()+w.slice(1).toLowerCase()); break;
+    case 'sentence': t=t.charAt(0).toUpperCase()+t.slice(1); break;
+    case 'reverse': t=[...t].reverse().join(''); break;
+    case 'trim': t=t.trim().replace(/\s+/g,' '); break;
+  }
+  el.value=t;
+}
+
+/* =========================================================
+   タイマー / ストップウォッチ
+========================================================= */
+let timerInterval=null, timerRemaining=300;
+function timerFmt(sec){
+  sec=Math.max(0,sec);
+  const m=Math.floor(sec/60), s=sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function timerStart(){
+  if(timerInterval) return;
+  if(timerRemaining<=0 || timerRemaining===300 && document.getElementById('timerDisplay').textContent==='05:00'){
+    const m=parseInt(document.getElementById('timerMin').value)||0;
+    const s=parseInt(document.getElementById('timerSec').value)||0;
+    timerRemaining = m*60+s;
+  }
+  timerInterval = setInterval(()=>{
+    timerRemaining--;
+    document.getElementById('timerDisplay').textContent = timerFmt(timerRemaining);
+    if(timerRemaining<=0){
+      clearInterval(timerInterval); timerInterval=null;
+      document.getElementById('timerDisplay').textContent = '⏰ 終了！';
+      try{
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const o=ctx.createOscillator(); o.connect(ctx.destination); o.frequency.value=880; o.start(); setTimeout(()=>o.stop(),400);
+      }catch(e){}
+    }
+  },1000);
+}
+function timerPause(){ if(timerInterval){ clearInterval(timerInterval); timerInterval=null; } }
+function timerReset(){
+  timerPause();
+  const m=parseInt(document.getElementById('timerMin').value)||0;
+  const s=parseInt(document.getElementById('timerSec').value)||0;
+  timerRemaining=m*60+s;
+  document.getElementById('timerDisplay').textContent = timerFmt(timerRemaining);
+}
+
+let swInterval=null, swStartTime=0, swElapsed=0, swLapCount=0;
+function swFmt(ms){
+  const total=Math.floor(ms/10);
+  const cs=total%100, s=Math.floor(total/100)%60, m=Math.floor(total/6000);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(cs).padStart(2,'0');
+}
+function swStart(){
+  if(swInterval) return;
+  swStartTime = Date.now()-swElapsed;
+  swInterval = setInterval(()=>{
+    swElapsed = Date.now()-swStartTime;
+    document.getElementById('swDisplay').textContent = swFmt(swElapsed);
+  },30);
+}
+function swLap(){
+  if(!swInterval) return;
+  swLapCount++;
+  const div=document.getElementById('lapList');
+  const row=document.createElement('div');
+  row.textContent = `ラップ ${swLapCount}：${swFmt(swElapsed)}`;
+  div.prepend(row);
+}
+function swReset(){
+  if(swInterval){ clearInterval(swInterval); swInterval=null; }
+  swElapsed=0; swLapCount=0;
+  document.getElementById('swDisplay').textContent='00:00.00';
+  document.getElementById('lapList').innerHTML='';
+}
+
+/* =========================================================
+   Unix時間変換
+========================================================= */
+function unixToDate(){
+  const v = parseInt(document.getElementById('unixInput').value);
+  const out = document.getElementById('unixOutDate');
+  if(isNaN(v)){ out.textContent='日時：-'; return; }
+  const d = new Date(v*1000);
+  out.textContent = '日時：' + d.toLocaleString('ja-JP');
+}
+function dateToUnix(){
+  const v = document.getElementById('unixDateInput').value;
+  const out = document.getElementById('unixOutStamp');
+  if(!v){ out.textContent='Unixタイムスタンプ：-'; return; }
+  const t = Math.floor(new Date(v).getTime()/1000);
+  out.textContent = 'Unixタイムスタンプ：' + t;
+}
+function setUnixNow(){
+  document.getElementById('unixInput').value = Math.floor(Date.now()/1000);
+  unixToDate();
+}
+
+/* =========================================================
+   日付差・曜日計算
+========================================================= */
+function calcDateDiff(){
+  const v1=document.getElementById('diffDate1').value;
+  const v2=document.getElementById('diffDate2').value;
+  const out=document.getElementById('diffResult');
+  if(!v1){ return; }
+  const d1=new Date(v1+'T00:00:00');
+  const wd = ['日','月','火','水','木','金','土'][d1.getDay()];
+  let html = `${v1} は <b>${wd}曜日</b> です。<br>`;
+  if(v2){
+    const d2=new Date(v2+'T00:00:00');
+    const diffDays = Math.round((d2-d1)/86400000);
+    const wd2 = ['日','月','火','水','木','金','土'][d2.getDay()];
+    html += `${v2} は <b>${wd2}曜日</b> です。<br>2つの日付の差：<span class="big-result">${Math.abs(diffDays)}</span> 日（${Math.abs(Math.round(diffDays/7))}週間）`;
+  }
+  out.style.display='block';
+  out.innerHTML = html;
+}
+
+/* =========================================================
+   QRコード生成
+========================================================= */
+function genQr(){
+  const text = document.getElementById('qrInput').value.trim();
+  if(!text) return;
+  const url = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(text);
+  document.getElementById('qrImg').src = url;
+  document.getElementById('qrDownload').href = url;
+  document.getElementById('qrResultWrap').style.display='block';
+}
+
+/* =========================================================
+   乱数生成
+========================================================= */
+function genRand(){
+  const min = parseInt(document.getElementById('randMin').value);
+  const max = parseInt(document.getElementById('randMax').value);
+  const count = Math.max(1, Math.min(100, parseInt(document.getElementById('randCount').value)||1));
+  const unique = document.getElementById('randUnique').checked;
+  const out = document.getElementById('randResult');
+  if(isNaN(min)||isNaN(max)||min>max){ out.style.display='block'; out.textContent='最小値と最大値を正しく入力してください。'; return; }
+
+  const range = max-min+1;
+  if(unique && count>range){ out.style.display='block'; out.textContent='重複なしの場合、個数が範囲より多くなっています。'; return; }
+
+  let results=[];
+  if(unique){
+    const pool = Array.from({length:range},(_,i)=>i+min);
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    results = pool.slice(0,count);
+  } else {
+    for(let i=0;i<count;i++) results.push(Math.floor(Math.random()*range)+min);
+  }
+  out.style.display='block';
+  out.innerHTML = `結果：<span class="big-result">${results.join(', ')}</span>`;
+}
+
+/* =========================================================
+   パーセント計算
+========================================================= */
+function pctCalc1(){
+  const a=parseFloat(document.getElementById('pctA1').value);
+  const b=parseFloat(document.getElementById('pctB1').value);
+  const out=document.getElementById('pctResult1');
+  if(isNaN(a)||isNaN(b)||b===0){ out.textContent='結果：-'; return; }
+  out.textContent = `結果：${a} は ${b} の ${(a/b*100).toFixed(2)} % です`;
+}
+function pctCalc2(){
+  const b=parseFloat(document.getElementById('pctB2').value);
+  const a=parseFloat(document.getElementById('pctA2').value);
+  const out=document.getElementById('pctResult2');
+  if(isNaN(a)||isNaN(b)){ out.textContent='結果：-'; return; }
+  out.textContent = `結果：${b} の ${a}% は ${(b*a/100).toFixed(2)} です`;
+}
+function pctCalc3(){
+  const a=parseFloat(document.getElementById('pctA3').value);
+  const b=parseFloat(document.getElementById('pctB3').value);
+  const out=document.getElementById('pctResult3');
+  if(isNaN(a)||isNaN(b)||a===0){ out.textContent='結果：-'; return; }
+  const rate=(b-a)/a*100;
+  out.textContent = `結果：${rate>=0?'+':''}${rate.toFixed(2)} % （${rate>=0?'増加':'減少'}）`;
+}
+
+/* デフォルト日付をセット */
+document.getElementById('annivDate').valueAsDate = new Date();
+document.getElementById('ageDob').valueAsDate = new Date(1995,0,1);
+document.getElementById('diffDate1').valueAsDate = new Date();
+</script>
+</body>
+</html>
