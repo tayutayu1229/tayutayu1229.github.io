@@ -1,665 +1,905 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>べんりツール集</title>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="auth_guard.js"></script>
-<style>
-  :root{
-    --accent:#0078D4;
-    --accent-dark:#005A9E;
-    --bg:#F3F3F3;
-    --surface:#FFFFFF;
-    --border:#E1E1E1;
-    --text:#1B1B1B;
-    --text-sub:#616161;
-    --radius:2px;
-    --tile-bg:#FAFAFA;
-    --tile-border:#D6D6D6;
-    --tile-hover:#F0F0F0;
-  }
-  *{box-sizing:border-box;}
-  html,body{
-    margin:0;padding:0;background:var(--bg);color:var(--text);
-    font-family:"Yu Gothic UI","Segoe UI","Meiryo UI",sans-serif;
-    height:100%;
-    -webkit-font-smoothing:antialiased;
-  }
-  #app{display:flex;flex-direction:column;min-height:100vh;}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>便利ツール集 - 東京圏輸送情報システム</title>
+    <style>
+        :root {
+            --bg: #f3f3f3;
+            --surface: #ffffff;
+            --border: #e1e1e1;
+            --border2: #c8c8c8;
+            --text: #1b1b1b;
+            --text2: #3a3a3a;
+            --text3: #5f6368;
+            --text4: #8a8a8a;
 
-  /* ===== Header ===== */
-  header{
-    background:var(--surface);
-    border-bottom:1px solid var(--border);
-    display:flex;align-items:center;gap:12px;
-    padding:0 16px;
-    height:52px;
-    flex-shrink:0;
-    position:sticky;top:0;z-index:50;
-  }
-  #homeLink{
-    display:flex;align-items:center;gap:6px;
-    text-decoration:none;color:var(--text);
-    background:var(--bg);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:6px 12px;
-    font-size:13px;
-    transition:background .12s;
-  }
-  #homeLink:hover{background:#E7E7E7;}
-  #appTitle{font-size:16px;font-weight:600;flex:1;}
-  #backToGrid{
-    display:none;
-    align-items:center;gap:6px;
-    background:transparent;border:1px solid var(--border);
-    border-radius:var(--radius);padding:6px 12px;font-size:13px;
-    color:var(--text);cursor:pointer;
-  }
-  #backToGrid:hover{background:#E7E7E7;}
-  #backToGrid.show{display:flex;}
+            --green: #0a5c2e;
+            --green2: #0a7a3d;
+            --green3: #0a9448;
+            --green-lt: #e9f7ee;
 
-  /* ===== Layout ===== */
-  main{flex:1;padding:20px;max-width:1200px;margin:0 auto;width:100%;}
+            --blue: #0067b8;
+            --blue2: #005a9e;
+            --blue-lt: #eef4fb;
 
-  /* ===== Home grid ===== */
-  #homeView h2{font-weight:500;font-size:20px;margin:4px 0 16px 2px;color:var(--text);}
-  .tile-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
-    gap:10px;
-  }
-  .tile{
-    aspect-ratio:1/1;
-    border:1px solid var(--tile-border);
-    border-radius:var(--radius);
-    background:var(--tile-bg);
-    color:var(--text);
-    display:flex;flex-direction:column;justify-content:flex-end;
-    padding:10px;
-    cursor:pointer;
-    font-family:inherit;
-    font-size:13px;
-    text-align:left;
-    line-height:1.35;
-    transition:background .1s, border-color .1s;
-    position:relative;
-    overflow:hidden;
-  }
-  .tile:hover{background:var(--tile-hover);border-color:var(--accent);}
-  .tile:active{background:#E5E5E5;}
-  .tile .icon{font-size:24px;position:absolute;top:10px;left:10px;opacity:.85;filter:grayscale(1);}
-  .tile .label{font-weight:600;}
+            --red: #b3261e;
+            --red-lt: #fdecea;
+        }
 
-  /* ===== Tool panel ===== */
-  .panel{
-    display:none;
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:20px 24px 24px;
-    max-width:820px;
-  }
-  .panel.active{display:block;}
-  .panel h2{
-    margin:0 0 4px;font-size:19px;font-weight:600;
-    display:flex;align-items:center;gap:10px;
-  }
-  .panel h2 .ic{font-size:22px;}
-  .panel .desc{color:var(--text-sub);font-size:13px;margin:0 0 18px;}
-  .panel h3{font-size:14px;font-weight:600;margin:22px 0 10px;color:var(--text);border-left:4px solid var(--accent);padding-left:8px;}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ===== Form controls ===== */
-  label{font-size:13px;color:var(--text-sub);display:block;margin-bottom:4px;}
-  input[type=text],input[type=number],input[type=date],input[type=datetime-local],textarea,select{
-    font-family:inherit;font-size:14px;
-    border:1px solid #C8C6C4;border-radius:var(--radius);
-    padding:8px 10px;background:#fff;color:var(--text);width:100%;
-    outline:none;
-  }
-  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
-  textarea{resize:vertical;min-height:90px;font-family:inherit;}
-  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
-  .row > div{flex:1;min-width:120px;}
-  .field-inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);}
-  .btn{
-    background:var(--accent);color:#fff;border:none;border-radius:var(--radius);
-    padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit;
-    transition:background .12s;
-  }
-  .btn:hover{background:var(--accent-dark);}
-  .btn.secondary{background:#fff;color:var(--text);border:1px solid #C8C6C4;}
-  .btn.secondary:hover{background:#F3F3F3;}
-  .btn.small{padding:5px 10px;font-size:12px;}
-  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
-  .checks{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0;}
-  .result-box{
-    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
-    padding:14px 16px;margin-top:14px;font-size:14px;
-  }
-  .big-result{font-size:26px;font-weight:600;color:var(--accent);word-break:break-all;}
-  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
-  th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;}
-  th{background:var(--bg);font-weight:600;}
-  tr.hl{background:#E5F1FB;}
-  tr.past{color:var(--text-sub);}
-  .hint{font-size:12px;color:var(--text-sub);margin-top:4px;}
-  .pw-item{
-    display:flex;align-items:center;gap:8px;
-    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
-    padding:8px 10px;margin-bottom:6px;font-family:Consolas,monospace;font-size:14px;
-  }
-  .pw-item span{flex:1;word-break:break-all;}
-  .copied-msg{color:var(--tile-green);font-size:12px;margin-left:6px;}
+        html, body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+            font-size: 14px;
+            min-height: 100vh;
+        }
 
-  /* Calculator */
-  #calcDisplay{
-    background:#1B1B1B;color:#fff;text-align:right;
-    font-size:34px;padding:16px;border-radius:var(--radius);
-    margin-bottom:10px;word-break:break-all;min-height:1.4em;
-  }
-  #calcSub{color:#9E9E9E;font-size:14px;text-align:right;min-height:1.2em;}
-  .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-  .calc-grid button{
-    padding:16px 0;font-size:18px;border:none;border-radius:var(--radius);
-    background:#F3F3F3;cursor:pointer;color:var(--text);
-  }
-  .calc-grid button:hover{background:#E1E1E1;}
-  .calc-grid button.op{background:var(--accent);color:#fff;}
-  .calc-grid button.op:hover{background:var(--accent-dark);}
-  .calc-grid button.eq{background:var(--tile-green);color:#fff;grid-row:span 2;}
-  .calc-grid button.func{background:#E1E1E1;}
+        /* ===== ヘッダー（他ページと共通のデザイン） ===== */
+        #header {
+            background: var(--green);
+            border-bottom: 3px solid var(--green3);
+            padding: 0 24px;
+            height: 62px;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .sys-title-block { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .sys-mark {
+            width: 34px; height: 34px;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.35);
+            color: #fff; font-weight: 900; font-size: 0.85em;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .sys-title { color: #fff; font-size: 1.1rem; font-weight: 900; letter-spacing: 0.04em; }
+        .sys-sub { color: rgba(255,255,255,0.65); font-size: 0.68rem; margin-top: 1px; letter-spacing: 0.03em; }
 
-  /* color tool */
-  #colorSwatch{width:100%;height:70px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px;}
+        /* サイト共通の「メインメニューへ戻る」ボタン。位置・見た目を全ページで統一することで誤操作を防ぐ */
+        .back-button {
+            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.4);
+            color: #fff;
+            padding: 8px 16px;
+            font-size: 0.82rem; font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 6px;
+            transition: background-color 0.15s;
+            flex-shrink: 0;
+        }
+        .back-button:hover { background: rgba(255,255,255,0.22); }
 
-  /* stopwatch */
-  #swDisplay,#timerDisplay{font-size:40px;font-weight:600;text-align:center;padding:14px 0;color:var(--accent);}
-  #lapList{max-height:160px;overflow-y:auto;font-size:13px;}
-  #lapList div{padding:4px 0;border-bottom:1px solid var(--border);}
+        /* ===== メイン ===== */
+        #main-content { display: none; }
+        .content-wrap {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
 
-  footer{text-align:center;color:var(--text-sub);font-size:12px;padding:24px;}
+        .search-row {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            padding: 10px 14px;
+            margin-bottom: 22px;
+        }
+        .search-row svg { flex-shrink: 0; color: var(--text4); }
+        .search-row input {
+            border: none; outline: none; background: none;
+            font-size: 0.95rem; width: 100%;
+            font-family: inherit; color: var(--text);
+        }
 
-  @media (max-width:600px){
-    .tile-grid{grid-template-columns:repeat(3,1fr);}
-    main{padding:12px;}
-    .panel{padding:16px;}
-  }
-</style>
+        .section-head {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .section-bar { width: 5px; height: 18px; background: var(--blue2); flex-shrink: 0; }
+        .section-title { font-size: 1rem; font-weight: 900; letter-spacing: 0.03em; }
+        .section-desc { font-size: 0.75rem; color: var(--text4); margin-left: 2px; }
+
+        /* ===== ツール一覧（ホーム画面） ===== */
+        .tool-links ul {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 10px;
+            list-style: none;
+        }
+        .tool-links button.tool-card {
+            width: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-top: 4px solid var(--blue2);
+            color: var(--text);
+            text-decoration: none;
+            padding: 12px 14px;
+            font-weight: 700;
+            font-size: 0.88rem;
+            min-height: 60px;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.12s;
+        }
+        .tool-links button.tool-card:hover { background: #eef4fb; }
+        .tool-links button.tool-card:active { background: var(--border); }
+        .tool-mark {
+            width: 34px; height: 34px; flex-shrink: 0;
+            background: var(--blue-lt);
+            border: 1px solid var(--blue2);
+            color: var(--blue2);
+            font-weight: 900; font-size: 0.82rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .tool-card-desc { font-weight: 400; font-size: 0.72rem; color: var(--text4); margin-top: 2px; }
+        .ext-arrow { margin-left: auto; color: var(--text4); flex-shrink: 0; }
+
+        .empty-msg {
+            text-align: center; color: var(--text4);
+            padding: 26px; border: 1px dashed var(--border2);
+            font-size: 0.85rem;
+            grid-column: 1 / -1;
+        }
+
+        /* ===== ツールパネル ===== */
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .panel-surface {
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            padding: 22px 24px 26px;
+            max-width: 780px;
+        }
+        /* パネル内の「一覧へ戻る」。ヘッダーの戻るボタンとは色・位置・文言を変えて誤クリックを防止 */
+        .tool-back {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--bg);
+            border: 1px solid var(--border2);
+            color: var(--text2);
+            padding: 7px 14px;
+            font-size: 0.8rem; font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            margin-bottom: 16px;
+        }
+        .tool-back:hover { background: #e8e8e8; }
+
+        label { font-size: 0.78rem; color: var(--text3); display: block; margin-bottom: 4px; font-weight: 700; }
+        input[type=text], input[type=number], input[type=date], input[type=datetime-local], textarea, select {
+            font-family: inherit; font-size: 0.92rem;
+            border: 1px solid var(--border2);
+            padding: 8px 10px; background: #fff; color: var(--text); width: 100%;
+            outline: none;
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--blue2); box-shadow: 0 0 0 1px var(--blue2); }
+        textarea { resize: vertical; min-height: 90px; font-family: inherit; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .row > div { flex: 1; min-width: 130px; }
+        .field-inline { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text); font-weight: 400; }
+        .btn {
+            background: var(--blue2); color: #fff; border: none;
+            padding: 9px 18px; font-size: 0.88rem; cursor: pointer; font-family: inherit; font-weight: 700;
+            transition: background 0.12s;
+        }
+        .btn:hover { background: var(--blue); }
+        .btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border2); }
+        .btn.secondary:hover { background: var(--bg); }
+        .btn.small { padding: 6px 12px; font-size: 0.78rem; }
+        .btn.danger { background: var(--red); }
+        .btn.danger:hover { background: #931f19; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+        .checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0; }
+        .result-box {
+            background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--blue2);
+            padding: 14px 16px; margin-top: 14px; font-size: 0.9rem;
+        }
+        .note-box {
+            background: var(--green-lt); border: 1px solid #bfe4cd; border-left: 4px solid var(--green2);
+            padding: 10px 14px; margin: 12px 0; font-size: 0.8rem; color: var(--text2);
+        }
+        .big-result { font-size: 1.6rem; font-weight: 900; color: var(--blue2); word-break: break-all; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.82rem; }
+        th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+        th { background: var(--bg); font-weight: 700; }
+        tr.hl { background: #fff6da; }
+        tr.past { color: var(--text4); }
+        .hint { font-size: 0.78rem; color: var(--text3); margin-top: 6px; }
+        .pw-item {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--bg); border: 1px solid var(--border);
+            padding: 8px 10px; margin-bottom: 6px; font-family: Consolas, monospace; font-size: 0.9rem;
+        }
+        .pw-item span { flex: 1; word-break: break-all; }
+
+        /* 電卓 */
+        #calcDisplay {
+            background: #1b1b1b; color: #fff; text-align: right;
+            font-size: 2rem; padding: 16px; margin-bottom: 10px; word-break: break-all; min-height: 1.4em;
+        }
+        #calcSub { color: #9e9e9e; font-size: 0.85rem; text-align: right; min-height: 1.2em; }
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .calc-grid button {
+            padding: 16px 0; font-size: 1.05rem; border: 1px solid var(--border2); background: var(--bg); cursor: pointer; color: var(--text);
+            font-family: inherit;
+        }
+        .calc-grid button:hover { background: #e1e1e1; }
+        .calc-grid button.op { background: var(--blue2); color: #fff; border-color: var(--blue2); }
+        .calc-grid button.op:hover { background: var(--blue); }
+        .calc-grid button.eq { background: var(--green2); color: #fff; grid-row: span 2; border-color: var(--green2); }
+        .calc-grid button.eq:hover { background: var(--green3); }
+        .calc-grid button.func { background: #e6e6e6; }
+
+        /* カラー */
+        #colorSwatch { width: 100%; height: 64px; border: 1px solid var(--border2); margin-bottom: 12px; }
+
+        /* タイマー / ストップウォッチ */
+        #swDisplay, #timerDisplay { font-size: 2.4rem; font-weight: 900; text-align: center; padding: 12px 0; color: var(--blue2); font-variant-numeric: tabular-nums; }
+        #lapList { max-height: 180px; overflow-y: auto; font-size: 0.82rem; border: 1px solid var(--border); }
+        #lapList div { padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        #lapList div:last-child { border-bottom: none; }
+        #lapList div.best { color: var(--blue2); font-weight: 700; }
+        #lapList div.worst { color: var(--red); }
+        .sw-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+
+        footer { text-align: center; color: var(--text4); font-size: 0.75rem; padding: 24px; }
+
+        @media (max-width: 640px) {
+            #header { padding: 0 14px; height: 56px; }
+            .sys-title { font-size: 0.95rem; }
+            .back-button { padding: 7px 10px; font-size: 0.72rem; }
+            .content-wrap { padding: 16px 12px 50px; }
+            .tool-links ul { grid-template-columns: 1fr; }
+            .panel-surface { padding: 16px 14px 20px; max-width: 100%; }
+            .row > div { min-width: 100%; }
+            #calcDisplay { font-size: 1.6rem; }
+            #swDisplay, #timerDisplay { font-size: 1.9rem; }
+            input[type=text], input[type=number], input[type=date], input[type=datetime-local], textarea, select { font-size: 16px; }
+            table { font-size: 0.74rem; }
+            th, td { padding: 4px 6px; }
+        }
+    </style>
 </head>
 <body>
-<div id="main-content" style="display:none;">
-<div id="app">
-  <header>
-    <a id="homeLink" href="/toppage.html">🏠 ホーム</a>
-    <div id="appTitle">べんりツール集</div>
-    <button id="backToGrid" onclick="showGrid()">☰ ツール一覧</button>
-  </header>
+<div id="main-content">
 
-  <main>
-    <div id="homeView">
-      <h2>ツール一覧</h2>
-      <div class="tile-grid" id="tileGrid"></div>
+    <div id="header">
+        <div class="sys-title-block">
+            <div class="sys-mark">便</div>
+            <div>
+                <div class="sys-title">便利ツール集</div>
+                <div class="sys-sub">東京圏輸送情報システム</div>
+            </div>
+        </div>
+        <a href="toppage.html" class="back-button" id="headerBackBtn">← メインメニューへ戻る</a>
     </div>
 
-    <!-- ========== 電卓 ========== -->
-    <section class="panel" id="p-calc">
-      <h2><span class="ic">🧮</span>電卓</h2>
-      <p class="desc">キーボード入力にも対応しています（数字 / + - * / . / Enter / Backspace / Escape）</p>
-      <div id="calcDisplay">0</div>
-      <div id="calcSub">&nbsp;</div>
-      <div class="calc-grid">
-        <button class="func" onclick="calcClearAll()">C</button>
-        <button class="func" onclick="calcBackspace()">⌫</button>
-        <button class="func" onclick="calcPercent()">%</button>
-        <button class="op" onclick="calcOp('/')">÷</button>
+    <div class="content-wrap">
 
-        <button onclick="calcNum('7')">7</button>
-        <button onclick="calcNum('8')">8</button>
-        <button onclick="calcNum('9')">9</button>
-        <button class="op" onclick="calcOp('*')">×</button>
+        <!-- ========== ホーム（ツール一覧） ========== -->
+        <div id="homeView">
+            <div class="search-row">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <input type="text" id="toolSearch" placeholder="ツールを検索...">
+            </div>
 
-        <button onclick="calcNum('4')">4</button>
-        <button onclick="calcNum('5')">5</button>
-        <button onclick="calcNum('6')">6</button>
-        <button class="op" onclick="calcOp('-')">−</button>
+            <div class="section-head">
+                <div class="section-bar"></div>
+                <div class="section-title">ツール一覧</div>
+                <div class="section-desc">業務や日常で使えるツールをまとめています</div>
+            </div>
 
-        <button onclick="calcNum('1')">1</button>
-        <button onclick="calcNum('2')">2</button>
-        <button onclick="calcNum('3')">3</button>
-        <button class="op" onclick="calcOp('+')">＋</button>
-
-        <button onclick="calcSign()">±</button>
-        <button onclick="calcNum('0')">0</button>
-        <button onclick="calcNum('.')">.</button>
-        <button class="eq" onclick="calcEquals()">＝</button>
-      </div>
-    </section>
-
-    <!-- ========== パスワード生成 ========== -->
-    <section class="panel" id="p-pw">
-      <h2><span class="ic">🔐</span>パスワード生成</h2>
-      <p class="desc">条件を選んで安全なパスワードを生成します。</p>
-      <div class="row">
-        <div>
-          <label>文字数</label>
-          <input type="number" id="pwLength" value="12" min="4" max="128">
+            <div class="tool-links">
+                <ul id="toolList"></ul>
+            </div>
+            <div id="toolNoResult" class="empty-msg" style="display:none;">該当するツールが見つかりませんでした。</div>
         </div>
-        <div>
-          <label>生成する個数</label>
-          <input type="number" id="pwCount" value="5" min="1" max="50">
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn secondary small" onclick="setPwLen(8)">8文字</button>
-        <button class="btn secondary small" onclick="setPwLen(12)">12文字</button>
-        <button class="btn secondary small" onclick="setPwLen(16)">16文字</button>
-        <button class="btn secondary small" onclick="setPwLen(20)">20文字</button>
-      </div>
-      <h3>使用する文字の種類</h3>
-      <div class="checks">
-        <label class="field-inline"><input type="checkbox" id="pwUpper" checked> 大文字（A-Z）</label>
-        <label class="field-inline"><input type="checkbox" id="pwLower" checked> 小文字（a-z）</label>
-        <label class="field-inline"><input type="checkbox" id="pwNum" checked> 数字（0-9）</label>
-        <label class="field-inline"><input type="checkbox" id="pwSym"> 記号（!@#$%など）</label>
-      </div>
-      <div class="checks">
-        <label class="field-inline"><input type="checkbox" id="pwExcludeSimilar"> 似た文字を除外（l, I, 1, O, 0 など）</label>
-        <label class="field-inline"><input type="checkbox" id="pwExcludeAmbig"> 記号のうち紛らわしい物を除外（{}[]()/\'"~,;:.&lt;&gt;など）</label>
-      </div>
-      <div class="btn-row">
-        <button class="btn" onclick="generatePasswords()">生成する</button>
-      </div>
-      <div id="pwResults"></div>
-      <div class="btn-row" id="pwCopyAllRow" style="display:none;">
-        <button class="btn secondary small" onclick="copyAllPasswords()">すべてコピー</button>
-      </div>
-    </section>
 
-    <!-- ========== 文字数カウント ========== -->
-    <section class="panel" id="p-count">
-      <h2><span class="ic">🔤</span>文字数カウント</h2>
-      <p class="desc">入力した文章の文字数・行数・バイト数などをリアルタイムに集計します。</p>
-      <textarea id="cntText" rows="8" placeholder="ここに文章を入力してください"></textarea>
-      <div class="result-box">
-        <div class="row" style="margin-bottom:0;">
-          <div>文字数（改行含む）: <b id="cntAll">0</b></div>
-          <div>文字数（改行除く）: <b id="cntNoBreak">0</b></div>
-          <div>文字数（空白除く）: <b id="cntNoSpace">0</b></div>
-        </div>
-        <div class="row" style="margin-bottom:0;">
-          <div>単語数: <b id="cntWords">0</b></div>
-          <div>行数: <b id="cntLines">0</b></div>
-          <div>バイト数（UTF-8）: <b id="cntBytes">0</b></div>
-        </div>
-      </div>
-    </section>
+        <!-- ========== 電卓 ========== -->
+        <section class="panel" id="p-calc">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">電卓</div>
+                    <div class="section-desc">キーボード入力にも対応（数字 / + - * / . / Enter / Backspace / Esc / %）</div>
+                </div>
+                <div id="calcDisplay">0</div>
+                <div id="calcSub">&nbsp;</div>
+                <div class="calc-grid">
+                    <button class="func" onclick="calcClearAll()">C</button>
+                    <button class="func" onclick="calcBackspace()">⌫</button>
+                    <button class="func" onclick="calcPercent()">%</button>
+                    <button class="op" onclick="calcOp('/')">÷</button>
 
-    <!-- ========== 今何年 ========== -->
-    <section class="panel" id="p-year">
-      <h2><span class="ic">📅</span>今何年？</h2>
-      <p class="desc">今日の西暦・和暦・干支を一目で確認できます。</p>
-      <div class="result-box">
-        <div>今日の日付：<b id="yToday"></b></div>
-        <div>西暦：<b id="ySeireki"></b></div>
-        <div>和暦：<b id="yWareki"></b></div>
-        <div>干支：<b id="yEto"></b></div>
-      </div>
+                    <button onclick="calcNum('7')">7</button>
+                    <button onclick="calcNum('8')">8</button>
+                    <button onclick="calcNum('9')">9</button>
+                    <button class="op" onclick="calcOp('*')">×</button>
 
-      <h3>元号早見表</h3>
-      <table>
-        <tr><th>元号</th><th>期間</th><th>西暦→和暦の目安</th></tr>
-        <tbody id="yEraTable"></tbody>
-      </table>
+                    <button onclick="calcNum('4')">4</button>
+                    <button onclick="calcNum('5')">5</button>
+                    <button onclick="calcNum('6')">6</button>
+                    <button class="op" onclick="calcOp('-')">−</button>
 
-      <h3>干支早見表（12支）</h3>
-      <table>
-        <tr><th>干支</th><th>直近の該当年（西暦）</th></tr>
-        <tbody id="yEtoTable"></tbody>
-      </table>
+                    <button onclick="calcNum('1')">1</button>
+                    <button onclick="calcNum('2')">2</button>
+                    <button onclick="calcNum('3')">3</button>
+                    <button class="op" onclick="calcOp('+')">＋</button>
 
-      <h3>西暦・和暦 変換</h3>
-      <div class="row">
-        <div>
-          <label>西暦を入力</label>
-          <input type="number" id="yInputSeireki" placeholder="例: 2026">
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn secondary" onclick="convertSeirekiToWareki()">和暦に変換</button>
-        </div>
-      </div>
-      <div id="yConvResult" class="hint"></div>
-    </section>
+                    <button onclick="calcSign()">±</button>
+                    <button onclick="calcNum('0')">0</button>
+                    <button onclick="calcNum('.')">.</button>
+                    <button class="eq" onclick="calcEquals()">＝</button>
+                </div>
+            </div>
+        </section>
 
-    <!-- ========== 記念日計算 ========== -->
-    <section class="panel" id="p-anniv">
-      <h2><span class="ic">💝</span>記念日計算</h2>
-      <p class="desc">基準日を入力するだけで「〇日記念日」「〇周年記念日」を自動計算します。</p>
-      <div class="row">
-        <div>
-          <label>基準日</label>
-          <input type="date" id="annivDate">
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn" onclick="calcAnniv()">計算する</button>
-        </div>
-      </div>
-      <div id="annivToday" class="result-box" style="display:none;"></div>
+        <!-- ========== パスワード生成 ========== -->
+        <section class="panel" id="p-pw">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">パスワード生成</div>
+                    <div class="section-desc">条件を選んで安全なパスワードを生成します</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>文字数</label>
+                        <input type="number" id="pwLength" value="12" min="4" max="128">
+                    </div>
+                    <div>
+                        <label>生成する個数</label>
+                        <input type="number" id="pwCount" value="5" min="1" max="50">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn secondary small" onclick="setPwLen(8)">8文字</button>
+                    <button class="btn secondary small" onclick="setPwLen(12)">12文字</button>
+                    <button class="btn secondary small" onclick="setPwLen(16)">16文字</button>
+                    <button class="btn secondary small" onclick="setPwLen(20)">20文字</button>
+                </div>
+                <label style="margin-top:6px;">使用する文字の種類</label>
+                <div class="checks">
+                    <label class="field-inline"><input type="checkbox" id="pwUpper" checked> 大文字（A-Z）</label>
+                    <label class="field-inline"><input type="checkbox" id="pwLower" checked> 小文字（a-z）</label>
+                    <label class="field-inline"><input type="checkbox" id="pwNum" checked> 数字（0-9）</label>
+                    <label class="field-inline"><input type="checkbox" id="pwSym"> 記号（!@#$%など）</label>
+                </div>
+                <div class="checks">
+                    <label class="field-inline"><input type="checkbox" id="pwExcludeSimilar"> 似た文字を除外（l, I, 1, O, 0 など）</label>
+                    <label class="field-inline"><input type="checkbox" id="pwExcludeAmbig"> 紛らわしい記号を除外（ {}[]()/\'"~,;:.&lt;&gt; など）</label>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" onclick="generatePasswords()">生成する</button>
+                </div>
+                <div id="pwResults"></div>
+                <div class="btn-row" id="pwCopyAllRow" style="display:none;">
+                    <button class="btn secondary small" onclick="copyAllPasswords()">すべてコピー</button>
+                </div>
+            </div>
+        </section>
 
-      <h3>〇日記念日</h3>
-      <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivDaysTable"></tbody></table>
+        <!-- ========== 文字数カウント ========== -->
+        <section class="panel" id="p-count">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">文字数カウント</div>
+                    <div class="section-desc">入力した文章の文字数・行数・バイト数などをリアルタイム集計</div>
+                </div>
+                <textarea id="cntText" rows="8" placeholder="ここに文章を入力してください"></textarea>
+                <div class="result-box">
+                    <div class="row" style="margin-bottom:0;">
+                        <div>文字数（改行含む）: <b id="cntAll">0</b></div>
+                        <div>文字数（改行除く）: <b id="cntNoBreak">0</b></div>
+                        <div>文字数（空白除く）: <b id="cntNoSpace">0</b></div>
+                    </div>
+                    <div class="row" style="margin-bottom:0;">
+                        <div>単語数: <b id="cntWords">0</b></div>
+                        <div>行数: <b id="cntLines">0</b></div>
+                        <div>バイト数（UTF-8）: <b id="cntBytes">0</b></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-      <h3>〇周年記念日</h3>
-      <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivYearsTable"></tbody></table>
+        <!-- ========== 今何年 ========== -->
+        <section class="panel" id="p-year">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">今何年？</div>
+                    <div class="section-desc">今日の西暦・和暦・干支を一目で確認</div>
+                </div>
+                <div class="result-box">
+                    <div>今日の日付：<b id="yToday"></b></div>
+                    <div>西暦：<b id="ySeireki"></b></div>
+                    <div>和暦：<b id="yWareki"></b></div>
+                    <div>干支：<b id="yEto"></b></div>
+                </div>
 
-      <h3>カスタム記念日</h3>
-      <div class="row">
-        <div>
-          <label>種類</label>
-          <select id="annivCustomType">
-            <option value="days">〇日記念日</option>
-            <option value="years">〇周年記念日</option>
-          </select>
-        </div>
-        <div>
-          <label>数値</label>
-          <input type="number" id="annivCustomVal" value="365" min="1">
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn secondary" onclick="calcAnnivCustom()">計算</button>
-        </div>
-      </div>
-      <div id="annivCustomResult" class="hint"></div>
-    </section>
+                <div class="section-head" style="margin-top:22px;">
+                    <div class="section-bar"></div>
+                    <div class="section-title" style="font-size:0.9rem;">元号早見表</div>
+                </div>
+                <table>
+                    <tr><th>元号</th><th>期間（西暦）</th><th>換算式</th></tr>
+                    <tbody id="yEraTable"></tbody>
+                </table>
 
-    <!-- ========== 年齢計算 ========== -->
-    <section class="panel" id="p-age">
-      <h2><span class="ic">🎂</span>年齢計算</h2>
-      <p class="desc">生年月日から満年齢・数え年・次の誕生日までの日数を計算します。</p>
-      <div class="row">
-        <div>
-          <label>生年月日</label>
-          <input type="date" id="ageDob">
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn" onclick="calcAge()">計算する</button>
-        </div>
-      </div>
-      <div id="ageResult" class="result-box" style="display:none;"></div>
-    </section>
+                <div class="section-head" style="margin-top:22px;">
+                    <div class="section-bar"></div>
+                    <div class="section-title" style="font-size:0.9rem;">干支早見表（12支）</div>
+                </div>
+                <table>
+                    <tr><th>干支</th><th>直近の該当年（西暦）</th></tr>
+                    <tbody id="yEtoTable"></tbody>
+                </table>
 
-    <!-- ========== BMI計算 ========== -->
-    <section class="panel" id="p-bmi">
-      <h2><span class="ic">⚖️</span>BMI計算</h2>
-      <p class="desc">身長・体重からBMIと標準体重を計算します。</p>
-      <div class="row">
-        <div>
-          <label>身長（cm）</label>
-          <input type="number" id="bmiHeight" placeholder="例: 170">
-        </div>
-        <div>
-          <label>体重（kg）</label>
-          <input type="number" id="bmiWeight" placeholder="例: 60">
-        </div>
-      </div>
-      <button class="btn" onclick="calcBmi()">計算する</button>
-      <div id="bmiResult" class="result-box" style="display:none;"></div>
-    </section>
+                <div class="section-head" style="margin-top:22px;">
+                    <div class="section-bar"></div>
+                    <div class="section-title" style="font-size:0.9rem;">西暦 → 和暦 変換</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>西暦を入力</label>
+                        <input type="number" id="yInputSeireki" placeholder="例: 2026">
+                    </div>
+                    <div style="align-self:flex-end;">
+                        <button class="btn secondary" onclick="convertSeirekiToWareki()">和暦に変換</button>
+                    </div>
+                </div>
+                <div id="yConvResult" class="hint"></div>
+            </div>
+        </section>
 
-    <!-- ========== 単位換算 ========== -->
-    <section class="panel" id="p-unit">
-      <h2><span class="ic">📏</span>単位換算</h2>
-      <p class="desc">長さ・重さ・温度の単位を換算します。</p>
-      <div class="row">
-        <div>
-          <label>種類</label>
-          <select id="unitCategory" onchange="buildUnitOptions()">
-            <option value="length">長さ</option>
-            <option value="weight">重さ</option>
-            <option value="temp">温度</option>
-          </select>
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>変換前</label>
-          <input type="number" id="unitInput" value="1" oninput="calcUnit()">
-        </div>
-        <div>
-          <label>単位（変換前）</label>
-          <select id="unitFrom" onchange="calcUnit()"></select>
-        </div>
-        <div>
-          <label>単位（変換後）</label>
-          <select id="unitTo" onchange="calcUnit()"></select>
-        </div>
-      </div>
-      <div class="result-box">
-        結果：<span class="big-result" id="unitResult">-</span>
-      </div>
-    </section>
+        <!-- ========== 記念日計算 ========== -->
+        <section class="panel" id="p-anniv">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">記念日計算</div>
+                    <div class="section-desc">基準日を入力するだけで「〇日記念日」「〇周年記念日」を自動計算</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>基準日</label>
+                        <input type="date" id="annivDate">
+                    </div>
+                    <div style="align-self:flex-end;">
+                        <button class="btn" onclick="calcAnniv()">計算する</button>
+                    </div>
+                </div>
+                <div id="annivToday" class="result-box" style="display:none;"></div>
 
-    <!-- ========== カラーコード変換 ========== -->
-    <section class="panel" id="p-color">
-      <h2><span class="ic">🎨</span>カラーコード変換</h2>
-      <p class="desc">HEX・RGB・HSLを相互変換します。</p>
-      <input type="color" id="colorPicker" value="#0078D4" onchange="colorFromPicker()" style="width:100%;height:44px;margin-bottom:10px;">
-      <div id="colorSwatch"></div>
-      <div class="row">
-        <div>
-          <label>HEX</label>
-          <input type="text" id="colorHex" placeholder="#0078D4" oninput="colorFromHex()">
-        </div>
-      </div>
-      <div class="row">
-        <div><label>R</label><input type="number" id="colorR" min="0" max="255" oninput="colorFromRgb()"></div>
-        <div><label>G</label><input type="number" id="colorG" min="0" max="255" oninput="colorFromRgb()"></div>
-        <div><label>B</label><input type="number" id="colorB" min="0" max="255" oninput="colorFromRgb()"></div>
-      </div>
-      <div class="hint">HSL：<span id="colorHsl">-</span></div>
-    </section>
+                <div class="section-head" style="margin-top:20px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">〇日記念日</div></div>
+                <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivDaysTable"></tbody></table>
 
-    <!-- ========== Base64 ========== -->
-    <section class="panel" id="p-base64">
-      <h2><span class="ic">🔡</span>Base64 エンコード / デコード</h2>
-      <p class="desc">テキストとBase64を相互変換します。</p>
-      <textarea id="b64Input" rows="5" placeholder="ここに文字列を入力"></textarea>
-      <div class="btn-row">
-        <button class="btn" onclick="b64Encode()">エンコード ▶</button>
-        <button class="btn secondary" onclick="b64Decode()">◀ デコード</button>
-        <button class="btn secondary" onclick="copyText('b64Output')">結果をコピー</button>
-      </div>
-      <textarea id="b64Output" rows="5" placeholder="結果がここに表示されます"></textarea>
-    </section>
+                <div class="section-head" style="margin-top:20px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">〇周年記念日</div></div>
+                <table><tr><th>記念日</th><th>日付</th><th>状態</th></tr><tbody id="annivYearsTable"></tbody></table>
 
-    <!-- ========== 文字ケース変換 ========== -->
-    <section class="panel" id="p-case">
-      <h2><span class="ic">🔠</span>文字ケース変換</h2>
-      <p class="desc">大文字・小文字などへ一括変換します。</p>
-      <textarea id="caseInput" rows="6" placeholder="ここに文字列を入力"></textarea>
-      <div class="btn-row">
-        <button class="btn secondary small" onclick="caseConvert('upper')">大文字 (UPPER)</button>
-        <button class="btn secondary small" onclick="caseConvert('lower')">小文字 (lower)</button>
-        <button class="btn secondary small" onclick="caseConvert('title')">先頭大文字 (Title)</button>
-        <button class="btn secondary small" onclick="caseConvert('sentence')">文頭のみ大文字</button>
-        <button class="btn secondary small" onclick="caseConvert('reverse')">反転</button>
-        <button class="btn secondary small" onclick="caseConvert('trim')">前後の空白削除</button>
-        <button class="btn secondary small" onclick="copyText('caseInput')">コピー</button>
-      </div>
-    </section>
+                <div class="section-head" style="margin-top:20px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">カスタム記念日</div></div>
+                <div class="row">
+                    <div>
+                        <label>種類</label>
+                        <select id="annivCustomType">
+                            <option value="days">〇日記念日</option>
+                            <option value="years">〇周年記念日</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>数値</label>
+                        <input type="number" id="annivCustomVal" value="365" min="1">
+                    </div>
+                    <div style="align-self:flex-end;">
+                        <button class="btn secondary" onclick="calcAnnivCustom()">計算</button>
+                    </div>
+                </div>
+                <div id="annivCustomResult" class="hint"></div>
+            </div>
+        </section>
 
-    <!-- ========== タイマー / ストップウォッチ ========== -->
-    <section class="panel" id="p-timer">
-      <h2><span class="ic">⏱️</span>タイマー・ストップウォッチ</h2>
-      <p class="desc">カウントダウンタイマーとストップウォッチが使えます。</p>
-      <h3>カウントダウンタイマー</h3>
-      <div class="row">
-        <div><label>分</label><input type="number" id="timerMin" value="5" min="0"></div>
-        <div><label>秒</label><input type="number" id="timerSec" value="0" min="0" max="59"></div>
-      </div>
-      <div id="timerDisplay">05:00</div>
-      <div class="btn-row" style="justify-content:center;">
-        <button class="btn" onclick="timerStart()">開始</button>
-        <button class="btn secondary" onclick="timerPause()">一時停止</button>
-        <button class="btn secondary" onclick="timerReset()">リセット</button>
-      </div>
+        <!-- ========== 年齢計算 ========== -->
+        <section class="panel" id="p-age">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">年齢計算</div>
+                    <div class="section-desc">生年月日から満年齢・数え年・次の誕生日までの日数を計算</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>生年月日</label>
+                        <input type="date" id="ageDob">
+                    </div>
+                    <div style="align-self:flex-end;">
+                        <button class="btn" onclick="calcAge()">計算する</button>
+                    </div>
+                </div>
+                <div id="ageResult" class="result-box" style="display:none;"></div>
+            </div>
+        </section>
 
-      <h3>ストップウォッチ</h3>
-      <div id="swDisplay">00:00.00</div>
-      <div class="btn-row" style="justify-content:center;">
-        <button class="btn" onclick="swStart()">開始</button>
-        <button class="btn secondary" onclick="swLap()">ラップ</button>
-        <button class="btn secondary" onclick="swReset()">リセット</button>
-      </div>
-      <div id="lapList"></div>
-    </section>
+        <!-- ========== BMI計算 ========== -->
+        <section class="panel" id="p-bmi">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">BMI計算</div>
+                    <div class="section-desc">身長・体重からBMIと標準体重を計算</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>身長（cm）</label>
+                        <input type="number" id="bmiHeight" placeholder="例: 170">
+                    </div>
+                    <div>
+                        <label>体重（kg）</label>
+                        <input type="number" id="bmiWeight" placeholder="例: 60">
+                    </div>
+                </div>
+                <button class="btn" onclick="calcBmi()">計算する</button>
+                <div id="bmiResult" class="result-box" style="display:none;"></div>
+            </div>
+        </section>
 
-    <!-- ========== Unix時間変換 ========== -->
-    <section class="panel" id="p-unix">
-      <h2><span class="ic">🕒</span>Unixタイムスタンプ変換</h2>
-      <p class="desc">Unix時間（秒）と日時を相互変換します。</p>
-      <div class="row">
-        <div>
-          <label>Unixタイムスタンプ（秒）</label>
-          <input type="number" id="unixInput" oninput="unixToDate()">
-        </div>
-        <div style="align-self:flex-end;">
-          <button class="btn secondary small" onclick="setUnixNow()">現在時刻を入力</button>
-        </div>
-      </div>
-      <div class="hint" id="unixOutDate">日時：-</div>
-      <h3 style="margin-top:20px;">日時からUnix時間へ</h3>
-      <div class="row">
-        <div>
-          <label>日時を選択</label>
-          <input type="datetime-local" id="unixDateInput" oninput="dateToUnix()">
-        </div>
-      </div>
-      <div class="hint" id="unixOutStamp">Unixタイムスタンプ：-</div>
-    </section>
+        <!-- ========== 単位換算 ========== -->
+        <section class="panel" id="p-unit">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">単位換算</div>
+                    <div class="section-desc">長さ・重さ・温度の単位を換算</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>種類</label>
+                        <select id="unitCategory" onchange="buildUnitOptions()">
+                            <option value="length">長さ</option>
+                            <option value="weight">重さ</option>
+                            <option value="temp">温度</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>変換前の値</label>
+                        <input type="number" id="unitInput" value="1" oninput="calcUnit()">
+                    </div>
+                    <div>
+                        <label>単位（変換前）</label>
+                        <select id="unitFrom" onchange="calcUnit()"></select>
+                    </div>
+                    <div>
+                        <label>単位（変換後）</label>
+                        <select id="unitTo" onchange="calcUnit()"></select>
+                    </div>
+                </div>
+                <div class="result-box">結果：<span class="big-result" id="unitResult">-</span></div>
+            </div>
+        </section>
 
-    <!-- ========== 日付差・曜日計算 ========== -->
-    <section class="panel" id="p-datediff">
-      <h2><span class="ic">📆</span>日付差・曜日計算</h2>
-      <p class="desc">2つの日付の間の日数や、特定日の曜日を調べます。</p>
-      <div class="row">
-        <div><label>日付1</label><input type="date" id="diffDate1"></div>
-        <div><label>日付2</label><input type="date" id="diffDate2"></div>
-      </div>
-      <button class="btn" onclick="calcDateDiff()">計算する</button>
-      <div id="diffResult" class="result-box" style="display:none;"></div>
-    </section>
+        <!-- ========== カラーコード変換 ========== -->
+        <section class="panel" id="p-color">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">カラーコード変換</div>
+                    <div class="section-desc">HEX・RGB・HSLを相互変換</div>
+                </div>
+                <input type="color" id="colorPicker" value="#0067b8" onchange="colorFromPicker()" style="width:100%;height:44px;margin-bottom:10px;">
+                <div id="colorSwatch"></div>
+                <div class="row">
+                    <div>
+                        <label>HEX</label>
+                        <input type="text" id="colorHex" placeholder="#0067b8" oninput="colorFromHex()">
+                    </div>
+                </div>
+                <div class="row">
+                    <div><label>R</label><input type="number" id="colorR" min="0" max="255" oninput="colorFromRgb()"></div>
+                    <div><label>G</label><input type="number" id="colorG" min="0" max="255" oninput="colorFromRgb()"></div>
+                    <div><label>B</label><input type="number" id="colorB" min="0" max="255" oninput="colorFromRgb()"></div>
+                </div>
+                <div class="hint">HSL：<span id="colorHsl">-</span></div>
+            </div>
+        </section>
 
-    <!-- ========== QRコード生成 ========== -->
-    <section class="panel" id="p-qr">
-      <h2><span class="ic">🔳</span>QRコード生成</h2>
-      <p class="desc">テキストやURLからQRコードを生成します。</p>
-      <textarea id="qrInput" rows="3" placeholder="URLやテキストを入力"></textarea>
-      <button class="btn" onclick="genQr()">生成する</button>
-      <div id="qrResultWrap" style="margin-top:14px;display:none;text-align:center;">
-        <img id="qrImg" style="border:1px solid var(--border);border-radius:var(--radius);" width="220" height="220">
-        <div style="margin-top:10px;"><a id="qrDownload" class="btn secondary small" download="qrcode.png">ダウンロード</a></div>
-      </div>
-    </section>
+        <!-- ========== Base64 ========== -->
+        <section class="panel" id="p-base64">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">Base64 エンコード / デコード</div>
+                    <div class="section-desc">テキストとBase64を相互変換</div>
+                </div>
+                <textarea id="b64Input" rows="5" placeholder="ここに文字列を入力"></textarea>
+                <div class="btn-row">
+                    <button class="btn" onclick="b64Encode()">エンコード ▶</button>
+                    <button class="btn secondary" onclick="b64Decode()">◀ デコード</button>
+                    <button class="btn secondary" onclick="copyText('b64Output')">結果をコピー</button>
+                </div>
+                <textarea id="b64Output" rows="5" placeholder="結果がここに表示されます"></textarea>
+            </div>
+        </section>
 
-    <!-- ========== 乱数生成 ========== -->
-    <section class="panel" id="p-rand">
-      <h2><span class="ic">🎲</span>乱数生成</h2>
-      <p class="desc">指定範囲のランダムな整数を生成します。</p>
-      <div class="row">
-        <div><label>最小値</label><input type="number" id="randMin" value="1"></div>
-        <div><label>最大値</label><input type="number" id="randMax" value="100"></div>
-        <div><label>個数</label><input type="number" id="randCount" value="1" min="1" max="100"></div>
-      </div>
-      <label class="field-inline" style="margin-bottom:10px;"><input type="checkbox" id="randUnique"> 重複なし</label>
-      <br>
-      <button class="btn" onclick="genRand()">生成する</button>
-      <div id="randResult" class="result-box" style="display:none;"></div>
-    </section>
+        <!-- ========== 文字ケース変換 ========== -->
+        <section class="panel" id="p-case">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">文字ケース変換</div>
+                    <div class="section-desc">大文字・小文字などへ一括変換</div>
+                </div>
+                <textarea id="caseInput" rows="6" placeholder="ここに文字列を入力"></textarea>
+                <div class="btn-row">
+                    <button class="btn secondary small" onclick="caseConvert('upper')">大文字 (UPPER)</button>
+                    <button class="btn secondary small" onclick="caseConvert('lower')">小文字 (lower)</button>
+                    <button class="btn secondary small" onclick="caseConvert('title')">先頭大文字 (Title)</button>
+                    <button class="btn secondary small" onclick="caseConvert('sentence')">文頭のみ大文字</button>
+                    <button class="btn secondary small" onclick="caseConvert('reverse')">反転</button>
+                    <button class="btn secondary small" onclick="caseConvert('trim')">前後の空白削除</button>
+                    <button class="btn secondary small" onclick="copyText('caseInput')">コピー</button>
+                </div>
+            </div>
+        </section>
 
-    <!-- ========== パーセント計算 ========== -->
-    <section class="panel" id="p-percent">
-      <h2><span class="ic">％</span>パーセント計算</h2>
-      <p class="desc">よく使う割合の計算をまとめました。</p>
+        <!-- ========== タイマー / ストップウォッチ ========== -->
+        <section class="panel" id="p-timer">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">タイマー・ストップウォッチ</div>
+                    <div class="section-desc">カウントダウンタイマーとストップウォッチが使えます</div>
+                </div>
 
-      <h3>A は B の何％？</h3>
-      <div class="row">
-        <div><input type="number" id="pctA1" placeholder="A"></div>
-        <div>は</div>
-        <div><input type="number" id="pctB1" placeholder="B"></div>
-        <div>の</div>
-      </div>
-      <button class="btn secondary small" onclick="pctCalc1()">計算</button>
-      <div class="hint" id="pctResult1">結果：-</div>
+                <div class="section-head" style="margin-top:6px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">カウントダウンタイマー</div></div>
+                <div class="row">
+                    <div><label>分</label><input type="number" id="timerMin" value="5" min="0" onchange="timerSyncFromInputs()"></div>
+                    <div><label>秒</label><input type="number" id="timerSec" value="0" min="0" max="59" onchange="timerSyncFromInputs()"></div>
+                </div>
+                <div id="timerDisplay">05:00</div>
+                <div class="sw-controls">
+                    <button class="btn" id="timerStartBtn" onclick="timerStart()">開始</button>
+                    <button class="btn secondary" id="timerPauseBtn" onclick="timerPause()" disabled>一時停止</button>
+                    <button class="btn secondary" onclick="timerReset()">リセット</button>
+                </div>
 
-      <h3 style="margin-top:24px;">B の A ％ はいくつ？</h3>
-      <div class="row">
-        <div><input type="number" id="pctB2" placeholder="B"></div>
-        <div>の</div>
-        <div><input type="number" id="pctA2" placeholder="A（%）"></div>
-        <div>％</div>
-      </div>
-      <button class="btn secondary small" onclick="pctCalc2()">計算</button>
-      <div class="hint" id="pctResult2">結果：-</div>
+                <div class="section-head" style="margin-top:26px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">ストップウォッチ</div></div>
+                <div id="swDisplay">00:00.00</div>
+                <div class="sw-controls">
+                    <button class="btn" id="swStartBtn" onclick="swStart()">開始</button>
+                    <button class="btn secondary" id="swStopBtn" onclick="swStop()" disabled>停止</button>
+                    <button class="btn secondary" id="swLapBtn" onclick="swLap()" disabled>ラップ</button>
+                    <button class="btn secondary" id="swResetBtn" onclick="swReset()">リセット</button>
+                </div>
+                <div id="lapList"></div>
+            </div>
+        </section>
 
-      <h3 style="margin-top:24px;">A → B の増減率</h3>
-      <div class="row">
-        <div><input type="number" id="pctA3" placeholder="変化前"></div>
-        <div>→</div>
-        <div><input type="number" id="pctB3" placeholder="変化後"></div>
-      </div>
-      <button class="btn secondary small" onclick="pctCalc3()">計算</button>
-      <div class="hint" id="pctResult3">結果：-</div>
-    </section>
+        <!-- ========== Unix時間変換 ========== -->
+        <section class="panel" id="p-unix">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">Unixタイムスタンプ変換</div>
+                    <div class="section-desc">Unix時間（秒）と日時を相互変換</div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>Unixタイムスタンプ（秒）</label>
+                        <input type="number" id="unixInput" oninput="unixToDate()">
+                    </div>
+                    <div style="align-self:flex-end;">
+                        <button class="btn secondary small" onclick="setUnixNow()">現在時刻を入力</button>
+                    </div>
+                </div>
+                <div class="hint" id="unixOutDate">日時：-</div>
 
-  </main>
-  <footer>べんりツール集</footer>
-</div>
-</div><!-- /#main-content -->
+                <div class="section-head" style="margin-top:20px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">日時からUnix時間へ</div></div>
+                <div class="row">
+                    <div>
+                        <label>日時を選択</label>
+                        <input type="datetime-local" id="unixDateInput" oninput="dateToUnix()">
+                    </div>
+                </div>
+                <div class="hint" id="unixOutStamp">Unixタイムスタンプ：-</div>
+            </div>
+        </section>
+
+        <!-- ========== 日付差・曜日計算 ========== -->
+        <section class="panel" id="p-datediff">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">日付差・曜日計算</div>
+                    <div class="section-desc">2つの日付の間の日数や、特定日の曜日を調べる</div>
+                </div>
+                <div class="row">
+                    <div><label>日付1</label><input type="date" id="diffDate1"></div>
+                    <div><label>日付2</label><input type="date" id="diffDate2"></div>
+                </div>
+                <button class="btn" onclick="calcDateDiff()">計算する</button>
+                <div id="diffResult" class="result-box" style="display:none;"></div>
+            </div>
+        </section>
+
+        <!-- ========== 祝日判定 ========== -->
+        <section class="panel" id="p-holiday">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">祝日判定・祝日一覧</div>
+                    <div class="section-desc">日付を計算式から求めるため、祝日データ（CSV等）の用意は不要です</div>
+                </div>
+                <div class="note-box">
+                    振替休日・国民の休日を含めて計算式のみで祝日を算出しています。2020年（令和2年）以降の祝日制度を基準にしており、東京オリンピック開催に伴う特例（2020・2021年の一部祝日の移動）には対応していません。
+                </div>
+
+                <div class="section-head" style="margin-top:16px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">日付から判定</div></div>
+                <div class="row">
+                    <div><label>日付</label><input type="date" id="holidayCheckDate" onchange="checkHoliday()"></div>
+                </div>
+                <div id="holidayCheckResult" class="result-box" style="display:none;"></div>
+
+                <div class="section-head" style="margin-top:20px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">年間の祝日一覧</div></div>
+                <div class="row">
+                    <div><label>年（西暦）</label><input type="number" id="holidayYear" min="2020" max="2099"></div>
+                    <div style="align-self:flex-end;"><button class="btn secondary" onclick="listHolidays()">一覧表示</button></div>
+                </div>
+                <table><tr><th>日付</th><th>曜日</th><th>祝日名</th></tr><tbody id="holidayTable"></tbody></table>
+            </div>
+        </section>
+
+        <!-- ========== QRコード生成 ========== -->
+        <section class="panel" id="p-qr">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">QRコード生成</div>
+                    <div class="section-desc">テキストやURLからQRコードを生成</div>
+                </div>
+                <div class="note-box">
+                    活用例：PCの画面に表示したURLや長い文字列をQRコード化してスマートフォンで読み取れば、他の端末へそのままテキストをコピーできます。メールアドレスや長いパスの受け渡しにも便利です。
+                </div>
+                <textarea id="qrInput" rows="3" placeholder="URLやテキストを入力"></textarea>
+                <button class="btn" onclick="genQr()">生成する</button>
+                <div id="qrResultWrap" style="margin-top:14px;display:none;text-align:center;">
+                    <img id="qrImg" style="border:1px solid var(--border2);" width="220" height="220">
+                    <div style="margin-top:10px;"><a id="qrDownload" class="btn secondary small" download="qrcode.png">ダウンロード</a></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 乱数生成 ========== -->
+        <section class="panel" id="p-rand">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">乱数生成</div>
+                    <div class="section-desc">指定範囲のランダムな整数を生成</div>
+                </div>
+                <div class="row">
+                    <div><label>最小値</label><input type="number" id="randMin" value="1"></div>
+                    <div><label>最大値</label><input type="number" id="randMax" value="100"></div>
+                    <div><label>個数</label><input type="number" id="randCount" value="1" min="1" max="100"></div>
+                </div>
+                <label class="field-inline" style="margin-bottom:10px;"><input type="checkbox" id="randUnique"> 重複なし</label>
+                <br>
+                <button class="btn" onclick="genRand()">生成する</button>
+                <div id="randResult" class="result-box" style="display:none;"></div>
+            </div>
+        </section>
+
+        <!-- ========== パーセント計算 ========== -->
+        <section class="panel" id="p-percent">
+            <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button>
+            <div class="panel-surface">
+                <div class="section-head">
+                    <div class="section-bar"></div>
+                    <div class="section-title">パーセント計算</div>
+                    <div class="section-desc">よく使う割合の計算をまとめました</div>
+                </div>
+
+                <div class="section-head" style="margin-top:6px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">A は B の何％？</div></div>
+                <div class="row">
+                    <div><input type="number" id="pctA1" placeholder="A"></div>
+                    <div><input type="number" id="pctB1" placeholder="B"></div>
+                </div>
+                <button class="btn secondary small" onclick="pctCalc1()">計算</button>
+                <div class="hint" id="pctResult1">結果：-</div>
+
+                <div class="section-head" style="margin-top:22px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">B の A ％ はいくつ？</div></div>
+                <div class="row">
+                    <div><input type="number" id="pctB2" placeholder="B"></div>
+                    <div><input type="number" id="pctA2" placeholder="A（%）"></div>
+                </div>
+                <button class="btn secondary small" onclick="pctCalc2()">計算</button>
+                <div class="hint" id="pctResult2">結果：-</div>
+
+                <div class="section-head" style="margin-top:22px;"><div class="section-bar"></div><div class="section-title" style="font-size:0.9rem;">A → B の増減率</div></div>
+                <div class="row">
+                    <div><input type="number" id="pctA3" placeholder="変化前"></div>
+                    <div><input type="number" id="pctB3" placeholder="変化後"></div>
+                </div>
+                <button class="btn secondary small" onclick="pctCalc3()">計算</button>
+                <div class="hint" id="pctResult3">結果：-</div>
+            </div>
+        </section>
+
+    </div>
+
+    <footer>便利ツール集 - 東京圏輸送情報システム</footer>
 
 <script>
-/* =========================================================
-   ツール定義 & 画面切り替え
-========================================================= */
 /*
  * ツールを追加する手順:
- *  1. 下のTOOLS配列に {id, icon, label} を1行追加する（idは半角英数字、重複不可）
- *  2. <main> 内に <section class="panel" id="p-★id★">...</section> を追加する
- *     （他のpanelと同じ書き方でOK。中身は自由に組んでよい）
- *  3. 必要なJS処理を <script> 内の末尾あたりに関数として追記する
- *  4. ホーム画面のタイルは自動生成されるので追加のHTML編集は不要
+ *  1. 下のTOOLS配列に {id, mark, label, desc} を1行追加する（idは半角英数字、重複不可）
+ *  2. .content-wrap 内に <section class="panel" id="p-★id★">...</section> を追加する
+ *     （他のpanelと同じ書き方でOK。中身は自由に組んでよい。先頭に <button class="tool-back" onclick="showGrid()">◀ ツール一覧に戻る</button> を必ず入れる）
+ *  3. 必要なJS処理をこの<script>内の末尾あたりに関数として追記する
+ *  4. ホーム画面のカードは自動生成されるので追加のHTML編集は不要
  */
 const TOOLS = [
-  {id:'calc',    icon:'🧮', label:'電卓'},
-  {id:'pw',      icon:'🔐', label:'パスワード生成'},
-  {id:'count',   icon:'🔤', label:'文字数カウント'},
-  {id:'year',    icon:'📅', label:'今何年？'},
-  {id:'anniv',   icon:'💝', label:'記念日計算'},
-  {id:'age',     icon:'🎂', label:'年齢計算'},
-  {id:'bmi',     icon:'⚖️', label:'BMI計算'},
-  {id:'unit',    icon:'📏', label:'単位換算'},
-  {id:'color',   icon:'🎨', label:'カラーコード変換'},
-  {id:'base64',  icon:'🔡', label:'Base64変換'},
-  {id:'case',    icon:'🔠', label:'文字ケース変換'},
-  {id:'timer',   icon:'⏱️', label:'タイマー/SW'},
-  {id:'unix',    icon:'🕒', label:'Unix時間変換'},
-  {id:'datediff',icon:'📆', label:'日付差・曜日'},
-  {id:'qr',      icon:'🔳', label:'QRコード生成'},
-  {id:'rand',    icon:'🎲', label:'乱数生成'},
-  {id:'percent', icon:'％', label:'パーセント計算'},
+  {id:'calc',    mark:'計',  label:'電卓',              desc:'四則演算・キーボード対応'},
+  {id:'pw',      mark:'鍵',  label:'パスワード生成',     desc:'文字種・文字数・個数を指定'},
+  {id:'count',   mark:'字',  label:'文字数カウント',     desc:'文字数・単語数・バイト数'},
+  {id:'year',    mark:'暦',  label:'今何年？',           desc:'西暦・和暦・干支の早見表'},
+  {id:'anniv',   mark:'記',  label:'記念日計算',         desc:'〇日記念日・〇周年を自動計算'},
+  {id:'age',     mark:'齢',  label:'年齢計算',           desc:'満年齢・数え年・誕生日まで'},
+  {id:'bmi',     mark:'体',  label:'BMI計算',            desc:'身長・体重から算出'},
+  {id:'unit',    mark:'換',  label:'単位換算',           desc:'長さ・重さ・温度'},
+  {id:'color',   mark:'色',  label:'カラーコード変換',   desc:'HEX・RGB・HSLを相互変換'},
+  {id:'base64',  mark:'64',  label:'Base64変換',         desc:'エンコード・デコード'},
+  {id:'case',    mark:'Aa',  label:'文字ケース変換',     desc:'大文字・小文字・反転など'},
+  {id:'timer',   mark:'時',  label:'タイマー/SW',        desc:'カウントダウン・ストップウォッチ'},
+  {id:'unix',    mark:'秒',  label:'Unix時間変換',       desc:'タイムスタンプと日時の変換'},
+  {id:'datediff',mark:'曜',  label:'日付差・曜日計算',   desc:'2日付の差・曜日を調べる'},
+  {id:'holiday', mark:'祝',  label:'祝日判定・祝日一覧', desc:'計算式で祝日を判定（CSV不要）'},
+  {id:'qr',      mark:'QR',  label:'QRコード生成',       desc:'他端末へのテキスト受け渡しに便利'},
+  {id:'rand',    mark:'乱',  label:'乱数生成',           desc:'範囲指定でランダムな整数を生成'},
+  {id:'percent', mark:'％',  label:'パーセント計算',     desc:'割合・増減率のよくある計算'},
 ];
 
 function buildGrid(){
-  const grid = document.getElementById('tileGrid');
-  grid.innerHTML = TOOLS.map(t=>`
-    <button class="tile" onclick="openTool('${t.id}')">
-      <span class="icon">${t.icon}</span>
-      <span class="label">${t.label}</span>
-    </button>
+  const list = document.getElementById('toolList');
+  list.innerHTML = TOOLS.map(t=>`
+    <li><button type="button" class="tool-card" data-search="${t.label}" onclick="openTool('${t.id}')">
+      <span class="tool-mark">${t.mark}</span>
+      <span>
+        ${t.label}
+        <div class="tool-card-desc">${t.desc}</div>
+      </span>
+      <span class="ext-arrow">›</span>
+    </button></li>
   `).join('');
 }
 buildGrid();
@@ -669,16 +909,37 @@ function openTool(id){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   const panel = document.getElementById('p-'+id);
   if(panel) panel.classList.add('active');
-  document.getElementById('backToGrid').classList.add('show');
   window.scrollTo(0,0);
   if(id==='year') initYearTool();
+  if(id==='holiday' && !document.getElementById('holidayYear').value){
+    document.getElementById('holidayYear').value = new Date().getFullYear();
+  }
 }
 function showGrid(){
   document.getElementById('homeView').style.display='block';
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('backToGrid').classList.remove('show');
   window.scrollTo(0,0);
 }
+
+/* ツール検索（ホーム画面） */
+document.getElementById('toolSearch').addEventListener('input', function(){
+  const filter = this.value.toLowerCase();
+  const items = document.querySelectorAll('#toolList li');
+  let visible = 0;
+  items.forEach(li=>{
+    const match = li.textContent.toLowerCase().includes(filter);
+    li.style.display = match ? '' : 'none';
+    if(match) visible++;
+  });
+  document.getElementById('toolNoResult').style.display = visible===0 ? 'block' : 'none';
+});
+
+/* 「メインメニューへ戻る」は他ページへの完全な離脱になるため、誤操作防止のため確認を挟む */
+document.getElementById('headerBackBtn').addEventListener('click', function(e){
+  if(!confirm('メインメニューへ戻りますか？（このページの入力内容は失われます）')){
+    e.preventDefault();
+  }
+});
 
 function copyToClipboard(text){
   if(navigator.clipboard){ navigator.clipboard.writeText(text); }
@@ -803,7 +1064,6 @@ function generatePasswords(){
     let chars=[];
     required.forEach(set=>{ if(chars.length<len) chars.push(randChar(set)); });
     while(chars.length<len) chars.push(randChar(pool));
-    // shuffle
     for(let j=chars.length-1;j>0;j--){
       const k=Math.floor(Math.random()*(j+1));
       [chars[j],chars[k]]=[chars[k],chars[j]];
@@ -867,7 +1127,6 @@ function getWareki(date){
   return '該当なし';
 }
 function getEto(year){
-  // 1984年=子年 を基準
   const idx = ((year - 1984) % 12 + 12) % 12;
   return ETO[idx];
 }
@@ -881,15 +1140,16 @@ function initYearTool(){
   document.getElementById('yWareki').textContent = getWareki(now);
   document.getElementById('yEto').textContent = getEto(now.getFullYear()) + '年';
 
+  /* 元号早見表：終了年は「次の元号の開始年」と同じ年になることが多いため、開始年をそのまま用いる */
   document.getElementById('yEraTable').innerHTML = ERA_TABLE.map((e,i)=>{
-    const end = i===0 ? '現在' : (ERA_TABLE[i-1].start.getFullYear()-1)+'年 頃まで';
-    return `<tr><td>${e.name}</td><td>${e.start.getFullYear()}年〜${i===0?'':end}</td><td>${e.name}n年 ＝ 西暦 ${e.start.getFullYear()-1}+n 年</td></tr>`;
+    const endLabel = i===0 ? '現在' : ERA_TABLE[i-1].start.getFullYear()+'年頃まで';
+    return `<tr><td>${e.name}</td><td>${e.start.getFullYear()}年〜${endLabel}</td><td>${e.name}n年 ＝ 西暦 ${e.start.getFullYear()-1}+n 年</td></tr>`;
   }).join('');
 
   const curYear = now.getFullYear();
   document.getElementById('yEtoTable').innerHTML = ETO.map((e,i)=>{
     let y = curYear - ((curYear - 1984)%12+12)%12 + i;
-    if(y>curYear) y-=12;
+    while(y>curYear) y-=12;
     while(y+12<=curYear) y+=12;
     return `<tr><td>${e}</td><td>${y}年</td></tr>`;
   }).join('');
@@ -898,7 +1158,7 @@ function convertSeirekiToWareki(){
   const y = parseInt(document.getElementById('yInputSeireki').value);
   const out = document.getElementById('yConvResult');
   if(!y){ out.textContent=''; return; }
-  const d = new Date(y,5,15); // 年中頃で判定
+  const d = new Date(y,5,15);
   out.textContent = `西暦${y}年 ＝ ${getWareki(d)} ／ 干支：${getEto(y)}`;
 }
 
@@ -913,7 +1173,7 @@ function calcAnniv(){
   if(!val) return;
   const base = new Date(val+'T00:00:00');
   const today = new Date(); today.setHours(0,0,0,0);
-  const diffDays = Math.round((today - base)/86400000) + 1; // 基準日を1日目とする
+  const diffDays = Math.round((today - base)/86400000) + 1;
 
   document.getElementById('annivToday').style.display='block';
   document.getElementById('annivToday').innerHTML = `基準日：<b>${fmtDate(base)}</b>　→　今日で <span class="big-result">${diffDays}</span> 日目です`;
@@ -923,7 +1183,7 @@ function calcAnniv(){
     const d = new Date(base); d.setDate(d.getDate()+n-1);
     const isFuture = d>=today;
     const isSoon = isFuture && (d-today)/86400000 <= 30;
-    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}日記念日</td><td>${fmtDate(d)}</td><td>${d<today?'✅ 経過済み':(isSoon?'🎉 まもなく':'未来')}</td></tr>`;
+    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}日記念日</td><td>${fmtDate(d)}</td><td>${d<today?'経過済み':(isSoon?'まもなく':'未来')}</td></tr>`;
   }).join('');
   document.getElementById('annivDaysTable').innerHTML = daysRows;
 
@@ -931,7 +1191,7 @@ function calcAnniv(){
     const d = new Date(base); d.setFullYear(d.getFullYear()+n);
     const isFuture = d>=today;
     const isSoon = isFuture && (d-today)/86400000 <= 30;
-    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}周年記念日</td><td>${fmtDate(d)}</td><td>${d<today?'✅ 経過済み':(isSoon?'🎉 まもなく':'未来')}</td></tr>`;
+    return `<tr class="${isSoon?'hl':(isFuture?'':'past')}"><td>${n}周年記念日</td><td>${fmtDate(d)}</td><td>${d<today?'経過済み':(isSoon?'まもなく':'未来')}</td></tr>`;
   }).join('');
   document.getElementById('annivYearsTable').innerHTML = yearRows;
 }
@@ -999,8 +1259,8 @@ function calcBmi(){
    単位換算
 ========================================================= */
 const UNIT_DATA = {
-  length:{ mm:0.001, cm:0.01, m:1, km:1000, inch:0.0254, feet:0.3048, yard:0.9144, mile:1609.344, ri:3927.27 },
-  weight:{ mg:0.001, g:1, kg:1000, t:1000000, oz:28.3495, lb:453.592, kan:3750 },
+  length:{ mm:0.001, cm:0.01, m:1, km:1000, inch:0.0254, feet:0.3048, yard:0.9144, mile:1609.344 },
+  weight:{ mg:0.001, g:1, kg:1000, t:1000000, oz:28.3495, lb:453.592 },
 };
 function buildUnitOptions(){
   const cat = document.getElementById('unitCategory').value;
@@ -1078,7 +1338,7 @@ function colorFromRgb(){
   const hex = '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
   colorUpdateAll(hex);
 }
-colorUpdateAll('#0078D4');
+colorUpdateAll('#0067b8');
 
 /* =========================================================
    Base64
@@ -1114,27 +1374,39 @@ function caseConvert(type){
 }
 
 /* =========================================================
-   タイマー / ストップウォッチ
+   タイマー（カウントダウン）
+   ※ 分・秒の入力を変更したときや、リセット時にだけ入力値を読み直す。
+     一時停止からの再開では残り時間をそのまま引き継ぐ（以前は入力を毎回読み直してしまうバグがあった）
 ========================================================= */
-let timerInterval=null, timerRemaining=300;
+let timerInterval=null, timerRemaining=300, timerNeedsSync=true;
 function timerFmt(sec){
   sec=Math.max(0,sec);
   const m=Math.floor(sec/60), s=sec%60;
   return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
+function timerSyncFromInputs(){
+  if(timerInterval) return; // 動作中は入力変更を反映しない
+  const m=parseInt(document.getElementById('timerMin').value)||0;
+  const s=parseInt(document.getElementById('timerSec').value)||0;
+  timerRemaining = m*60+s;
+  timerNeedsSync = false;
+  document.getElementById('timerDisplay').textContent = timerFmt(timerRemaining);
+}
 function timerStart(){
   if(timerInterval) return;
-  if(timerRemaining<=0 || timerRemaining===300 && document.getElementById('timerDisplay').textContent==='05:00'){
-    const m=parseInt(document.getElementById('timerMin').value)||0;
-    const s=parseInt(document.getElementById('timerSec').value)||0;
-    timerRemaining = m*60+s;
-  }
+  if(timerNeedsSync || timerRemaining<=0) timerSyncFromInputs();
+  if(timerRemaining<=0) return;
+  document.getElementById('timerStartBtn').disabled = true;
+  document.getElementById('timerPauseBtn').disabled = false;
   timerInterval = setInterval(()=>{
     timerRemaining--;
     document.getElementById('timerDisplay').textContent = timerFmt(timerRemaining);
     if(timerRemaining<=0){
       clearInterval(timerInterval); timerInterval=null;
-      document.getElementById('timerDisplay').textContent = '⏰ 終了！';
+      document.getElementById('timerDisplay').textContent = '終了！';
+      document.getElementById('timerStartBtn').disabled = false;
+      document.getElementById('timerPauseBtn').disabled = true;
+      timerNeedsSync = true;
       try{
         const ctx = new (window.AudioContext||window.webkitAudioContext)();
         const o=ctx.createOscillator(); o.connect(ctx.destination); o.frequency.value=880; o.start(); setTimeout(()=>o.stop(),400);
@@ -1142,20 +1414,32 @@ function timerStart(){
     }
   },1000);
 }
-function timerPause(){ if(timerInterval){ clearInterval(timerInterval); timerInterval=null; } }
+function timerPause(){
+  if(timerInterval){ clearInterval(timerInterval); timerInterval=null; }
+  document.getElementById('timerStartBtn').disabled = false;
+  document.getElementById('timerPauseBtn').disabled = true;
+}
 function timerReset(){
   timerPause();
-  const m=parseInt(document.getElementById('timerMin').value)||0;
-  const s=parseInt(document.getElementById('timerSec').value)||0;
-  timerRemaining=m*60+s;
-  document.getElementById('timerDisplay').textContent = timerFmt(timerRemaining);
+  timerSyncFromInputs();
 }
 
-let swInterval=null, swStartTime=0, swElapsed=0, swLapCount=0;
+/* =========================================================
+   ストップウォッチ
+   ※ 「停止」ボタンを新設し、一時停止→再開ができるように改善。
+     リセットは停止中のみ可能（誤って計測中にリセットしないように制御）
+========================================================= */
+let swInterval=null, swStartTime=0, swElapsed=0, swLapCount=0, swLastLap=0, swLapTimes=[];
 function swFmt(ms){
   const total=Math.floor(ms/10);
   const cs=total%100, s=Math.floor(total/100)%60, m=Math.floor(total/6000);
   return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(cs).padStart(2,'0');
+}
+function swSetButtons(running){
+  document.getElementById('swStartBtn').disabled = running;
+  document.getElementById('swStopBtn').disabled = !running;
+  document.getElementById('swLapBtn').disabled = !running;
+  document.getElementById('swResetBtn').disabled = running;
 }
 function swStart(){
   if(swInterval) return;
@@ -1164,20 +1448,38 @@ function swStart(){
     swElapsed = Date.now()-swStartTime;
     document.getElementById('swDisplay').textContent = swFmt(swElapsed);
   },30);
+  swSetButtons(true);
+}
+function swStop(){
+  if(!swInterval) return;
+  clearInterval(swInterval); swInterval=null;
+  swSetButtons(false);
 }
 function swLap(){
   if(!swInterval) return;
   swLapCount++;
+  const split = swElapsed - swLastLap;
+  swLastLap = swElapsed;
+  swLapTimes.push(split);
+  renderLaps();
+}
+function renderLaps(){
+  const best = Math.min(...swLapTimes);
+  const worst = Math.max(...swLapTimes);
   const div=document.getElementById('lapList');
-  const row=document.createElement('div');
-  row.textContent = `ラップ ${swLapCount}：${swFmt(swElapsed)}`;
-  div.prepend(row);
+  div.innerHTML = swLapTimes.map((t,i)=>{
+    let cls='';
+    if(swLapTimes.length>1 && t===best) cls='best';
+    else if(swLapTimes.length>1 && t===worst) cls='worst';
+    return `<div class="${cls}"><span>ラップ ${i+1}</span><span>${swFmt(t)}（累計 ${swFmt(swLapTimes.slice(0,i+1).reduce((a,b)=>a+b,0))}）</span></div>`;
+  }).reverse().join('');
 }
 function swReset(){
-  if(swInterval){ clearInterval(swInterval); swInterval=null; }
-  swElapsed=0; swLapCount=0;
+  if(swInterval) return; // 計測中はリセット不可
+  swElapsed=0; swLapCount=0; swLastLap=0; swLapTimes=[];
   document.getElementById('swDisplay').textContent='00:00.00';
   document.getElementById('lapList').innerHTML='';
+  swSetButtons(false);
 }
 
 /* =========================================================
@@ -1221,6 +1523,96 @@ function calcDateDiff(){
   }
   out.style.display='block';
   out.innerHTML = html;
+}
+
+/* =========================================================
+   祝日判定（計算式のみ・CSV/外部データ不要）
+========================================================= */
+function padKey(n){ return String(n).padStart(2,'0'); }
+function dateKey(d){ return `${d.getFullYear()}-${padKey(d.getMonth()+1)}-${padKey(d.getDate())}`; }
+function nthMonday(year, month, n){
+  const d = new Date(year, month-1, 1);
+  const dow = d.getDay();
+  const firstMonday = 1 + ((8 - dow) % 7);
+  return new Date(year, month-1, firstMonday + (n-1)*7);
+}
+function vernalEquinoxDay(year){
+  return Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4));
+}
+function autumnalEquinoxDay(year){
+  return Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4));
+}
+function getJapaneseHolidays(year){
+  const list = {};
+  const add = (m,d,name)=>{ list[dateKey(new Date(year,m-1,d))] = name; };
+
+  add(1,1,'元日');
+  list[dateKey(nthMonday(year,1,2))] = '成人の日';
+  add(2,11,'建国記念の日');
+  add(2,23,'天皇誕生日');
+  add(3,vernalEquinoxDay(year),'春分の日');
+  add(4,29,'昭和の日');
+  add(5,3,'憲法記念日');
+  add(5,4,'みどりの日');
+  add(5,5,'こどもの日');
+  list[dateKey(nthMonday(year,7,3))] = '海の日';
+  add(8,11,'山の日');
+  list[dateKey(nthMonday(year,9,3))] = '敬老の日';
+  add(9,autumnalEquinoxDay(year),'秋分の日');
+  list[dateKey(nthMonday(year,10,2))] = 'スポーツの日';
+  add(11,3,'文化の日');
+  add(11,23,'勤労感謝の日');
+
+  /* 振替休日：祝日が日曜のとき、その後の最初の非祝日を休日にする */
+  Object.keys(list).forEach(key=>{
+    const d = new Date(key+'T00:00:00');
+    if(d.getDay()===0){
+      const sub = new Date(d);
+      do{ sub.setDate(sub.getDate()+1); } while(list[dateKey(sub)]);
+      list[dateKey(sub)] = '振替休日';
+    }
+  });
+
+  /* 国民の休日：前後を祝日に挟まれた平日（日曜以外） */
+  const keys = Object.keys(list).sort();
+  keys.forEach(k=>{
+    const d = new Date(k+'T00:00:00');
+    const between = new Date(d); between.setDate(between.getDate()+1);
+    const next = new Date(d); next.setDate(next.getDate()+2);
+    if(list[dateKey(next)] && !list[dateKey(between)] && between.getDay()!==0){
+      list[dateKey(between)] = '国民の休日';
+    }
+  });
+
+  return list;
+}
+function checkHoliday(){
+  const val = document.getElementById('holidayCheckDate').value;
+  const out = document.getElementById('holidayCheckResult');
+  if(!val) return;
+  const d = new Date(val+'T00:00:00');
+  const holidays = getJapaneseHolidays(d.getFullYear());
+  const key = dateKey(d);
+  const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+  out.style.display='block';
+  if(holidays[key]){
+    out.innerHTML = `${val}（${wd}）は <span class="big-result">${holidays[key]}</span> です`;
+  } else if(d.getDay()===0 || d.getDay()===6){
+    out.innerHTML = `${val}（${wd}）は祝日ではありませんが、週末（${wd}曜日）です`;
+  } else {
+    out.innerHTML = `${val}（${wd}）は祝日ではありません（平日）`;
+  }
+}
+function listHolidays(){
+  const year = parseInt(document.getElementById('holidayYear').value);
+  if(!year) return;
+  const holidays = getJapaneseHolidays(year);
+  const rows = Object.keys(holidays).sort().map(key=>{
+    const d = new Date(key+'T00:00:00');
+    const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+    return `<tr><td>${key}</td><td>${wd}</td><td>${holidays[key]}</td></tr>`;
+  }).join('');
+  document.getElementById('holidayTable').innerHTML = rows;
 }
 
 /* =========================================================
@@ -1289,8 +1681,17 @@ function pctCalc3(){
 
 /* デフォルト日付をセット */
 document.getElementById('annivDate').valueAsDate = new Date();
-document.getElementById('ageDob').valueAsDate = new Date(1995,0,1);
 document.getElementById('diffDate1').valueAsDate = new Date();
+document.getElementById('holidayCheckDate').valueAsDate = new Date();
+timerSyncFromInputs();
 </script>
+</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script src="auth_guard.js"></script>
+
 </body>
 </html>
