@@ -195,6 +195,12 @@
             white-space: nowrap;
         }
 
+        .station-name-two-chars {
+            display: inline-flex;
+            width: 3em;
+            justify-content: space-between;
+        }
+
         .time-cell {
             padding-left: 4px !important;
             padding-right: 4px !important;
@@ -648,7 +654,26 @@
 
                 const stationCell = row.insertCell();
                 stationCell.className = 'station-name';
-                stationCell.textContent = stop.station || '...';
+                const stationName = stop.station || '...';
+                const compactStationName = String(stationName).replace(/[\s\u3000]/g, '');
+
+                if (
+                    compactStationName.length === 2 &&
+                    compactStationName !== String(stationName)
+                ) {
+                    const stationNameInner = document.createElement('span');
+                    stationNameInner.className = 'station-name-two-chars';
+
+                    [...compactStationName].forEach((character) => {
+                        const characterSpan = document.createElement('span');
+                        characterSpan.textContent = character;
+                        stationNameInner.appendChild(characterSpan);
+                    });
+
+                    stationCell.appendChild(stationNameInner);
+                } else {
+                    stationCell.textContent = stationName;
+                }
 
                 const hasArrival =
                     stop.arrival !== undefined &&
