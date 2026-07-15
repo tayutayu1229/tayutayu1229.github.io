@@ -1,0 +1,46 @@
+name: Update JRF GTFS status
+
+on:
+  schedule:
+    - cron: "12,42 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "JRF_status/JRF-gtfs/scripts/fetch-status.mjs"
+      - ".github/workflows/update-jrf-gtfs-status.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-jrf-gtfs-status
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch JR Freight status
+        run: node JRF_status/JRF-gtfs/scripts/fetch-status.mjs
+
+      - name: Save updated status
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add JRF_status/JRF-gtfs/data/freight-status.json
+          if git diff --cached --quiet; then
+            echo "No status change"
+            exit 0
+          fi
+          git commit -m "chore: update JR Freight status"
+          git pull --rebase origin main
+          git push origin HEAD:main
