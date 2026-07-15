@@ -344,14 +344,14 @@
 
         @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 18mm;
         }
 
         @media print {
             html,
             body {
-                width: 210mm;
-                min-height: 297mm;
+                width: auto;
+                min-height: 0;
                 margin: 0;
                 padding: 0;
                 background: #fff;
@@ -362,10 +362,10 @@
             }
 
             .page-container {
-                width: 210mm;
-                min-height: 297mm;
+                width: auto;
+                min-height: 0;
                 margin: 0;
-                padding: 18mm;
+                padding: 0;
                 border: 0;
                 box-shadow: none;
             }
@@ -378,11 +378,23 @@
             }
 
             .info-table,
-            .main-table,
             .info-table tr,
             .main-table tr {
                 break-inside: avoid;
                 page-break-inside: avoid;
+            }
+
+            .main-table {
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+
+            .main-table thead {
+                display: table-header-group;
+            }
+
+            .main-table tbody {
+                display: table-row-group;
             }
         }
     </style>
@@ -446,8 +458,7 @@
     </div>
 
     <script>
-        const formatTime = (time, omitEquals = false) => {
-            if (omitEquals && String(time ?? '').trim() === '=') return '';
+        const formatTime = (time) => {
             if (!time || time === '―') return '…';
             if (time === '||' || time === '…' || time === '=') return time;
 
@@ -469,7 +480,7 @@
             time,
             track,
             showTrack,
-            omitEquals = false
+            forceBlank = false
         ) => {
             const cell = row.insertCell();
             cell.className = 'time-col-combined time-cell';
@@ -479,7 +490,7 @@
 
             const timeValue = document.createElement('span');
             timeValue.className = 'time-value';
-            timeValue.textContent = formatTime(time, omitEquals);
+            timeValue.textContent = forceBlank ? '' : formatTime(time);
 
             if (['…', '||', '='].includes(timeValue.textContent)) {
                 inner.classList.add('special-time');
@@ -690,14 +701,14 @@
                     row,
                     stop.arrival,
                     stop.trackN || '',
-                    showArrivalTrack
+                    showArrivalTrack,
+                    rowIndex === 0
                 );
                 createTimeCell(
                     row,
                     stop.departure,
                     stop.trackN || '',
-                    showDepartureTrack,
-                    true
+                    showDepartureTrack
                 );
             });
 
@@ -734,7 +745,7 @@
                             stop.line || '...',
                             stop.station || '...',
                             formatTime(stop.arrival),
-                            formatTime(stop.departure, true),
+                            formatTime(stop.departure),
                             stop.trackN || '...'
                         ];
 
