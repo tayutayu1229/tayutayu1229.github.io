@@ -2,6 +2,7 @@ const params = new URLSearchParams(location.search);
 const targetId = params.get('id');
 let specifiedDate = params.get('date') || localToday();
 let renderedTrain = null;
+let previewPercent = 100;
 
 document.addEventListener('DOMContentLoaded', loadStaff);
 
@@ -30,21 +31,30 @@ function setupToolbar() {
   const back = document.getElementById('back-button');
   const zoom = document.getElementById('preview-zoom');
   const value = document.getElementById('preview-zoom-value');
-  back?.addEventListener('click', () => {
-    if (history.length > 1) history.back();
-    else location.href = 'train_list.html';
-  });
+  back?.addEventListener('click', () => location.assign('train_list.html'));
   const saved = Number(localStorage.getItem('staffPreviewZoom')) || 100;
   const initial = Math.min(140,Math.max(40,saved));
   if (zoom) zoom.value = String(initial);
   const applyZoom = () => {
     const percent = Number(zoom?.value) || 100;
-    document.getElementById('render-target')?.style.setProperty('--preview-scale',String(percent / 100));
+    previewPercent = percent;
+    applyPreviewScale();
     if (value) value.value = `${percent}%`;
     localStorage.setItem('staffPreviewZoom',String(percent));
   };
   zoom?.addEventListener('input',applyZoom);
   applyZoom();
+}
+
+function applyPreviewScale() {
+  const scale = previewPercent / 100;
+  document.querySelectorAll('.sheet-wrap').forEach(wrap => {
+    wrap.style.width = `${297 * scale}mm`;
+    wrap.style.height = `${420 * scale}mm`;
+  });
+  document.querySelectorAll('.a3-sheet').forEach(sheet => {
+    sheet.style.transform = `scale(${scale})`;
+  });
 }
 
 function setupDateControl(fallbackDate) {
@@ -294,4 +304,5 @@ function renderA3(train) {
     sheets.push(`<div class="sheet-wrap"><article class="a3-sheet">${halfHtml(train,left.stops,index + 1,left.offset,Boolean(right || chunks[index + 2]))}${halfHtml(train,right?.stops || [],index + 2,right?.offset || 0,Boolean(chunks[index + 2]))}</article></div>`);
   }
   document.getElementById('render-target').innerHTML = sheets.join('');
+  applyPreviewScale();
 }
