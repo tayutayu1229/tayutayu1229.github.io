@@ -1,0 +1,41 @@
+name: JR Freight status update
+
+on:
+  schedule:
+    # GitHub ActionsのcronはUTC。毎時15分（日本時間では毎時15分）。
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jr-freight-status-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Fetch and build
+        run: python scraper.py
+      - name: Commit updated page
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Update JR Freight status"
+          git push
+
