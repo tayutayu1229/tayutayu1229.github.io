@@ -244,19 +244,20 @@ function cardHtml(train, stops, offset, continued, hasNext) {
   const stationFont = Math.max(13, Math.min(23, rowHeight * 2.85));
   const timeFont = Math.max(16, Math.min(30, rowHeight * 3.65));
   const trackFont = Math.max(14, Math.min(26, rowHeight * 3.2));
-  const runFont = Math.max(12, Math.min(22, rowHeight * 2.5));
-  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(9,runFont*.7)}px;--time-sec-font:${Math.max(9,timeFont*.55)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
+  const runFont = Math.max(15, Math.min(25, rowHeight * 3));
+  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(11,runFont*.74)}px;--time-sec-font:${Math.max(11,timeFont*.65)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
   const rows = stops.map((stop, localIndex) => {
     const index = offset + localIndex;
     const passing = isPassing(stop, index, train.stops.length);
     const arrivalAbbr = passing;
     const departureAbbr = passing && index > 0;
+    const arrivalValue = passing && !String(stop.arrival ?? '').trim() && rawTime(stop.departure) ? '↓' : stop.arrival;
     const trackText = displayTrack(stop.trackN);
     const trackLength = Math.min(5,Array.from(trackText).length);
     return `<tr class="stop-row" style="--row-height:${rowHeight}mm">
       <td class="run">${localIndex === 0 ? '' : runningTime(train.stops,index)}</td>
       <td class="station${passing ? ' pass' : ''}">${stationMarkup(stop.station)}</td>
-      <td>${timeCell(stop.arrival,passing,arrivalAbbr)}</td>
+      <td>${timeCell(arrivalValue,passing,arrivalAbbr)}</td>
       <td>${timeCell(stop.departure,passing,departureAbbr)}</td>
       <td class="track"><span class="track-glyph len-${trackLength}">${esc(trackText)}</span></td>
       <td class="limit">${esc(stop.speedLimit)}</td>
