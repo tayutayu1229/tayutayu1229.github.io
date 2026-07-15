@@ -1,136 +1,114 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>列車運転時刻表 Viewer</title>
-    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700;900&display=swap" rel="stylesheet">
-    <style>
-    :root {
-        --border-bold: 3.5px solid #000;
-        --border-normal: 1.5px solid #000;
-        --paper-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>列車運転時刻表（A3スタフ）</title>
+  <style>
+    :root { color-scheme:light; --red:#ed1118; --blue:#0757b5; --line:#111; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; }
     body {
-        margin: 0;
-        padding: 40px 0;
-        background-color: #525659; /* PDFビューアー風の背景色 */
-        font-family: 'BIZ UDPGothic', sans-serif;
-        display: flex;
-        justify-content: center;
+      background:#4d5154; color:#111; padding:18px;
+      font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;
     }
-
-    /* 紙の枠組み */
-    #staff-container {
-        width: 210mm; /* A4サイズ */
-        min-height: 297mm;
-        padding: 15mm;
-        background-color: #fff;
-        box-shadow: var(--paper-shadow);
-        box-sizing: border-box;
-        position: relative;
+    .toolbar {
+      position:sticky; top:10px; z-index:5; width:297mm; max-width:100%; margin:0 auto 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      color:white; font-size:13px;
     }
-
-    /* ヘッダー周り */
-    .header-flex {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        margin-bottom: 2px;
+    .toolbar-actions { display:flex; gap:8px; }
+    .date-control { display:flex; align-items:center; gap:7px; font-weight:700; }
+    .date-control input { border:1px solid #bbb; border-radius:4px; padding:7px 9px; font:inherit; }
+    button { border:0; border-radius:4px; padding:8px 15px; font:700 13px inherit; cursor:pointer; }
+    .primary { background:#fff; color:#111; }
+    .a3-sheet {
+      width:297mm; height:420mm; margin:auto; display:grid; grid-template-columns:1fr 1fr;
+      background:#fff; box-shadow:0 6px 28px #0009; overflow:hidden;
     }
-    .no-label { font-size: 26px; font-weight: 900; }
-    .depot-info { text-align: right; font-size: 18px; line-height: 1.2; font-weight: 900; }
-    .execution-date { font-size: 18px; font-weight: 900; margin-bottom: 10px; }
-
-    /* テーブル共通 */
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-        border: var(--border-bold);
+    .a3-sheet + .a3-sheet { margin-top:18px; }
+    .half {
+      position:relative; width:148.5mm; height:420mm; padding:7mm 6mm 7mm;
+      background:white; overflow:hidden;
     }
-    td, th {
-        border: var(--border-normal);
-        padding: 0;
-        box-sizing: border-box;
+    .half + .half { border-left:.25mm dashed #2d5b86; }
+    .crop { position:absolute; font:400 12px/1 monospace; }
+    .crop.tl { top:2.4mm; left:3.2mm; } .crop.tr { top:2.4mm; right:3.2mm; }
+    .crop.bl { bottom:2.4mm; left:3.2mm; } .crop.br { bottom:2.4mm; right:3.2mm; }
+    .page-head { display:grid; grid-template-columns:1fr auto; align-items:start; min-height:12mm; }
+    .page-no { color:var(--blue); font:700 14px/1 Arial,sans-serif; letter-spacing:.24em; padding-top:1mm; }
+    .office { text-align:right; font-size:12px; font-weight:900; line-height:1.15; letter-spacing:.13em; }
+    .effective { font-size:11px; font-weight:700; letter-spacing:.11em; margin:0 0 .7mm; }
+    .card { margin:0 0 7mm; break-inside:avoid; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th,td { border:.28mm solid var(--line); padding:0; }
+    .staff { border:.75mm solid var(--line); }
+    .staff .top-label th { height:9mm; font-size:10px; font-weight:800; line-height:1.02; }
+    .staff .top-value td { height:13mm; text-align:center; }
+    .train-no { padding:0!important; text-align:center!important; font:800 29px/.92 "DIN Condensed","Arial Narrow",Arial,sans-serif; letter-spacing:.1em; white-space:nowrap; }
+    .train-no .compressed { transform:none; transform-origin:center; }
+    .speed { padding:.5mm!important; font-size:11px; font-weight:800; line-height:1.05; }
+    .power { font-size:11px; font-weight:700; line-height:1.08; letter-spacing:.12em; }
+    .staff .column-head th { height:9mm; font-size:9.5px; font-weight:800; line-height:1; }
+    .cars-row td { height:12mm; border-bottom:.32mm solid var(--line); text-align:left; padding-left:21mm; }
+    .cars-row.empty-cars td { height:5mm; padding-left:0; }
+    .cars { font:400 36px/.8 "DIN Condensed","Arial Narrow",Arial,sans-serif; }
+    .cars small { font:700 9px/1 sans-serif; margin-left:1mm; }
+    .continuation { font-size:7px; margin-left:6mm; }
+    .stop-row td { height:var(--row-height,10.5mm); }
+    .run { height:100%; vertical-align:middle; overflow:hidden; text-align:center; font:500 var(--run-font,14px)/1 "DIN Condensed","Arial Narrow",Arial,sans-serif; white-space:nowrap; }
+    .run sup { display:inline-block; font-size:var(--run-sec-font,8px); line-height:1; vertical-align:baseline; position:relative; top:.14em; margin-left:.05em; }
+    .station { padding:0 .5mm!important; font-size:var(--station-font,18px); font-weight:800; letter-spacing:.04em; text-align:center; white-space:nowrap; }
+    .station.pass { color:var(--red); }
+    .time { height:100%; width:100%; display:grid; grid-template-columns:43% 38% 19%; align-items:center; overflow:hidden; white-space:nowrap; font:800 var(--time-font,26px)/1 "DIN Condensed","Arial Narrow",Arial,sans-serif; letter-spacing:-.04em; }
+    .time .hour-part { justify-self:end; }
+    .time .minute-part { justify-self:start; }
+    .time .second-part { justify-self:start; align-self:center; font-size:var(--time-sec-font,9px); line-height:1; position:relative; top:.12em; margin-left:.05em; transform:scaleX(.82); transform-origin:left center; }
+    .time.pass { color:var(--red); }
+    .arrow { height:100%; padding:.45mm 0; color:var(--red); display:flex; align-items:center; justify-content:center; overflow:hidden; text-align:center; font:900 var(--arrow-font,29px)/1 Arial,sans-serif; }
+    .endmark { text-align:center; font:900 var(--end-font,30px)/.65 Arial,sans-serif; letter-spacing:-.15em; }
+    .track { color:#078fdd; text-align:center; font:900 var(--track-font,23px)/.88 "HanziPen SC","Klee",cursive; white-space:nowrap; }
+    .track .track-glyph { display:inline-block; transform:scaleX(1.12) scaleY(.78) skewX(-7deg); }
+    .track .track-glyph.len-3 { font-size:.76em; transform:scaleX(.92) scaleY(.78) skewX(-5deg); }
+    .track .track-glyph.len-4 { font-size:.62em; transform:scaleX(.85) scaleY(.78) skewX(-4deg); }
+    .track .track-glyph.len-5 { font-size:.52em; transform:scaleX(.78) scaleY(.78) skewX(-3deg); }
+    .compressed { display:inline-block; transform:scaleX(.78); transform-origin:center; }
+    .station-glyphs { width:4em; max-width:100%; margin:auto; display:flex; align-items:center; justify-content:space-between; transform:scaleY(.82); }
+    .station-glyphs.single { justify-content:center; }
+    .station-glyphs.long { width:100%; transform:scaleX(.72) scaleY(.82); }
+    .limit { color:var(--red); text-align:center; font:700 10px/1 Arial,sans-serif; }
+    .memo { padding:.6mm!important; vertical-align:top; font-size:7px; font-weight:700; overflow-wrap:anywhere; }
+    .tail-row td { height:10mm; border-top:.32mm solid var(--line); font-size:10px; font-weight:700; text-align:center; }
+    .notes-title { margin:1.8mm 0 1mm 1mm; font-size:11px; font-weight:800; letter-spacing:.12em; }
+    .notes { min-height:5mm; padding-left:7mm; font-size:9px; line-height:1.4; white-space:pre-wrap; }
+    .created { position:absolute; bottom:7mm; left:9mm; font-size:7px; letter-spacing:.2em; }
+    .empty-half { color:transparent; }
+    .error { margin:auto; padding:30mm; background:white; font-weight:700; }
+    @page { size:A3 portrait; margin:0; }
+    @media (max-width:1200px) {
+      body { overflow-x:auto; }
+      .toolbar { width:100%; min-width:900px; }
+      .a3-sheet { transform-origin:top left; }
     }
-
-    /* 列車番号・基本情報 */
-    .info-table tr { height: 35px; }
-    .info-table td { text-align: center; font-size: 14px; font-weight: 900; }
-    .train-num-value {
-        font-size: 80px;
-        font-family: 'Arial Black', sans-serif;
-        letter-spacing: -4px;
-        height: 100px !important;
-        text-align: left !important;
-        padding-left: 15px !important;
-    }
-
-    /* メイン時刻表 */
-    .main-table { border-top: none; }
-    .main-table th { height: 35px; font-size: 14px; font-weight: 900; background: #fff; }
-    .main-table td { height: 50px; vertical-align: middle; }
-
-    /* 運転時分（肩文字対応） */
-    .jifun-cell { position: relative; height: 50px; text-align: right; padding-right: 5px; }
-    .jifun-main { font-size: 26px; font-weight: 900; position: absolute; right: 5px; bottom: 2px; }
-    .jifun-sec { font-size: 15px; font-weight: 900; position: absolute; right: 5px; top: 2px; }
-
-    /* 駅名（均等割付） */
-    .station-name {
-        font-size: 24px;
-        font-weight: 900;
-        text-align: justify;
-        text-align-last: justify;
-        padding: 0 10px;
-    }
-    .st-passing { color: #e60012; }
-
-    /* 時刻表示（秒を肩に乗せる） */
-    .time-container {
-        display: flex;
-        align-items: baseline;
-        justify-content: flex-start;
-        padding-left: 8px;
-    }
-    .time-main { font-size: 42px; font-weight: 900; letter-spacing: -1px; }
-    .time-sec { font-size: 18px; font-weight: 900; margin-left: 2px; transform: translateY(-10px); }
-    
-    .pass-arrow { color: #e60012; font-size: 45px; font-weight: 900; text-align: center; }
-    .end-mark { font-size: 55px; font-weight: 900; text-align: center; letter-spacing: -8px; }
-
-    /* 着発線（ゴシック系に修正） */
-    .track-cell {
-        font-size: 24px;
-        font-weight: 900;
-        text-align: center;
-        color: #004098;
-    }
-
-    /* 注意事項 */
-    .notes-area {
-        border: var(--border-bold);
-        border-top: none;
-        min-height: 80px;
-        padding: 10px;
-        font-size: 18px;
-        font-weight: 900;
-    }
-    .notes-title { font-size: 14px; border-bottom: var(--border-normal); margin-bottom: 5px; padding-bottom: 2px; }
-
-    .footer-time { font-size: 13px; margin-top: 15px; font-weight: 700; color: #333; }
-
     @media print {
-        body { padding: 0; background: none; }
-        #staff-container { box-shadow: none; margin: 0; width: 100%; }
+      html,body { width:297mm; height:420mm; padding:0; background:white; }
+      .toolbar { display:none; }
+      .a3-sheet { margin:0; box-shadow:none; break-after:page; }
+      .a3-sheet + .a3-sheet { margin-top:0; }
+      .half + .half { border-left:.25mm dashed #2d5b86; }
+      * { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
     }
-    </style>
+  </style>
 </head>
 <body>
-    <div id="staff-container">
-        <div id="render-target"></div>
+  <div class="toolbar">
+    <span>A3縦・中央で半裁（148.5 × 420mm）</span>
+    <div class="toolbar-actions">
+      <label class="date-control">施行日 <input id="execution-date" type="date"><button type="button" id="apply-date">反映</button></label>
+      <button class="primary" type="button" onclick="window.print()">PDF保存／印刷</button>
     </div>
-    <script src="train_staff.js"></script>
+  </div>
+  <main id="render-target"><div class="error">時刻表を読み込んでいます…</div></main>
+  <script src="train_staff.js"></script>
 </body>
 </html>
