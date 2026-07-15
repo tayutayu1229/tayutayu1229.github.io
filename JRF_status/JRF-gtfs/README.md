@@ -27,19 +27,36 @@ npm run serve
 
 ## GitHub Pagesで公開
 
-`.github/workflows/deploy-pages.yml` を同梱しています。`main` ブランチへpushするとサイトを公開し、その後は毎時12分・42分に遅延情報を更新して再デプロイします。
+このアプリは `tayutayu1229.github.io` リポジトリの次の場所へ配置します。
 
-1. GitHubのリポジトリ設定で **Settings → Pages → Source** を **GitHub Actions** にします。
-2. このフォルダをリポジトリの `main` ブランチへpushします。
-3. **Actions → Deploy Cargo Scope** の完了を待ちます。
+```text
+tayutayu1229.github.io/
+├── .github/
+│   └── workflows/
+│       └── update-jrf-gtfs-status.yml
+└── JRF_status/
+    └── JRF-gtfs/
+        ├── index.html
+        ├── app.js
+        ├── styles.css
+        ├── scripts/
+        └── data/
+```
 
-手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
+重要: `.github` フォルダは `JRF_status/JRF-gtfs` の中ではなく、リポジトリの最上部へ置きます。
+
+1. このフォルダ内のWebアプリ一式を `JRF_status/JRF-gtfs/` へpushします。
+2. `.github/workflows/update-jrf-gtfs-status.yml` だけは、リポジトリ最上部の同じパスへpushします。
+3. **Settings → Pages → Source** は、既存サイトと同じ **Deploy from a branch / main / (root)** のままにします。
+4. **Actions → Update JRF GTFS status → Run workflow** を一度実行します。
+
+以後は毎時12分・42分に遅延情報を取得し、変更があると `JRF_status/JRF-gtfs/data/freight-status.json` だけを自動コミットします。手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
 
 ```sh
 npm run fetch-status
 ```
 
-GitHub Pagesではサーバーを常駐できないため、Actionsが `data/freight-status.json` を生成します。アプリは相対パスで読むため、ユーザーサイトとプロジェクトサイトのどちらでも動作します。
+GitHub Pagesではサーバーを常駐できないため、Actionsが `data/freight-status.json` を更新します。JSON更新のコミットを既存のGitHub Pagesが公開するため、リポジトリ内のほかのサイトには影響しません。
 
 ## データ更新
 
