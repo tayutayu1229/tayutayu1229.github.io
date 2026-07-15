@@ -1,177 +1,266 @@
-/**
- * 列車運転時刻表 (スタフ) 制御スクリプト - 画像12・13完全再現版
- * [修正ポイント]
- * 1. 着発線(track-cell)の表示をUDゴシック系で強調
- * 2. 運転時分の秒数・時刻の秒数の肩文字配置を厳密化
- * 3. ページ内ビューアーとしてのHTML構造への流し込み
- */
+const params = new URLSearchParams(location.search);
+const targetId = params.get('id');
+let specifiedDate = params.get('date') || '';
+let renderedTrain = null;
 
-const JSON_PATH = '../../T-time/timetables.json';
-const params    = new URLSearchParams(window.location.search);
-const targetId  = params.get('id');
-const customDate = params.get('date');
+document.addEventListener('DOMContentLoaded', loadStaff);
 
-window.addEventListener('DOMContentLoaded', async () => {
-    const container = document.getElementById('render-target');
-    if (!container) return;
-    if (!targetId)  { container.innerHTML = "IDが指定されていません。"; return; }
+async function loadStaff() {
+  const target = document.getElementById('render-target');
+  try {
+    let group = readTransferredTrain();
+    if (!group.length) group = findTrain(await fetchTimetables());
+    if (!group.length) throw new Error(targetId ? '該当する列車がありません。' : '列車が選択されていません。');
+    renderedTrain = mergeTrainSegments(dedupeSegments(group));
+    setupDateControl(renderedTrain.startDate);
+    renderA3(renderedTrain, group[0]);
+  } catch (error) {
+    target.innerHTML = `<div class="error">${esc(error.message || '時刻表を読み込めませんでした。')}</div>`;
+  }
+}
 
+function setupDateControl(fallbackDate) {
+  const input = document.getElementById('execution-date');
+  const button = document.getElementById('apply-date');
+  if (!input || !button) return;
+  const initial = specifiedDate || fallbackDate || '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(initial)) input.value = initial;
+  else if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(initial)) {
+    const [y,m,d] = initial.split('/'); input.value = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  button.addEventListener('click', () => {
+    specifiedDate = input.value;
+    if (specifiedDate) params.set('date',specifiedDate); else params.delete('date');
+    history.replaceState(null,'',`${location.pathname}?${params.toString()}`);
+    if (renderedTrain) renderA3(renderedTrain);
+  });
+}
+
+function readTransferredTrain() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('selectedTrainData') || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+async function fetchTimetables() {
+  const local = ['localhost','127.0.0.1'].includes(location.hostname);
+  const candidates = local
+    ? ['./timetables.json','https://tayunet-traininfo.com/T-time/timetables.json']
+    : ['https://tayunet-traininfo.com/T-time/timetables.json','./timetables.json'];
+  for (const path of candidates) {
     try {
-        const response = await fetch(JSON_PATH);
-        if (!response.ok) throw new Error("JSON取得失敗");
-        const allData = await response.json();
+      const response = await fetch(path);
+      if (response.ok) return response.json();
+    } catch { /* deployed source then local copy */ }
+  }
+  throw new Error('時刻表データを読み込めませんでした。');
+}
 
-        const group = allData.filter(item => {
-            const dateStr = item.startDate || item.dayType || "";
-            const p = dateStr.split(/[\/\-]/);
-            const dateKey = p.length >= 3 ? `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}` : dateStr;
-            return `${dateKey}_${item.trainNumber}` === targetId;
-        });
+function findTrain(allData) {
+  if (!targetId) return [];
+  return allData.filter(item => {
+    const raw = item.startDate || item.dayType || '';
+    const p = raw.split(/[\/\-]/);
+    const dateKey = p.length >= 3 ? `${Number(p[1])}/${Number(p[2])}` : raw;
+    return `${dateKey}_${item.trainNumber}` === targetId;
+  });
+}
 
-        if (group.length > 0) {
-            const mergedTrain = mergeTrainSegments(group);
-            renderStaff(mergedTrain, group[0]);
-        } else {
-            container.innerHTML = "該当データがありません";
-        }
-    } catch (e) {
-        console.error(e);
-        container.innerHTML = "読み込みエラー";
-    }
-});
+function dedupeSegments(segments) {
+  const seen = new Set();
+  return segments.filter(segment => {
+    const key = JSON.stringify([segment.line, segment.stops, segment.speed, segment.power]);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
 
 function mergeTrainSegments(segments) {
-    const base = { ...segments[0] };
-    const mergedStops = [];
-    const seenStations = new Set();
-    segments.forEach(seg => {
-        seg.stops.forEach(stop => {
-            if (!seenStations.has(stop.station)) {
-                mergedStops.push({ ...stop });
-                seenStations.add(stop.station);
-            } else {
-                const existing = mergedStops.find(s => s.station === stop.station);
-                if ((!existing.arrival || existing.arrival.trim() === "") && stop.arrival) existing.arrival = stop.arrival;
-                if ((!existing.departure || existing.departure.trim() === "") && stop.departure) existing.departure = stop.departure;
-                if (!existing.trackN && stop.trackN) existing.trackN = stop.trackN;
-            }
-        });
+  const base = { ...segments[0], stops: [], lines: [] };
+  segments.forEach((segment, segmentIndex) => {
+    if (segment.line && !base.lines.includes(segment.line)) base.lines.push(segment.line);
+    (segment.stops || []).forEach((stop, stopIndex) => {
+      const previous = base.stops.at(-1);
+      if (segmentIndex && stopIndex === 0 && previous?.station === stop.station) {
+        base.stops[base.stops.length - 1] = {
+          ...previous, ...stop,
+          arrival: previous.arrival || stop.arrival,
+          departure: stop.departure || previous.departure,
+          trackN: stop.trackN || previous.trackN
+        };
+      } else base.stops.push({ ...stop });
     });
-    base.stops = mergedStops;
-    return base;
+  });
+  base.destination = segments.at(-1).destination || base.destination;
+  return base;
 }
 
-// ── 時刻フォーマット（肩文字の秒数再現） ──
-function formatTime(t, isPassing) {
-    if (!t || t.trim() === "" || t === " ") return "";
-    if (t === "||" || t === "↓" || t === "…") return '<div class="pass-arrow">↓</div>';
-    if (t === "=" || t === "＝" || t === "==") return '<div class="end-mark">＝＝</div>';
-
-    const p = t.split(':');
-    const hhmm = `${p[0]}.${p[1]}`;
-    const rawSec = p[2] ? p[2].replace(/^0/, '') : '';
-    
-    // 秒がある場合のみ肩文字スパンを生成
-    const secStr = (rawSec && rawSec !== '0' && rawSec !== '00') 
-        ? `<span class="time-sec">${rawSec}</span>` : '';
-
-    return `
-        <div class="time-container ${isPassing ? 'st-passing' : ''}">
-            <span class="time-main">${hhmm}</span>${secStr}
-        </div>`;
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ── 運転時分（肩に秒を乗せる） ──
-function formatJifun(val) {
-    if (!val || val === 0 || val === "0" || val === "0:00") return "";
-    
-    let min, sec;
-    if (typeof val === 'number') {
-        min = Math.floor(val / 60);
-        sec = val % 60;
-    } else {
-        const p = String(val).split(':');
-        min = p[0];
-        sec = p[1] ? p[1].replace(/^0/, '') : '';
-    }
-    const secStr = (sec && sec != 0) ? `<span class="jifun-sec">${sec}</span>` : '';
-    return `<div class="jifun-cell"><span class="jifun-main">${min}</span>${secStr}</div>`;
+function rawTime(value) {
+  const text = String(value ?? '').trim();
+  if (!text || ['||','↓','…','=','＝','=='].includes(text)) return null;
+  const [h = '0', m = '0', s = '0'] = text.split(':');
+  return { h:Number(h), m:Number(m), s:Number(s) };
 }
 
-function renderStaff(train, firstSegment) {
-    const target = document.getElementById('render-target');
-    if (!target) return;
-    target.innerHTML = createStaffInner(train, firstSegment);
+function isSymbol(value) { return ['||','↓','…'].includes(String(value ?? '').trim()); }
+
+function isPassing(stop, index, length) {
+  const a = String(stop.arrival ?? '').trim();
+  const d = String(stop.departure ?? '').trim();
+  return isSymbol(a) || isSymbol(d) || (!a && d && index > 0 && index < length - 1);
 }
 
-function createStaffInner(train, firstSegment) {
-    const stopCount = train.stops.length;
-    // 駅数に応じてA4 1枚に収まるよう高さを調整（18駅以上なら詰める）
-    const rowHeight = stopCount > 18 ? '42px' : (stopCount > 15 ? '48px' : '55px');
+function timeCell(value, passing, abbreviated) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  if (isSymbol(text)) return '<div class="arrow">↓</div>';
+  if (['=','＝','=='].includes(text)) return '<div class="endmark">＝＝</div>';
+  const t = rawTime(text);
+  if (!t) return '';
+  return `<div class="time${passing ? ' pass' : ''}">
+    <span class="hour-part">${abbreviated ? '' : `${t.h}.`}</span>
+    <span class="minute-part">${String(t.m).padStart(2,'0')}</span>
+    <span class="second-part">${t.s ? String(t.s).padStart(2,'0') : ''}</span>
+  </div>`;
+}
 
-    let html = `
-        <div class="header-flex">
-            <div class="no-label">NO. ${firstSegment.kid1 || '1'}</div>
-            <div class="depot-info">${train.line || '変臨Ｂ５２３'}行路<br>新前橋運輸区</div>
-        </div>
-        <div class="execution-date">施行日　${customDate || train.startDate || '2026/03/19'}</div>
+function speedParts(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(通貨)(\d{2,3})(.*)$/);
+  if (!match) return { maximum:'', kind:text };
+  return { maximum:match[2], kind:`${match[1]}${match[3]}` };
+}
 
-        <table class="info-table">
-            <colgroup><col style="width:38%;"><col style="width:18%;"><col style="width:22%;"><col style="width:22%;"></colgroup>
-            <tr style="height:35px;"><td>列　　車</td><td>最高速度<br>(Km/h)</td><td>速度種別</td><td>けん引定数</td></tr>
-            <tr>
-                <td class="train-num-value">${train.trainNumber || ''}</td>
-                <td style="font-size:20px; font-weight:900;">${train.speed || ''}</td>
-                <td style="font-size:20px; font-weight:900;">${train.speedType || ''}</td>
-                <td style="font-size:16px; font-weight:900; line-height:1.2;">${(train.power || '').replace(/\n/g, '<br>')}</td>
-            </tr>
-        </table>
+function displayTrack(value) {
+  const text = String(value ?? '').trim();
+  const implicitTracks = new Set([
+    '上本','下本','武上','武下','客上','客下','貨上','貨下','本線',
+    '快上','快下','電上','電下','京上','京下','南外','北外',
+    '山貨下','山貨上','大支下','大支上','須上','須下'
+  ]);
+  if (implicitTracks.has(text)) return '';
+  return text.replace(/([0-9０-９])番$/, '$1');
+}
 
-        <table class="main-table">
-            <colgroup>
-                <col style="width:10%;"><col style="width:30%;"><col style="width:20%;"><col style="width:20%;"><col style="width:8%;"><col style="width:6%;"><col style="width:6%;">
-            </colgroup>
-            <thead>
-                <tr><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発(通)</th><th>着発<br>線</th><th>制限<br>速度</th><th>記事</th></tr>
-            </thead>
-            <tbody>
-                <tr style="height:40px;">
-                    <td colspan="2" style="text-align:center; font-size:28px; font-weight:900; background-color:#fff;">
-                        ${train.carCount || ''}<span style="font-size:16px; margin-left:2px;">両</span>
-                    </td>
-                    <td colspan="5" style="padding-left:20px; font-size:22px; font-weight:900; color:red;">${train.carLabel || ''}</td>
-                </tr>
-    `;
+function stationMarkup(value) {
+  const chars = Array.from(String(value ?? '').replace(/[\s　]+/g,''));
+  const classes = ['station-glyphs'];
+  if (chars.length === 1) classes.push('single');
+  if (chars.length > 4) classes.push('long');
+  return `<span class="${classes.join(' ')}">${chars.map(char=>`<span>${esc(char)}</span>`).join('')}</span>`;
+}
 
-    train.stops.forEach((stop, i) => {
-        // 通過判定：着が矢印、または着空欄かつ途中駅
-        const isPassing = (stop.arrival === "||" || stop.arrival === "↓" || (stop.arrival === "" && stop.departure !== "" && i !== 0 && i !== train.stops.length - 1));
-        
-        html += `
-            <tr style="height: ${rowHeight};">
-                <td>${formatJifun(stop.timeDiff)}</td>
-                <td><div class="station-name ${isPassing ? 'st-passing' : ''}">${stop.station}</div></td>
-                <td>${formatTime(stop.arrival, isPassing)}</td>
-                <td>${formatTime(stop.departure, isPassing)}</td>
-                <td class="track-cell">${stop.trackN || ''}</td>
-                <td style="text-align:center; font-weight:900; color:red;">${stop.speedLimit || ''}</td>
-                <td style="font-size:11px; font-weight:900; vertical-align:top; padding:2px; line-height:1.1;">${stop.memo || ''}</td>
-            </tr>
-        `;
-    });
+function displayDate(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  return match ? `${match[1]}年　${Number(match[2])}月${Number(match[3])}日` : text;
+}
 
-    const d = new Date();
-    const today = `${d.getFullYear()}年 ${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}時${d.getMinutes()}分作成`;
+function seconds(value) {
+  const t = rawTime(value); return t ? t.h * 3600 + t.m * 60 + t.s : null;
+}
 
-    html += `
-            </tbody>
-        </table>
+function runningTime(stops, index) {
+  if (!index) return '';
+  let start = null;
+  for (let i = index - 1; i >= 0 && start === null; i--) start = seconds(stops[i].departure) ?? seconds(stops[i].arrival);
+  const end = seconds(stops[index].arrival) ?? seconds(stops[index].departure);
+  if (start === null || end === null) return '';
+  let diff = end - start; if (diff < 0) diff += 86400;
+  const min = Math.floor(diff / 60), sec = diff % 60;
+  return `${min}${sec ? `<sup>${String(sec).padStart(2,'0')}</sup>` : ''}`;
+}
 
-        <div class="notes-area">
-            <div class="notes-title">注意事項</div>
-            <div class="notes-content">${(train.notes || '').replace(/\n/g, '<br>')}</div>
-        </div>
-        <div class="footer-time">${today}</div>
-    `;
-    return html;
+function makeChunks(stops) {
+  const max = 43;
+  if (stops.length <= max) return [{ stops, offset:0 }];
+  if (stops.length <= max * 2) {
+    const midpoint = Math.ceil(stops.length / 2);
+    return [
+      { stops:stops.slice(0,midpoint + 1), offset:0 },
+      { stops:stops.slice(midpoint), offset:midpoint }
+    ];
+  }
+  const chunks = [];
+  let offset = 0;
+  while (offset < stops.length) {
+    const end = Math.min(offset + max, stops.length);
+    chunks.push({ stops:stops.slice(offset,end), offset });
+    if (end === stops.length) break;
+    offset = end - 1;
+  }
+  return chunks;
+}
+
+function cardHtml(train, stops, offset, continued, hasNext) {
+  const rowHeight = Math.max(6.1, Math.min(12, 295 / Math.max(stops.length, 1)));
+  const speed = speedParts(train.speed);
+  const stationFont = Math.max(11, Math.min(18, rowHeight * 2.45));
+  const timeFont = Math.max(15, Math.min(26, rowHeight * 3.45));
+  const trackFont = Math.max(13, Math.min(23, rowHeight * 3));
+  const runFont = Math.max(9, Math.min(14, rowHeight * 1.85));
+  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(6,runFont*.54)}px;--time-sec-font:${Math.max(6,timeFont*.33)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
+  const rows = stops.map((stop, localIndex) => {
+    const index = offset + localIndex;
+    const passing = isPassing(stop, index, train.stops.length);
+    const arrivalAbbr = passing;
+    const departureAbbr = passing && index > 0;
+    const trackText = displayTrack(stop.trackN);
+    const trackLength = Math.min(5,Array.from(trackText).length);
+    return `<tr class="stop-row" style="--row-height:${rowHeight}mm">
+      <td class="run">${localIndex === 0 ? '' : runningTime(train.stops,index)}</td>
+      <td class="station${passing ? ' pass' : ''}">${stationMarkup(stop.station)}</td>
+      <td>${timeCell(stop.arrival,passing,arrivalAbbr)}</td>
+      <td>${timeCell(stop.departure,passing,departureAbbr)}</td>
+      <td class="track"><span class="track-glyph len-${trackLength}">${esc(trackText)}</span></td>
+      <td class="limit">${esc(stop.speedLimit)}</td>
+      <td class="memo">${esc(stop.memo)}</td>
+    </tr>`;
+  }).join('');
+  return `<section class="card">
+    <table class="staff" style="${style}">
+      <colgroup><col style="width:10%"><col style="width:22%"><col style="width:18%"><col style="width:18%"><col style="width:12%"><col style="width:9%"><col style="width:11%"></colgroup>
+      <thead>
+        <tr class="top-label"><th colspan="2">列　車</th><th>最高速度<br>（Km／h）</th><th colspan="2">速度種別</th><th colspan="2">けん引定数</th></tr>
+        <tr class="top-value"><td colspan="2" class="train-no"><span class="compressed">${esc(train.trainNumber)}</span></td><td class="speed">${esc(train.maxSpeed || speed.maximum)}</td><td colspan="2" class="speed">${esc(speed.kind)}</td><td colspan="2" class="power">${esc(train.power)}</td></tr>
+        <tr class="column-head"><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発（通）</th><th>着発線</th><th>制限<br>速度</th><th>記事</th></tr>
+      </thead>
+      <tbody>
+        <tr class="cars-row${train.carCount ? '' : ' empty-cars'}"><td colspan="7"><span class="cars">${esc(train.carCount || '')}</span>${train.carCount ? '<small>両</small>' : ''}<span class="continuation">${continued ? '（前頁から）' : ''}</span></td></tr>
+        ${rows}
+        <tr class="tail-row"><td colspan="7">${hasNext ? '（次頁へ）' : '（終着）'}</td></tr>
+      </tbody>
+    </table>
+    <div class="notes-title">注意事項</div><div class="notes">${esc(train.notes)}</div>
+  </section>`;
+}
+
+function halfHtml(train, stops, pageNo, offset, hasNext) {
+  const date = specifiedDate || train.startDate || train.dayType || '';
+  const office = train.office || '';
+  const workName = train.workName || train.line || '';
+  const now = new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());
+  return `<section class="half${stops.length ? '' : ' empty-half'}">
+    <i class="crop tl">＋</i><i class="crop tr">＋</i><i class="crop bl">＋</i><i class="crop br">＋</i>
+    ${stops.length ? `<header class="page-head"><div class="page-no">NO. ${pageNo}</div><div class="office">${esc(workName)} 行路<br>${esc(office)}</div></header>
+      <div class="effective">施行日　${esc(displayDate(date))}</div>
+      ${cardHtml(train,stops,offset,pageNo > 1,hasNext)}
+      <div class="created">${esc(now)} 作成</div>` : '<span>（余白）</span>'}
+  </section>`;
+}
+
+function renderA3(train) {
+  const chunks = makeChunks(train.stops);
+  const sheets = [];
+  for (let index = 0; index < chunks.length; index += 2) {
+    const left = chunks[index];
+    const right = chunks[index + 1];
+    sheets.push(`<article class="a3-sheet">${halfHtml(train,left.stops,index + 1,left.offset,Boolean(right || chunks[index + 2]))}${halfHtml(train,right?.stops || [],index + 2,right?.offset || 0,Boolean(chunks[index + 2]))}</article>`);
+  }
+  document.getElementById('render-target').innerHTML = sheets.join('');
 }
