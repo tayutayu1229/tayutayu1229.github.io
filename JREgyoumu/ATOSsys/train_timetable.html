@@ -616,8 +616,49 @@
                 targetTrainData.name || '';
             document.getElementById('route-val').textContent =
                 `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`;
+
+            const normalizeTrainNumber = (value) =>
+                String(value || '')
+                    .replace(/[\s\u3000]/g, '')
+                    .replace(/[０-９]/g, (character) =>
+                        String.fromCharCode(character.charCodeAt(0) - 0xFEE0)
+                    );
+
+            const trainDescriptors = allTrainData.map((train) => ({
+                type: String(train.type || '').replace(/[\s\u3000]/g, ''),
+                number: normalizeTrainNumber(train.trainNumber),
+                power: String(train.power || '').toUpperCase()
+            }));
+
+            const isDeadheadTrain = trainDescriptors.some((train) =>
+                train.type.includes('回') || train.number.includes('回')
+            );
+
+            const isNonPassengerCategory = trainDescriptors.some((train) =>
+                /[試工単配雪入出]/.test(train.type) ||
+                /^(試|工|単|配|雪|入|出)/.test(train.number)
+            );
+
+            const normalizedTargetTrainNumber =
+                normalizeTrainNumber(targetTrainData.trainNumber);
+            const isFourDigitNumberOnly =
+                /^\d{4}$/.test(normalizedTargetTrainNumber);
+            const isFreightOrElectricLocomotive = trainDescriptors.some(
+                (train) =>
+                    train.type.includes('貨') || train.power.includes('EL')
+            );
+
+            const showTravelSection =
+                isDeadheadTrain ||
+                !(
+                    isNonPassengerCategory ||
+                    (isFourDigitNumberOnly && isFreightOrElectricLocomotive)
+                );
+
             document.getElementById('travel-section-val').textContent =
-                `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`;
+                showTravelSection
+                    ? `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`
+                    : '';
             document.getElementById('start-date-val').textContent =
                 targetTrainData.startDate || '';
 
