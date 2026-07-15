@@ -218,7 +218,7 @@ function runningTime(stops, index) {
 }
 
 function makeChunks(stops) {
-  const max = 43;
+  const max = 42;
   if (stops.length <= max) return [{ stops, offset:0 }];
   if (stops.length <= max * 2) {
     const midpoint = Math.ceil(stops.length / 2);
@@ -239,13 +239,13 @@ function makeChunks(stops) {
 }
 
 function cardHtml(train, stops, offset, continued, hasNext) {
-  const rowHeight = Math.max(6.1, Math.min(12, 295 / Math.max(stops.length, 1)));
+  const rowHeight = Math.max(5.8, Math.min(12, 240 / Math.max(stops.length, 1)));
   const speed = speedParts(train.speed);
-  const stationFont = Math.max(12, Math.min(21, rowHeight * 2.7));
+  const stationFont = Math.max(13, Math.min(23, rowHeight * 2.85));
   const timeFont = Math.max(16, Math.min(30, rowHeight * 3.65));
   const trackFont = Math.max(14, Math.min(26, rowHeight * 3.2));
-  const runFont = Math.max(10, Math.min(18, rowHeight * 2.1));
-  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(7,runFont*.58)}px;--time-sec-font:${Math.max(7,timeFont*.42)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
+  const runFont = Math.max(12, Math.min(22, rowHeight * 2.5));
+  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(9,runFont*.7)}px;--time-sec-font:${Math.max(9,timeFont*.55)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
   const rows = stops.map((stop, localIndex) => {
     const index = offset + localIndex;
     const passing = isPassing(stop, index, train.stops.length);
