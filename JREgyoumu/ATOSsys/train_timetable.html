@@ -693,7 +693,16 @@
                     stationCell.textContent = stationName;
                 }
 
-                const showArrivalTrack = rowIndex > 0;
+                const normalizedStationName = String(stop.station || '')
+                    .replace(/[\s\u3000]/g, '');
+                const normalizedOriginName = String(targetTrainData.origin || '')
+                    .replace(/[\s\u3000]/g, '');
+                const isActualOriginRow =
+                    rowIndex === 0 &&
+                    normalizedOriginName !== '' &&
+                    normalizedStationName === normalizedOriginName;
+
+                const showArrivalTrack = !isActualOriginRow;
                 const showDepartureTrack =
                     String(stop.departure ?? '').trim() !== '=';
 
@@ -702,7 +711,7 @@
                     stop.arrival,
                     stop.trackN || '',
                     showArrivalTrack,
-                    rowIndex === 0
+                    isActualOriginRow
                 );
                 createTimeCell(
                     row,
