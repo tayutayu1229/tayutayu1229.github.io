@@ -5,267 +5,425 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>【列車時刻表】</title>
     <style>
-        /* CSS */
-        body {
-            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
-            background-color: #f0f0f0;
-            color: #000000;
-            margin: 0; 
-            padding: 0;
-            font-size: 16px;
+        :root {
+            --paper: #ffffff;
+            --screen-bg: #ececec;
+            --header-fill: #AFCBEB;
+            --line: #222222;
+            --thin-line: 1.05px;
         }
-        
-        /* A4縦サイズに固定 (幅210mm) */
-        .page-container {
-            width: 210mm; 
-            margin: 20px auto; 
-            background-color: #ffffff;
-            border: 1px solid #ccc; 
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            padding: 10px;
+
+        * {
             box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 18px 0 42px;
+            background: var(--screen-bg);
+            color: #000;
+            font-family:
+                "ＭＳ Ｐゴシック",
+                "MS PGothic",
+                "Yu Gothic",
+                "Hiragino Kaku Gothic ProN",
+                "Meiryo",
+                sans-serif;
+            font-size: 15px;
+            font-weight: 500.4;
+            line-height: 1.08;
+        }
+
+        .page-container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 18mm;
+            background: var(--paper);
+            border: 1px solid #cfcfcf;
+            box-shadow: 0 3px 16px rgba(0, 0, 0, .14);
         }
 
         .timetable-container {
-            width: 100%; 
+            width: 100%;
             margin: 0;
-            background-color: #ffffff;
-            border: 2px solid #000000;
-            padding: 5px;
-            box-sizing: border-box;
+            padding: 0;
+            border: 0;
+            background: #fff;
         }
 
-        /* タイトル */
-        h2 {
-            font-size: 24px; 
-            text-align: left; 
-            margin: 0;
-            padding: 5px 0 5px 5px;
-            border-bottom: 1px solid #000000;
-        }
-
-        /* ヘッダー情報（枠線なし） */
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            font-size: 14px;
+        .document-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto 54px;
+            align-items: end;
+            column-gap: 16px;
             margin-bottom: 5px;
-            padding: 0 5px;
-        }
-        .header-top .left-info, .header-top .right-info {
-            border: none;
-            padding: 2px 5px;
-            background-color: transparent;
-        }
-        .header-top .right-info {
-            text-align: right;
         }
 
-        /* --- 全てのテーブルセルの基本スタイル --- */
-        .info-table, .main-table {
+        h2 {
+            margin: 0 0 1px;
+            padding: 0;
+            border: 0;
+            font-size: 19px;
+            font-weight: 500;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
+
+        .header-meta {
+            font-size: 11.5px;
+            font-weight: 500;
+            line-height: 1.38;
+            white-space: nowrap;
+        }
+
+        .page-number {
+            align-self: start;
+            padding-top: 1px;
+            text-align: center;
+            font-size: 11.5px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .info-table,
+        .main-table {
             width: 100%;
             border-collapse: collapse;
+            border-spacing: 0;
             table-layout: fixed;
-            margin-bottom: 10px;
+            margin: 0;
+            border: var(--thin-line) solid var(--line);
         }
 
-        .info-table th, .info-table td, .main-table th, .main-table td {
-            border: 1px solid #000000;
-            padding: 2px 4px; 
+        .info-table {
+            margin-bottom: 7px;
+        }
+
+        .info-table th,
+        .info-table td,
+        .main-table th,
+        .main-table td {
+            border: var(--thin-line) solid var(--line);
             vertical-align: middle;
-            height: 20px; 
-            min-height: 20px;
-            box-sizing: border-box;
-            font-size: 16px;
+            font-weight: 500;
         }
-        
-        /* --- 情報テーブルのスタイル --- */
+
+        /*
+         * 上表の項目欄と下表の線区欄を両方25%に固定。
+         * これで上下の縦罫線が同じ位置に揃う。
+         */
         .info-table th {
-            background-color: #AFCBEB; 
-            width: 22%; /* 線区の幅に合わせる */
+            width: 25%;
+            height: 19px;
+            padding: 0 6px;
+            background: var(--header-fill);
             text-align: center;
+            font-size: 13.2px;
+            letter-spacing: 0;
+            white-space: nowrap;
         }
-        /* 情報テーブルの内容を左寄せ */
+
         .info-table td {
-            text-align: left !important;
+            height: 19px;
+            padding: 0 5px;
+            text-align: left;
+            font-size: 13.2px;
+            letter-spacing: 0;
         }
-        
-        /* --- メイン時刻表のスタイル --- */
+
         .main-table thead th {
-            background-color: #AFCBEB; 
-            font-weight: normal;
-            /* 【修正点】ヘッダーセルの縦幅を狭く */
-            height: 23px; 
-            min-height: 23px;
+            height: 21px;
+            padding: 0 5px;
+            background: var(--header-fill);
             text-align: center;
+            font-size: 13.2px;
+            letter-spacing: 0;
         }
 
-        /* **【修正点】データセルの縦幅をさらに狭く** */
         .main-table tbody td {
-            padding: 1px 4px; 
-            height: 23px; 
-            min-height: 23px;
-            font-size: 15px; 
-            text-align: center !important; 
+            height: 21px;
+            padding: 0 5px;
+            font-size: 13.2px;
         }
 
-        
-        /* **【修正点】メイン時刻表のセル幅 (データセルと情報テーブルのデータセルを意識)** */
-        /* 線区、駅の横幅を情報テーブルの項目名セル（22%）に揃え、時刻系を調整 */
-        .main-table .line-name { 
-            width: 22%; /* 線区: 22% */
-        } 
-        .main-table .station-name { 
-            width: 22%; /* 駅: 22% */
-        } 
-        .main-table .track-col-track { 
-            width: 10%; /* 着発線: 10% */
-        }
-        /* 着時刻と発時刻で残り46%を均等に分ける */
-        .main-table .time-col-combined { 
-            width: 23%; /* 着時刻: 23% */
-        } 
-        .main-table .time-col-combined:nth-of-type(4) { 
-            width: 23%; /* 発時刻: 23% */
-        } 
-        /* 合計: 22 + 22 + 23 + 23 + 10 = 100% */
-
-
-        /* 駅名セル（データ）のみ左寄せ */
-        .main-table .station-name {
-            text-align: left !important;
+        .main-table .line-name,
+        .main-table .station-name,
+        .main-table .time-col-combined {
+            width: 25%;
         }
 
-        /* 駅名タイトル（ヘッダー）は中央寄せ */
-        .main-table thead .station-name {
-             text-align: center !important;
-        }
-
-        /* 【修正点】線区名セルの縦中央配置と横T字罫線の安定化 */
-        .main-table .line-name {
-            vertical-align: middle !important; 
+        .main-table tbody .line-name {
+            position: relative;
             padding: 0;
-            text-align: center !important; 
+            vertical-align: top;
+            text-align: left;
+            overflow: hidden;
         }
-        .main-table .line-name span {
+
+        .line-overlay {
+            position: absolute;
+            inset: 0;
+        }
+
+        .line-segment-label {
+            position: absolute;
+            left: 7px;
+            right: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            font-size: 13.2px;
+            font-weight: 500;
+            line-height: 1.15;
+            white-space: normal;
+        }
+
+        .line-segment-divider {
+            position: absolute;
+            left: 0;
+            right: 0;
+            border-top: var(--thin-line) solid var(--line);
+            pointer-events: none;
+        }
+
+        .main-table tbody .station-name {
+            padding-left: 7px;
+            text-align: left;
+            font-size: 13.2px;
+            font-weight: 500.2;
+            white-space: nowrap;
+        }
+
+        .time-cell {
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+        }
+
+        .time-cell-inner {
+            position: relative;
             display: block;
-            width: 100%;
-            height: 100%; 
-            display: flex;
-            align-items: center; /* 縦中央に固定 */
-            justify-content: center; 
-            padding: 0;
-            line-height: 1.2;
-            /* **T字罫線の安定化**: 線区名セル内の高さは、rowspanで結合された全行を占有し、
-               flex-growで中央にテキストを配置することで、隣接セルの横罫線と分離する効果を生む */
+            min-height: 18px;
+            line-height: 18px;
         }
-        
-        /* 着発線セル: 縦方向中央 */
-        .main-table .track-col-track {
-            vertical-align: middle !important; 
+
+        /*
+         * 数字はArial系を優先して、斜線入りの0を回避。
+         * 時刻は左寄りの固定位置、着発線は右側の固定位置。
+         */
+        .time-value {
+            position: absolute;
+            top: 0;
+            left: 42%;
+            transform: translateX(-50%);
+            display: block;
+            text-align: center;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 13.2px;
+            font-weight: 500.2;
+            font-variant-numeric: normal;
+            font-feature-settings: normal;
+            letter-spacing: 0;
+            white-space: nowrap;
         }
-        
-        /* --------------------
-           出力ボタンのスタイル (A4表示範囲外)
-           -------------------- */
-        .output-buttons {
-            position: fixed; 
-            top: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 10px;
-            background-color: #fff;
-            border: 1px solid #000;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+        .track-value {
+            position: absolute;
+            top: 0;
+            right: 12px;
+            min-width: 48px;
+            text-align: right;
+            font-family:
+                "ＭＳ Ｐゴシック",
+                "MS PGothic",
+                "Yu Gothic",
+                "Hiragino Kaku Gothic ProN",
+                "Meiryo",
+                sans-serif;
+            font-size: 12.7px;
+            font-weight:500.2;
+            line-height: 18px;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
+
+        .special-time .time-value {
+            letter-spacing: 0;
+        }
+
+        .error-row td {
+            height: 52px;
+            text-align: center;
+            color: #b00020;
+            font-size: 12.7px;
+            font-weight: 500.2;
+        }
+
+        .settings-wrapper {
+            position: fixed;
+            top: 14px;
+            right: 14px;
             z-index: 1000;
         }
-        .output-buttons button {
-            padding: 8px 15px;
-            background-color: #AFCBEB;
-            border: 1px solid #000;
+
+        .settings-toggle {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #fff;
+            color: #111;
+            font-size: 20px;
+            line-height: 1;
             cursor: pointer;
-            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
-            font-size: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
         }
-        .output-buttons button:hover {
-            background-color: #8faacd;
+
+        .settings-toggle:hover {
+            background: #f2f2f2;
         }
-        
-        /* 印刷時の設定 */
-        @media print {
-            .output-buttons {
-                display: none;
+
+        .settings-menu {
+            position: absolute;
+            top: 45px;
+            right: 0;
+            display: none;
+            width: 176px;
+            padding: 8px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #fff;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+        }
+
+        .settings-wrapper.open .settings-menu {
+            display: block;
+        }
+
+        .settings-menu button {
+            display: block;
+            width: 100%;
+            min-height: 34px;
+            margin: 0 0 7px;
+            padding: 7px 10px;
+            border: 1px solid #444;
+            border-radius: 2px;
+            background: #deddee;
+            color: #111;
+            font-family: inherit;
+            font-size: 12.7px;
+            font-weight: 500.2;
+            cursor: pointer;
+        }
+
+        .settings-menu button:last-child {
+            margin-bottom: 0;
+        }
+
+        .settings-menu button:hover {
+            background: var(--header-fill);
+        }
+
+        @media screen and (max-width: 900px) {
+            body {
+                padding: 12px;
+                overflow-x: auto;
             }
+
             .page-container {
-                border: none;
-                box-shadow: none;
                 margin: 0;
-                width: 100%; 
             }
-            .info-table th, .main-table thead th {
-                background-color: #AFCBEB !important;
-                -webkit-print-color-adjust: exact; 
-                color-adjust: exact;               
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        @media print {
+            html,
+            body {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0;
+                padding: 0;
+                background: #fff;
+            }
+
+            .settings-wrapper {
+                display: none !important;
+            }
+
+            .page-container {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0;
+                padding: 18mm;
+                border: 0;
+                box-shadow: none;
+            }
+
+            .info-table th,
+            .main-table thead th {
+                background: var(--header-fill) !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .info-table,
+            .main-table,
+            .info-table tr,
+            .main-table tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
             }
         }
     </style>
 </head>
 <body>
 
-    <div class="output-buttons">
-        <button id="export-excel-btn">Excelで出力</button>
-        <button id="print-pdf-btn">印刷 (PDF/紙)</button>
+    <div class="settings-wrapper" id="settings-wrapper">
+        <button
+            type="button"
+            class="settings-toggle"
+            id="settings-toggle"
+            aria-label="出力設定を開く"
+            aria-expanded="false"
+        >⚙</button>
+
+        <div class="settings-menu" id="settings-menu">
+            <button id="export-excel-btn" type="button">Excelで出力</button>
+            <button id="print-pdf-btn" type="button">印刷（PDF／紙）</button>
+        </div>
     </div>
 
     <div class="page-container">
         <div class="timetable-container">
-            <div class="header-top">
-                <div class="left-info">1 / 1</div>
-                <div class="right-info">
+
+            <div class="document-header">
+                <h2>【列車時刻表】</h2>
+
+                <div class="header-meta">
                     作成日時：<span id="created-date"></span><br>
-                    出力箇所：東京総合指令室
+                    出力箇所：<span id="output-location"></span>
                 </div>
+
+                <div class="page-number">1 / 1</div>
             </div>
 
-            <h2>【列車時刻表】</h2>
-            
             <table class="info-table" id="info-table">
                 <tbody>
-                    <tr>
-                        <th>列車番号</th>
-                        <td id="train-number-val" colspan="4"> </td>
-                    </tr>
-                    <tr>
-                        <th>列車種別</th>
-                        <td id="type-val" colspan="4"> </td>
-                    </tr>
-                    <tr>
-                        <th>速度種別</th>
-                        <td id="speed-val" colspan="4"> </td>
-                    </tr>
-                    <tr>
-                        <th>列車名</th>
-                        <td id="name-val" colspan="4"> </td>
-                    </tr>
-                    <tr>
-                        <th>始発〜終着</th>
-                        <td id="route-val" colspan="4"></td>
-                    </tr>
-                    <tr>
-                        <th>旅客案内区間</th>
-                        <td id="travel-section-val" colspan="4"></td>
-                    </tr>
-                    <tr>
-                        <th>始発駅日付</th>
-                        <td id="start-date-val" colspan="4"></td>
-                    </tr>
+                    <tr><th>列車番号</th><td id="train-number-val" colspan="4"></td></tr>
+                    <tr><th>列車種別</th><td id="type-val" colspan="4"></td></tr>
+                    <tr><th>速度種別</th><td id="speed-val" colspan="4"></td></tr>
+                    <tr><th>列車名</th><td id="name-val" colspan="4"></td></tr>
+                    <tr><th>始発～終着</th><td id="route-val" colspan="4"></td></tr>
+                    <tr><th>旅客案内区間</th><td id="travel-section-val" colspan="4"></td></tr>
+                    <tr><th>始発駅日付</th><td id="start-date-val" colspan="4"></td></tr>
                 </tbody>
             </table>
-            
-            
+
             <table class="main-table" id="main-timetable">
                 <thead>
                     <tr>
@@ -273,208 +431,308 @@
                         <th class="station-name">駅</th>
                         <th class="time-col-combined">着時刻</th>
                         <th class="time-col-combined">発時刻</th>
-                        <th class="track-col-track">着発線</th>
                     </tr>
                 </thead>
-                <tbody>
-                    </tbody>
+                <tbody></tbody>
             </table>
 
         </div>
     </div>
 
     <script>
-        // 時刻をhh:mm:ss形式に整形するヘルパー関数
         const formatTime = (time) => {
             if (!time || time === '―') return '…';
             if (time === '||' || time === '…' || time === '=') return time;
-            
-            const parts = time.split(':');
+
+            const parts = String(time).split(':');
+
             if (parts.length === 3) {
-                return time;
-            } else if (parts.length === 2) {
-                 return `${time}:00`; 
+                return `${parts[0]}:${parts[1]} ${parts[2]}`;
             }
-            return time;
+
+            if (parts.length === 2) {
+                return `${parts[0]}:${parts[1]}`;
+            }
+
+            return String(time);
         };
 
-        // **********************************
-        // DOMContentLoaded での初期処理
-        // **********************************
+        const createTimeCell = (row, time, track, showTrack) => {
+            const cell = row.insertCell();
+            cell.className = 'time-col-combined time-cell';
+
+            const inner = document.createElement('div');
+            inner.className = 'time-cell-inner';
+
+            const timeValue = document.createElement('span');
+            timeValue.className = 'time-value';
+            timeValue.textContent = formatTime(time);
+
+            if (['…', '||', '='].includes(timeValue.textContent)) {
+                inner.classList.add('special-time');
+            }
+
+            const trackValue = document.createElement('span');
+            trackValue.className = 'track-value';
+            trackValue.textContent = showTrack && track ? track : '';
+
+            inner.append(timeValue, trackValue);
+            cell.appendChild(inner);
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             const timetableBody = document.querySelector('#main-timetable tbody');
             const selectedDataString = sessionStorage.getItem('selectedTrainData');
 
-            // 作成日時
+            const settingsWrapper = document.getElementById('settings-wrapper');
+            const settingsToggle = document.getElementById('settings-toggle');
+
+            settingsToggle.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isOpen = settingsWrapper.classList.toggle('open');
+                settingsToggle.setAttribute('aria-expanded', String(isOpen));
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!settingsWrapper.contains(event.target)) {
+                    settingsWrapper.classList.remove('open');
+                    settingsToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
             const day = String(now.getDate()).padStart(2, '0');
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
-            document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
+
+            document.getElementById('created-date').textContent =
+                `${year}年${month}月${day}日 ${hours}時${minutes}分`;
+            document.getElementById('output-location').textContent =
+                sessionStorage.getItem('selectedOutputLocation') || '東京総合指令室';
+
+            const showError = (message) => {
+                timetableBody.innerHTML =
+                    `<tr class="error-row"><td colspan="4">${message}</td></tr>`;
+            };
 
             if (!selectedDataString) {
-                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データがありません。列車選択画面からアクセスしてください。</td></tr>';
+                showError('データがありません。列車選択画面からアクセスしてください。');
                 return;
             }
 
             let allTrainData;
+
             try {
                 allTrainData = JSON.parse(selectedDataString);
-            } catch (e) {
-                timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">データの解析に失敗しました。</td></tr>';
+            } catch (error) {
+                showError('データの解析に失敗しました。');
                 return;
             }
 
-            if (allTrainData.length === 0) {
-                 timetableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">選択された列車データが空です。</td></tr>';
+            if (!Array.isArray(allTrainData) || allTrainData.length === 0) {
+                showError('選択された列車データが空です。');
                 return;
             }
 
-            // 列車基本情報の表示
             const targetTrainData = allTrainData[0];
             let trainType = targetTrainData.type || '';
-            if (trainType === "選択なし") { trainType = ""; }
 
-            document.getElementById('train-number-val').textContent = targetTrainData.trainNumber || '';
-            document.getElementById('type-val').textContent = trainType || '';
-            document.getElementById('speed-val').textContent = targetTrainData.speed || '';
-            document.getElementById('name-val').textContent = targetTrainData.name || '';
-            document.getElementById('route-val').textContent = `${targetTrainData.origin || '...'} 〜 ${targetTrainData.destination || '...'}`;
-            document.getElementById('travel-section-val').textContent = `${targetTrainData.origin || '...'} 〜 ${targetTrainData.destination || '...'}`; 
-            document.getElementById('start-date-val').textContent = targetTrainData.startDate || '';
+            if (trainType === '選択なし') {
+                trainType = '';
+            }
 
+            document.getElementById('train-number-val').textContent =
+                targetTrainData.trainNumber || '';
+            document.getElementById('type-val').textContent = trainType;
+            document.getElementById('speed-val').textContent =
+                targetTrainData.speed || '';
+            document.getElementById('name-val').textContent =
+                targetTrainData.name || '';
+            document.getElementById('route-val').textContent =
+                `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`;
+            document.getElementById('travel-section-val').textContent =
+                `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`;
+            document.getElementById('start-date-val').textContent =
+                targetTrainData.startDate || '';
 
-            // **********************************
-            // 時刻表の詳細表示と重複駅/線区処理
-            // **********************************
-            
-            let allStops = [];
-            let previousStationName = null;
+            const allStops = [];
+            const lineSegments = [];
 
-            // 駅の重複排除ロジック
             allTrainData.forEach((segment, segmentIndex) => {
-                segment.stops.forEach((stop, stopIndex) => {
-                    const isDuplicate = (segmentIndex > 0 && stopIndex === 0 && stop.station === previousStationName);
+                const stops = Array.isArray(segment.stops) ? segment.stops : [];
+                if (stops.length === 0) return;
 
-                    if (!isDuplicate) {
-                         allStops.push({
-                            line: segment.line, 
-                            segmentIndex: segmentIndex, 
-                            ...stop
+                let startRow;
+
+                if (
+                    segmentIndex > 0 &&
+                    allStops.length > 0 &&
+                    allStops[allStops.length - 1].station === stops[0].station
+                ) {
+                    startRow = allStops.length - 0.5;
+
+                    for (let index = 1; index < stops.length; index++) {
+                        allStops.push({
+                            line: segment.line,
+                            segmentIndex,
+                            ...stops[index]
                         });
                     }
-                    previousStationName = stop.station;
-                });
-            });
+                } else {
+                    startRow = allStops.length;
 
-            // 線区の縦結合と表示
-            let i = 0;
-            while (i < allStops.length) {
-                const currentLine = allStops[i].line;
-                const currentSegmentIndex = allStops[i].segmentIndex;
-                let j = i;
-                
-                // 同じ線区が続く限り、jを進める
-                while (j < allStops.length && allStops[j].line === currentLine && allStops[j].segmentIndex === currentSegmentIndex) {
-                    j++;
+                    stops.forEach((stop) => {
+                        allStops.push({
+                            line: segment.line,
+                            segmentIndex,
+                            ...stop
+                        });
+                    });
                 }
 
-                const rowSpan = j - i; 
+                lineSegments.push({
+                    line: segment.line,
+                    startRow
+                });
+            });
 
-                for (let k = i; k < j; k++) {
-                    const stop = allStops[k];
-                    
-                    const row = timetableBody.insertRow();
-                    
-                    // 線区名セル 
-                    if (k === i) {
-                        const lineCell = row.insertCell();
-                        lineCell.className = 'line-name';
-                        lineCell.rowSpan = rowSpan;
-                        lineCell.innerHTML = `<span>${currentLine || '...'}</span>`;
-                    }
+            lineSegments.forEach((segment, index) => {
+                segment.endRow =
+                    index + 1 < lineSegments.length
+                        ? lineSegments[index + 1].startRow
+                        : allStops.length;
+            });
 
-                    // 駅名セル
-                    const stationCell = row.insertCell();
-                    stationCell.className = 'station-name';
-                    stationCell.textContent = stop.station || '...';
-                    
-                    // 着時刻セル (hh:mm:ss)
-                    const arrivalTimeCell = row.insertCell();
-                    arrivalTimeCell.className = 'time-col-combined';
-                    arrivalTimeCell.textContent = formatTime(stop.arrival);
+            allStops.forEach((stop, rowIndex) => {
+                const row = timetableBody.insertRow();
 
-                    // 発時刻セル (hh:mm:ss)
-                    const departureTimeCell = row.insertCell();
-                    departureTimeCell.className = 'time-col-combined';
-                    departureTimeCell.textContent = formatTime(stop.departure);
-                    
-                    // 着発線セル
-                    const trackCell = row.insertCell();
-                    trackCell.className = 'track-col-track';
-                    trackCell.textContent = stop.trackN || '...';
+                if (rowIndex === 0) {
+                    const lineCell = row.insertCell();
+                    lineCell.className = 'line-name';
+                    lineCell.rowSpan = allStops.length;
+
+                    const overlay = document.createElement('div');
+                    overlay.className = 'line-overlay';
+
+                    lineSegments.forEach((segment, segmentIndex) => {
+                        const displayLineName = segment.line
+                            ? (String(segment.line).endsWith('線')
+                                ? String(segment.line)
+                                : `${segment.line}線`)
+                            : '...';
+
+                        const topPercent =
+                            (segment.startRow / allStops.length) * 100;
+                        const bottomPercent =
+                            (segment.endRow / allStops.length) * 100;
+
+                        const label = document.createElement('div');
+                        label.className = 'line-segment-label';
+                        label.style.top = `${topPercent}%`;
+                        label.style.height = `${bottomPercent - topPercent}%`;
+                        label.textContent = displayLineName;
+                        overlay.appendChild(label);
+
+                        if (segmentIndex > 0) {
+                            const divider = document.createElement('div');
+                            divider.className = 'line-segment-divider';
+                            divider.style.top = `${topPercent}%`;
+                            overlay.appendChild(divider);
+                        }
+                    });
+
+                    lineCell.appendChild(overlay);
                 }
-                i = j;
-            }
-            
-            // **********************************
-            // 出力ボタンの機能実装 (Excelレイアウト対応)
-            // **********************************
-            
-            // Excel出力 (簡易CSV出力として実装)
-            document.getElementById('export-excel-btn').addEventListener('click', () => {
-                let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Japanese
-                
-                // CSVヘッダーとして、情報テーブルの項目名とデータを追加
-                const infoTable = document.getElementById('info-table');
-                const infoRows = infoTable.querySelectorAll("tr");
-                
-                infoRows.forEach(row => {
-                    const th = row.querySelector("th");
-                    const td = row.querySelector("td");
-                    if (th && td) {
-                        const header = th.textContent.trim().replace(/,/g, '、');
-                        const data = td.textContent.trim().replace(/,/g, '、');
-                        csvContent += `${header},${data}\n`;
-                    }
-                });
-                csvContent += "\n"; // 空行で区切り
 
-                // 時刻表ヘッダー
-                const header = ["線区", "駅", "着時刻", "発時刻", "着発線"];
-                csvContent += header.join(",") + "\n";
-                
-                // データ行 (線区の rowspan を考慮し、線区名を繰り返す)
-                allStops.forEach(stop => {
-                    const rowData = [
-                        stop.line || '...',
-                        stop.station || '...',
-                        formatTime(stop.arrival),
-                        formatTime(stop.departure),
-                        stop.trackN || '...'
-                    ];
-                    // CSV出力ではカンマを全角に置換
-                    const sanitizedRowData = rowData.map(item => item.trim().replace(/,/g, '、'));
-                    csvContent += sanitizedRowData.join(",") + "\n";
-                });
-                
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "列車時刻表_" + targetTrainData.trainNumber + ".csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                const stationCell = row.insertCell();
+                stationCell.className = 'station-name';
+                stationCell.textContent = stop.station || '...';
+
+                const hasArrival =
+                    stop.arrival !== undefined &&
+                    stop.arrival !== null &&
+                    String(stop.arrival).trim() !== '' &&
+                    stop.arrival !== '―';
+
+                const hasDeparture =
+                    stop.departure !== undefined &&
+                    stop.departure !== null &&
+                    String(stop.departure).trim() !== '' &&
+                    stop.departure !== '―';
+
+                createTimeCell(row, stop.arrival, stop.trackN || '', hasArrival);
+                createTimeCell(row, stop.departure, stop.trackN || '', hasDeparture);
             });
 
-            // 印刷 (PDF/紙)
-            document.getElementById('print-pdf-btn').addEventListener('click', () => {
-                window.print();
-            });
+            document
+                .getElementById('export-excel-btn')
+                .addEventListener('click', () => {
+                    let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
+
+                    document
+                        .querySelectorAll('#info-table tr')
+                        .forEach((row) => {
+                            const th = row.querySelector('th');
+                            const td = row.querySelector('td');
+
+                            if (th && td) {
+                                const header = th.textContent
+                                    .trim()
+                                    .replace(/,/g, '、');
+                                const data = td.textContent
+                                    .trim()
+                                    .replace(/,/g, '、');
+
+                                csvContent += `${header},${data}\n`;
+                            }
+                        });
+
+                    csvContent += '\n';
+                    csvContent +=
+                        ['線区', '駅', '着時刻', '発時刻', '着発線'].join(',') +
+                        '\n';
+
+                    allStops.forEach((stop) => {
+                        const rowData = [
+                            stop.line || '...',
+                            stop.station || '...',
+                            formatTime(stop.arrival),
+                            formatTime(stop.departure),
+                            stop.trackN || '...'
+                        ];
+
+                        csvContent += rowData
+                            .map((item) =>
+                                String(item).trim().replace(/,/g, '、')
+                            )
+                            .join(',') + '\n';
+                    });
+
+                    const link = document.createElement('a');
+                    link.href = encodeURI(csvContent);
+                    link.download =
+                        `列車時刻表_${targetTrainData.trainNumber || '列車'}.csv`;
+
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                    settingsWrapper.classList.remove('open');
+                    settingsToggle.setAttribute('aria-expanded', 'false');
+                });
+
+            document
+                .getElementById('print-pdf-btn')
+                .addEventListener('click', () => {
+                    settingsWrapper.classList.remove('open');
+                    settingsToggle.setAttribute('aria-expanded', 'false');
+                    window.print();
+                });
         });
     </script>
+
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
