@@ -10,9 +10,9 @@
             --screen-bg: #ececec;
             --header-fill: #AFCBEB;
             --line: #222222;
-            --thin-line: 0.75px;
-            --outer-line: 0.75px;
-            --section-line: 0.75px;
+            --thin-line: 0.65px;
+            --outer-line: 1.15px;
+            --section-line: 1.25px;
         }
 
         * {
@@ -24,7 +24,7 @@
             padding: 18px 0 42px;
             background: var(--screen-bg);
             color: #000;
-            font-family: "ＭＳ ゴシック", "MS Gothic", "ＭＳ Ｐゴシック", "MS PGothic", monospace;
+            font-family: "ＭＳ Ｐゴシック", "MS PGothic", "Yu Gothic", sans-serif;
             font-size: 16px;
             line-height: 1.12;
         }
@@ -61,7 +61,7 @@
             margin: 0 0 1px;
             padding: 0;
             border: 0;
-            font-size: 19px;
+            font-size: 20px;
             font-weight: 700;
             letter-spacing: .015em;
             white-space: nowrap;
@@ -111,41 +111,41 @@
         /* 基本情報表 */
         .info-table th {
             width: 25%;
-            height: 19px;
+            height: 20px;
             padding: 1px 7px;
             background: var(--header-fill);
             text-align: center;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 700;
-            letter-spacing: .025em;
+            letter-spacing: .04em;
             white-space: nowrap;
         }
 
         .info-table td {
-            height: 19px;
+            height: 20px;
             padding: 0 5px;
             text-align: left;
-            font-size: 12.5px;
+            font-size: 14px;
             font-weight: 500;
             letter-spacing: .01em;
         }
 
         /* 時刻表見出し */
         .main-table thead th {
-            height: 21px;
+            height: 22px;
             padding: 1px 5px;
             background: var(--header-fill);
             text-align: center;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 700;
             letter-spacing: .06em;
         }
 
         /* 本文 */
         .main-table tbody td {
-            height: 21px;
+            height: 22px;
             padding: 0 5px;
-            font-size: 12.5px;
+            font-size: 14px;
             font-weight: 500;
         }
 
@@ -164,13 +164,13 @@
         /*
          * 線区セルはrowspanで結合。
          * 同一線区内では駅側だけに横線が入り、
-         * 線区が変わる箇所では同じ太さの罫線が表全体を横断する。
+         * 線区が変わる箇所では表全体を横断する境界線になる。
          */
         .main-table tbody .line-name {
             padding: 0 8px;
             vertical-align: middle;
             text-align: left;
-            font-size: 12.5px;
+            font-size: 13px;
             line-height: 1.2;
         }
 
@@ -183,17 +183,35 @@
             min-height: 100%;
         }
 
+        /*
+         * 線区が共有駅で切り替わる場合、
+         * 共有駅行の中央位置で線区欄だけを分割する。
+         */
+        .main-table tbody .line-name.boundary-mid {
+            position: relative;
+        }
+
+        .main-table tbody .line-name.boundary-mid::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 10.5px;
+            border-top: var(--thin-line) solid var(--line);
+            pointer-events: none;
+        }
+
         .main-table tbody .station-name {
             padding-left: 7px;
             text-align: left;
-            font-size: 12.5px;
+            font-size: 14px;
             font-weight: 600;
             white-space: nowrap;
         }
 
-        /* 線区境界も他のセルと同じ罫線幅 */
+        /* 線区切替位置を画像のように少し強い一本線で表示 */
         .main-table tbody tr.segment-start > td {
-            border-top-width: var(--thin-line);
+            border-top-width: var(--section-line);
         }
 
         /* 着発線を着・発それぞれの時刻右側へ */
@@ -207,18 +225,18 @@
             grid-template-columns: minmax(0, 1fr) auto;
             align-items: baseline;
             gap: 5px;
-            min-height: 18px;
+            min-height: 19px;
         }
 
         .time-value {
             text-align: center;
             font-variant-numeric: tabular-nums;
-            letter-spacing: .035em;
+            letter-spacing: .055em;
             white-space: nowrap;
         }
 
         .track-value {
-            min-width: 28px;
+            min-width: 30px;
             text-align: center;
             font-size: .9em;
             white-space: nowrap;
@@ -251,7 +269,7 @@
             border-radius: 4px;
             background: #fff;
             color: #111;
-            font-size: 19px;
+            font-size: 20px;
             line-height: 1;
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
@@ -560,30 +578,32 @@
                 targetTrainData.startDate || '';
 
             const allStops = [];
+            let previousStationName = null;
 
             allTrainData.forEach((segment, segmentIndex) => {
                 const stops = Array.isArray(segment.stops) ? segment.stops : [];
 
-                /*
-                 * 線区境界の共有駅は次の線区側に所属させる。
-                 * 前区間末尾と次区間先頭が同じ駅なら、
-                 * 前区間側を外して次区間側を残す。
-                 */
-                if (
-                    segmentIndex > 0 &&
-                    allStops.length > 0 &&
-                    stops.length > 0 &&
-                    allStops[allStops.length - 1].station === stops[0].station
-                ) {
-                    allStops.pop();
-                }
+                stops.forEach((stop, stopIndex) => {
+                    const isDuplicate =
+                        segmentIndex > 0 &&
+                        stopIndex === 0 &&
+                        stop.station === previousStationName;
 
-                stops.forEach((stop) => {
-                    allStops.push({
-                        line: segment.line,
-                        segmentIndex,
-                        ...stop
-                    });
+                    if (!isDuplicate) {
+                        allStops.push({
+                            line: segment.line,
+                            segmentIndex,
+                            ...stop
+                        });
+                    } else if (allStops.length > 0) {
+                        /*
+                         * 共有駅は前線区側に1回だけ残す。
+                         * その駅行の中央で線区欄を分けるための印を付与。
+                         */
+                        allStops[allStops.length - 1].boundaryAfter = true;
+                    }
+
+                    previousStationName = stop.station;
                 });
             });
 
@@ -618,7 +638,21 @@
                         const lineCell = row.insertCell();
                         lineCell.className = 'line-name';
                         lineCell.rowSpan = rowSpan;
-                        lineCell.innerHTML = `<span>${currentLine || '...'}</span>`;
+
+                        const displayLineName = currentLine
+                            ? (String(currentLine).endsWith('線')
+                                ? String(currentLine)
+                                : `${currentLine}線`)
+                            : '...';
+
+                        lineCell.innerHTML = `<span>${displayLineName}</span>`;
+
+                        const segmentHasSharedBoundary =
+                            allStops.slice(i, j).some(item => item.boundaryAfter);
+
+                        if (segmentHasSharedBoundary) {
+                            lineCell.classList.add('boundary-mid');
+                        }
                     }
 
                     const stationCell = row.insertCell();
@@ -626,15 +660,11 @@
                     stationCell.textContent = stop.station || '...';
 
                     const hasArrival =
-                        stop.arrival !== undefined &&
-                        stop.arrival !== null &&
-                        String(stop.arrival).trim() !== '' &&
+                        stop.arrival &&
                         stop.arrival !== '―';
 
                     const hasDeparture =
-                        stop.departure !== undefined &&
-                        stop.departure !== null &&
-                        String(stop.departure).trim() !== '' &&
+                        stop.departure &&
                         stop.departure !== '―';
 
                     /*
@@ -732,5 +762,4 @@
         });
     </script>
 
-</body>
 </html>
