@@ -1,9 +1,15 @@
 const params = new URLSearchParams(location.search);
 const targetId = params.get('id');
-let specifiedDate = params.get('date') || '';
+let specifiedDate = params.get('date') || localToday();
 let renderedTrain = null;
 
 document.addEventListener('DOMContentLoaded', loadStaff);
+
+function localToday() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0,10);
+}
 
 async function loadStaff() {
   const target = document.getElementById('render-target');
@@ -12,11 +18,33 @@ async function loadStaff() {
     if (!group.length) group = findTrain(await fetchTimetables());
     if (!group.length) throw new Error(targetId ? '該当する列車がありません。' : '列車が選択されていません。');
     renderedTrain = mergeTrainSegments(dedupeSegments(group));
+    setupToolbar();
     setupDateControl(renderedTrain.startDate);
     renderA3(renderedTrain, group[0]);
   } catch (error) {
     target.innerHTML = `<div class="error">${esc(error.message || '時刻表を読み込めませんでした。')}</div>`;
   }
+}
+
+function setupToolbar() {
+  const back = document.getElementById('back-button');
+  const zoom = document.getElementById('preview-zoom');
+  const value = document.getElementById('preview-zoom-value');
+  back?.addEventListener('click', () => {
+    if (history.length > 1) history.back();
+    else location.href = 'train_list.html';
+  });
+  const saved = Number(localStorage.getItem('staffPreviewZoom')) || 100;
+  const initial = Math.min(140,Math.max(40,saved));
+  if (zoom) zoom.value = String(initial);
+  const applyZoom = () => {
+    const percent = Number(zoom?.value) || 100;
+    document.getElementById('render-target')?.style.setProperty('--preview-scale',String(percent / 100));
+    if (value) value.value = `${percent}%`;
+    localStorage.setItem('staffPreviewZoom',String(percent));
+  };
+  zoom?.addEventListener('input',applyZoom);
+  applyZoom();
 }
 
 function setupDateControl(fallbackDate) {
@@ -119,25 +147,28 @@ function timeCell(value, passing, abbreviated) {
   const text = String(value ?? '').trim();
   if (!text) return '';
   if (isSymbol(text)) return '<div class="arrow">↓</div>';
-  if (['=','＝','=='].includes(text)) return '<div class="endmark">＝＝</div>';
+  if (['=','＝','=='].includes(text)) return '<div class="endmark" aria-label="終端"></div>';
   const t = rawTime(text);
   if (!t) return '';
   return `<div class="time${passing ? ' pass' : ''}">
     <span class="hour-part">${abbreviated ? '' : `${t.h}.`}</span>
-    <span class="minute-part">${String(t.m).padStart(2,'0')}</span>
-    <span class="second-part">${t.s ? String(t.s).padStart(2,'0') : ''}</span>
+    <span class="minute-group"><span class="minute-part">${String(t.m).padStart(2,'0')}</span><span class="second-part">${t.s ? String(t.s).padStart(2,'0') : ''}</span></span>
   </div>`;
 }
 
 function speedParts(value) {
   const text = String(value || '').trim();
-  const match = text.match(/^(通貨)(\d{2,3})(.*)$/);
-  if (!match) return { maximum:'', kind:text };
-  return { maximum:match[2], kind:`${match[1]}${match[3]}` };
+  return { maximum:'', kind:text };
+}
+
+function speedKindClass(value) {
+  const length = Array.from(String(value || '')).length;
+  return length > 20 ? ' kind-long kind-xlong' : length > 11 ? ' kind-long' : '';
 }
 
 function displayTrack(value) {
   const text = String(value ?? '').trim();
+  if (text === '中線') return '中';
   const implicitTracks = new Set([
     '上本','下本','武上','武下','客上','客下','貨上','貨下','本線',
     '快上','快下','電上','電下','京上','京下','南外','北外',
@@ -173,7 +204,7 @@ function runningTime(stops, index) {
   if (start === null || end === null) return '';
   let diff = end - start; if (diff < 0) diff += 86400;
   const min = Math.floor(diff / 60), sec = diff % 60;
-  return `${min}${sec ? `<sup>${String(sec).padStart(2,'0')}</sup>` : ''}`;
+  return `<span class="run-value"><span class="run-minute">${min}</span>${sec ? `<span class="run-second">${String(sec).padStart(2,'0')}</span>` : ''}</span>`;
 }
 
 function makeChunks(stops) {
@@ -200,11 +231,11 @@ function makeChunks(stops) {
 function cardHtml(train, stops, offset, continued, hasNext) {
   const rowHeight = Math.max(6.1, Math.min(12, 295 / Math.max(stops.length, 1)));
   const speed = speedParts(train.speed);
-  const stationFont = Math.max(11, Math.min(18, rowHeight * 2.45));
-  const timeFont = Math.max(15, Math.min(26, rowHeight * 3.45));
-  const trackFont = Math.max(13, Math.min(23, rowHeight * 3));
-  const runFont = Math.max(9, Math.min(14, rowHeight * 1.85));
-  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(6,runFont*.54)}px;--time-sec-font:${Math.max(6,timeFont*.33)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
+  const stationFont = Math.max(12, Math.min(21, rowHeight * 2.7));
+  const timeFont = Math.max(16, Math.min(30, rowHeight * 3.65));
+  const trackFont = Math.max(14, Math.min(26, rowHeight * 3.2));
+  const runFont = Math.max(10, Math.min(18, rowHeight * 2.1));
+  const style = `--station-font:${stationFont}px;--time-font:${timeFont}px;--track-font:${trackFont}px;--run-font:${runFont}px;--run-sec-font:${Math.max(7,runFont*.58)}px;--time-sec-font:${Math.max(7,timeFont*.42)}px;--arrow-font:${Math.max(14,timeFont*.9)}px;--end-font:${Math.max(18,timeFont*1.15)}px`;
   const rows = stops.map((stop, localIndex) => {
     const index = offset + localIndex;
     const passing = isPassing(stop, index, train.stops.length);
@@ -227,7 +258,7 @@ function cardHtml(train, stops, offset, continued, hasNext) {
       <colgroup><col style="width:10%"><col style="width:22%"><col style="width:18%"><col style="width:18%"><col style="width:12%"><col style="width:9%"><col style="width:11%"></colgroup>
       <thead>
         <tr class="top-label"><th colspan="2">列　車</th><th>最高速度<br>（Km／h）</th><th colspan="2">速度種別</th><th colspan="2">けん引定数</th></tr>
-        <tr class="top-value"><td colspan="2" class="train-no"><span class="compressed">${esc(train.trainNumber)}</span></td><td class="speed">${esc(train.maxSpeed || speed.maximum)}</td><td colspan="2" class="speed">${esc(speed.kind)}</td><td colspan="2" class="power">${esc(train.power)}</td></tr>
+        <tr class="top-value"><td colspan="2" class="train-no"><span class="compressed">${esc(train.trainNumber)}</span></td><td class="speed"></td><td colspan="2" class="speed-kind${speedKindClass(speed.kind)}"><span>${esc(speed.kind)}</span></td><td colspan="2" class="power">${esc(train.power)}</td></tr>
         <tr class="column-head"><th>運転<br>時分</th><th>停車場名</th><th>着</th><th>発（通）</th><th>着発線</th><th>制限<br>速度</th><th>記事</th></tr>
       </thead>
       <tbody>
@@ -260,7 +291,7 @@ function renderA3(train) {
   for (let index = 0; index < chunks.length; index += 2) {
     const left = chunks[index];
     const right = chunks[index + 1];
-    sheets.push(`<article class="a3-sheet">${halfHtml(train,left.stops,index + 1,left.offset,Boolean(right || chunks[index + 2]))}${halfHtml(train,right?.stops || [],index + 2,right?.offset || 0,Boolean(chunks[index + 2]))}</article>`);
+    sheets.push(`<div class="sheet-wrap"><article class="a3-sheet">${halfHtml(train,left.stops,index + 1,left.offset,Boolean(right || chunks[index + 2]))}${halfHtml(train,right?.stops || [],index + 2,right?.offset || 0,Boolean(chunks[index + 2]))}</article></div>`);
   }
   document.getElementById('render-target').innerHTML = sheets.join('');
 }
