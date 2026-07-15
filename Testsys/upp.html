@@ -167,36 +167,35 @@
          * 線区が変わる箇所では表全体を横断する境界線になる。
          */
         .main-table tbody .line-name {
-            padding: 0 8px;
-            vertical-align: middle;
+            position: relative;
+            padding: 0;
+            vertical-align: top;
             text-align: left;
-            font-size: 13px;
-            line-height: 1.2;
+            overflow: hidden;
         }
 
-        .main-table tbody .line-name span {
+        .line-overlay {
+            position: absolute;
+            inset: 0;
+        }
+
+        .line-segment-label {
+            position: absolute;
+            left: 8px;
+            right: 8px;
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            width: 100%;
-            height: 100%;
-            min-height: 100%;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            white-space: normal;
         }
 
-        /*
-         * 線区が共有駅で切り替わる場合、
-         * 共有駅行の中央位置で線区欄だけを分割する。
-         */
-        .main-table tbody .line-name.boundary-mid {
-            position: relative;
-        }
-
-        .main-table tbody .line-name.boundary-mid::after {
-            content: "";
+        .line-segment-divider {
             position: absolute;
             left: 0;
             right: 0;
-            top: var(--boundary-position, 50%);
             border-top: var(--thin-line) solid var(--line);
             pointer-events: none;
         }
@@ -586,122 +585,129 @@
                 targetTrainData.startDate || '';
 
             const allStops = [];
-            let previousStationName = null;
+            const lineSegments = [];
 
             allTrainData.forEach((segment, segmentIndex) => {
                 const stops = Array.isArray(segment.stops) ? segment.stops : [];
+                if (stops.length === 0) return;
 
-                stops.forEach((stop, stopIndex) => {
-                    const isDuplicate =
-                        segmentIndex > 0 &&
-                        stopIndex === 0 &&
-                        stop.station === previousStationName;
+                let startRow;
 
-                    if (!isDuplicate) {
+                if (
+                    segmentIndex > 0 &&
+                    allStops.length > 0 &&
+                    allStops[allStops.length - 1].station === stops[0].station
+                ) {
+                    /*
+                     * 共有駅は1回だけ表示する。
+                     * 次線区は共有駅行の中央から始まるため、
+                     * 境界位置は「共有駅の行番号 + 0.5」として保持する。
+                     */
+                    startRow = allStops.length - 0.5;
+
+                    for (let index = 1; index < stops.length; index++) {
+                        allStops.push({
+                            line: segment.line,
+                            segmentIndex,
+                            ...stops[index]
+                        });
+                    }
+                } else {
+                    startRow = allStops.length;
+
+                    stops.forEach((stop) => {
                         allStops.push({
                             line: segment.line,
                             segmentIndex,
                             ...stop
                         });
-                    } else if (allStops.length > 0) {
-                        /*
-                         * 共有駅は前線区側に1回だけ残す。
-                         * その駅行の中央で線区欄を分けるための印を付与。
-                         */
-                        allStops[allStops.length - 1].boundaryAfter = true;
-                    }
+                    });
+                }
 
-                    previousStationName = stop.station;
+                lineSegments.push({
+                    line: segment.line,
+                    startRow
                 });
             });
 
-            let i = 0;
+            lineSegments.forEach((segment, index) => {
+                segment.endRow =
+                    index + 1 < lineSegments.length
+                        ? lineSegments[index + 1].startRow
+                        : allStops.length;
+            });
 
-            while (i < allStops.length) {
-                const currentLine = allStops[i].line;
-                const currentSegmentIndex = allStops[i].segmentIndex;
-                let j = i;
+            allStops.forEach((stop, rowIndex) => {
+                const row = timetableBody.insertRow();
 
-                while (
-                    j < allStops.length &&
-                    allStops[j].line === currentLine &&
-                    allStops[j].segmentIndex === currentSegmentIndex
-                ) {
-                    j++;
-                }
+                if (rowIndex === 0) {
+                    const lineCell = row.insertCell();
+                    lineCell.className = 'line-name';
+                    lineCell.rowSpan = allStops.length;
 
-                const rowSpan = j - i;
+                    const overlay = document.createElement('div');
+                    overlay.className = 'line-overlay';
 
-                for (let k = i; k < j; k++) {
-                    const stop = allStops[k];
-                    const row = timetableBody.insertRow();
-
-                    if (k === i) {
-                        const lineCell = row.insertCell();
-                        lineCell.className = 'line-name';
-                        lineCell.rowSpan = rowSpan;
-
-                        const displayLineName = currentLine
-                            ? (String(currentLine).endsWith('線')
-                                ? String(currentLine)
-                                : `${currentLine}線`)
+                    lineSegments.forEach((segment, segmentIndex) => {
+                        const displayLineName = segment.line
+                            ? (String(segment.line).endsWith('線')
+                                ? String(segment.line)
+                                : `${segment.line}線`)
                             : '...';
 
-                        lineCell.innerHTML = `<span>${displayLineName}</span>`;
+                        const topPercent =
+                            (segment.startRow / allStops.length) * 100;
+                        const bottomPercent =
+                            (segment.endRow / allStops.length) * 100;
 
-                        const segmentStops = allStops.slice(i, j);
-                        const boundaryIndex = segmentStops.findIndex(
-                            item => item.boundaryAfter
-                        );
+                        const label = document.createElement('div');
+                        label.className = 'line-segment-label';
+                        label.style.top = `${topPercent}%`;
+                        label.style.height = `${bottomPercent - topPercent}%`;
+                        label.textContent = displayLineName;
+                        overlay.appendChild(label);
 
-                        if (boundaryIndex >= 0) {
-                            lineCell.classList.add('boundary-mid');
-
-                            const boundaryPosition =
-                                ((boundaryIndex + 0.5) / rowSpan) * 100;
-
-                            lineCell.style.setProperty(
-                                '--boundary-position',
-                                `${boundaryPosition}%`
-                            );
+                        if (segmentIndex > 0) {
+                            const divider = document.createElement('div');
+                            divider.className = 'line-segment-divider';
+                            divider.style.top = `${topPercent}%`;
+                            overlay.appendChild(divider);
                         }
-                    }
+                    });
 
-                    const stationCell = row.insertCell();
-                    stationCell.className = 'station-name';
-                    stationCell.textContent = stop.station || '...';
-
-                    const hasArrival =
-                        stop.arrival &&
-                        stop.arrival !== '―';
-
-                    const hasDeparture =
-                        stop.departure &&
-                        stop.departure !== '―';
-
-                    /*
-                     * 参考画像どおり、
-                     * 着時刻の右にも発時刻の右にも着発線を表示する。
-                     * 通過記号（…、||）の場合も番線を表示する。
-                     * 完全に時刻データがない側だけ表示しない。
-                     */
-                    createTimeCell(
-                        row,
-                        stop.arrival,
-                        stop.trackN || '',
-                        hasArrival
-                    );
-
-                    createTimeCell(
-                        row,
-                        stop.departure,
-                        stop.trackN || '',
-                        hasDeparture
-                    );
+                    lineCell.appendChild(overlay);
                 }
 
-                i = j;
-            }
+                const stationCell = row.insertCell();
+                stationCell.className = 'station-name';
+                stationCell.textContent = stop.station || '...';
+
+                const hasArrival =
+                    stop.arrival !== undefined &&
+                    stop.arrival !== null &&
+                    String(stop.arrival).trim() !== '' &&
+                    stop.arrival !== '―';
+
+                const hasDeparture =
+                    stop.departure !== undefined &&
+                    stop.departure !== null &&
+                    String(stop.departure).trim() !== '' &&
+                    stop.departure !== '―';
+
+                createTimeCell(
+                    row,
+                    stop.arrival,
+                    stop.trackN || '',
+                    hasArrival
+                );
+
+                createTimeCell(
+                    row,
+                    stop.departure,
+                    stop.trackN || '',
+                    hasDeparture
+                );
+            });
 
             document
                 .getElementById('export-excel-btn')
