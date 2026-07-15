@@ -447,7 +447,7 @@
 
     <script>
         const formatTime = (time, omitEquals = false) => {
-            if (omitEquals && time === '=') return '';
+            if (omitEquals && String(time ?? '').trim() === '=') return '';
             if (!time || time === '―') return '…';
             if (time === '||' || time === '…' || time === '=') return time;
 
@@ -682,24 +682,21 @@
                     stationCell.textContent = stationName;
                 }
 
-                const hasArrival =
-                    stop.arrival !== undefined &&
-                    stop.arrival !== null &&
-                    String(stop.arrival).trim() !== '' &&
-                    stop.arrival !== '―';
+                const showArrivalTrack = rowIndex > 0;
+                const showDepartureTrack =
+                    String(stop.departure ?? '').trim() !== '=';
 
-                const hasDeparture =
-                    stop.departure !== undefined &&
-                    stop.departure !== null &&
-                    String(stop.departure).trim() !== '' &&
-                    stop.departure !== '―';
-
-                createTimeCell(row, stop.arrival, stop.trackN || '', hasArrival);
+                createTimeCell(
+                    row,
+                    stop.arrival,
+                    stop.trackN || '',
+                    showArrivalTrack
+                );
                 createTimeCell(
                     row,
                     stop.departure,
                     stop.trackN || '',
-                    hasDeparture,
+                    showDepartureTrack,
                     true
                 );
             });
