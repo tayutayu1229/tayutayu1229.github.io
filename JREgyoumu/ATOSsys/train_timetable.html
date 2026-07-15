@@ -446,7 +446,8 @@
     </div>
 
     <script>
-        const formatTime = (time) => {
+        const formatTime = (time, omitEquals = false) => {
+            if (omitEquals && time === '=') return '';
             if (!time || time === '―') return '…';
             if (time === '||' || time === '…' || time === '=') return time;
 
@@ -463,7 +464,13 @@
             return String(time);
         };
 
-        const createTimeCell = (row, time, track, showTrack) => {
+        const createTimeCell = (
+            row,
+            time,
+            track,
+            showTrack,
+            omitEquals = false
+        ) => {
             const cell = row.insertCell();
             cell.className = 'time-col-combined time-cell';
 
@@ -472,7 +479,7 @@
 
             const timeValue = document.createElement('span');
             timeValue.className = 'time-value';
-            timeValue.textContent = formatTime(time);
+            timeValue.textContent = formatTime(time, omitEquals);
 
             if (['…', '||', '='].includes(timeValue.textContent)) {
                 inner.classList.add('special-time');
@@ -688,7 +695,13 @@
                     stop.departure !== '―';
 
                 createTimeCell(row, stop.arrival, stop.trackN || '', hasArrival);
-                createTimeCell(row, stop.departure, stop.trackN || '', hasDeparture);
+                createTimeCell(
+                    row,
+                    stop.departure,
+                    stop.trackN || '',
+                    hasDeparture,
+                    true
+                );
             });
 
             document
@@ -724,7 +737,7 @@
                             stop.line || '...',
                             stop.station || '...',
                             formatTime(stop.arrival),
-                            formatTime(stop.departure),
+                            formatTime(stop.departure, true),
                             stop.trackN || '...'
                         ];
 
