@@ -10,9 +10,9 @@
             --screen-bg: #ececec;
             --header-fill: #AFCBEB;
             --line: #222222;
-            --thin-line: 0.65px;
-            --outer-line: 1.15px;
-            --section-line: 1.25px;
+            --thin-line: 0.75px;
+            --outer-line: 0.75px;
+            --section-line: 0.75px;
         }
 
         * {
@@ -93,11 +93,11 @@
 
         .info-table {
             margin-bottom: 7px;
-            border: var(--outer-line) solid var(--line);
+            border: var(--thin-line) solid var(--line);
         }
 
         .main-table {
-            border: var(--outer-line) solid var(--line);
+            border: var(--thin-line) solid var(--line);
         }
 
         .info-table th,
@@ -196,7 +196,7 @@
             position: absolute;
             left: 0;
             right: 0;
-            bottom: 10.5px;
+            top: var(--boundary-position, 50%);
             border-top: var(--thin-line) solid var(--line);
             pointer-events: none;
         }
@@ -211,7 +211,7 @@
 
         /* 線区切替位置を画像のように少し強い一本線で表示 */
         .main-table tbody tr.segment-start > td {
-            border-top-width: var(--section-line);
+            border-top-width: var(--thin-line);
         }
 
         /* 着発線を着・発それぞれの時刻右側へ */
@@ -221,14 +221,18 @@
         }
 
         .time-cell-inner {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: baseline;
-            gap: 5px;
+            position: relative;
+            display: block;
             min-height: 19px;
+            line-height: 19px;
         }
 
         .time-value {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: block;
             text-align: center;
             font-variant-numeric: tabular-nums;
             letter-spacing: .055em;
@@ -236,9 +240,13 @@
         }
 
         .track-value {
-            min-width: 30px;
-            text-align: center;
+            position: absolute;
+            top: 0;
+            right: 3px;
+            min-width: 56px;
+            text-align: right;
             font-size: .9em;
+            line-height: 19px;
             white-space: nowrap;
         }
 
@@ -608,7 +616,6 @@
             });
 
             let i = 0;
-            let segmentGroupNumber = 0;
 
             while (i < allStops.length) {
                 const currentLine = allStops[i].line;
@@ -629,11 +636,6 @@
                     const stop = allStops[k];
                     const row = timetableBody.insertRow();
 
-                    /* 2線区目以降の先頭行に、全幅の境界線を付ける */
-                    if (k === i && segmentGroupNumber > 0) {
-                        row.classList.add('segment-start');
-                    }
-
                     if (k === i) {
                         const lineCell = row.insertCell();
                         lineCell.className = 'line-name';
@@ -647,11 +649,21 @@
 
                         lineCell.innerHTML = `<span>${displayLineName}</span>`;
 
-                        const segmentHasSharedBoundary =
-                            allStops.slice(i, j).some(item => item.boundaryAfter);
+                        const segmentStops = allStops.slice(i, j);
+                        const boundaryIndex = segmentStops.findIndex(
+                            item => item.boundaryAfter
+                        );
 
-                        if (segmentHasSharedBoundary) {
+                        if (boundaryIndex >= 0) {
                             lineCell.classList.add('boundary-mid');
+
+                            const boundaryPosition =
+                                ((boundaryIndex + 0.5) / rowSpan) * 100;
+
+                            lineCell.style.setProperty(
+                                '--boundary-position',
+                                `${boundaryPosition}%`
+                            );
                         }
                     }
 
@@ -689,7 +701,6 @@
                 }
 
                 i = j;
-                segmentGroupNumber++;
             }
 
             document
@@ -762,4 +773,5 @@
         });
     </script>
 
+</body>
 </html>
