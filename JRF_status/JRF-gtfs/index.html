@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja" data-theme="light" data-density="comfortable">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7f9fc">
+  <title>Cargo Scope｜JR貨物 輸送計画モニター</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <button class="logo" data-view="dashboard" aria-label="Cargo Scope ホーム"><span class="logo-mark">CS</span><span><b>Cargo Scope</b><small>JR貨物 輸送計画</small></span></button>
+    <nav id="mainNav" aria-label="メインメニュー">
+      <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>ホーム</span></button>
+      <button class="nav-item" data-view="map"><span class="nav-icon">⌖</span><span>全国マップ</span></button>
+      <button class="nav-item" data-view="trains"><span class="nav-icon">⇄</span><span>列車を探す</span><span id="navTripCount" class="nav-count">—</span></button>
+      <button class="nav-item" data-view="stations"><span class="nav-icon">▦</span><span>駅別発着</span></button>
+      <button class="nav-item" data-view="favorites"><span class="nav-icon">☆</span><span>お気に入り</span><span id="favoriteCount" class="nav-count">0</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button id="guideButton" class="nav-item"><span class="nav-icon">?</span><span>使い方</span></button>
+      <button id="settingsButton" class="nav-item"><span class="nav-icon">⚙</span><span>設定</span></button>
+      <div class="data-health"><span class="pulse"></span><div><b>計画データ読込済み</b><small id="dataVersion">確認中…</small></div></div>
+    </div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="列車番号・駅名を検索" autocomplete="off"><kbd>⌘ K</kbd><div id="searchSuggestions" class="suggestions hidden"></div></div>
+      <div class="top-actions">
+        <div class="plan-time"><small>現在時刻</small><strong id="clock">--:--:--</strong></div>
+        <button id="refreshButton" class="icon-btn" title="表示を更新">↻</button>
+        <button id="themeButton" class="icon-btn" title="表示テーマを切替">☾</button>
+        <button id="topSettingsButton" class="icon-btn" title="設定">⚙</button>
+      </div>
+    </header>
+
+    <main id="mainContent">
+      <section id="dashboardView" class="view active">
+        <div class="page-head"><div><p class="eyebrow">OPERATIONS OVERVIEW</p><h1>貨物輸送の計画状況</h1><p id="dashboardSubtitle">本日の時刻表を集計しています</p></div><div class="head-actions"><label class="date-control">基準日<input id="dateInput" type="date"></label><button id="openMapButton" class="primary-btn">全国マップを開く <span>→</span></button></div></div>
+        <div id="dateNotice" class="banner warning hidden"></div>
+        <div class="banner info"><span class="banner-icon">i</span><div><b>計画時刻表による状況です</b><p>現在位置・運行中本数はGTFSからの推定です。実際の遅延・運休・在線位置を示すものではありません。</p></div><button id="bannerGuide">詳しく見る</button></div>
+        <div class="kpi-grid">
+          <article class="kpi-card accent"><div class="kpi-top"><span>進行中の輸送計画</span><span class="kpi-icon">⇄</span></div><strong id="activeKpi">—</strong><p><i class="live-dot"></i> 現在時刻を含む計画件数</p></article>
+          <article class="kpi-card"><div class="kpi-top"><span>今後60分の発車</span><span class="kpi-icon blue">◷</span></div><strong id="departKpi">—</strong><p id="departKpiSub">全国の貨物駅から集計</p></article>
+          <article class="kpi-card"><div class="kpi-top"><span>本日の輸送計画</span><span class="kpi-icon violet">▤</span></div><strong id="totalKpi">—</strong><p id="railRoadKpi">鉄道・オフレールを含む</p></article>
+          <article class="kpi-card"><div class="kpi-top"><span>登録貨物地点</span><span class="kpi-icon orange">⌖</span></div><strong id="stationKpi">—</strong><p>貨物駅・ORS・営業所</p></article>
+        </div>
+        <div class="dashboard-grid">
+          <article class="card movement-card"><div class="card-head"><div><h2>方面別の輸送状況</h2><p>現在運行時間帯にある計画本数</p></div><button class="text-btn" data-view="trains">すべて見る</button></div><div id="regionBars" class="region-bars"></div></article>
+          <article class="card upcoming-card"><div class="card-head"><div><h2>まもなく発車</h2><p>現在時刻から120分以内</p></div><span class="updated" id="updatedAt">—</span></div><div id="upcomingList" class="upcoming-list"></div></article>
+        </div>
+        <article class="card active-table-card"><div class="card-head"><div><h2>進行中の輸送計画</h2><p>計画上、現在時刻が出発から到着の間にある輸送計画</p></div><div class="table-tools"><button id="activeMapButton" class="secondary-btn">地図で見る</button><button class="text-btn" data-view="trains">一覧を開く →</button></div></div><div class="table-wrap"><table><thead><tr><th>列車・便</th><th>輸送区間</th><th>方面</th><th>計画時刻</th><th>進捗</th><th></th></tr></thead><tbody id="activeTable"></tbody></table></div></article>
+      </section>
+
+      <section id="mapView" class="view full-view">
+        <div class="map-layout">
+          <div class="map-sidebar"><div class="compact-head"><div><p class="eyebrow">NETWORK MAP</p><h1>全国マップ</h1></div><button class="icon-btn" data-view="dashboard">×</button></div><div class="map-tabs"><button class="active" data-map-mode="network">貨物地点</button><button data-map-mode="active">進行中の計画</button></div><div class="map-filter"><input id="mapSearch" type="search" placeholder="列車番号・駅名"><select id="mapRoute"><option value="">すべての方面</option></select></div><div id="mapList" class="map-list"></div></div>
+          <div class="map-canvas"><div id="map"></div><div class="map-controls"><button id="fitJapanButton" title="全国表示">全国</button><button id="fitRouteButton" title="選択経路を表示">選択</button><button id="mapLayerButton" title="背景地図切替">地図</button></div><div class="map-legend"><span><i class="legend-line"></i>選択経路</span><span><i class="legend-station"></i>貨物地点</span><span><i class="legend-train"></i>推定位置</span></div><div id="mapHint" class="map-hint"><b>全国236地点</b><span>貨物地点をクリックすると関連する輸送計画を確認できます</span></div></div>
+        </div>
+      </section>
+
+      <section id="trainsView" class="view">
+        <div class="page-head"><div><p class="eyebrow">TRAIN SEARCH</p><h1>列車を探す</h1><p>列車番号、発着地、経由地、方面から輸送計画を検索します</p></div><button id="compareOpenButton" class="secondary-btn">比較リスト <span id="compareCount">0</span></button></div>
+        <div class="filter-card"><div class="filter-main"><label class="wide">キーワード<input id="trainSearch" type="search" placeholder="例：1066、東京貨物ターミナル"></label><label>方面<select id="routeSelect"><option value="">すべての方面</option></select></label><label>状態<select id="statusSelect"><option value="">すべて</option><option value="active">運行時間帯</option><option value="upcoming">今後2時間に発車</option><option value="offrail">オフレールを含む</option></select></label><label>並び順<select id="sortSelect"><option value="departure">出発時刻順</option><option value="duration">所要時間順</option><option value="train">列車番号順</option></select></label></div><div class="filter-foot"><span id="resultCount">—件</span><button id="clearFilters" class="text-btn">条件をクリア</button></div></div>
+        <div id="tripGrid" class="trip-grid"></div><button id="loadMoreButton" class="load-more hidden">さらに表示</button>
+      </section>
+
+      <section id="stationsView" class="view">
+        <div class="page-head"><div><p class="eyebrow">STATION BOARD</p><h1>駅別発着</h1><p>貨物駅・オフレールステーションごとの計画時刻を確認できます</p></div></div>
+        <div class="station-layout"><aside class="station-picker"><div class="picker-search"><span>⌕</span><input id="stationSearch" type="search" placeholder="駅名・駅コード"></div><div id="stationList" class="station-list"></div></aside><article class="card station-board"><div id="stationEmpty" class="empty-state"><span class="large-icon">▦</span><h2>貨物地点を選択</h2><p>左の一覧から駅・ORS・営業所を選んでください。</p></div><div id="stationDetail" class="hidden"><div class="station-head"><div><span id="stationType" class="tag"></span><h2 id="stationName"></h2><p id="stationCode"></p></div><button id="stationMapButton" class="secondary-btn">地図で表示</button></div><div class="station-stats"><div><span>関連する輸送計画</span><b id="stationTrips">—</b></div><div><span>次の計画時刻</span><b id="stationNext">—</b></div><div><span>方面数</span><b id="stationRoutes">—</b></div></div><div class="board-tabs"><button class="active" data-board="all">すべて</button><button data-board="departure">出発</button><button data-board="arrival">到着</button></div><div class="table-wrap"><table><thead><tr><th>時刻</th><th>種別</th><th>列車</th><th>相手駅</th><th>方面</th><th></th></tr></thead><tbody id="stationBoardBody"></tbody></table></div></div></article></div>
+      </section>
+
+      <section id="favoritesView" class="view"><div class="page-head"><div><p class="eyebrow">MY WATCHLIST</p><h1>お気に入り</h1><p>よく確認する輸送計画をこの端末に保存します</p></div></div><div id="favoritesGrid" class="trip-grid"></div></section>
+    </main>
+  </div>
+
+  <aside id="detailDrawer" class="drawer" aria-hidden="true"><div class="drawer-head"><button id="closeDrawer" class="icon-btn">×</button><div class="drawer-actions"><button id="favoriteButton" class="icon-btn" title="お気に入り">☆</button><button id="printButton" class="icon-btn" title="印刷">⎙</button></div></div><div id="drawerContent"></div></aside><div id="drawerBackdrop" class="backdrop hidden"></div>
+
+  <dialog id="settingsDialog" class="modal settings-modal"><form method="dialog"><div class="modal-head"><div><p class="eyebrow">PREFERENCES</p><h2>設定</h2></div><button class="icon-btn" value="cancel">×</button></div><div class="settings-section"><h3>表示</h3><div class="setting-row"><div><b>カラーテーマ</b><p>画面の明るさを切り替えます</p></div><div class="segment" id="themeSegment"><button type="button" data-theme-choice="light">ライト</button><button type="button" data-theme-choice="dark">ダーク</button><button type="button" data-theme-choice="system">自動</button></div></div><div class="setting-row"><div><b>表示密度</b><p>一覧の行間を調整します</p></div><select id="densitySelect"><option value="comfortable">ゆったり</option><option value="compact">コンパクト</option></select></div></div><div class="settings-section"><h3>運行表示</h3><label class="setting-row"><div><b>推定位置を表示</b><p>時刻表と経路から列車位置を概算します</p></div><input id="estimateToggle" type="checkbox" class="switch" checked></label><label class="setting-row"><div><b>5分ごとに自動更新</b><p>集計と推定位置を定期的に更新します</p></div><input id="autoRefreshToggle" type="checkbox" class="switch"></label></div><div class="settings-section"><h3>ODPT接続</h3><div class="token-box"><label>2026 Access Token<div><input id="tokenInput" type="password" readonly><button id="showTokenButton" type="button">表示</button></div></label><p>この端末内の設定としてソースコードに保持されています。</p></div><div class="connection-row"><span><i class="status-ok"></i>ローカルGTFS読込済み</span><button id="connectionButton" type="button" class="secondary-btn">接続先を確認</button></div></div><div class="modal-foot"><span id="settingsSaved">変更は自動保存されます</span><button class="primary-btn" value="done">完了</button></div></form></dialog>
+
+  <dialog id="guideDialog" class="modal guide-modal"><form method="dialog"><div class="modal-head"><div><p class="eyebrow">QUICK GUIDE</p><h2>使い方</h2></div><button class="icon-btn" value="cancel">×</button></div><div class="guide-hero"><span>↝</span><div><b>Cargo Scopeへようこそ</b><p>JR貨物のGTFSを、業務確認しやすい画面に整理しています。</p></div></div><ol class="guide-steps"><li><span>1</span><div><b>ホームで全体を把握</b><p>現在運行時間帯にある列車、今後の発車、方面別件数を確認します。</p></div></li><li><span>2</span><div><b>列車や駅から検索</b><p>検索欄には列車番号だけでなく、発着駅・経由駅も入力できます。</p></div></li><li><span>3</span><div><b>地図とタイムラインを確認</b><p>列車詳細では全経路、停車地点、計画時刻、推定進捗を確認できます。</p></div></li><li><span>4</span><div><b>お気に入りで定点監視</b><p>よく見る輸送計画を保存し、すぐに呼び出せます。</p></div></li></ol><div class="guide-note"><b>重要</b><p>GTFSは計画データです。実際の運行状況、遅延、運休、貨物の積載状況を保証するものではありません。また、曜日・休日による運休情報は配布データに含まれません。</p></div><div class="modal-foot"><span>データ表記の C は荷役、T は列車時刻を意味します</span><button class="primary-btn" value="done">使い始める</button></div></form></dialog>
+
+  <dialog id="compareDialog" class="modal compare-modal"><form method="dialog"><div class="modal-head"><div><p class="eyebrow">COMPARE</p><h2>輸送計画を比較</h2></div><button class="icon-btn" value="cancel">×</button></div><div id="compareContent" class="compare-content"></div></form></dialog>
+  <div id="toast" class="toast hidden"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
