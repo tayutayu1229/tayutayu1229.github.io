@@ -331,6 +331,10 @@
             background: var(--header-fill);
         }
 
+        .print-pages {
+            display: none;
+        }
+
         @media screen and (max-width: 900px) {
             body {
                 padding: 12px;
@@ -344,14 +348,14 @@
 
         @page {
             size: A4 portrait;
-            margin: 18mm;
+            margin: 0;
         }
 
         @media print {
             html,
             body {
-                width: auto;
-                min-height: 0;
+                width: 210mm;
+                min-height: 297mm;
                 margin: 0;
                 padding: 0;
                 background: #fff;
@@ -362,12 +366,36 @@
             }
 
             .page-container {
-                width: auto;
-                min-height: 0;
+                width: 210mm;
+                min-height: 297mm;
                 margin: 0;
-                padding: 0;
+                padding: 18mm;
                 border: 0;
                 box-shadow: none;
+            }
+
+            body > .page-container {
+                display: none;
+            }
+
+            .print-pages {
+                display: block;
+            }
+
+            .print-page {
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 18mm;
+                overflow: hidden;
+                background: #fff;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .print-page:last-child {
+                break-after: auto;
+                page-break-after: auto;
             }
 
             .info-table th,
@@ -378,13 +406,17 @@
             }
 
             .info-table,
-            .info-table tr,
-            .main-table tr {
+            .info-table tr {
                 break-inside: avoid;
                 page-break-inside: avoid;
             }
 
             .main-table {
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+
+            .main-table tr {
                 break-inside: auto;
                 page-break-inside: auto;
             }
@@ -456,6 +488,8 @@
 
         </div>
     </div>
+
+    <div class="print-pages" id="print-pages"></div>
 
     <script>
         const formatTime = (time) => {
@@ -629,47 +663,62 @@
                         : allStops.length;
             });
 
-            allStops.forEach((stop, rowIndex) => {
-                const row = timetableBody.insertRow();
+            const appendLineCell = (
+                row,
+                rowCount,
+                rangeStart,
+                rangeEnd
+            ) => {
+                if (rowCount === 0) return;
 
-                if (rowIndex === 0) {
-                    const lineCell = row.insertCell();
-                    lineCell.className = 'line-name';
-                    lineCell.rowSpan = allStops.length;
+                const lineCell = row.insertCell();
+                lineCell.className = 'line-name';
+                lineCell.rowSpan = rowCount;
 
-                    const overlay = document.createElement('div');
-                    overlay.className = 'line-overlay';
+                const overlay = document.createElement('div');
+                overlay.className = 'line-overlay';
 
-                    lineSegments.forEach((segment, segmentIndex) => {
-                        const displayLineName = segment.line
-                            ? (String(segment.line).endsWith('線')
-                                ? String(segment.line)
-                                : `${segment.line}線`)
-                            : '...';
+                const visibleSegments = lineSegments
+                    .map((segment) => ({
+                        ...segment,
+                        visibleStart: Math.max(segment.startRow, rangeStart),
+                        visibleEnd: Math.min(segment.endRow, rangeEnd)
+                    }))
+                    .filter((segment) =>
+                        segment.visibleEnd > segment.visibleStart
+                    );
 
-                        const topPercent =
-                            (segment.startRow / allStops.length) * 100;
-                        const bottomPercent =
-                            (segment.endRow / allStops.length) * 100;
+                visibleSegments.forEach((segment, segmentIndex) => {
+                    const displayLineName = segment.line
+                        ? (String(segment.line).endsWith('線')
+                            ? String(segment.line)
+                            : `${segment.line}線`)
+                        : '...';
 
-                        const label = document.createElement('div');
-                        label.className = 'line-segment-label';
-                        label.style.top = `${topPercent}%`;
-                        label.style.height = `${bottomPercent - topPercent}%`;
-                        label.textContent = displayLineName;
-                        overlay.appendChild(label);
+                    const topPercent =
+                        ((segment.visibleStart - rangeStart) / rowCount) * 100;
+                    const bottomPercent =
+                        ((segment.visibleEnd - rangeStart) / rowCount) * 100;
 
-                        if (segmentIndex > 0) {
-                            const divider = document.createElement('div');
-                            divider.className = 'line-segment-divider';
-                            divider.style.top = `${topPercent}%`;
-                            overlay.appendChild(divider);
-                        }
-                    });
+                    const label = document.createElement('div');
+                    label.className = 'line-segment-label';
+                    label.style.top = `${topPercent}%`;
+                    label.style.height = `${bottomPercent - topPercent}%`;
+                    label.textContent = displayLineName;
+                    overlay.appendChild(label);
 
-                    lineCell.appendChild(overlay);
-                }
+                    if (segmentIndex > 0) {
+                        const divider = document.createElement('div');
+                        divider.className = 'line-segment-divider';
+                        divider.style.top = `${topPercent}%`;
+                        overlay.appendChild(divider);
+                    }
+                });
 
+                lineCell.appendChild(overlay);
+            };
+
+            const appendStopCells = (row, stop, globalRowIndex) => {
                 const stationCell = row.insertCell();
                 stationCell.className = 'station-name';
                 const stationName = stop.station || '...';
@@ -698,7 +747,7 @@
                 const normalizedOriginName = String(targetTrainData.origin || '')
                     .replace(/[\s\u3000]/g, '');
                 const isActualOriginRow =
-                    rowIndex === 0 &&
+                    globalRowIndex === 0 &&
                     normalizedOriginName !== '' &&
                     normalizedStationName === normalizedOriginName;
 
@@ -719,7 +768,109 @@
                     stop.trackN || '',
                     showDepartureTrack
                 );
-            });
+            };
+
+            const renderRows = (
+                body,
+                stops,
+                rangeStart,
+                rangeEnd
+            ) => {
+                stops.forEach((stop, localRowIndex) => {
+                    const row = body.insertRow();
+
+                    if (localRowIndex === 0) {
+                        appendLineCell(
+                            row,
+                            stops.length,
+                            rangeStart,
+                            rangeEnd
+                        );
+                    }
+
+                    appendStopCells(row, stop, rangeStart + localRowIndex);
+                });
+            };
+
+            renderRows(timetableBody, allStops, 0, allStops.length);
+
+            const buildPrintPages = () => {
+                const printPages = document.getElementById('print-pages');
+                const firstPageRowLimit = 38;
+                const followingPageRowLimit = 45;
+                const pageRanges = [];
+
+                let rangeStart = 0;
+                let rowLimit = firstPageRowLimit;
+
+                while (rangeStart < allStops.length) {
+                    const rangeEnd = Math.min(
+                        rangeStart + rowLimit,
+                        allStops.length
+                    );
+                    pageRanges.push({ start: rangeStart, end: rangeEnd });
+                    rangeStart = rangeEnd;
+                    rowLimit = followingPageRowLimit;
+                }
+
+                if (pageRanges.length === 0) {
+                    pageRanges.push({ start: 0, end: 0 });
+                }
+
+                printPages.innerHTML = '';
+
+                pageRanges.forEach((range, pageIndex) => {
+                    const page = document.createElement('section');
+                    page.className = 'print-page';
+
+                    if (pageIndex === 0) {
+                        const header = document
+                            .querySelector('.document-header')
+                            .cloneNode(true);
+                        const pageNumber = header.querySelector('.page-number');
+                        if (pageNumber) {
+                            pageNumber.textContent =
+                                `1 / ${pageRanges.length}`;
+                        }
+                        header.querySelectorAll('[id]').forEach((element) => {
+                            element.removeAttribute('id');
+                        });
+                        page.appendChild(header);
+
+                        const infoTable = document
+                            .getElementById('info-table')
+                            .cloneNode(true);
+                        infoTable.removeAttribute('id');
+                        infoTable.querySelectorAll('[id]').forEach((element) => {
+                            element.removeAttribute('id');
+                        });
+                        page.appendChild(infoTable);
+                    }
+
+                    const table = document.createElement('table');
+                    table.className = 'main-table';
+                    table.appendChild(
+                        document
+                            .querySelector('#main-timetable thead')
+                            .cloneNode(true)
+                    );
+
+                    const body = document.createElement('tbody');
+                    table.appendChild(body);
+                    page.appendChild(table);
+
+                    renderRows(
+                        body,
+                        allStops.slice(range.start, range.end),
+                        range.start,
+                        range.end
+                    );
+
+                    printPages.appendChild(page);
+                });
+            };
+
+            buildPrintPages();
 
             document
                 .getElementById('export-excel-btn')
