@@ -1,1 +1,455 @@
-t
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【列車時刻表選択画面】</title>
+    <style>
+        /* CSS */
+        body {
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+            background-color: #f0f0f0;
+            color: #000000;
+            margin: 20px;
+            padding: 0;
+            font-size: 14px;
+        }
+
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #000000;
+            padding: 15px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+
+        h2 {
+            font-size: 18px;
+            text-align: center;
+            margin-top: 0;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        /* 検索フォームのスタイル */
+        .search-form {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+
+        .search-form label {
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .search-form input[type="text"] {
+            padding: 5px;
+            border: 1px solid #000000;
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+            box-sizing: border-box;
+        }
+
+        .search-form button {
+            padding: 5px 15px;
+            background-color: #e0e0e0;
+            border: 1px solid #000000;
+            cursor: pointer;
+            font-family: 'ＭＳ Ｐゴシック', 'MS PGothic', sans-serif;
+        }
+        .search-form button:hover {
+            background-color: #d0d0d0;
+        }
+
+        /* テーブルを横スクロール可能にするラッパー（タブレット・スマホ用） */
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .select-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .select-table th, .select-table td {
+            border: 1px solid #000000;
+            padding: 5px;
+            text-align: left;
+            word-break: break-word;
+        }
+
+        .select-table th {
+            background-color: #e0e0e0;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .select-table th:hover {
+            background-color: #d0d0d0;
+        }
+
+        /* ソートアイコン（絵文字化を避けるためCSSの三角形で描画） */
+        .select-table th .sort-icon {
+            display: inline-block;
+            width: 9px;
+            height: 11px;
+            margin-left: 5px;
+            position: relative;
+            vertical-align: middle;
+        }
+
+        .select-table th .sort-icon::before,
+        .select-table th .sort-icon::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+
+        /* 未ソート状態：上下両方の三角形を薄く表示 */
+        .select-table th .sort-icon::before {
+            top: 0;
+            border-bottom: 4px solid #999999;
+        }
+
+        .select-table th .sort-icon::after {
+            bottom: 0;
+            border-top: 4px solid #999999;
+        }
+
+        /* 昇順：上向き三角形のみ濃く表示 */
+        .select-table th .sort-icon.sort-asc::before {
+            border-bottom-color: #000000;
+        }
+        .select-table th .sort-icon.sort-asc::after {
+            display: none;
+        }
+
+        /* 降順：下向き三角形のみ濃く表示 */
+        .select-table th .sort-icon.sort-desc::after {
+            border-top-color: #000000;
+        }
+        .select-table th .sort-icon.sort-desc::before {
+            display: none;
+        }
+
+        .select-table tbody tr {
+            cursor: pointer;
+        }
+
+        .select-table tbody tr:hover {
+            background-color: #f0f8ff;
+        }
+
+        /* ============ レスポンシブ対応（タブレット） ============ */
+        @media screen and (max-width: 1024px) {
+            .container {
+                width: 92%;
+                padding: 12px;
+            }
+        }
+
+        /* ============ レスポンシブ対応（スマホ／小型タブレット） ============ */
+        @media screen and (max-width: 768px) {
+            body {
+                margin: 10px;
+                font-size: 13px;
+            }
+
+            .container {
+                width: 100%;
+                padding: 10px;
+            }
+
+            h2 {
+                font-size: 16px;
+            }
+
+            .search-form {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .search-form label {
+                white-space: normal;
+            }
+
+            .search-form input[type="text"] {
+                width: 100%;
+            }
+
+            .search-form button {
+                width: 100%;
+                padding: 8px 15px;
+            }
+
+            /* テーブルは横スクロールで最低幅を確保して読みやすくする */
+            .select-table {
+                min-width: 600px;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            body {
+                margin: 6px;
+                font-size: 12px;
+            }
+
+            .container {
+                padding: 8px;
+            }
+
+            .select-table th, .select-table td {
+                padding: 4px;
+            }
+
+            .select-table {
+                min-width: 520px;
+            }
+        }
+    
+.back-button{padding:8px 14px;margin-bottom:10px;cursor:pointer;}
+.search-form input{flex:1;min-width:180px;}
+
+</style>
+</head>
+<body>
+
+    <div class="container">
+<button class="back-button" onclick="history.back()">← 前の画面へ戻る</button>
+        <h2>【列車時刻表 選択】</h2>
+        
+        <div class="search-form">
+            <label for="search-date">施行日：</label>
+            <input type="search" id="search-date">
+
+            <label for="search-number">列車番号：</label>
+            <input type="search" id="search-number">
+
+            <label for="search-station">駅名：</label>
+            <input type="search" id="search-station">
+
+            <button id="search-button">検索</button>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="select-table" id="timetable-list">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;" data-col="startDate">施行日<span class="sort-icon"></span></th>
+                        <th style="width: 10%;" data-col="type">列車種別<span class="sort-icon"></span></th>
+                        <th style="width: 15%;" data-col="trainNumber">列車番号<span class="sort-icon"></span></th>
+                        <th style="width: 50%;" data-col="section">区間（始発〜終着）<span class="sort-icon"></span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript
+        document.addEventListener('DOMContentLoaded', () => {
+            const JSON_PATH = '../../T-time/timetables.json'; 
+            const listBody = document.querySelector('#timetable-list tbody');
+            const searchDateInput = document.getElementById('search-date');
+            const searchNumberInput = document.getElementById('search-number');
+            const searchStationInput=document.getElementById('search-station');
+            const searchButton = document.getElementById('search-button');
+            
+            let cachedAllData = [];
+
+            // ソート状態管理
+            let sortCol = null;   // 現在のソート列キー
+            let sortDir = 'asc';  // 'asc' or 'desc'
+
+            // fetchでJSON_PATHからデータを取得する関数
+            const loadTimetables = async () => {
+                try {
+                    const response = await fetch(JSON_PATH);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status} - JSONファイルの読み込みに失敗しました。パスを確認してください。`);
+                    }
+                    cachedAllData = await response.json();
+                    renderTimetableList(cachedAllData);
+                } catch (error) {
+                    console.error('Error fetching the timetable data:', error);
+                    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">データの読み込みに失敗しました。JSONファイルが存在するか、パスが正しいか確認してください。</td></tr>';
+                    cachedAllData = [];
+                }
+            };
+
+            // ソートアイコンを更新する関数
+            const updateSortIcons = () => {
+                document.querySelectorAll('.select-table th').forEach(th => {
+                    const icon = th.querySelector('.sort-icon');
+                    if (!icon) return;
+                    const col = th.getAttribute('data-col');
+                    icon.classList.remove('sort-asc', 'sort-desc');
+                    if (col === sortCol) {
+                        icon.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            };
+
+            // グループ化済みデータのリストをソートする関数
+            // entries: [{key, group, rep}] の配列
+            const sortEntries = (entries) => {
+                if (!sortCol) return entries;
+                return [...entries].sort((a, b) => {
+                    let aVal = '';
+                    let bVal = '';
+                    if (sortCol === 'section') {
+                        aVal = `${a.rep.origin || ''}〜${a.rep.destination || ''}`;
+                        bVal = `${b.rep.origin || ''}〜${b.rep.destination || ''}`;
+                    } else {
+                        aVal = a.rep[sortCol] || '';
+                        bVal = b.rep[sortCol] || '';
+                    }
+                    const cmp = aVal.localeCompare(bVal, 'ja');
+                    return sortDir === 'asc' ? cmp : -cmp;
+                });
+            };
+            
+            // フィルタリングとグルーピングを行い、テーブルを描画する関数
+            const renderTimetableList = (data) => {
+                listBody.innerHTML = '';
+
+                if (data.length === 0) {
+                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">該当するデータがありません。</td></tr>';
+                     return;
+                }
+                
+                // 列車を一意に識別するためのキーでグループ化
+                const groupedTrains = data.reduce((acc, train) => {
+                    const key = `${train.startDate}-${train.trainNumber}-${train.origin}-${train.destination}`;
+                    if (!acc[key]) {
+                        acc[key] = [];
+                    }
+                    acc[key].push(train);
+                    return acc;
+                }, {});
+
+                // グループをエントリ配列に変換
+                let entries = Object.keys(groupedTrains).map(key => ({
+                    key,
+                    group: groupedTrains[key],
+                    rep: groupedTrains[key][0]
+                }));
+
+                // ソートが未指定の場合はデフォルトで逆順（末尾から表示）
+                if (!sortCol) {
+                    entries = entries.reverse();
+                } else {
+                    entries = sortEntries(entries);
+                }
+
+                entries.forEach(({ group, rep }) => {
+                    const row = listBody.insertRow();
+                    row.insertCell().textContent = rep.startDate || '―';
+                    
+                    let trainType = rep.type || '';
+                    if (trainType === "選択なし") {
+                        trainType = "";
+                    }
+                    row.insertCell().textContent = trainType;
+                    
+                    row.insertCell().textContent = rep.trainNumber || '―';
+                    
+                    row.insertCell().textContent = `${rep.origin || '―'} 〜 ${rep.destination || '―'}`;
+
+                    row.addEventListener('click', () => {
+                        sessionStorage.setItem('selectedTrainData', JSON.stringify(group));
+                        window.location.href = 'train_timetable.html';
+                    });
+                });
+
+                updateSortIcons();
+            };
+            
+            // 検索実行関数
+            const applySearchFilter = () => {
+                const dateFilter = searchDateInput.value.trim().toLowerCase();
+                const numberFilter = searchNumberInput.value.trim().toLowerCase();
+                const stationFilter=searchStationInput.value.trim().toLowerCase();
+                
+                const filteredData = cachedAllData.filter(train => {
+                    let dateMatch = true;
+                    let numberMatch = true;
+                    
+                    if (dateFilter) {
+                        dateMatch = (train.startDate && train.startDate.toLowerCase().includes(dateFilter));
+                    }
+                    
+                    if (numberFilter) {
+                        numberMatch = (train.trainNumber && train.trainNumber.toLowerCase().includes(numberFilter));
+                    }
+                    
+                    let stationMatch=true;
+                    if(stationFilter){
+                      stationMatch=((train.origin||'').toLowerCase().includes(stationFilter)|| (train.destination||'').toLowerCase().includes(stationFilter));
+                    }
+                    return dateMatch && numberMatch && stationMatch;
+                });
+                
+                renderTimetableList(filteredData);
+            };
+
+            // 列ヘッダーのソートイベント
+            document.querySelectorAll('.select-table th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.getAttribute('data-col');
+                    if (sortCol === col) {
+                        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortCol = col;
+                        sortDir = 'asc';
+                    }
+                    applySearchFilter();
+                });
+            });
+
+
+            //検索イベント？？？
+            searchButton.addEventListener('click', applySearchFilter);
+
+            [searchDateInput, searchNumberInput, searchStationInput].forEach(input => {
+
+                input.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') {
+                        applySearchFilter();
+                    }
+                });
+                input.addEventListener('input', applySearchFilter);
+
+            });
+
+            
+            // 初期データのロード
+            loadTimetables();
+        });
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="../../auth_guard.js"></script>
+</body>
+</html>
