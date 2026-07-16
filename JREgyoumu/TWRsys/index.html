@@ -332,7 +332,7 @@
       </header>
 
       <div class="content">
-        <div class="notice" id="demoNotice"><svg class="icon"><use href="#i-info"/></svg><span>現在はデモデータを表示しています。HTML内または接続設定にODPTアクセストークンを設定すると運行情報を取得できます。</span><button id="noticeSettings">接続設定を開く</button></div>
+        <div class="notice" id="demoNotice"><svg class="icon"><use href="#i-info"/></svg><span id="dataNoticeText">ODPTから最新情報を取得しています。列車位置は駅時刻表に基づく計画上の推定です。</span><button id="noticeSettings">接続設定を開く</button></div>
 
         <section class="panel active" id="panel-dashboard">
           <div class="status-card">
@@ -342,7 +342,7 @@
           </div>
 
           <div class="metric-grid">
-            <div class="metric"><div><div class="metric-label">在線列車</div><div class="metric-value">12<span>編成</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-train"/></svg></div></div>
+            <div class="metric"><div><div class="metric-label">計画在線列車</div><div class="metric-value" id="plannedTrainCount">12<span>編成</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-train"/></svg></div></div>
             <div class="metric"><div><div class="metric-label">最大遅延</div><div class="metric-value">0<span>分</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-clock"/></svg></div></div>
             <div class="metric"><div><div class="metric-label">営業駅</div><div class="metric-value">8<span>駅</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-pin"/></svg></div></div>
             <div class="metric"><div><div class="metric-label">本日輸送見込</div><div class="metric-value">25.8<span>万人</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-users"/></svg></div></div>
@@ -353,7 +353,7 @@
               <div class="card-head"><h3>路線運行モニター</h3><span class="sub">新木場 → 大崎</span><button class="text-btn head-action" data-go="stations">駅詳細</button></div>
               <div class="route-map">
                 <div class="route-line" id="routeLine"></div>
-                <div class="route-note"><svg class="icon"><use href="#i-info"/></svg><span>駅を選択すると、駅情報画面で詳細を確認できます。実際の列車位置情報はGTFS-RT連携で拡張可能です。</span></div>
+                <div class="route-note"><svg class="icon"><use href="#i-info"/></svg><span>東京臨海高速鉄道の列車位置データは配信されていないため、駅時刻表から計画位置を推定します。実際の在線位置・遅延位置とは異なる場合があります。</span></div>
               </div>
             </div>
             <div class="card">
@@ -369,15 +369,15 @@
         </section>
 
         <section class="panel" id="panel-trains">
-          <div class="section-head"><div><h2>列車運行一覧</h2><p>りんかい線内の運行状況と在線情報</p></div><button class="primary-btn" id="trainRefresh">最新情報に更新</button></div>
+          <div class="section-head"><div><h2>列車運行一覧</h2><p>駅時刻表に基づく計画在線情報（実測位置ではありません）</p></div><button class="primary-btn" id="trainRefresh">最新情報に更新</button></div>
           <div class="table-card">
             <div class="toolbar">
-              <div class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><input class="field" id="trainSearch" type="search" placeholder="列車番号・行先を検索"></div>
+              <div class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><input class="field" id="trainSearch" name="rinkai_train_filter" type="search" value="" placeholder="列車番号・行先を検索" autocomplete="off" aria-autocomplete="none" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" readonly></div>
               <select class="field" id="directionFilter" aria-label="方向"><option value="all">全方向</option><option value="上り">上り</option><option value="下り">下り</option></select>
-              <select class="field" id="statusFilter" aria-label="運行状態"><option value="all">全状態</option><option value="定時">定時</option><option value="遅延">遅延</option></select>
+              <select class="field" id="statusFilter" aria-label="運行状態"><option value="all">全状態</option><option value="計画">計画</option><option value="定時">定時</option><option value="遅延">遅延</option></select>
               <button class="secondary-btn push" id="clearFilters">条件をクリア</button>
             </div>
-            <div class="table-wrap"><table><thead><tr><th>列車番号</th><th>種別</th><th>方向</th><th>現在位置</th><th>行先</th><th>予定時刻</th><th>遅延</th><th>状態</th></tr></thead><tbody id="trainBody"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>列車番号</th><th>種別</th><th>方向</th><th>計画位置</th><th>行先</th><th>次駅予定</th><th>情報</th><th>状態</th></tr></thead><tbody id="trainBody"></tbody></table></div>
             <div class="pagination"><span id="resultCount">0件を表示</span><div class="pagination-controls"><button aria-label="前のページ">‹</button><button class="active">1</button><button aria-label="次のページ">›</button></div></div>
           </div>
         </section>
@@ -390,7 +390,7 @@
         <section class="panel" id="panel-timetable">
           <div class="section-head"><div><h2>駅時刻表</h2><p>駅・方面別の発車時刻表</p></div></div>
           <div class="table-card">
-            <div class="toolbar"><select class="field" id="ttStation"></select><select class="field" id="ttDirection"><option value="大崎方面">大崎方面</option><option value="新木場方面">新木場方面</option></select><select class="field"><option>平日</option><option>土曜・休日</option></select><span class="push" style="color:var(--muted);font-size:10px">ODPT StationTimetable準拠 / デモ</span></div>
+            <div class="toolbar"><select class="field" id="ttStation"></select><select class="field" id="ttDirection"><option value="大崎方面">大崎方面</option><option value="新木場方面">新木場方面</option></select><select class="field"><option>平日</option><option>土曜・休日</option></select><span class="push" id="timetableSource" style="color:var(--muted);font-size:10px">ODPT StationTimetable 接続待ち</span></div>
             <div class="table-wrap"><table><thead><tr><th>時</th><th>発車時刻・行先</th></tr></thead><tbody id="timetableBody"></tbody></table></div>
           </div>
         </section>
@@ -398,7 +398,7 @@
         <section class="panel" id="panel-data">
           <div class="section-head"><div><h2>データ接続</h2><p>公共交通オープンデータセンター・東京臨海高速鉄道データセット</p></div><button class="primary-btn" id="dataSettings">接続設定</button></div>
           <div class="data-grid">
-            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-train"/></svg></div><div><h3>運行情報</h3><p>TrainInformation / JSON</p></div></div><div class="endpoint">/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>状態：<b id="connectionLabel">デモデータ</b></span><a href="https://ckan.odpt.org/dataset/r_train_status-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
+            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-train"/></svg></div><div><h3>運行情報</h3><p>TrainInformation / JSON</p></div></div><div class="endpoint">/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>状態：<b id="connectionLabel">接続待ち</b></span><a href="https://ckan.odpt.org/dataset/r_train_status-twr/resource/2192b372-ecbe-4acc-9d93-6b29fa014904" target="_blank" rel="noopener">データセット ↗</a></div></article>
             <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-pin"/></svg></div><div><h3>駅情報</h3><p>Station / JSON</p></div></div><div class="endpoint">/api/v4/odpt:Station?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>8駅を収録</span><a href="https://ckan.odpt.org/dataset/r_station-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
             <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-clock"/></svg></div><div><h3>駅時刻表</h3><p>StationTimetable / JSON</p></div></div><div class="endpoint">/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>方面・曜日別</span><a href="https://ckan.odpt.org/dataset/r_station_timetable-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
             <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-database"/></svg></div><div><h3>路線系統情報</h3><p>Railway / JSON</p></div></div><div class="endpoint">/api/v4/odpt:Railway?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>路線カラー・駅順</span><a href="https://ckan.odpt.org/dataset/r_route-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
@@ -426,7 +426,7 @@
     // 下の '' の中に、発行されたアクセストークンを貼り付けてください。
     // 例: const ODPT_ACCESS_TOKEN = 'xxxxxxxxxxxxxxxx';
     // ============================================================
-    const ODPT_ACCESS_TOKEN = '';
+    const ODPT_ACCESS_TOKEN = '4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
 
     const stations = [
       { code:'R01', name:'新木場', en:'Shin-kiba', platform:'1・2番線', transfer:'JR京葉線 / 東京メトロ有楽町線', daily:'102,340', times:['12:43','12:50','12:58','13:06','13:14'] },
@@ -438,19 +438,13 @@
       { code:'R07', name:'大井町', en:'Oimachi', platform:'1・2番線', transfer:'JR京浜東北線 / 東急大井町線', daily:'138,560', times:['13:02','13:10','13:18','13:26','13:34'] },
       { code:'R08', name:'大崎', en:'Osaki', platform:'5・6・7・8番線', transfer:'JR山手線 / 埼京線 / 湘南新宿ライン', daily:'176,430', times:['13:06','13:14','13:22','13:30','13:38'] }
     ];
-    const trains = [
-      ['1208F','各駅停車','上り','東京テレポート','大崎','12:44','0','定時'],
-      ['1210K','快速','上り','品川シーサイド','川越','12:46','0','定時'],
-      ['1212F','各駅停車','上り','東雲','大崎','12:48','0','定時'],
-      ['1214K','快速','上り','新木場','大宮','12:51','2','遅延'],
-      ['1209F','各駅停車','下り','大井町','新木場','12:45','0','定時'],
-      ['1211K','快速','下り','天王洲アイル','新木場','12:47','0','定時'],
-      ['1213F','各駅停車','下り','国際展示場','新木場','12:50','0','定時'],
-      ['1215K','快速','下り','大崎','新木場','12:53','0','定時'],
-      ['1216F','各駅停車','上り','東京テレポート','大崎','12:55','0','定時'],
-      ['1217F','各駅停車','下り','品川シーサイド','新木場','12:57','0','定時'],
-      ['1218K','快速','上り','国際展示場','川越','12:59','0','定時'],
-      ['1219F','各駅停車','下り','東雲','新木場','13:01','0','定時']
+    let trains = [
+      ['1208F','各駅停車','上り','東京テレポート〜天王洲アイル駅間（推定）','大崎','12:44','参考','計画'],
+      ['1210K','快速','上り','品川シーサイド〜大井町駅間（推定）','川越','12:46','参考','計画'],
+      ['1212F','各駅停車','上り','東雲〜国際展示場駅間（推定）','大崎','12:48','参考','計画'],
+      ['1214K','快速','上り','新木場駅 発車待ち','大宮','12:51','参考','計画'],
+      ['1209F','各駅停車','下り','大井町〜品川シーサイド駅間（推定）','新木場','12:45','参考','計画'],
+      ['1211K','快速','下り','天王洲アイル〜東京テレポート駅間（推定）','新木場','12:47','参考','計画']
     ];
     const titles = { dashboard:'運行ダッシュボード', trains:'列車運行一覧', stations:'駅情報', timetable:'駅時刻表', data:'データ接続' };
     let selectedStation = 3;
@@ -491,8 +485,78 @@
       const dir = $('#directionFilter')?.value || 'all';
       const status = $('#statusFilter')?.value || 'all';
       const rows = trains.filter(t => (!q || t.some(v => v.toLowerCase().includes(q))) && (dir==='all'||t[2]===dir) && (status==='all'||t[7]===status));
-      $('#trainBody').innerHTML = rows.map(t => `<tr><td class="train-no">${t[0]}</td><td>${t[1]}</td><td><span class="direction">${icon('i-arrow')}${t[2]}</span></td><td>${t[3]}</td><td>${t[4]}</td><td>${t[5]}</td><td class="delay ${+t[6]?'warn':''}">${t[6]}分</td><td><span class="tag ${t[7]==='定時'?'green':'amber'}">${t[7]}</span></td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">該当する列車はありません</td></tr>';
+      $('#trainBody').innerHTML = rows.map(t => `<tr><td class="train-no">${t[0]}</td><td>${t[1]}</td><td><span class="direction">${icon('i-arrow')}${t[2]}</span></td><td>${t[3]}</td><td>${t[4]}</td><td>${t[5]}</td><td>${t[6]}</td><td><span class="tag ${t[7]==='定時'?'green':t[7]==='計画'?'blue':'amber'}">${t[7]}</span></td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">該当する列車はありません</td></tr>';
       $('#resultCount').textContent = `${rows.length}件を表示`;
+      $('#plannedTrainCount').innerHTML = `${trains.length}<span>編成</span>`;
+    }
+
+    function minutesOfDay(value){
+      const [h,m] = String(value || '').split(':').map(Number);
+      return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : -1;
+    }
+
+    function stationNameFromRef(ref){
+      const key = String(ref || '').split('.').pop().replace(/[^a-z]/gi,'').toLowerCase();
+      const names = {
+        shinkiba:'新木場', shinonome:'東雲', kokusaitenjijo:'国際展示場',
+        tokyoteleport:'東京テレポート', tennozuisle:'天王洲アイル',
+        shinagawaseaside:'品川シーサイド', oimachi:'大井町', osaki:'大崎',
+        kawagoe:'川越', omiya:'大宮', akabane:'赤羽', ikebukuro:'池袋',
+        shinjuku:'新宿', ebisu:'恵比寿', shibuya:'渋谷'
+      };
+      return names[key] || String(ref || '').split('.').pop() || '駅情報なし';
+    }
+
+    function typeNameFromRef(ref){
+      const key = String(ref || '').split('.').pop().toLowerCase();
+      if(key.includes('rapid')) return key.includes('commuter') ? '通勤快速' : '快速';
+      return '各駅停車';
+    }
+
+    function buildPlannedTrains(timetables){
+      const today = new Date().getDay();
+      const calendarKey = (today === 0 || today === 6) ? 'SaturdayHoliday' : 'Weekday';
+      const groups = new Map();
+      timetables
+        .filter(table => String(table['odpt:calendar'] || '').includes(calendarKey))
+        .forEach(table => {
+          const station = stationNameFromRef(table['odpt:station']);
+          const directionRef = String(table['odpt:railDirection'] || '').toLowerCase();
+          // TWR時刻表では Outbound=大崎方面、Inbound=新木場方面。
+          const direction = directionRef.includes('outbound') ? '上り' : '下り';
+          (table['odpt:stationTimetableObject'] || []).forEach((item,index) => {
+            const time = item['odpt:departureTime'];
+            const minute = minutesOfDay(time);
+            if(minute < 0) return;
+            const number = String(item['odpt:trainNumber'] || `計画${minute}-${index}`);
+            const key = `${number}|${direction}`;
+            if(!groups.has(key)) groups.set(key, { number, direction, stops:[], type:'各駅停車', destination:direction==='上り'?'大崎':'新木場' });
+            const group = groups.get(key);
+            const destinationRef = Array.isArray(item['odpt:destinationStation']) ? item['odpt:destinationStation'][0] : item['odpt:destinationStation'];
+            group.stops.push({ station, time, minute });
+            group.type = typeNameFromRef(item['odpt:trainType']);
+            if(destinationRef) group.destination = stationNameFromRef(destinationRef);
+          });
+        });
+
+      const now = new Date();
+      const nowMinute = now.getHours() * 60 + now.getMinutes();
+      const planned = [...groups.values()].map(group => {
+        group.stops.sort((a,b) => a.minute - b.minute);
+        const first = group.stops[0], last = group.stops[group.stops.length - 1];
+        if(!first || nowMinute < first.minute - 12 || nowMinute > last.minute + 4) return null;
+        let previous = null, next = first;
+        for(const stop of group.stops){
+          if(stop.minute <= nowMinute) previous = stop;
+          if(stop.minute > nowMinute){ next = stop; break; }
+          next = null;
+        }
+        const position = !previous ? `${first.station}駅 発車待ち（計画）`
+          : next ? `${previous.station}〜${next.station}駅間（推定）`
+          : `${last.station}駅 到着予定`;
+        return [group.number, group.type, group.direction, position, group.destination, next?.time || last.time, '時刻表推定', '計画'];
+      }).filter(Boolean).sort((a,b) => a[5].localeCompare(b[5]));
+      return planned.slice(0,24);
     }
 
     function renderStations(){
@@ -511,6 +575,12 @@
     }
 
     stations.forEach((s,i)=>$('#ttStation').insertAdjacentHTML('beforeend', `<option value="${i}" ${i===3?'selected':''}>${s.code} ${s.name}</option>`));
+    const trainSearch = $('#trainSearch');
+    trainSearch.value = '';
+    trainSearch.addEventListener('focus', () => trainSearch.removeAttribute('readonly'), {once:true});
+    trainSearch.addEventListener('pointerdown', () => trainSearch.removeAttribute('readonly'), {once:true});
+    window.addEventListener('pageshow', () => { if(trainSearch.hasAttribute('readonly')) trainSearch.value=''; });
+    [100,500,1500].forEach(delay => setTimeout(() => { if(trainSearch.hasAttribute('readonly')) trainSearch.value=''; }, delay));
     ['trainSearch','directionFilter','statusFilter'].forEach(id => $(`#${id}`).addEventListener('input', renderTrains));
     $('#clearFilters').addEventListener('click',()=>{ $('#trainSearch').value=''; $('#directionFilter').value='all'; $('#statusFilter').value='all'; renderTrains(); });
     $('#ttStation').addEventListener('change', renderTimetable); $('#ttDirection').addEventListener('change', renderTimetable);
@@ -524,20 +594,32 @@
 
     async function fetchOdpt(){
       if(!apiToken){ toast('ODPTアクセストークンを設定してください'); openSettings(); return; }
-      const endpoint = `https://api.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${encodeURIComponent(apiToken)}`;
+      const base = 'https://api.odpt.org/api/v4/';
+      const token = `&acl:consumerKey=${encodeURIComponent(apiToken)}`;
+      const statusEndpoint = `${base}odpt:TrainInformation?odpt:operator=odpt.Operator:TWR${token}`;
+      const timetableEndpoint = `${base}odpt:StationTimetable?odpt:operator=odpt.Operator:TWR${token}`;
       $('#modalState').textContent='接続を確認しています…';
       try {
-        const response=await fetch(endpoint);
-        if(!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data=await response.json();
-        const item=data[0];
-        const text=item?.['odpt:trainInformationText']?.ja || item?.['odpt:trainInformationText'] || '運行情報を取得しました。';
-        const title=item?.['odpt:trainInformationStatus']?.ja || item?.['odpt:trainInformationStatus'] || (text.includes('平常')?'平常運転':'運行情報');
-        $('#statusTitle').textContent=title; $('#statusText').textContent=text;
+        const fetchJson = async url => { const response=await fetch(url); if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); };
+        const [statusResult,timetableResult] = await Promise.allSettled([fetchJson(statusEndpoint),fetchJson(timetableEndpoint)]);
+        if(statusResult.status==='rejected' && timetableResult.status==='rejected') throw statusResult.reason;
+        if(statusResult.status==='fulfilled'){
+          const item=statusResult.value[0];
+          const text=item?.['odpt:trainInformationText']?.ja || item?.['odpt:trainInformationText'] || '運行情報を取得しました。';
+          const title=item?.['odpt:trainInformationStatus']?.ja || item?.['odpt:trainInformationStatus'] || (text.includes('平常')?'平常運転':'運行情報');
+          $('#statusTitle').textContent=title; $('#statusText').textContent=text;
+        }
+        if(timetableResult.status==='fulfilled'){
+          const planned = buildPlannedTrains(timetableResult.value);
+          if(planned.length) trains = planned;
+          renderTrains();
+          $('#timetableSource').textContent=`ODPT StationTimetable / ${timetableResult.value.length}件取得`;
+        }
         $('#lastUpdated').textContent=new Date().toLocaleTimeString('ja-JP',{hour12:false});
-        $('#demoNotice').style.display='none'; $('#connectionLabel').textContent='ODPT API 接続済み';
-        $('#modalState').textContent=`接続済み：${data.length}件の運行情報を取得`;
-        toast('ODPTの最新運行情報を取得しました');
+        $('#dataNoticeText').textContent='ODPT接続済み。列車位置は駅時刻表から算出した計画上の推定で、実測位置ではありません。';
+        $('#connectionLabel').textContent='ODPT API 接続済み';
+        $('#modalState').textContent='接続済み：運行情報と駅時刻表を取得しました';
+        toast('ODPTの最新情報を取得しました');
         return true;
       } catch(error){
         $('#modalState').textContent=`接続できませんでした（${error.message}）。トークンと通信環境を確認してください。`;
@@ -546,7 +628,7 @@
       }
     }
     $('#connectApi').addEventListener('click',async()=>{ apiToken=$('#apiToken').value.trim(); const ok=await fetchOdpt(); if(ok) setTimeout(()=>dialog.close(),500); });
-    $('#useDemo').addEventListener('click',()=>{ apiToken=''; $('#apiToken').value=''; $('#demoNotice').style.display='flex'; $('#connectionLabel').textContent='デモデータ'; $('#modalState').textContent='未接続：デモデータを表示中'; $('#statusTitle').textContent='平常運転'; $('#statusText').textContent='りんかい線は、全線で平常どおり運転しています。'; toast('デモ表示に切り替えました'); dialog.close(); });
+    $('#useDemo').addEventListener('click',()=>{ apiToken=''; $('#apiToken').value=''; $('#demoNotice').style.display='flex'; $('#dataNoticeText').textContent='デモデータを表示中です。列車位置は参考表示です。'; $('#connectionLabel').textContent='デモデータ'; $('#modalState').textContent='未接続：デモデータを表示中'; $('#statusTitle').textContent='平常運転'; $('#statusText').textContent='りんかい線は、全線で平常どおり運転しています。'; toast('デモ表示に切り替えました'); dialog.close(); });
     ['refreshBtn','trainRefresh'].forEach(id => $(`#${id}`).addEventListener('click',()=> apiToken ? fetchOdpt() : ( $('#lastUpdated').textContent=new Date().toLocaleTimeString('ja-JP',{hour12:false}), toast('デモデータを更新しました') )));
     $('#bellBtn').addEventListener('click',()=>toast('未確認の重要通知はありません'));
 
