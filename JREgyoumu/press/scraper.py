@@ -222,7 +222,8 @@ def render_site(items: list[Item], output_dir: Path, error_message: str | None =
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="JR東日本のニュースリリースとお知らせの新着一覧">
-  <title>JR東日本 新着ウォッチ</title>
+  <title>新着プレスリリース</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23007a45'/%3E%3Cpath d='M16 14h32v30H16z' fill='white'/%3E%3Ccircle cx='23' cy='50' r='5' fill='white'/%3E%3Ccircle cx='41' cy='50' r='5' fill='white'/%3E%3Cpath d='M21 20h9v12h-9zm13 0h9v12h-9z' fill='%23007a45'/%3E%3C/svg%3E">
   <style>
     :root{{--green:#007a45;--deep:#0b2b22;--blue:#176b9c;--paper:#f4f7f5;--line:#dce5e0;--muted:#61716a}}
     *{{box-sizing:border-box}} body{{margin:0;color:#17221e;background:var(--paper);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}}
@@ -244,7 +245,7 @@ def render_site(items: list[Item], output_dir: Path, error_message: str | None =
   </style>
 </head>
 <body>
-  <header><div class="wrap"><div class="eyebrow">EAST JAPAN RAILWAY NEWS</div><h1>JR東日本 新着ウォッチ</h1><p>ニュースリリースとお知らせを、ひとつの場所で。</p></div></header>
+  <header><div class="wrap"><div class="eyebrow">EAST JAPAN RAILWAY NEWS</div><h1>新着プレスリリース</h1><p>ニュースリリースとお知らせを、ひとつの場所で。</p></div></header>
   <main class="wrap">
     {alert_html}
     <div class="controls"><input id="search" type="search" placeholder="キーワード・地域・ジャンルで検索" aria-label="一覧を検索"><div class="filters" aria-label="種別で絞り込み"><button class="active" data-filter="all">すべて</button><button data-filter="press">ニュース</button><button data-filter="information">お知らせ</button></div></div>
