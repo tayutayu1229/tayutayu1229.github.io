@@ -120,6 +120,7 @@
     display:flex;
     align-items:center;
     gap:9px;
+    position:relative;
   }
   .search-card svg{flex-shrink:0;width:17px;height:17px;stroke:var(--ink-soft);}
   .search-card input{
@@ -131,6 +132,29 @@
     width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;flex-shrink:0;
     align-items:center;justify-content:center;
   }
+  .search-results{
+    position:absolute;
+    top:calc(100% + 8px);
+    left:0;right:0;
+    background:var(--paper);
+    border:1.5px solid var(--line);
+    border-radius:var(--radius-md);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    display:none;
+    max-height:min(420px,55vh);
+    overflow-y:auto;
+  }
+  .search-results.show{display:block;}
+  .search-result{
+    width:100%;border:0;border-bottom:1px solid var(--line);background:var(--paper);
+    padding:10px 13px;text-align:left;cursor:pointer;color:var(--ink);
+  }
+  .search-result:last-child{border-bottom:0;}
+  .search-result:hover,.search-result.active{background:var(--yellow-100);}
+  .search-result-name{font-size:12.5px;font-weight:700;line-height:1.35;}
+  .search-result-addr{font-size:10.5px;color:var(--ink-soft);margin-top:2px;line-height:1.35;}
+  .search-no-result{padding:13px;text-align:center;font-size:11.5px;color:var(--ink-soft);}
 
   .stat-card{
     pointer-events:auto;
@@ -468,6 +492,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" id="searchInput" placeholder="ステーション名・住所で検索…">
       <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+      <div class="search-results" id="searchResults" role="listbox" aria-label="検索候補"></div>
     </div>
 
     <div class="stat-card">
@@ -567,9 +592,12 @@ let map, cluster, tileLayer, userMarker;
 let stationMeta = {};    // station_id -> station_information
 let stationStatus = {};  // station_id -> station_status
 let markers = {};        // station_id -> leaflet marker (現在描画中のもの)
-let favorites = new Set(); // お気に入り（セッション中のみ保持）
+const FAVORITES_STORAGE_KEY = 'helloCyclingFavorites';
+let favorites = loadFavorites();
 let currentFilter = 'all';
 let searchTerm = '';
+let searchMatches = [];
+let searchActiveIndex = -1;
 let currentTile = 'light';
 let userLatLng = null;
 let statusTimer = null, infoTimer = null;
@@ -587,6 +615,19 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 function fmtDist(km){ return km < 1 ? Math.round(km*1000)+'m' : km.toFixed(1)+'km'; }
+function loadFavorites(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved.map(String) : []);
+  }catch(err){
+    console.warn('お気に入りを読み込めませんでした', err);
+    return new Set();
+  }
+}
+function saveFavorites(){
+  try{ localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favorites])); }
+  catch(err){ console.warn('お気に入りを保存できませんでした', err); }
+}
 
 /* ---------- 地図初期化 ---------- */
 function initMap(){
@@ -949,6 +990,7 @@ function bindPopupEvents(marker, meta){
 
 function toggleFavorite(id){
   if(favorites.has(id)) favorites.delete(id); else favorites.add(id);
+  saveFavorites();
   if(currentFilter === 'favorite') renderVisible(false);
 }
 
@@ -1073,15 +1115,92 @@ document.querySelectorAll('.pill').forEach(btn=>{
 });
 
 const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
 searchInput.addEventListener('input', debounce(()=>{
   searchTerm = toSearchNormal(searchInput.value.trim());
   document.getElementById('searchClear').style.display = searchTerm ? 'flex' : 'none';
+  renderSearchResults();
   renderVisible(false);
 }, 200));
+
+function renderSearchResults(){
+  searchActiveIndex = -1;
+  if(!searchTerm){ closeSearchResults(); return; }
+  searchMatches = Object.values(stationMeta)
+    .filter(passesSearch)
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),'ja'))
+    .slice(0,8);
+
+  if(searchMatches.length === 0){
+    searchResults.innerHTML = '<div class="search-no-result">一致するステーションがありません</div>';
+  }else{
+    searchResults.innerHTML = searchMatches.map((meta,i)=>`
+      <button class="search-result" type="button" role="option" data-search-index="${i}">
+        <div class="search-result-name">${escapeHtml(meta.name)}</div>
+        <div class="search-result-addr">${escapeHtml(meta.address || '住所情報なし')}</div>
+      </button>`).join('');
+    searchResults.querySelectorAll('[data-search-index]').forEach(el=>{
+      el.addEventListener('click', ()=>selectSearchResult(Number(el.dataset.searchIndex)));
+    });
+  }
+  searchResults.classList.add('show');
+}
+
+function selectSearchResult(index){
+  const meta = searchMatches[index];
+  if(!meta) return;
+  searchInput.value = meta.name;
+  searchTerm = toSearchNormal(meta.name);
+  closeSearchResults();
+  map.flyTo([meta.lat,meta.lon],17,{duration:0.8});
+  setTimeout(()=>{
+    renderVisible(false);
+    const marker = markers[meta.station_id];
+    if(marker) marker.openPopup();
+  },850);
+}
+
+function closeSearchResults(){
+  searchResults.classList.remove('show');
+  searchActiveIndex = -1;
+}
+
+function updateSearchActive(){
+  searchResults.querySelectorAll('.search-result').forEach((el,i)=>{
+    const active = i === searchActiveIndex;
+    el.classList.toggle('active',active);
+    el.setAttribute('aria-selected',String(active));
+    if(active) el.scrollIntoView({block:'nearest'});
+  });
+}
+
+searchInput.addEventListener('keydown',e=>{
+  if(!searchResults.classList.contains('show')) return;
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    searchActiveIndex = Math.min(searchActiveIndex+1,searchMatches.length-1);
+    updateSearchActive();
+  }else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    searchActiveIndex = Math.max(searchActiveIndex-1,0);
+    updateSearchActive();
+  }else if(e.key === 'Enter' && searchActiveIndex >= 0){
+    e.preventDefault(); selectSearchResult(searchActiveIndex);
+  }else if(e.key === 'Escape'){
+    closeSearchResults();
+  }
+});
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-card')) closeSearchResults();
+});
+searchInput.addEventListener('focus',()=>{ if(searchTerm) renderSearchResults(); });
 
 function clearSearch(){
   searchInput.value = '';
   searchTerm = '';
+  searchMatches = [];
+  closeSearchResults();
   document.getElementById('searchClear').style.display = 'none';
   renderVisible(false);
 }
