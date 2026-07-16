@@ -5,68 +5,99 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#2f711d">
   <title>D-TAC 列車運転時刻表</title>
-  <link rel="stylesheet" href="train_timetable.css?v=20260716-1">
+  <link rel="stylesheet" href="train_timetable.css?v=20260716-3">
 </head>
 <body>
-  <div id="app" class="dtac-app">
-    <header class="app-bar">
-      <button id="back-button" class="app-bar-button" type="button" aria-label="戻る">☰ <span>メニュー</span></button>
-      <strong id="work-name" class="work-name">D-TAC</strong>
-      <time id="live-clock" class="live-clock">--:--:--</time>
-    </header>
+  <div id="device-stage" class="device-stage">
+    <div id="app" class="dtac-app">
+      <header class="app-bar">
+        <button id="menu-button" class="app-bar-button" type="button" aria-label="メニュー" aria-expanded="false">
+          <span class="hamburger" aria-hidden="true"><i></i><i></i><i></i></span><span>メニュー</span>
+        </button>
+        <strong id="work-name" class="work-name">D-TAC</strong>
+        <time id="live-clock" class="live-clock">--:--:--</time>
+      </header>
 
-    <nav class="tabs" aria-label="表示切替">
-      <button type="button">ハ コ</button>
-      <button type="button" class="active">時刻表</button>
-      <button type="button" disabled>行路添付</button>
-    </nav>
+      <aside id="menu-drawer" class="menu-drawer" aria-hidden="true">
+        <button id="back-button" type="button">列車選択へ戻る</button>
+        <button type="button" data-open-view="timetable">時刻表</button>
+        <button type="button" data-open-view="attachments">行路添付</button>
+      </aside>
+      <button id="menu-scrim" class="menu-scrim" type="button" aria-label="メニューを閉じる"></button>
 
-    <section class="operation-panel">
-      <div class="execution-date">行路施行日<strong id="execution-date">----</strong></div>
-      <div class="operation-actions">
-        <button id="mode-button" class="mode-button" type="button">電車時刻表</button>
-        <button id="run-button" class="run-button" type="button"><span>▶</span> 運行開始</button>
-        <div class="location-toggle" role="group" aria-label="位置連動">
-          <button id="location-on" class="selected" type="button">● ON</button>
-          <button id="location-off" type="button">OFF</button>
+      <nav class="tabs" aria-label="表示切替">
+        <button type="button" disabled>ハ コ</button>
+        <button id="timetable-tab" type="button" class="active" data-view="timetable">時刻表</button>
+        <button id="attachments-tab" type="button" data-view="attachments">行路添付</button>
+      </nav>
+
+      <section class="operation-panel timetable-view">
+        <div class="execution-date">行路施行日<strong id="execution-date">----</strong></div>
+        <div class="operation-actions">
+          <button id="run-button" class="run-button" type="button"><span class="run-icon">▶</span> 運行開始</button>
+          <div class="location-toggle" role="group" aria-label="位置連動">
+            <button id="location-on" class="selected" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.1 7-13A7 7 0 1 0 5 9c0 5.9 7 13 7 13Zm0-9.5A3.5 3.5 0 1 1 12 5a3.5 3.5 0 0 1 0 7.5Z"/></svg>ON</button>
+            <button id="location-off" type="button">OFF</button>
+          </div>
+          <div class="step-buttons">
+            <button id="step-prev" type="button" aria-label="一つ前">▲</button>
+            <button id="step-next" type="button" aria-label="一つ次">▼</button>
+          </div>
+          <button id="collapse-button" class="collapse-button" type="button" aria-label="列車情報を折りたたむ">⌃</button>
         </div>
-        <div class="step-buttons">
-          <button id="step-prev" type="button" aria-label="前駅">▲</button>
-          <button id="step-next" type="button" aria-label="次駅">▼</button>
+      </section>
+
+      <section id="train-summary" class="train-summary timetable-view">
+        <div class="summary-grid summary-labels">
+          <span>列　車</span><span>最高速度<br>（Km／h）</span><span>速度種別</span><span>けん引定数</span>
         </div>
-        <button id="collapse-button" class="collapse-button" type="button" aria-label="列車情報を折りたたむ">⌃</button>
-      </div>
-    </section>
+        <div class="summary-grid summary-values">
+          <strong id="train-number">―</strong><span></span><strong id="speed-type"></strong><span id="power"></span>
+        </div>
+        <div class="consist-row">
+          <span id="next-day" class="next-day"></span>
+          <span id="car-count" class="car-count"></span>
+          <span id="begin-remarks" class="begin-remarks"></span>
+          <span id="destination" class="destination"></span>
+        </div>
+      </section>
 
-    <section id="train-summary" class="train-summary">
-      <div class="summary-grid summary-labels">
-        <span>列　車</span><span>最高速度<br>（Km／h）</span><span>速度種別</span><span>けん引定数</span>
+      <div class="timetable-header timetable-grid timetable-view">
+        <div>運転<br>時分</div><div>停車場名</div><div class="arrival-heading">着</div><div>発（通）</div>
+        <div>着線<br>発線</div><div>制限<br>速度</div><div>記事</div><div class="marker-heading">マーカー<span>✎</span></div>
       </div>
-      <div class="summary-grid summary-values">
-        <strong id="train-number">―</strong><span></span><strong id="speed-type"></strong><span id="power"></span>
-      </div>
-      <div class="consist-row">
-        <span id="next-day" class="next-day"></span>
-        <span id="car-count" class="car-count"></span>
-        <span id="begin-remarks" class="begin-remarks"></span>
-        <span id="destination" class="destination"></span>
-      </div>
-    </section>
 
-    <div class="timetable-header timetable-grid">
-      <div>運転<br>時分</div><div>停車場名</div><div class="arrival-heading">着</div><div>発（通）</div>
-      <div>着線<br>発線</div><div>制限<br>速度</div><div>記事</div><div class="marker-heading">マーカー ✎</div>
+      <main id="timetable-scroll" class="timetable-scroll timetable-view" tabindex="0">
+        <div id="timetable-body" class="timetable-body"><div class="loading">時刻表を読み込んでいます…</div></div>
+      </main>
+
+      <section id="remarks-panel" class="remarks-panel timetable-view">
+        <button id="remarks-toggle" type="button"><strong>注意事項</strong><span>⌃</span></button>
+        <div id="remarks-content" class="remarks-content"></div>
+      </section>
+
+      <section id="attachments-view" class="attachments-view" hidden>
+        <header class="attachments-header">
+          <div><strong>行路添付</strong><span>運転関係書類</span></div>
+          <button id="attachments-reload" type="button">再読込</button>
+        </header>
+        <label class="attachment-search"><span>検索</span><input id="attachment-search" type="search" placeholder="文書名・説明から検索"></label>
+        <div id="attachment-list" class="attachment-list"><div class="attachment-loading">文書を読み込んでいます…</div></div>
+      </section>
+
+      <div id="document-viewer" class="document-viewer" hidden>
+        <header><strong id="document-title"></strong><a id="document-open" target="_blank" rel="noopener">別画面で開く</a><button id="document-close" type="button" aria-label="閉じる">×</button></header>
+        <div id="document-body" class="document-body"></div>
+      </div>
+
+      <div id="marker-menu" class="marker-menu" hidden role="dialog" aria-modal="true" aria-labelledby="marker-menu-title">
+        <div class="marker-menu-card">
+          <header><strong id="marker-menu-title">マーカー選択</strong><button id="marker-menu-close" type="button">×</button></header>
+          <div id="marker-options" class="marker-options"></div>
+        </div>
+      </div>
     </div>
-
-    <main id="timetable-scroll" class="timetable-scroll" tabindex="0">
-      <div id="timetable-body" class="timetable-body"><div class="loading">時刻表を読み込んでいます…</div></div>
-    </main>
-
-    <section id="remarks-panel" class="remarks-panel">
-      <button id="remarks-toggle" type="button"><strong>注意事項</strong><span>⌃</span></button>
-      <div id="remarks-content" class="remarks-content"></div>
-    </section>
   </div>
-  <script src="train_timetable.js?v=20260716-1"></script>
+  <script src="train_timetable.js?v=20260716-3"></script>
 </body>
 </html>
