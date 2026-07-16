@@ -1,175 +1,560 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow" />
-    <title>東京圏輸送情報システム ログインページ</title>
-    <style>
-        body {
-            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .login-container {
-            background-color: #ffffff;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            width: 300px;
-            max-width: 90%;
-        }
-        h2 {
-            color: #01977a;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        label {
-            margin-bottom: 0.5rem;
-            color: #333;
-        }
-        .input-group {
-            position: relative;
-            margin-bottom: 1rem;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 1rem;
-        }
-        input[type="text"]:focus, input[type="password"]:focus {
-            outline: none;
-            border-color: #01977a;
-            box-shadow: 0 0 0 2px rgba(1, 151, 122, 0.2);
-        }
-        .error {
-            border-color: #d32f2f !important;
-        }
-        input[type="submit"] {
-            background-color: #01977a;
-            color: white;
-            padding: 0.75rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.2s;
-        }
-        input[type="submit"]:hover {
-            background-color: #017a64;
-        }
-        input[type="submit"]:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #error-message {
-            color: #d32f2f;
-            text-align: center;
-            margin-top: 1rem;
-            padding: 0.5rem;
-            border-radius: 4px;
-            background-color: #ffebee;
-            display: none;
-        }
-        .success { /* パスワードリセット成功時のメッセージ用 */
-            color: #01977a !important;
-            background-color: #e8f8f5 !important;
-        }
-        .system-info {
-            text-align: center;
-            margin-top: 1rem;
-            font-size: 0.8rem;
-            color: #666;
-        }
-        .login-footer {
-            text-align: center;
-            margin-top: 1rem;
-            font-size: 0.75rem;
-            color: #888;
-        }
-        .login-footer a {
-            color: #01977a;
-            text-decoration: none;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 1rem;
-        }
-        .loading::after {
-            content: "...";
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-        @keyframes dots {
-            0%, 20% { content: ""; }
-            40% { content: "."; }
-            60% { content: ".."; }
-            80% { content: "..."; }
-        }
-        .link-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            margin-top: 1rem;
-            text-align: center;
-            font-size: 0.9rem;
-        }
-        .link-group a {
-            color: #01977a;
-            text-decoration: none;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="東京臨海高速鉄道 りんかい線 業務情報ポータル">
+  <title>RINKAI OPERATIONS｜りんかい線 業務情報ポータル</title>
+  <style>
+    :root {
+      --navy: #12304a;
+      --blue: #1268a8;
+      --blue-soft: #eaf4fb;
+      --ink: #17232e;
+      --muted: #657482;
+      --line: #dfe5e9;
+      --surface: #ffffff;
+      --canvas: #f4f6f7;
+      --green: #16835f;
+      --green-soft: #e8f6f0;
+      --amber: #b66b00;
+      --amber-soft: #fff3da;
+      --red: #bd3a3a;
+      --shadow: 0 8px 24px rgba(24, 49, 68, .06);
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; }
+    svg { display: block; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 226px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky; top: 0; height: 100vh; z-index: 20;
+      display: flex; flex-direction: column; background: var(--surface);
+      border-right: 1px solid var(--line);
+    }
+    .brand {
+      height: 82px; padding: 18px 20px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand-mark {
+      width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto;
+      border: 2px solid var(--blue); color: var(--blue); font-weight: 800; letter-spacing: -.08em;
+    }
+    .brand strong { display: block; color: var(--navy); font-size: 14px; letter-spacing: .04em; }
+    .brand small { color: var(--muted); font-size: 10px; letter-spacing: .07em; }
+    .nav { padding: 16px 10px; display: grid; gap: 4px; }
+    .nav-label { padding: 10px 12px 6px; color: #8a969f; font-size: 10px; font-weight: 700; letter-spacing: .14em; }
+    .nav button {
+      width: 100%; min-height: 42px; padding: 0 12px; border: 0; border-radius: 6px;
+      display: flex; align-items: center; gap: 11px; background: transparent; cursor: pointer;
+      color: #53616d; text-align: left; transition: .18s ease;
+    }
+    .nav button:hover { color: var(--navy); background: #f3f6f8; }
+    .nav button.active { color: var(--blue); background: var(--blue-soft); font-weight: 700; }
+    .nav .icon { width: 18px; height: 18px; }
+    .sidebar-foot { margin-top: auto; padding: 14px 16px 20px; border-top: 1px solid var(--line); }
+    .system-state { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+
+    .main { min-width: 0; }
+    .topbar {
+      height: 82px; padding: 0 28px; display: flex; align-items: center; gap: 18px;
+      position: sticky; top: 0; z-index: 15; background: rgba(255,255,255,.96);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    .menu-btn { display: none; }
+    .page-title { min-width: 0; }
+    .page-title h1 { margin: 0; color: var(--navy); font-size: 18px; letter-spacing: .04em; }
+    .page-title p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+    .top-actions { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+    .clock { padding-right: 16px; text-align: right; border-right: 1px solid var(--line); }
+    .clock strong { display: block; color: var(--navy); font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+    .clock small { color: var(--muted); font-size: 10px; }
+    .icon-btn, .menu-btn {
+      width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 7px;
+      background: var(--surface); display: grid; place-items: center; cursor: pointer;
+    }
+    .icon-btn:hover, .menu-btn:hover { border-color: #b9c6ce; background: #f8fafb; }
+    .icon-btn .icon, .menu-btn .icon { width: 18px; height: 18px; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: white; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+
+    .content { padding: 24px 28px 38px; max-width: 1600px; margin: 0 auto; }
+    .notice {
+      margin-bottom: 18px; padding: 9px 12px; display: flex; align-items: center; gap: 9px;
+      border: 1px solid #d5e4ed; background: #f6fbfe; color: #486574; border-radius: 7px; font-size: 11px;
+    }
+    .notice .icon { width: 15px; height: 15px; color: var(--blue); flex: 0 0 auto; }
+    .notice button { margin-left: auto; border: 0; background: none; color: var(--blue); font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+    .panel { display: none; }
+    .panel.active { display: block; animation: enter .25s ease; }
+    @keyframes enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+    .section-head { margin-bottom: 14px; display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+    .section-head h2 { margin: 0; color: var(--navy); font-size: 18px; letter-spacing: .03em; }
+    .section-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .text-btn { padding: 7px 10px; border: 0; background: none; color: var(--blue); font-size: 12px; font-weight: 700; cursor: pointer; }
+
+    .status-card {
+      margin-bottom: 18px; padding: 20px 22px; display: grid; grid-template-columns: auto 1fr auto; gap: 18px;
+      align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--green);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .status-symbol { width: 46px; height: 46px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; }
+    .status-symbol .icon { width: 24px; height: 24px; }
+    .status-copy small { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+    .status-copy h3 { margin: 2px 0; color: var(--green); font-size: 20px; }
+    .status-copy p { margin: 0; color: #4e5d68; font-size: 12px; }
+    .update-time { color: var(--muted); font-size: 11px; text-align: right; }
+    .update-time strong { display: block; color: var(--navy); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+    .metric-grid { margin-bottom: 18px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric {
+      padding: 16px 17px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+    }
+    .metric-label { color: var(--muted); font-size: 11px; }
+    .metric-value { margin-top: 5px; color: var(--navy); font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .metric-value span { margin-left: 3px; font-size: 11px; color: var(--muted); font-weight: 500; }
+    .metric-icon { width: 35px; height: 35px; border-radius: 7px; background: #f1f5f7; color: var(--blue); display: grid; place-items: center; }
+    .metric-icon .icon { width: 18px; height: 18px; }
+
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(290px, .85fr); gap: 18px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .card-head { min-height: 55px; padding: 0 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+    .card-head h3 { margin: 0; color: var(--navy); font-size: 14px; }
+    .card-head .sub { color: var(--muted); font-size: 10px; }
+    .card-head .head-action { margin-left: auto; }
+    .route-map { padding: 22px 20px 20px; overflow-x: auto; }
+    .route-line { min-width: 660px; display: flex; align-items: flex-start; }
+    .station { position: relative; flex: 1; min-width: 76px; padding-top: 26px; text-align: center; cursor: pointer; }
+    .station::before { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 4px; background: var(--blue); }
+    .station:first-child::before { left: 50%; }
+    .station:last-child::before { right: 50%; }
+    .station-dot { position: absolute; top: 0; left: 50%; width: 18px; height: 18px; transform: translateX(-50%); border: 4px solid var(--blue); background: white; border-radius: 50%; z-index: 1; transition: .16s; }
+    .station:hover .station-dot, .station.selected .station-dot { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
+    .station strong { display: block; color: var(--navy); font-size: 11px; white-space: nowrap; }
+    .station small { color: var(--muted); font-size: 9px; }
+    .station .code { margin: 6px auto 0; width: 27px; height: 20px; display: grid; place-items: center; color: var(--blue); border: 1px solid #a8c9de; font-size: 9px; font-weight: 700; }
+    .route-note { margin-top: 18px; padding: 10px 12px; display: flex; gap: 9px; align-items: center; background: #f7f9fa; color: var(--muted); font-size: 10px; }
+    .route-note .icon { width: 14px; height: 14px; color: var(--blue); }
+
+    .activity-list { padding: 6px 18px 10px; }
+    .activity { padding: 13px 0; display: grid; grid-template-columns: 38px 1fr auto; gap: 10px; align-items: center; border-bottom: 1px solid #edf0f2; }
+    .activity:last-child { border-bottom: 0; }
+    .activity-time { color: var(--navy); font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .activity strong { display: block; font-size: 11px; }
+    .activity small { color: var(--muted); font-size: 9px; }
+    .tag { padding: 3px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+    .tag.green { color: var(--green); background: var(--green-soft); }
+    .tag.blue { color: var(--blue); background: var(--blue-soft); }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); }
+
+    .table-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .toolbar { padding: 12px 15px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); background: #fafbfb; }
+    .field { min-height: 36px; padding: 0 10px; border: 1px solid #ccd5db; border-radius: 6px; background: white; color: var(--ink); outline: none; }
+    .field:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+    .search-wrap { position: relative; min-width: 210px; }
+    .search-wrap .icon { position: absolute; left: 10px; top: 10px; width: 16px; height: 16px; color: var(--muted); }
+    .search-wrap input { width: 100%; padding-left: 33px; }
+    .primary-btn {
+      min-height: 36px; padding: 0 14px; border: 1px solid var(--blue); border-radius: 6px;
+      background: var(--blue); color: white; font-weight: 700; cursor: pointer;
+    }
+    .primary-btn:hover { background: #0d5b94; }
+    .secondary-btn { min-height: 36px; padding: 0 13px; border: 1px solid #ccd5db; border-radius: 6px; background: white; color: var(--navy); cursor: pointer; }
+    .secondary-btn:hover { background: #f5f7f8; }
+    .toolbar .push { margin-left: auto; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+    th { padding: 11px 14px; color: #687683; background: #f5f7f8; font-size: 10px; text-align: left; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
+    td { padding: 13px 14px; border-bottom: 1px solid #edf0f2; font-size: 12px; }
+    tbody tr { transition: .12s; }
+    tbody tr:hover { background: #f9fbfc; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .train-no { color: var(--navy); font-weight: 700; }
+    .direction { display: inline-flex; align-items: center; gap: 5px; }
+    .direction .icon { width: 14px; height: 14px; color: var(--blue); }
+    .delay { color: var(--green); font-weight: 700; }
+    .delay.warn { color: var(--amber); }
+    .pagination { padding: 12px 15px; display: flex; align-items: center; color: var(--muted); font-size: 10px; border-top: 1px solid var(--line); }
+    .pagination-controls { margin-left: auto; display: flex; gap: 4px; }
+    .pagination button { width: 28px; height: 28px; border: 1px solid var(--line); background: white; cursor: pointer; }
+    .pagination button.active { border-color: var(--blue); color: white; background: var(--blue); }
+
+    .station-layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; }
+    .station-list { background: white; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .station-list button { width: 100%; padding: 13px 15px; border: 0; border-bottom: 1px solid #edf0f2; background: white; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; }
+    .station-list button:hover { background: #f8fafb; }
+    .station-list button.active { color: var(--blue); background: var(--blue-soft); font-weight: 700; }
+    .station-code { width: 30px; height: 24px; display: grid; place-items: center; border: 1px solid currentColor; font-size: 9px; font-weight: 700; }
+    .station-list small { margin-left: auto; color: var(--muted); font-size: 9px; }
+    .station-detail { padding: 22px; background: white; border: 1px solid var(--line); border-radius: var(--radius); }
+    .station-detail h3 { margin: 0 0 2px; color: var(--navy); font-size: 21px; }
+    .station-detail > p { margin: 0 0 22px; color: var(--muted); font-size: 11px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .detail-item { padding: 14px; background: #f6f8f9; }
+    .detail-item small { color: var(--muted); font-size: 9px; }
+    .detail-item strong { display: block; margin-top: 3px; color: var(--navy); font-size: 13px; }
+    .timetable-preview { margin-top: 22px; }
+    .timetable-preview h4 { margin: 0 0 10px; color: var(--navy); }
+    .times { display: flex; flex-wrap: wrap; gap: 8px; }
+    .time-chip { min-width: 58px; padding: 8px 10px; text-align: center; border: 1px solid var(--line); background: white; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .time-chip small { display: block; color: var(--muted); font-size: 8px; font-weight: 500; }
+
+    .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .data-card { padding: 17px; background: white; border: 1px solid var(--line); border-radius: var(--radius); }
+    .data-card-head { display: flex; align-items: center; gap: 11px; }
+    .data-card-icon { width: 36px; height: 36px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
+    .data-card-icon .icon { width: 18px; height: 18px; }
+    .data-card h3 { margin: 0; color: var(--navy); font-size: 13px; }
+    .data-card p { margin: 2px 0 0; color: var(--muted); font-size: 10px; }
+    .endpoint { margin: 14px 0; padding: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #f5f7f8; color: #566673; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .data-card-foot { display: flex; align-items: center; color: var(--muted); font-size: 10px; }
+    .data-card-foot a { margin-left: auto; color: var(--blue); font-weight: 700; text-decoration: none; }
+
+    dialog { width: min(520px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 12px; box-shadow: 0 24px 80px rgba(17, 39, 55, .25); }
+    dialog::backdrop { background: rgba(17, 35, 49, .42); backdrop-filter: blur(2px); }
+    .modal-head { padding: 18px 20px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+    .modal-head h2 { margin: 0; color: var(--navy); font-size: 16px; }
+    .modal-head button { margin-left: auto; border: 0; background: none; cursor: pointer; }
+    .modal-head .icon { width: 19px; height: 19px; }
+    .modal-body { padding: 20px; }
+    .modal-body label { display: block; margin-bottom: 7px; color: var(--navy); font-size: 11px; font-weight: 700; }
+    .modal-body input { width: 100%; }
+    .modal-body p { margin: 9px 0 0; color: var(--muted); font-size: 10px; }
+    .modal-state { margin-top: 14px; padding: 10px 12px; background: #f5f7f8; font-size: 11px; color: var(--muted); }
+    .modal-foot { padding: 14px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line); }
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 99; max-width: 360px; padding: 12px 15px; color: white; background: var(--navy); border-radius: 7px; box-shadow: 0 10px 30px rgba(17, 39, 55, .24); opacity: 0; transform: translateY(12px); pointer-events: none; transition: .22s; }
+    .toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 1060px) {
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .station-layout { grid-template-columns: 220px 1fr; }
+    }
+    @media (max-width: 780px) {
+      .app { display: block; }
+      .sidebar { position: fixed; left: 0; transform: translateX(-102%); width: 226px; transition: .22s; box-shadow: 14px 0 30px rgba(22,45,61,.14); }
+      .sidebar.open { transform: none; }
+      .menu-btn { display: grid; }
+      .topbar { height: 70px; padding: 0 15px; }
+      .page-title p, .clock small, .avatar { display: none; }
+      .clock { padding-right: 10px; }
+      .clock strong { font-size: 13px; }
+      .content { padding: 16px 14px 28px; }
+      .status-card { grid-template-columns: auto 1fr; padding: 17px; }
+      .update-time { grid-column: 2; text-align: left; }
+      .station-layout { grid-template-columns: 1fr; }
+      .station-list { display: flex; overflow-x: auto; }
+      .station-list button { min-width: 170px; border-right: 1px solid var(--line); border-bottom: 0; }
+      .data-grid { grid-template-columns: 1fr; }
+      .toolbar { flex-wrap: wrap; }
+      .toolbar .push { margin-left: 0; }
+    }
+    @media (max-width: 520px) {
+      .metric-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .metric { padding: 13px; }
+      .metric-icon { display: none; }
+      .metric-value { font-size: 19px; }
+      .status-symbol { width: 38px; height: 38px; }
+      .status-copy h3 { font-size: 17px; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .notice { align-items: flex-start; }
+      .notice button { display: none; }
+    }
+  </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>東京圏輸送情報システム</h2>
-        
-        <form id="login-form">
-            <div class="input-group">
-                <label for="email">メールアドレス:</label>
-                <input type="text" name="email" id="email" required autocomplete="email" placeholder="user@example.com">
-            </div>
-            <div class="input-group">
-                <label for="password">パスワード:</label>
-                <input type="password" name="password" id="password" required autocomplete="current-password">
-            </div>
-            <input type="submit" value="ログイン" id="login-button">
-        </form>
-        <div id="loading" class="loading">ログイン中</div>
-        <p id="error-message"></p>
-        
-        <div class="link-group">
-            <a href="register.html">新規ユーザー登録はこちら</a>
-            <a href="#" id="reset-password-link">パスワードを忘れた場合</a>
-        </div>
+  <svg class="sr-only" aria-hidden="true">
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-train" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 18l-2 3M16 18l2 3M8 8h8M8 13h.01M16 13h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1116 0z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6v.2h-4V21a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H2.8v-4H3a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 001.9.3A1.7 1.7 0 0010 3v-.2h4V3a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1h.2v4H21a1.7 1.7 0 00-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l2.5 2.5L16 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M12 7h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 5a3 3 0 010 6M17 14c2.7.3 4 2.3 4 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0111.3-1.5L20 12M4 12l2.6 5.5A7 7 0 0018 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
 
-        <div class="system-info">
-            <p>システムバージョン: 3.1.1</p>
-            <p>最終更新日: 2026年5月5日</p>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">R</div>
+        <div><strong>RINKAI OPS</strong><small>業務情報ポータル</small></div>
+      </div>
+      <nav class="nav" aria-label="メインメニュー">
+        <div class="nav-label">OPERATION</div>
+        <button class="active" data-panel="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg>運行ダッシュボード</button>
+        <button data-panel="trains"><svg class="icon"><use href="#i-train"/></svg>列車運行一覧</button>
+        <button data-panel="stations"><svg class="icon"><use href="#i-pin"/></svg>駅情報</button>
+        <button data-panel="timetable"><svg class="icon"><use href="#i-clock"/></svg>駅時刻表</button>
+        <div class="nav-label">SYSTEM</div>
+        <button data-panel="data"><svg class="icon"><use href="#i-database"/></svg>データ接続</button>
+        <button id="openSettings"><svg class="icon"><use href="#i-settings"/></svg>設定</button>
+      </nav>
+      <div class="sidebar-foot"><div class="system-state"><span class="state-dot"></span><span>システム稼働中 / DEMO</span></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" aria-label="メニューを開く"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <div class="page-title"><h1 id="pageTitle">運行ダッシュボード</h1><p>東京臨海高速鉄道株式会社　りんかい線</p></div>
+        <div class="top-actions">
+          <div class="clock"><strong id="clock">--:--:--</strong><small id="date">----/--/--</small></div>
+          <button class="icon-btn" id="refreshBtn" aria-label="データを更新" title="データを更新"><svg class="icon"><use href="#i-refresh"/></svg></button>
+          <button class="icon-btn" id="bellBtn" aria-label="通知" title="通知"><svg class="icon"><use href="#i-bell"/></svg></button>
+          <div class="avatar" title="運行管理者">運管</div>
         </div>
-        <div class="login-footer">
-            <p>&copy; 2025 N・H／yoshiシステム管理部門</p>
-            <p>お問い合わせ: systemadmin@tayunet-traininfo.com</p>
-            <a href="/recruit/Recruitment.html">運営者募集</a>
-        </div>
+      </header>
+
+      <div class="content">
+        <div class="notice" id="demoNotice"><svg class="icon"><use href="#i-info"/></svg><span>現在はデモデータを表示しています。HTML内または接続設定にODPTアクセストークンを設定すると運行情報を取得できます。</span><button id="noticeSettings">接続設定を開く</button></div>
+
+        <section class="panel active" id="panel-dashboard">
+          <div class="status-card">
+            <div class="status-symbol"><svg class="icon"><use href="#i-check"/></svg></div>
+            <div class="status-copy"><small>RINKAI LINE OPERATION STATUS</small><h3 id="statusTitle">平常運転</h3><p id="statusText">りんかい線は、全線で平常どおり運転しています。</p></div>
+            <div class="update-time">最終更新<strong id="lastUpdated">12:40:15</strong></div>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric"><div><div class="metric-label">在線列車</div><div class="metric-value">12<span>編成</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-train"/></svg></div></div>
+            <div class="metric"><div><div class="metric-label">最大遅延</div><div class="metric-value">0<span>分</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-clock"/></svg></div></div>
+            <div class="metric"><div><div class="metric-label">営業駅</div><div class="metric-value">8<span>駅</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-pin"/></svg></div></div>
+            <div class="metric"><div><div class="metric-label">本日輸送見込</div><div class="metric-value">25.8<span>万人</span></div></div><div class="metric-icon"><svg class="icon"><use href="#i-users"/></svg></div></div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-head"><h3>路線運行モニター</h3><span class="sub">新木場 → 大崎</span><button class="text-btn head-action" data-go="stations">駅詳細</button></div>
+              <div class="route-map">
+                <div class="route-line" id="routeLine"></div>
+                <div class="route-note"><svg class="icon"><use href="#i-info"/></svg><span>駅を選択すると、駅情報画面で詳細を確認できます。実際の列車位置情報はGTFS-RT連携で拡張可能です。</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>運行ログ</h3><span class="sub">本日</span></div>
+              <div class="activity-list">
+                <div class="activity"><div class="activity-time">12:40</div><div><strong>定時運行を確認</strong><small>全線 / 自動更新</small></div><span class="tag green">正常</span></div>
+                <div class="activity"><div class="activity-time">11:32</div><div><strong>設備点検完了</strong><small>東京テレポート駅</small></div><span class="tag blue">完了</span></div>
+                <div class="activity"><div class="activity-time">09:18</div><div><strong>混雑レベル上昇</strong><small>大井町駅 / 上り</small></div><span class="tag amber">注意</span></div>
+                <div class="activity"><div class="activity-time">06:05</div><div><strong>始発列車運転開始</strong><small>新木場・大崎</small></div><span class="tag green">正常</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-trains">
+          <div class="section-head"><div><h2>列車運行一覧</h2><p>りんかい線内の運行状況と在線情報</p></div><button class="primary-btn" id="trainRefresh">最新情報に更新</button></div>
+          <div class="table-card">
+            <div class="toolbar">
+              <div class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><input class="field" id="trainSearch" type="search" placeholder="列車番号・行先を検索"></div>
+              <select class="field" id="directionFilter" aria-label="方向"><option value="all">全方向</option><option value="上り">上り</option><option value="下り">下り</option></select>
+              <select class="field" id="statusFilter" aria-label="運行状態"><option value="all">全状態</option><option value="定時">定時</option><option value="遅延">遅延</option></select>
+              <button class="secondary-btn push" id="clearFilters">条件をクリア</button>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>列車番号</th><th>種別</th><th>方向</th><th>現在位置</th><th>行先</th><th>予定時刻</th><th>遅延</th><th>状態</th></tr></thead><tbody id="trainBody"></tbody></table></div>
+            <div class="pagination"><span id="resultCount">0件を表示</span><div class="pagination-controls"><button aria-label="前のページ">‹</button><button class="active">1</button><button aria-label="次のページ">›</button></div></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-stations">
+          <div class="section-head"><div><h2>駅情報</h2><p>駅基本情報・設備・直近の発車時刻</p></div></div>
+          <div class="station-layout"><div class="station-list" id="stationList"></div><div class="station-detail" id="stationDetail"></div></div>
+        </section>
+
+        <section class="panel" id="panel-timetable">
+          <div class="section-head"><div><h2>駅時刻表</h2><p>駅・方面別の発車時刻表</p></div></div>
+          <div class="table-card">
+            <div class="toolbar"><select class="field" id="ttStation"></select><select class="field" id="ttDirection"><option value="大崎方面">大崎方面</option><option value="新木場方面">新木場方面</option></select><select class="field"><option>平日</option><option>土曜・休日</option></select><span class="push" style="color:var(--muted);font-size:10px">ODPT StationTimetable準拠 / デモ</span></div>
+            <div class="table-wrap"><table><thead><tr><th>時</th><th>発車時刻・行先</th></tr></thead><tbody id="timetableBody"></tbody></table></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-data">
+          <div class="section-head"><div><h2>データ接続</h2><p>公共交通オープンデータセンター・東京臨海高速鉄道データセット</p></div><button class="primary-btn" id="dataSettings">接続設定</button></div>
+          <div class="data-grid">
+            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-train"/></svg></div><div><h3>運行情報</h3><p>TrainInformation / JSON</p></div></div><div class="endpoint">/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>状態：<b id="connectionLabel">デモデータ</b></span><a href="https://ckan.odpt.org/dataset/r_train_status-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
+            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-pin"/></svg></div><div><h3>駅情報</h3><p>Station / JSON</p></div></div><div class="endpoint">/api/v4/odpt:Station?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>8駅を収録</span><a href="https://ckan.odpt.org/dataset/r_station-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
+            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-clock"/></svg></div><div><h3>駅時刻表</h3><p>StationTimetable / JSON</p></div></div><div class="endpoint">/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>方面・曜日別</span><a href="https://ckan.odpt.org/dataset/r_station_timetable-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
+            <article class="data-card"><div class="data-card-head"><div class="data-card-icon"><svg class="icon"><use href="#i-database"/></svg></div><div><h3>路線系統情報</h3><p>Railway / JSON</p></div></div><div class="endpoint">/api/v4/odpt:Railway?odpt:operator=odpt.Operator:TWR</div><div class="data-card-foot"><span>路線カラー・駅順</span><a href="https://ckan.odpt.org/dataset/r_route-twr" target="_blank" rel="noopener">データセット ↗</a></div></article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog">
+    <div class="modal-head"><h2>ODPT API 接続設定</h2><button id="closeSettings" aria-label="閉じる"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="modal-body">
+      <label for="apiToken">アクセストークン</label>
+      <input class="field" id="apiToken" type="password" autocomplete="off" placeholder="発行されたアクセストークンを入力">
+      <p>この画面で変更した値はタブ内だけに保持されます。HTML内の「ODPT_ACCESS_TOKEN」に記入した値は、再読み込み後も使用されます。</p>
+      <div class="modal-state" id="modalState">未接続：デモデータを表示中</div>
     </div>
+    <div class="modal-foot"><button class="secondary-btn" id="useDemo">デモに戻す</button><button class="primary-btn" id="connectApi">接続を確認</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    
-    <script src="login.js"></script> 
+  <script>
+    // ============================================================
+    // ODPT API設定
+    // 下の '' の中に、発行されたアクセストークンを貼り付けてください。
+    // 例: const ODPT_ACCESS_TOKEN = 'xxxxxxxxxxxxxxxx';
+    // ============================================================
+    const ODPT_ACCESS_TOKEN = '';
+
+    const stations = [
+      { code:'R01', name:'新木場', en:'Shin-kiba', platform:'1・2番線', transfer:'JR京葉線 / 東京メトロ有楽町線', daily:'102,340', times:['12:43','12:50','12:58','13:06','13:14'] },
+      { code:'R02', name:'東雲', en:'Shinonome', platform:'1・2番線', transfer:'—', daily:'15,780', times:['12:46','12:54','13:02','13:10','13:18'] },
+      { code:'R03', name:'国際展示場', en:'Kokusai-tenjijo', platform:'1・2番線', transfer:'ゆりかもめ（有明駅）', daily:'76,920', times:['12:49','12:57','13:05','13:13','13:21'] },
+      { code:'R04', name:'東京テレポート', en:'Tokyo Teleport', platform:'1・2番線', transfer:'ゆりかもめ（お台場海浜公園駅）', daily:'71,600', times:['12:52','13:00','13:08','13:16','13:24'] },
+      { code:'R05', name:'天王洲アイル', en:'Tennozu Isle', platform:'1・2番線', transfer:'東京モノレール', daily:'54,240', times:['12:56','13:04','13:12','13:20','13:28'] },
+      { code:'R06', name:'品川シーサイド', en:'Shinagawa Seaside', platform:'1・2番線', transfer:'—', daily:'42,180', times:['12:59','13:07','13:15','13:23','13:31'] },
+      { code:'R07', name:'大井町', en:'Oimachi', platform:'1・2番線', transfer:'JR京浜東北線 / 東急大井町線', daily:'138,560', times:['13:02','13:10','13:18','13:26','13:34'] },
+      { code:'R08', name:'大崎', en:'Osaki', platform:'5・6・7・8番線', transfer:'JR山手線 / 埼京線 / 湘南新宿ライン', daily:'176,430', times:['13:06','13:14','13:22','13:30','13:38'] }
+    ];
+    const trains = [
+      ['1208F','各駅停車','上り','東京テレポート','大崎','12:44','0','定時'],
+      ['1210K','快速','上り','品川シーサイド','川越','12:46','0','定時'],
+      ['1212F','各駅停車','上り','東雲','大崎','12:48','0','定時'],
+      ['1214K','快速','上り','新木場','大宮','12:51','2','遅延'],
+      ['1209F','各駅停車','下り','大井町','新木場','12:45','0','定時'],
+      ['1211K','快速','下り','天王洲アイル','新木場','12:47','0','定時'],
+      ['1213F','各駅停車','下り','国際展示場','新木場','12:50','0','定時'],
+      ['1215K','快速','下り','大崎','新木場','12:53','0','定時'],
+      ['1216F','各駅停車','上り','東京テレポート','大崎','12:55','0','定時'],
+      ['1217F','各駅停車','下り','品川シーサイド','新木場','12:57','0','定時'],
+      ['1218K','快速','上り','国際展示場','川越','12:59','0','定時'],
+      ['1219F','各駅停車','下り','東雲','新木場','13:01','0','定時']
+    ];
+    const titles = { dashboard:'運行ダッシュボード', trains:'列車運行一覧', stations:'駅情報', timetable:'駅時刻表', data:'データ接続' };
+    let selectedStation = 3;
+    let apiToken = ODPT_ACCESS_TOKEN;
+
+    const icon = id => `<svg class="icon"><use href="#${id}"/></svg>`;
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => [...document.querySelectorAll(sel)];
+
+    function updateClock(){
+      const now = new Date();
+      $('#clock').textContent = now.toLocaleTimeString('ja-JP', {hour12:false});
+      $('#date').textContent = now.toLocaleDateString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', weekday:'short'});
+    }
+    updateClock(); setInterval(updateClock, 1000);
+
+    function navigate(name){
+      $$('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+      $$('.nav button[data-panel]').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
+      $('#pageTitle').textContent = titles[name];
+      $('#sidebar').classList.remove('open');
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+    $$('.nav button[data-panel]').forEach(b => b.addEventListener('click', () => navigate(b.dataset.panel)));
+    $$('[data-go]').forEach(b => b.addEventListener('click', () => navigate(b.dataset.go)));
+    $('#menuBtn').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+
+    function renderRoute(){
+      $('#routeLine').innerHTML = stations.map((s,i) => `<div class="station ${i===selectedStation?'selected':''}" data-index="${i}" tabindex="0" role="button" aria-label="${s.name}駅の詳細"><span class="station-dot"></span><strong>${s.name}</strong><small>${s.en}</small><span class="code">${s.code}</span></div>`).join('');
+      $$('#routeLine .station').forEach(el => {
+        const open = () => { selectedStation=+el.dataset.index; renderStations(); navigate('stations'); };
+        el.addEventListener('click', open); el.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
+      });
+    }
+
+    function renderTrains(){
+      const q = $('#trainSearch')?.value.trim().toLowerCase() || '';
+      const dir = $('#directionFilter')?.value || 'all';
+      const status = $('#statusFilter')?.value || 'all';
+      const rows = trains.filter(t => (!q || t.some(v => v.toLowerCase().includes(q))) && (dir==='all'||t[2]===dir) && (status==='all'||t[7]===status));
+      $('#trainBody').innerHTML = rows.map(t => `<tr><td class="train-no">${t[0]}</td><td>${t[1]}</td><td><span class="direction">${icon('i-arrow')}${t[2]}</span></td><td>${t[3]}</td><td>${t[4]}</td><td>${t[5]}</td><td class="delay ${+t[6]?'warn':''}">${t[6]}分</td><td><span class="tag ${t[7]==='定時'?'green':'amber'}">${t[7]}</span></td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">該当する列車はありません</td></tr>';
+      $('#resultCount').textContent = `${rows.length}件を表示`;
+    }
+
+    function renderStations(){
+      $('#stationList').innerHTML = stations.map((s,i)=>`<button class="${i===selectedStation?'active':''}" data-index="${i}"><span class="station-code">${s.code}</span><span>${s.name}</span><small>${s.en}</small></button>`).join('');
+      const s = stations[selectedStation];
+      $('#stationDetail').innerHTML = `<h3>${s.name}駅 <small style="font-size:11px;color:var(--muted);font-weight:500">${s.en}</small></h3><p>駅ナンバリング ${s.code} / りんかい線</p><div class="detail-grid"><div class="detail-item"><small>ホーム</small><strong>${s.platform}</strong></div><div class="detail-item"><small>接続路線</small><strong>${s.transfer}</strong></div><div class="detail-item"><small>1日平均乗降</small><strong>${s.daily} 人</strong></div></div><div class="timetable-preview"><h4>大崎方面　直近の発車</h4><div class="times">${s.times.map((t,i)=>`<div class="time-chip">${t}<small>${i%3===1?'快速 川越':'各停 大崎'}</small></div>`).join('')}</div></div>`;
+      $$('#stationList button').forEach(b=>b.addEventListener('click',()=>{ selectedStation=+b.dataset.index; renderStations(); renderRoute(); }));
+    }
+
+    function renderTimetable(){
+      const base = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+      $('#timetableBody').innerHTML = base.map((h,idx)=>{
+        const mins = idx<2||idx>16 ? [8,23,41,56] : [2,10,18,26,34,42,50,58];
+        return `<tr><td class="train-no" style="width:80px;font-size:16px">${h}</td><td><div class="times">${mins.map((m,i)=>`<span class="time-chip" title="${i%4===1?'快速':'各駅停車'}">${String(m).padStart(2,'0')}<small>${i%4===1?'快':'各'}</small></span>`).join('')}</div></td></tr>`;
+      }).join('');
+    }
+
+    stations.forEach((s,i)=>$('#ttStation').insertAdjacentHTML('beforeend', `<option value="${i}" ${i===3?'selected':''}>${s.code} ${s.name}</option>`));
+    ['trainSearch','directionFilter','statusFilter'].forEach(id => $(`#${id}`).addEventListener('input', renderTrains));
+    $('#clearFilters').addEventListener('click',()=>{ $('#trainSearch').value=''; $('#directionFilter').value='all'; $('#statusFilter').value='all'; renderTrains(); });
+    $('#ttStation').addEventListener('change', renderTimetable); $('#ttDirection').addEventListener('change', renderTimetable);
+
+    const dialog = $('#settingsDialog');
+    function openSettings(){ $('#apiToken').value=apiToken; dialog.showModal(); setTimeout(()=>$('#apiToken').focus(),50); }
+    ['openSettings','noticeSettings','dataSettings'].forEach(id => $(`#${id}`).addEventListener('click', openSettings));
+    $('#closeSettings').addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('click', e=>{ if(e.target===dialog) dialog.close(); });
+    function toast(message){ const t=$('#toast'); t.textContent=message; t.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>t.classList.remove('show'),2800); }
+
+    async function fetchOdpt(){
+      if(!apiToken){ toast('ODPTアクセストークンを設定してください'); openSettings(); return; }
+      const endpoint = `https://api.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:TWR&acl:consumerKey=${encodeURIComponent(apiToken)}`;
+      $('#modalState').textContent='接続を確認しています…';
+      try {
+        const response=await fetch(endpoint);
+        if(!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data=await response.json();
+        const item=data[0];
+        const text=item?.['odpt:trainInformationText']?.ja || item?.['odpt:trainInformationText'] || '運行情報を取得しました。';
+        const title=item?.['odpt:trainInformationStatus']?.ja || item?.['odpt:trainInformationStatus'] || (text.includes('平常')?'平常運転':'運行情報');
+        $('#statusTitle').textContent=title; $('#statusText').textContent=text;
+        $('#lastUpdated').textContent=new Date().toLocaleTimeString('ja-JP',{hour12:false});
+        $('#demoNotice').style.display='none'; $('#connectionLabel').textContent='ODPT API 接続済み';
+        $('#modalState').textContent=`接続済み：${data.length}件の運行情報を取得`;
+        toast('ODPTの最新運行情報を取得しました');
+        return true;
+      } catch(error){
+        $('#modalState').textContent=`接続できませんでした（${error.message}）。トークンと通信環境を確認してください。`;
+        toast('ODPT APIへ接続できませんでした');
+        return false;
+      }
+    }
+    $('#connectApi').addEventListener('click',async()=>{ apiToken=$('#apiToken').value.trim(); const ok=await fetchOdpt(); if(ok) setTimeout(()=>dialog.close(),500); });
+    $('#useDemo').addEventListener('click',()=>{ apiToken=''; $('#apiToken').value=''; $('#demoNotice').style.display='flex'; $('#connectionLabel').textContent='デモデータ'; $('#modalState').textContent='未接続：デモデータを表示中'; $('#statusTitle').textContent='平常運転'; $('#statusText').textContent='りんかい線は、全線で平常どおり運転しています。'; toast('デモ表示に切り替えました'); dialog.close(); });
+    ['refreshBtn','trainRefresh'].forEach(id => $(`#${id}`).addEventListener('click',()=> apiToken ? fetchOdpt() : ( $('#lastUpdated').textContent=new Date().toLocaleTimeString('ja-JP',{hour12:false}), toast('デモデータを更新しました') )));
+    $('#bellBtn').addEventListener('click',()=>toast('未確認の重要通知はありません'));
+
+    renderRoute(); renderTrains(); renderStations(); renderTimetable();
+    if (apiToken) {
+      $('#modalState').textContent = 'HTML内のアクセストークンを使用します';
+      fetchOdpt();
+    }
+  </script>
 </body>
 </html>
