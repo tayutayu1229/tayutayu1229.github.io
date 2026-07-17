@@ -476,6 +476,23 @@
       font-size: 11px; font-weight: 900; box-shadow: 0 2px 5px rgba(0,0,0,.18);
     }
     .station:hover { background: var(--atos-green-dark); border-color: var(--atos-green-dark); transform: translate(-50%,-50%) scale(1.04); }
+    .parallel-view { display: flex; flex-direction: column; gap: 14px; }
+    .parallel-intro {
+      padding: 11px 14px; background: #fff; border: 1px solid var(--atos-border); border-left: 5px solid var(--atos-green);
+      color: var(--atos-muted); font-size: .76rem; line-height: 1.6;
+    }
+    .parallel-intro strong { color: var(--atos-text); }
+    .parallel-section { padding: 10px; background: #eef4f0; border: 1px solid var(--atos-border); border-radius: 8px; }
+    .parallel-section-title { margin: 0 0 7px; color: var(--atos-muted); font-size: .67rem; font-weight: 900; }
+    .parallel-lane { position: relative; margin-bottom: 8px; padding-top: 28px; }
+    .parallel-lane:last-child { margin-bottom: 0; }
+    .parallel-lane-label {
+      position: absolute; top: 0; left: 0; z-index: 4; display: inline-flex; align-items: center; gap: 7px;
+      padding: 4px 9px; background: #fff; border: 1px solid var(--atos-border); color: var(--atos-text); font-size: .7rem; font-weight: 900;
+    }
+    .parallel-lane-label::before { content: ''; width: 16px; height: 5px; background: var(--line-color); }
+    .parallel-lane .station-line { margin-bottom: 0; min-height: 148px; }
+    .parallel-lane .station { width: 90px; }
     .train {
       width: 128px; min-height: 44px; height: 44px; padding: 5px 10px;
       color: var(--line-color,#006d80); background: currentColor; border: 0;
@@ -685,6 +702,16 @@
     "山手線": [
       "odpt.Railway:JR-East.Yamanote"
     ]
+  };
+
+  // 同一線路ではなく、隣り合って走る路線を比較する専用表示。
+  // 通常の各路線表示と、共用線路の混在表示には影響させない。
+  const parallelDisplayModes = {
+    "山手線・京浜東北線（田端〜品川 並走）": {
+      title: "田端〜品川 並走区間",
+      lines: ["odpt.Railway:JR-East.Yamanote","odpt.Railway:JR-East.KeihinTohokuNegishi"],
+      stations: ["田端","西日暮里","日暮里","鶯谷","上野","御徒町","秋葉原","神田","東京","有楽町","新橋","浜松町","田町","高輪ゲートウェイ","品川"]
+    }
   };
 
   // 実際に同じ線路を共用する区間だけを明示する。
@@ -994,6 +1021,7 @@
 
   function getTimetableLinesForSelection(){
     const selected=document.getElementById("lineSelect").value;
+    if(parallelDisplayModes[selected]) return parallelDisplayModes[selected].lines;
     const primary=lineGroups[selected]?.[0]||selected;
     return [...new Set([...(lineGroups[selected]||[primary]),...getSharedTargetLines(primary)])];
   }
@@ -1078,6 +1106,19 @@
       }
     });
 
+    const parallelOptions=Object.keys(parallelDisplayModes);
+    if(parallelOptions.length){
+      const optgroup=document.createElement("optgroup");
+      optgroup.label="並走区間（線路は別）";
+      parallelOptions.forEach(modeName=>{
+        const option=document.createElement("option");
+        option.value=modeName;
+        option.textContent=`追加表示｜${modeName}`;
+        optgroup.appendChild(option);
+      });
+      select.appendChild(optgroup);
+    }
+
     if ([...select.options].some(opt => opt.value === previousValue)) {
       select.value = previousValue;
     }
@@ -1111,7 +1152,9 @@
     }
     
     let targetLines = [];
-    if (lineGroups[selectedLine]) {
+    if (parallelDisplayModes[selectedLine]) {
+      targetLines = parallelDisplayModes[selectedLine].lines;
+    } else if (lineGroups[selectedLine]) {
       targetLines = lineGroups[selectedLine];
     } else {
       targetLines = [selectedLine];
@@ -1402,6 +1445,144 @@
       }
   }
 
+  function renderParallelMode(mode,monitor,scrollY){
+    const view=document.createElement("div");
+    view.className="parallel-view";
+    const intro=document.createElement("div");
+    intro.className="parallel-intro";
+    intro.innerHTML=`<strong>${mode.title}</strong>　山手線と京浜東北線は別々の線路です。駅の位置をそろえ、各路線の在線列車を上下2段で表示します。`;
+    view.appendChild(intro);
+
+    const stationGroups=[];
+    for(let index=0,groupIndex=0;index<mode.stations.length;groupIndex++){
+      let group;
+      if(groupIndex===0){ group=mode.stations.slice(index,index+4); index+=4; }
+      else { group=mode.stations.slice(index-1,index+3); index+=3; }
+      if(group.length<2) break;
+      stationGroups.push(group);
+    }
+
+    const placedTrainKeys=new Set();
+    const displayedTrainKeys=new Set();
+    const displayedDelayedKeys=new Set();
+
+    stationGroups.forEach((group,groupIndex)=>{
+      const section=document.createElement("section");
+      section.className="parallel-section";
+      section.innerHTML=`<h3 class="parallel-section-title">${group[0]} 〜 ${group.at(-1)}</h3>`;
+
+      mode.lines.forEach(lineId=>{
+        const color=lineColors[lineId]||"#666";
+        const lane=document.createElement("div");
+        lane.className="parallel-lane";
+        lane.style.setProperty("--line-color",color);
+        const label=document.createElement("div");
+        label.className="parallel-lane-label";
+        label.textContent=getLineTitle(lineId);
+        lane.appendChild(label);
+
+        const lineDiv=document.createElement("div");
+        lineDiv.className="station-line";
+        lineDiv.style.setProperty("--line-color",color);
+        const track=document.createElement("div");
+        track.className="track-line";
+        track.style.background=color;
+        lineDiv.appendChild(track);
+
+        group.forEach((stationName,idx)=>{
+          const stationId=findStationIdForLine(stationName,lineId);
+          const station=document.createElement("div");
+          station.className="station";
+          station.textContent=shortenStationName(stationName);
+          station.style.left=`${(idx+1)*(100/(group.length+1))}%`;
+          if(stationId){
+            station.title=`${stationName}駅（${getLineTitle(lineId)}）の詳細を開く`;
+            station.tabIndex=0;
+            station.setAttribute("role","button");
+            station.setAttribute("aria-label",`${stationName}駅の詳細、発車標、時刻表を開く`);
+            station.onclick=()=>showStationTimetableModal(stationId,lineId);
+            station.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();station.click();} };
+          }
+          lineDiv.appendChild(station);
+        });
+
+        const positionOffsets={};
+        const trainsToRender=[];
+        let maxUpTrains=0, maxDownTrains=0;
+        trainData.forEach(train=>{
+          if(train["odpt:railway"]!==lineId) return;
+          const fromName=getFullStationTitle(train["odpt:fromStation"]);
+          const toId=train["odpt:toStation"];
+          const toName=toId?getFullStationTitle(toId):null;
+          const localFromIdx=group.indexOf(fromName);
+          const localToIdx=toName?group.indexOf(toName):-1;
+          if(localFromIdx<0) return;
+
+          const trainKey=`${lineId}-${train["odpt:trainNumber"]||train["@id"]||train["odpt:fromStation"]}`;
+          if(placedTrainKeys.has(trainKey)) return;
+          const trainDir=getTrainDirection(train["odpt:railDirection"],lineId);
+          let trainPosition, positionKey;
+
+          if(localToIdx>=0){
+            const fromPos=(localFromIdx+1)*(100/(group.length+1));
+            const toPos=(localToIdx+1)*(100/(group.length+1));
+            trainPosition=(fromPos+toPos)/2;
+            positionKey=`between-${Math.min(localFromIdx,localToIdx)}-${Math.max(localFromIdx,localToIdx)}-${trainDir}`;
+          }else{
+            const completeGroupExists=toName&&stationGroups.some(candidate=>candidate.includes(fromName)&&candidate.includes(toName));
+            if(completeGroupExists) return;
+            const containingGroups=stationGroups.map((candidate,index)=>({candidate,index})).filter(({candidate})=>candidate.includes(fromName));
+            const preferredGroup=trainDir==="down"?containingGroups.at(-1)?.index:containingGroups[0]?.index;
+            if(preferredGroup!==undefined&&preferredGroup!==groupIndex) return;
+            trainPosition=(localFromIdx+1)*(100/(group.length+1));
+            positionKey=`station-${localFromIdx}-${trainDir}`;
+          }
+
+          const offsetCount=positionOffsets[positionKey]||0;
+          positionOffsets[positionKey]=offsetCount+1;
+          if(trainDir==="up") maxUpTrains=Math.max(maxUpTrains,offsetCount+1);
+          else maxDownTrains=Math.max(maxDownTrains,offsetCount+1);
+          trainsToRender.push({train,trainDir,trainPosition,offsetCount});
+          placedTrainKeys.add(trainKey);
+          displayedTrainKeys.add(trainKey);
+          if((train["odpt:delay"]||0)>0) displayedDelayedKeys.add(trainKey);
+        });
+
+        const trainHeight=60;
+        lineDiv.style.height=`${140+(maxUpTrains+maxDownTrains)*trainHeight}px`;
+        trainsToRender.forEach(({train,trainDir,trainPosition,offsetCount})=>{
+          const delay=train["odpt:delay"]?Math.floor(train["odpt:delay"]/60):0;
+          const number=train["odpt:trainNumber"]||"不明";
+          const carCount=train["odpt:carComposition"]||"";
+          const destinations=train["odpt:destinationStation"]||[];
+          const destination=destinations.length?getStationTitle(destinations[0]):"不明";
+          const card=document.createElement("div");
+          card.className=`train ${trainDir}`;
+          card.style.color=color;
+          card.style.setProperty("--line-color",color);
+          card.style.left=`${trainPosition}%`;
+          if(trainDir==="up") card.style.top=`calc(50% + 25px + ${offsetCount*trainHeight}px)`;
+          else card.style.bottom=`calc(50% + 25px + ${offsetCount*trainHeight}px)`;
+          card.innerHTML=`<div class="train-number">${number}${delay>0?`<span class="delay">+${delay}</span>`:""}</div><div class="train-info">${carCount?carCount+"両 ":""}${destination}</div>`;
+          card.onclick=()=>showDetails(train);
+          card.tabIndex=0;
+          card.setAttribute("role","button");
+          card.setAttribute("aria-label",`${number}列車、${delay?delay+'分遅延':'定刻'}、運転時刻表を開く`);
+          card.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();card.click();} };
+          lineDiv.appendChild(card);
+        });
+
+        lane.appendChild(lineDiv);
+        section.appendChild(lane);
+      });
+      view.appendChild(section);
+    });
+
+    monitor.appendChild(view);
+    document.getElementById("monitorSummary").innerHTML=`<span class="summary-pill">追加表示 <strong>${mode.title}</strong></span><span class="summary-pill">在線列車 <strong>${displayedTrainKeys.size}</strong>本</span><span class="summary-pill">遅延列車 <strong>${displayedDelayedKeys.size}</strong>本</span><span class="summary-pill">表示駅 <strong>${mode.stations.length}</strong>駅 × 2路線</span><span class="summary-pill">線路 <strong>別線・並走</strong></span>`;
+    window.scrollTo(0,scrollY);
+  }
+
   function render() {
     const selectedLine = document.getElementById("lineSelect").value;
     const monitor = document.getElementById("monitor");
@@ -1411,6 +1592,12 @@
     monitor.innerHTML = "";
 
     updateTrainInfoTicker();
+
+    const parallelMode=parallelDisplayModes[selectedLine];
+    if(parallelMode){
+      renderParallelMode(parallelMode,monitor,scrollY);
+      return;
+    }
 
     let targetLines = [];
     let primaryLineId = selectedLine;
