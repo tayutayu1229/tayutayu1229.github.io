@@ -544,6 +544,8 @@
     .station-dia-table .train-link { color: #143aa0; font-family: monospace; font-weight: 900; cursor: pointer; text-decoration: underline; }
     .station-dia-table button.train-link { padding: 0; border: 0; background: transparent; }
     .station-dia-table .forecast { color: var(--atos-red); font-weight: 900; }
+    .station-dia-table .delay-zero { color: #111; font-weight: 800; }
+    .station-dia-table .delay-positive { color: var(--atos-red); font-weight: 900; }
     .station-dia-table .direction-cell { color: #fff; background: #4c5350 !important; font-weight: 900; }
     .monitor-tabs { display: flex; gap: 4px; margin-top: 14px; border-bottom: 2px solid var(--atos-green); }
     .monitor-tab { padding: 8px 14px; color: var(--atos-green-dark); background: #eef3f0; border: 1px solid var(--atos-border); border-bottom: 0; cursor: pointer; font-weight: 900; }
@@ -597,7 +599,7 @@
     <button class="menu-btn" type="button" onclick="window.location.href='toppage.html'">← メインメニュー</button>
     <div class="toolbar-field">
       <label for="lineSelect">表示路線</label>
-      <select id="lineSelect" onchange="render()"></select>
+      <select id="lineSelect" onchange="handleLineChange()"></select>
     </div>
     <button id="updateBtn" class="update-btn" type="button" onclick="manualUpdate()">↻ 最新情報に更新</button>
     <button id="toggleDarkModeBtn" class="dark-mode-btn" type="button">夜間表示</button>
@@ -676,9 +678,55 @@
     ]
   };
 
-  const sharedSections = {
-    "odpt.Railway:JR-East.Takasaki": ["odpt.Railway:JR-East.Utsunomiya"],
-    "odpt.Railway:JR-East.Utsunomiya": ["odpt.Railway:JR-East.Takasaki"]
+  // 実際に同じ線路を共用する区間だけを明示する。
+  // この一覧にない並走線区は混在表示しない。
+  const sharedTrackSections = [
+    {
+      name: "東京〜大宮 共用区間",
+      lines: ["odpt.Railway:JR-East.Utsunomiya","odpt.Railway:JR-East.Takasaki"],
+      stations: ["東京","上野","尾久","赤羽","浦和","さいたま新都心","大宮"]
+    },
+    {
+      name: "大崎〜池袋 共用区間",
+      lines: ["odpt.Railway:JR-East.ShonanShinjuku","odpt.Railway:JR-East.SaikyoKawagoe"],
+      stations: ["大崎","恵比寿","渋谷","新宿","池袋"]
+    },
+    {
+      name: "大船〜西大井 共用区間",
+      lines: ["odpt.Railway:JR-East.ShonanShinjuku","odpt.Railway:JR-East.Yokosuka"],
+      stations: ["大船","戸塚","東戸塚","保土ケ谷","横浜","新川崎","武蔵小杉","西大井"]
+    },
+    {
+      name: "西大井〜大崎 共用区間",
+      lines: ["odpt.Railway:JR-East.ShonanShinjuku","odpt.Railway:JR-East.SotetsuDirect"],
+      stations: ["西大井","大崎"]
+    }
+  ];
+
+  const externalRailwayNames = {
+    "odpt.Railway:TWR.Rinkai":"りんかい線",
+    "odpt.Railway:Keio.Keio":"京王線",
+    "odpt.Railway:Keio.KeioNew":"京王新線",
+    "odpt.Railway:Keio.Inokashira":"京王井の頭線",
+    "odpt.Railway:Odakyu.Odawara":"小田急小田原線",
+    "odpt.Railway:Seibu.Shinjuku":"西武新宿線",
+    "odpt.Railway:Seibu.Ikebukuro":"西武池袋線",
+    "odpt.Railway:Toei.Oedo":"都営大江戸線",
+    "odpt.Railway:Toei.Shinjuku":"都営新宿線",
+    "odpt.Railway:Toei.Asakusa":"都営浅草線",
+    "odpt.Railway:Toei.Mita":"都営三田線",
+    "odpt.Railway:TokyoMetro.Marunouchi":"東京メトロ丸ノ内線",
+    "odpt.Railway:TokyoMetro.Fukutoshin":"東京メトロ副都心線",
+    "odpt.Railway:TokyoMetro.Ginza":"東京メトロ銀座線",
+    "odpt.Railway:TokyoMetro.Hanzomon":"東京メトロ半蔵門線",
+    "odpt.Railway:TokyoMetro.Yurakucho":"東京メトロ有楽町線",
+    "odpt.Railway:TokyoMetro.Tozai":"東京メトロ東西線",
+    "odpt.Railway:TokyoMetro.Chiyoda":"東京メトロ千代田線",
+    "odpt.Railway:Tokyu.Toyoko":"東急東横線",
+    "odpt.Railway:Tokyu.DenEnToshi":"東急田園都市線",
+    "odpt.Railway:Tokyu.Meguro":"東急目黒線",
+    "odpt.Railway:Tokyu.Oimachi":"東急大井町線",
+    "odpt.Railway:Sotetsu.Main":"相鉄本線"
   };
 
   //方向修正用
@@ -766,7 +814,14 @@
    "Ebina": "海老名",
    "Numazu": "沼津",
    "Shinkiba": "新木場",
+   "ShinKiba": "新木場",
    "odpt.Station:TWR.Rinkai.ShinKiba": "新木場",
+   "TokyoTeleport": "東京テレポート",
+   "KokusaiTenjijo": "国際展示場",
+   "ShinagawaSeaside": "品川シーサイド",
+   "TennozuIsle": "天王洲アイル",
+   "Oimachi": "大井町",
+   "Osaki": "大崎",
    "Kazusaichinomiya": "上総一宮",
    "MusashiKoganei": "ム小金井",
    "KinugawaOnsen": "鬼怒川温泉",
@@ -792,8 +847,11 @@
   let detailsTimer = null; 
   let trainInformationData = []; 
   let trainTimetableData = [];
+  let currentCalendar = "Weekday";
+  const trainTimetableRequests = new Map();
   let stationInfoData = [];
   let passengerSurveyData = [];
+  let allRailwayData = [];
   let supplementalPromise = null;
   let autoUpdateInterval = null;
 
@@ -812,6 +870,8 @@
   
   function shortenStationName(name) {
     if (stationNameMap[name]) return stationNameMap[name];
+    const normalizedKey=Object.keys(stationNameMap).find(key=>key.toLowerCase()===String(name).toLowerCase());
+    if(normalizedKey) return stationNameMap[normalizedKey];
     if (name.length > 4) return name.slice(0, 4);
     return name;
   }
@@ -826,13 +886,16 @@
 
   function getFullStationTitle(stationId) {
     if (!stationId) return "不明";
+    if(stationNameMap[stationId]) return stationNameMap[stationId];
     const station = stationInfoData.find(s => s["owl:sameAs"] === stationId);
     if (station?.["odpt:stationTitle"]?.ja) return station["odpt:stationTitle"].ja;
     for (const line of railwayData) {
       const item = (line["odpt:stationOrder"] || []).find(s => s["odpt:station"] === stationId);
       if (item?.["odpt:stationTitle"]?.ja) return item["odpt:stationTitle"].ja;
     }
-    return getStationTitle(stationId);
+    const raw=stationId.split(".").pop();
+    const aliasKey=Object.keys(stationNameMap).find(key=>key.toLowerCase()===String(raw).toLowerCase());
+    return aliasKey?stationNameMap[aliasKey]:getStationTitle(stationId);
   }
 
   function addMinutesToTime(time, minutes) {
@@ -873,7 +936,61 @@
       }
     }
     const line = railwayData.find(r => r["owl:sameAs"] === lineId);
-    return line?.["odpt:railwayTitle"]?.ja || lineId;
+    if(line?.["odpt:railwayTitle"]?.ja) return line["odpt:railwayTitle"].ja;
+    const externalLine=allRailwayData.find(r=>r["owl:sameAs"]===lineId);
+    if(externalLine?.["odpt:railwayTitle"]?.ja) return externalLine["odpt:railwayTitle"].ja;
+    if(externalRailwayNames[lineId]) return externalRailwayNames[lineId];
+    const parts=String(lineId||"").replace("odpt.Railway:","").split(".");
+    return parts.length>1?`${parts[0]} ${parts.slice(1).join(" ")}`:String(lineId||"不明");
+  }
+
+  function getSharedLinesAtStation(lineId,stationName){
+    const lines=new Set([lineId]);
+    sharedTrackSections.forEach(section=>{
+      if(section.lines.includes(lineId)&&section.stations.includes(stationName)) section.lines.forEach(id=>lines.add(id));
+    });
+    return [...lines];
+  }
+
+  function getSharedTargetLines(lineId){
+    const lines=new Set([lineId]);
+    sharedTrackSections.forEach(section=>{
+      if(section.lines.includes(lineId)) section.lines.forEach(id=>lines.add(id));
+    });
+    return [...lines];
+  }
+
+  function getTimetableLinesForSelection(){
+    const selected=document.getElementById("lineSelect").value;
+    const primary=lineGroups[selected]?.[0]||selected;
+    return [...new Set([...(lineGroups[selected]||[primary]),...getSharedTargetLines(primary)])];
+  }
+
+  async function handleLineChange(){
+    render();
+    await ensureTrainTimetablesForLines(getTimetableLinesForSelection());
+  }
+
+  function findStationIdForLine(stationName,lineId){
+    const station=stationInfoData.find(s=>s["odpt:railway"]===lineId&&s["odpt:stationTitle"]?.ja===stationName);
+    if(station) return station["owl:sameAs"];
+    const line=railwayData.find(r=>r["owl:sameAs"]===lineId);
+    return (line?.["odpt:stationOrder"]||[]).find(s=>s["odpt:stationTitle"]?.ja===stationName)?.["odpt:station"];
+  }
+
+  function resolveSharedMovement(primaryLineId,trainLineId,fromId,toId,groupNames){
+    const fromName=getFullStationTitle(fromId);
+    const toName=toId?getFullStationTitle(toId):null;
+    const section=sharedTrackSections.find(item=>
+      item.lines.includes(primaryLineId)&&item.lines.includes(trainLineId)&&
+      item.stations.includes(fromName)&&(!toName||item.stations.includes(toName))
+    );
+    if(!section) return null;
+    const fromIndex=groupNames.indexOf(fromName);
+    const toIndex=toName?groupNames.indexOf(toName):-1;
+    if(fromIndex<0) return null;
+    if(toName&&toIndex<0) return null;
+    return {fromIndex,toIndex};
   }
 
   function getTrainTypeName(trainType) {
@@ -1010,8 +1127,16 @@
     }
   }
 
-  function showDetails(train) {
-    const trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
+  async function showDetails(train) {
+    let trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
+    if(!trainTimetable){
+      const modal=document.getElementById("trainTimetableModal");
+      document.getElementById("trainTimetableTitle").textContent=`${train["odpt:trainNumber"]||"不明"}列車　運転時刻表`;
+      document.getElementById("trainTimetableContent").innerHTML='<div class="loading-state"><div class="spinner"></div>この路線の列車時刻表を取得中...</div>';
+      modal.style.display="block"; modal.setAttribute("aria-hidden","false");
+      await ensureTrainTimetablesForLines([train["odpt:railway"]]);
+      trainTimetable=trainTimetableData.find(tt=>tt["odpt:trainNumber"]===train["odpt:trainNumber"]&&tt["odpt:railway"]===train["odpt:railway"]);
+    }
     showTrainTimetableModal(trainTimetable, train);
   }
 
@@ -1078,11 +1203,18 @@
         const isHoliday = holidays.hasOwnProperty(todayString);
         let calendar = (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) ? "SaturdayHoliday" : "Weekday";
         
-        const cacheKey = `${stationId}-${lineId}-${calendar}`;
+        const stationName=getFullStationTitle(stationId);
+        const sharedLines=getSharedLinesAtStation(lineId,stationName);
+        await ensureTrainTimetablesForLines(sharedLines,calendar);
+        const contexts=sharedLines.map(sharedLineId=>({
+          lineId:sharedLineId,
+          stationId:sharedLineId===lineId?stationId:findStationIdForLine(stationName,sharedLineId)
+        })).filter(item=>item.stationId);
+        const cacheKey = `${stationName}-${contexts.map(c=>c.lineId).sort().join(',')}-${calendar}`;
         if (!cachedStationTimetables[cacheKey]) {
-            const res = await fetch(`https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationId}&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`);
-            if (!res.ok) throw new Error("時刻表データの取得に失敗しました");
-            cachedStationTimetables[cacheKey] = await res.json();
+            const responses=await Promise.all(contexts.map(item=>fetch(`https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${item.stationId}&odpt:railway=${item.lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)));
+            const data=await Promise.all(responses.map(async response=>response.ok?response.json():[]));
+            cachedStationTimetables[cacheKey] = data.flat();
         }
 
         modal.dataset.stationId = stationId;
@@ -1143,15 +1275,6 @@
         return { ...tt, "odpt:stationTimetableObject": filteredObjects };
     }).filter(tt => tt["odpt:stationTimetableObject"].length > 0);
     
-    const timetablesByDirection = timetablesToDisplay.reduce((acc, tt) => {
-      const direction = tt["odpt:railDirection"];
-      if (!acc[direction]) {
-        acc[direction] = [];
-      }
-      acc[direction].push(tt);
-      return acc;
-    }, {});
-    
     const station=stationInfoData.find(s=>s["owl:sameAs"]===stationId);
     const lineColor=lineColors[lineId]||"#087a43";
     const code=station?.["odpt:stationCode"]||stationId?.split(".").pop()||"—";
@@ -1159,36 +1282,39 @@
     const survey=passengerSurveyData.find(p=>{const value=p["odpt:station"];return Array.isArray(value)?value.includes(stationId):value===stationId;});
     const latestSurvey=[...(survey?.["odpt:passengerSurveyObject"]||[])].sort((a,b)=>(b["odpt:surveyYear"]||0)-(a["odpt:surveyYear"]||0))[0];
     const journeys=latestSurvey?.["odpt:passengerJourneys"];
-    let html=`<div class="station-hero" style="--line-color:${lineColor}"><div class="station-symbol">${code}</div><div><h4>${getFullStationTitle(stationId)}駅</h4><div class="station-sub">${getLineTitle(lineId)}</div><div class="station-facts"><span class="fact-chip">駅コード ${code}</span>${connected.length?`<span class="fact-chip">接続 ${connected.join('・')}</span>`:''}${journeys?`<span class="fact-chip">1日利用 ${Number(journeys).toLocaleString('ja-JP')}人（${latestSurvey["odpt:surveyYear"]}年）</span>`:''}${station?.["geo:lat"]?`<span class="fact-chip">位置 ${station["geo:lat"]}, ${station["geo:long"]}</span>`:''}</div></div></div>`;
+    const sharedLinesHere=getSharedLinesAtStation(lineId,getFullStationTitle(stationId));
+    let html=`<div class="station-hero" style="--line-color:${lineColor}"><div class="station-symbol">${code}</div><div><h4>${getFullStationTitle(stationId)}駅</h4><div class="station-sub">${getLineTitle(lineId)}</div><div class="station-facts"><span class="fact-chip">駅コード ${code}</span>${sharedLinesHere.length>1?`<span class="fact-chip">共用線路表示 ${sharedLinesHere.map(getLineTitle).join('・')}</span>`:''}${connected.length?`<span class="fact-chip">接続 ${connected.join('・')}</span>`:''}${journeys?`<span class="fact-chip">1日利用 ${Number(journeys).toLocaleString('ja-JP')}人（${latestSurvey["odpt:surveyYear"]}年）</span>`:''}${station?.["geo:lat"]?`<span class="fact-chip">位置 ${station["geo:lat"]}, ${station["geo:long"]}</span>`:''}</div></div></div>`;
 
     const boardItems=[];
-    for(const [direction,timetables] of Object.entries(timetablesByDirection)){
-      for(const tt of timetables){
-        for(const item of tt["odpt:stationTimetableObject"]){ boardItems.push({direction,item}); }
-      }
+    for(const tt of timetablesToDisplay){
+      const entryLine=tt["odpt:railway"]||lineId;
+      const direction=tt["odpt:railDirection"];
+      for(const item of tt["odpt:stationTimetableObject"]){ boardItems.push({direction,item,lineId:entryLine}); }
     }
     boardItems.sort((a,b)=>(a.item["odpt:departureTime"]||"").localeCompare(b.item["odpt:departureTime"]||""));
     html+=`<div class="monitor-tabs"><button class="monitor-tab active" onclick="switchStationView('board',this)">ATOS発車標</button><button class="monitor-tab" onclick="switchStationView('dia',this)">駅別ダイヤモニタ</button></div>`;
     html+=`<div id="station-view-board" class="monitor-view active"><div class="departure-board"><div class="board-head"><span>${getFullStationTitle(stationId)}駅　発車案内</span><span class="board-live">● LIVE ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
     if(!boardItems.length) html+='<div class="empty-state">本日の発車案内は終了しました</div>';
-    boardItems.slice(0,8).forEach(({direction,item})=>{
+    boardItems.slice(0,8).forEach(({direction,item,lineId:entryLine})=>{
       const number=item["odpt:trainNumber"]||"—";
-      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===entryLine);
       const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
-      const dest=getEntryDestination(item,lineId);
-      html+=`<div class="board-row"><span class="board-time">${delay?addMinutesToTime(item["odpt:departureTime"],delay):item["odpt:departureTime"]||'--:--'}</span><span class="board-type">${getTrainTypeName(item["odpt:trainType"])}<br>${getDirectionText(direction,lineId)}</span><span class="board-dest">${getFullStationTitle(dest)} 行</span><span class="board-platform">${getEntryPlatform(item,stationId,lineId)}番線</span><span class="board-number">${number}</span><span class="${delay?'board-delay':'board-on-time'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
+      const dest=getEntryDestination(item,entryLine);
+      const entryStationId=findStationIdForLine(getFullStationTitle(stationId),entryLine)||stationId;
+      html+=`<div class="board-row"><span class="board-time">${delay?addMinutesToTime(item["odpt:departureTime"],delay):item["odpt:departureTime"]||'--:--'}</span><span class="board-type">${getTrainTypeName(item["odpt:trainType"])}<br>${getLineTitle(entryLine)}</span><span class="board-dest">${getFullStationTitle(dest)} 行</span><span class="board-platform">${getEntryPlatform(item,entryStationId,entryLine)}番線</span><span class="board-number">${number}</span><span class="${delay?'board-delay':'board-on-time'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
     });
     html+='</div></div>';
 
     html+=`<div id="station-view-dia" class="monitor-view"><div class="table-scroll"><table class="station-dia-table"><thead><tr><th>方向</th><th>列車番号</th><th>種別</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延</th></tr></thead><tbody>`;
     if(!boardItems.length) html+='<tr><td colspan="11">表示できる列車がありません</td></tr>';
-    boardItems.slice(0,30).forEach(({direction,item})=>{
+    boardItems.slice(0,30).forEach(({direction,item,lineId:entryLine})=>{
       const number=item["odpt:trainNumber"]||"—";
-      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===entryLine);
       const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
-      const dest=getEntryDestination(item,lineId);
+      const dest=getEntryDestination(item,entryLine);
       const arr=item["odpt:arrivalTime"]||""; const dep=item["odpt:departureTime"]||"";
-      html+=`<tr><td class="direction-cell">${getDirectionText(direction,lineId)}</td><td><button class="train-link" onclick='openTrainByNumber(${JSON.stringify(number)},${JSON.stringify(lineId)})'>${number}</button></td><td>${getTrainTypeName(item["odpt:trainType"])}</td><td>${arr||'…'}</td><td class="forecast">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${dep||'…'}</td><td class="forecast">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${getEntryPlatform(item,stationId,lineId)}</td><td>${live?'在線':'継送'}</td><td>${getFullStationTitle(dest)}</td><td class="forecast">${delay?'＋'+delay:'000'}</td></tr>`;
+      const entryStationId=findStationIdForLine(getFullStationTitle(stationId),entryLine)||stationId;
+      html+=`<tr><td class="direction-cell">${getLineTitle(entryLine)}<br>${getDirectionText(direction,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumber(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${getTrainTypeName(item["odpt:trainType"])}</td><td>${arr||'…'}</td><td class="forecast">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${dep||'…'}</td><td class="forecast">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${getEntryPlatform(item,entryStationId,entryLine)}</td><td>${live?'在線':'継送'}</td><td>${getFullStationTitle(dest)}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
     });
     html+=`</tbody></table></div><div style="margin-top:8px;color:var(--atos-muted);font-size:.67rem;">「予測」は公開遅延情報からの参考計算です。空欄は該当データが配信されていない項目です。</div></div>`;
     content.innerHTML=html;
@@ -1200,9 +1326,10 @@
     button.classList.add('active'); document.getElementById('station-view-'+name).classList.add('active');
   }
 
-  function openTrainByNumber(number,lineId){
+  async function openTrainByNumber(number,lineId){
     const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
-    const timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    let timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    if(!timetable){ await ensureTrainTimetablesForLines([lineId]); timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId); }
     hideStationTimetableModal();
     showTrainTimetableModal(timetable,live);
   }
@@ -1236,10 +1363,8 @@
       primaryLineId = targetLines[0]; 
     } else {
       targetLines = [selectedLine];
-      if (sharedSections[selectedLine]) {
-        targetLines = targetLines.concat(sharedSections[selectedLine]);
-      }
     }
+    targetLines=[...new Set([...targetLines,...getSharedTargetLines(primaryLineId)])];
 
     const color = lineColors[primaryLineId] || "#666";
     const lineData = railwayData.find(l => l["owl:sameAs"] === primaryLineId);
@@ -1249,9 +1374,7 @@
       .sort((a, b) => a["odpt:index"] - b["odpt:index"]);
     
     const stationIds = allStations.map(s => s["odpt:station"]);
-    const lineTrains=trainData.filter(t=>targetLines.includes(t["odpt:railway"]));
-    const delayed=lineTrains.filter(t=>(t["odpt:delay"]||0)>0).length;
-    document.getElementById("monitorSummary").innerHTML=`<span class="summary-pill">路線 <strong>${getLineTitle(primaryLineId)}</strong></span><span class="summary-pill">在線列車 <strong>${lineTrains.length}</strong>本</span><span class="summary-pill">遅延列車 <strong>${delayed}</strong>本</span><span class="summary-pill">表示駅 <strong>${stationIds.length}</strong>駅</span>`;
+    const displayedTrainKeys=new Set(), displayedDelayedKeys=new Set();
 
     let groupIndex = 0;
     for (let i = 0; i < stationIds.length; ) {
@@ -1293,6 +1416,7 @@
       let maxDownTrains = 0;
 
       const trainsToRender = [];
+      const groupNames=group.map(getFullStationTitle);
       
       trainData.forEach(train => {
         if (!targetLines.includes(train["odpt:railway"])) return;
@@ -1301,8 +1425,13 @@
         const to = train["odpt:toStation"];
         const direction = train["odpt:railDirection"];
 
-        const localFromIdx = group.indexOf(from);
-        const localToIdx = to ? group.indexOf(to) : -1;
+        let localFromIdx = group.indexOf(from);
+        let localToIdx = to ? group.indexOf(to) : -1;
+        if(train["odpt:railway"]!==primaryLineId){
+          const mapped=resolveSharedMovement(primaryLineId,train["odpt:railway"],from,to,groupNames);
+          if(!mapped) return;
+          localFromIdx=mapped.fromIndex; localToIdx=mapped.toIndex;
+        }
 
         if (localFromIdx !== -1) {
           let shouldRender = false;
@@ -1340,6 +1469,9 @@
               offsetCount,
               isAtStation: (to === null || to === undefined)
             });
+            const trainKey=`${train["odpt:railway"]}-${train["odpt:trainNumber"]||train["@id"]||from}`;
+            displayedTrainKeys.add(trainKey);
+            if((train["odpt:delay"]||0)>0) displayedDelayedKeys.add(trainKey);
           }
         }
       });
@@ -1358,8 +1490,9 @@
 
         const div = document.createElement("div");
         div.className = "train " + trainDir;
-        div.style.color = color;
-        div.style.setProperty("--line-color",color);
+        const trainColor=lineColors[train["odpt:railway"]]||color;
+        div.style.color = trainColor;
+        div.style.setProperty("--line-color",trainColor);
         div.style.left = `${trainPosition}%`;
 
         if (trainDir === "up") {
@@ -1384,6 +1517,8 @@
       monitor.appendChild(lineDiv);
       groupIndex++;
     }
+    const sharedNames=sharedTrackSections.filter(s=>s.lines.includes(primaryLineId)).map(s=>s.name);
+    document.getElementById("monitorSummary").innerHTML=`<span class="summary-pill">路線 <strong>${getLineTitle(primaryLineId)}</strong></span><span class="summary-pill">在線列車 <strong>${displayedTrainKeys.size}</strong>本</span><span class="summary-pill">遅延列車 <strong>${displayedDelayedKeys.size}</strong>本</span><span class="summary-pill">表示駅 <strong>${stationIds.length}</strong>駅</span>${sharedNames.length?`<span class="summary-pill">共用表示 <strong>${sharedNames.join('・')}</strong></span>`:''}`;
     window.scrollTo(0, scrollY);
   }
 
@@ -1415,12 +1550,36 @@
     if(supplementalPromise) return supplementalPromise;
     supplementalPromise=Promise.all([
       fetch(`https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-      fetch(`https://api-challenge.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`)
-    ]).then(async([stationRes,passengerRes])=>{
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?acl:consumerKey=${token}`)
+    ]).then(async([stationRes,passengerRes,allRailwayRes])=>{
       if(stationRes.ok) stationInfoData=await stationRes.json();
       if(passengerRes.ok) passengerSurveyData=await passengerRes.json();
+      if(allRailwayRes.ok) allRailwayData=await allRailwayRes.json();
     }).catch(e=>{ console.warn("駅補足情報を取得できませんでした",e); supplementalPromise=null; });
     return supplementalPromise;
+  }
+
+  async function ensureTrainTimetablesForLines(lines,calendar=currentCalendar){
+    const uniqueLines=[...new Set((lines||[]).filter(Boolean))];
+    await Promise.all(uniqueLines.map(async lineId=>{
+      const key=`${lineId}-${calendar}`;
+      if(trainTimetableRequests.has(key)) return trainTimetableRequests.get(key);
+      const request=fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)
+        .then(async response=>{
+          if(!response.ok) throw new Error(`${getLineTitle(lineId)}の列車時刻表を取得できませんでした`);
+          const data=await response.json();
+          trainTimetableData=trainTimetableData.filter(item=>!(item["odpt:railway"]===lineId&&item["odpt:calendar"]===`odpt.Calendar:${calendar}`));
+          trainTimetableData.push(...data);
+          return data;
+        }).catch(error=>{
+          trainTimetableRequests.delete(key);
+          console.warn(error.message);
+          return [];
+        });
+      trainTimetableRequests.set(key,request);
+      return request;
+    }));
   }
 
   async function fetchData() {
@@ -1440,12 +1599,16 @@
       if (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) {
         calendar = "SaturdayHoliday";
       }
+      if(currentCalendar!==calendar){
+        currentCalendar=calendar;
+        trainTimetableData=[];
+        trainTimetableRequests.clear();
+      }
       
-      const [trainRes, railRes, infoRes, trainTimetableRes] = await Promise.all([
+      const [trainRes, railRes, infoRes] = await Promise.all([
         fetch(`https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
         fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`),
-        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)
+        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`)
       ]);
 
       if (!trainRes.ok || !railRes.ok) throw new Error("API取得エラー");
@@ -1459,15 +1622,6 @@
         trainInformationData = [];
       }
       
-      try {
-        if (trainTimetableRes.ok) {
-          trainTimetableData = await trainTimetableRes.json();
-        }
-      } catch (e) {
-        console.warn("列車時刻表の取得に失敗しました:", e);
-        trainTimetableData = [];
-      }
-
       trainData = await trainRes.json();
       railwayData = await railRes.json();
 
@@ -1482,6 +1636,7 @@
       }
 
       render();
+      ensureTrainTimetablesForLines(getTimetableLinesForSelection());
     } catch (e) {
       document.getElementById("dataTime").textContent="データ取得エラー";
       document.getElementById("monitor").innerHTML=`<div class="empty-state">データを取得できませんでした。通信状態を確認して「最新情報に更新」を押してください。<br><small>${e.message}</small></div>`;
