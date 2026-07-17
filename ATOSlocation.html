@@ -1407,6 +1407,15 @@
     
     const stationIds = allStations.map(s => s["odpt:station"]);
     const displayedTrainKeys=new Set(), displayedDelayedKeys=new Set();
+    const placedTrainKeys=new Set();
+    const stationGroups=[];
+    for(let index=0,sectionIndex=0;index<stationIds.length;sectionIndex++){
+      let candidate;
+      if(sectionIndex===0){candidate=stationIds.slice(index,index+4);index+=4;}
+      else{candidate=stationIds.slice(index-1,index+3);index+=3;}
+      if(candidate.length<2) break;
+      stationGroups.push(candidate);
+    }
 
     let groupIndex = 0;
     for (let i = 0; i < stationIds.length; ) {
@@ -1456,6 +1465,8 @@
         const from = train["odpt:fromStation"];
         const to = train["odpt:toStation"];
         const direction = train["odpt:railDirection"];
+        const trainKey=`${train["odpt:railway"]}-${train["odpt:trainNumber"]||train["@id"]||from}`;
+        if(placedTrainKeys.has(trainKey)) return;
 
         let localFromIdx = group.indexOf(from);
         let localToIdx = to ? group.indexOf(to) : -1;
@@ -1469,8 +1480,21 @@
           let shouldRender = false;
           let trainPosition;
           let positionKey;
+          const trainDir = getTrainDirection(direction, train["odpt:railway"]);
 
-          if (to === null || to === undefined || localToIdx === -1) {
+          if (to === null || to === undefined) {
+            const fromName=getFullStationTitle(from);
+            const containingGroups=stationGroups.map((candidate,index)=>({candidate,index})).filter(({candidate})=>
+              train["odpt:railway"]===primaryLineId?candidate.includes(from):candidate.map(getFullStationTitle).includes(fromName)
+            );
+            const preferredGroup=trainDir==="down"?containingGroups.at(-1)?.index:containingGroups[0]?.index;
+            if(preferredGroup!==undefined&&groupIndex!==preferredGroup) return;
+            trainPosition = (localFromIdx + 1) * (100 / (group.length + 1));
+            positionKey = `station-${localFromIdx}-${direction}`;
+            shouldRender = true;
+          } else if (localToIdx === -1) {
+            const completeGroupExists=train["odpt:railway"]===primaryLineId&&stationGroups.some(candidate=>candidate.includes(from)&&candidate.includes(to));
+            if(completeGroupExists) return;
             trainPosition = (localFromIdx + 1) * (100 / (group.length + 1));
             positionKey = `station-${localFromIdx}-${direction}`;
             shouldRender = true;
@@ -1486,7 +1510,6 @@
             const offsetCount = positionOffsets[positionKey] || 0;
             positionOffsets[positionKey] = offsetCount + 1;
 
-            const trainDir = getTrainDirection(direction, train["odpt:railway"]);
             if (trainDir === "up") {
               maxUpTrains = Math.max(maxUpTrains, offsetCount + 1);
             } else {
@@ -1501,7 +1524,7 @@
               offsetCount,
               isAtStation: (to === null || to === undefined)
             });
-            const trainKey=`${train["odpt:railway"]}-${train["odpt:trainNumber"]||train["@id"]||from}`;
+            placedTrainKeys.add(trainKey);
             displayedTrainKeys.add(trainKey);
             if((train["odpt:delay"]||0)>0) displayedDelayedKeys.add(trainKey);
           }
