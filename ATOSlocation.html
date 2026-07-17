@@ -552,6 +552,12 @@
     .monitor-tab.active { color: #fff; background: var(--atos-green); }
     .monitor-view { display: none; }
     .monitor-view.active { display: block; }
+    .direction-filter { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 9px 0; }
+    .direction-filter-label { margin-right: 4px; color: var(--atos-muted); font-size: .7rem; font-weight: 900; }
+    .direction-filter button { padding: 6px 11px; color: var(--atos-green-dark); background: #fff; border: 1px solid #9db0a4; cursor: pointer; font-weight: 800; }
+    .direction-filter button:hover { background: #eaf5ee; }
+    .direction-filter button.active { color: #fff; background: var(--atos-green); border-color: var(--atos-green-dark); }
+    .direction-count { margin-left: auto; color: var(--atos-muted); font-size: .67rem; }
     .empty-state { padding: 28px; text-align: center; color: var(--atos-muted); }
     .loading-state { padding: 36px; text-align: center; color: var(--atos-muted); }
     .spinner { width: 28px; height: 28px; margin: 0 auto 8px; border: 3px solid #d5e0da; border-top-color: var(--atos-green); border-radius: 50%; animation: spin .7s linear infinite; }
@@ -822,6 +828,9 @@
    "TennozuIsle": "天王洲アイル",
    "Oimachi": "大井町",
    "Osaki": "大崎",
+   "NishiFunabashi": "西船橋",
+   "odpt.Station:TokyoMetro.Tozai.NishiFunabashi": "西船橋",
+   "odpt.Station:ToyoRapid.ToyoRapid.NishiFunabashi": "西船橋",
    "Kazusaichinomiya": "上総一宮",
    "MusashiKoganei": "ム小金井",
    "KinugawaOnsen": "鬼怒川温泉",
@@ -1293,37 +1302,60 @@
     }
     boardItems.sort((a,b)=>(a.item["odpt:departureTime"]||"").localeCompare(b.item["odpt:departureTime"]||""));
     html+=`<div class="monitor-tabs"><button class="monitor-tab active" onclick="switchStationView('board',this)">ATOS発車標</button><button class="monitor-tab" onclick="switchStationView('dia',this)">駅別ダイヤモニタ</button></div>`;
-    html+=`<div id="station-view-board" class="monitor-view active"><div class="departure-board"><div class="board-head"><span>${getFullStationTitle(stationId)}駅　発車案内</span><span class="board-live">● LIVE ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
+    html+=`<div id="station-view-board" class="monitor-view active"><div class="direction-filter" role="group" aria-label="発車標の方向"><span class="direction-filter-label">表示方向</span><button class="active" aria-pressed="true" onclick="filterStationDirection('board','all',this)">両方向</button><button aria-pressed="false" onclick="filterStationDirection('board','up',this)">上りのみ</button><button aria-pressed="false" onclick="filterStationDirection('board','down',this)">下りのみ</button><span class="direction-count" id="board-direction-count"></span></div><div class="departure-board"><div class="board-head"><span>${getFullStationTitle(stationId)}駅　発車案内</span><span class="board-live">● LIVE ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
     if(!boardItems.length) html+='<div class="empty-state">本日の発車案内は終了しました</div>';
-    boardItems.slice(0,8).forEach(({direction,item,lineId:entryLine})=>{
+    boardItems.slice(0,40).forEach(({direction,item,lineId:entryLine})=>{
       const number=item["odpt:trainNumber"]||"—";
       const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===entryLine);
       const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
       const dest=getEntryDestination(item,entryLine);
       const entryStationId=findStationIdForLine(getFullStationTitle(stationId),entryLine)||stationId;
-      html+=`<div class="board-row"><span class="board-time">${delay?addMinutesToTime(item["odpt:departureTime"],delay):item["odpt:departureTime"]||'--:--'}</span><span class="board-type">${getTrainTypeName(item["odpt:trainType"])}<br>${getLineTitle(entryLine)}</span><span class="board-dest">${getFullStationTitle(dest)} 行</span><span class="board-platform">${getEntryPlatform(item,entryStationId,entryLine)}番線</span><span class="board-number">${number}</span><span class="${delay?'board-delay':'board-on-time'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
+      html+=`<div class="board-row" data-direction-side="${getTrainDirection(direction,entryLine)}"><span class="board-time">${delay?addMinutesToTime(item["odpt:departureTime"],delay):item["odpt:departureTime"]||'--:--'}</span><span class="board-type">${getTrainTypeName(item["odpt:trainType"])}<br>${getLineTitle(entryLine)}</span><span class="board-dest">${getFullStationTitle(dest)} 行</span><span class="board-platform">${getEntryPlatform(item,entryStationId,entryLine)}番線</span><span class="board-number">${number}</span><span class="${delay?'board-delay':'board-on-time'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
     });
     html+='</div></div>';
 
-    html+=`<div id="station-view-dia" class="monitor-view"><div class="table-scroll"><table class="station-dia-table"><thead><tr><th>方向</th><th>列車番号</th><th>種別</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延</th></tr></thead><tbody>`;
+    html+=`<div id="station-view-dia" class="monitor-view"><div class="direction-filter" role="group" aria-label="駅別ダイヤの方向"><span class="direction-filter-label">表示方向</span><button class="active" aria-pressed="true" onclick="filterStationDirection('dia','all',this)">上下線両方</button><button aria-pressed="false" onclick="filterStationDirection('dia','up',this)">上りのみ</button><button aria-pressed="false" onclick="filterStationDirection('dia','down',this)">下りのみ</button><span class="direction-count" id="dia-direction-count"></span></div><div class="table-scroll"><table class="station-dia-table"><thead><tr><th>方向</th><th>列車番号</th><th>種別</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延</th></tr></thead><tbody>`;
     if(!boardItems.length) html+='<tr><td colspan="11">表示できる列車がありません</td></tr>';
-    boardItems.slice(0,30).forEach(({direction,item,lineId:entryLine})=>{
+    boardItems.slice(0,80).forEach(({direction,item,lineId:entryLine})=>{
       const number=item["odpt:trainNumber"]||"—";
       const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===entryLine);
       const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
       const dest=getEntryDestination(item,entryLine);
       const arr=item["odpt:arrivalTime"]||""; const dep=item["odpt:departureTime"]||"";
       const entryStationId=findStationIdForLine(getFullStationTitle(stationId),entryLine)||stationId;
-      html+=`<tr><td class="direction-cell">${getLineTitle(entryLine)}<br>${getDirectionText(direction,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumber(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${getTrainTypeName(item["odpt:trainType"])}</td><td>${arr||'…'}</td><td class="forecast">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${dep||'…'}</td><td class="forecast">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${getEntryPlatform(item,entryStationId,entryLine)}</td><td>${live?'在線':'継送'}</td><td>${getFullStationTitle(dest)}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+      html+=`<tr data-direction-side="${getTrainDirection(direction,entryLine)}"><td class="direction-cell">${getLineTitle(entryLine)}<br>${getDirectionText(direction,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumber(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${getTrainTypeName(item["odpt:trainType"])}</td><td>${arr||'…'}</td><td class="forecast">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${dep||'…'}</td><td class="forecast">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${getEntryPlatform(item,entryStationId,entryLine)}</td><td>${live?'在線':'継送'}</td><td>${getFullStationTitle(dest)}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
     });
     html+=`</tbody></table></div><div style="margin-top:8px;color:var(--atos-muted);font-size:.67rem;">「予測」は公開遅延情報からの参考計算です。空欄は該当データが配信されていない項目です。</div></div>`;
     content.innerHTML=html;
+    filterStationDirection('board','all',content.querySelector('#station-view-board .direction-filter button.active'));
+    filterStationDirection('dia','all',content.querySelector('#station-view-dia .direction-filter button.active'));
   }
 
   function switchStationView(name,button){
     document.querySelectorAll('#stationTimetableContent .monitor-tab').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('#stationTimetableContent .monitor-view').forEach(v=>v.classList.remove('active'));
     button.classList.add('active'); document.getElementById('station-view-'+name).classList.add('active');
+  }
+
+  function filterStationDirection(view,side,button){
+    const root=document.getElementById(`station-view-${view}`);
+    if(!root) return;
+    root.querySelectorAll('.direction-filter button').forEach(item=>{
+      item.classList.toggle('active',item===button);
+      item.setAttribute('aria-pressed',item===button?'true':'false');
+    });
+    const rows=[...root.querySelectorAll('[data-direction-side]')];
+    const limit=view==='board'?8:Infinity;
+    let shown=0,matched=0;
+    rows.forEach(row=>{
+      const isMatch=side==='all'||row.dataset.directionSide===side;
+      if(isMatch) matched++;
+      const visible=isMatch&&shown<limit;
+      row.hidden=!visible;
+      if(visible) shown++;
+    });
+    const count=document.getElementById(`${view}-direction-count`);
+    if(count) count.textContent=`${matched}本中 ${shown}本表示`;
   }
 
   async function openTrainByNumber(number,lineId){
