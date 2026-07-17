@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ATOS在線モニタ</title>
   <style>
     body {
@@ -395,56 +396,236 @@
     .dark-mode .timetable-table th, .dark-mode .timetable-table td {
         border-color: #555;
     }
+
+    /* ===== ATOS operational redesign ===== */
+    :root {
+      --atos-green: #087a43;
+      --atos-green-dark: #07582f;
+      --atos-bg: #f1f5f2;
+      --atos-panel: #fff;
+      --atos-border: #ccd8d1;
+      --atos-text: #18231d;
+      --atos-muted: #617067;
+      --atos-red: #c8202b;
+      --atos-amber: #b66b00;
+      --board-bg: #101813;
+      --board-grid: #33443a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      padding: 0; background: var(--atos-bg); color: var(--atos-text);
+      font-family: "Segoe UI", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    }
+    button, select { font: inherit; }
+    button:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid #ffb000; outline-offset: 2px;
+    }
+    #main-content { min-height: 100vh; }
+    .page-header {
+      position: sticky; top: 0; height: 62px; padding: 0 22px; z-index: 1100;
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(110deg, #064a28, #078348); box-shadow: 0 3px 12px rgba(0,0,0,.16);
+      text-align: left; font-size: 1.08rem;
+    }
+    .header-title { display: flex; align-items: center; gap: 12px; }
+    .header-mark { border: 1px solid rgba(255,255,255,.45); padding: 4px 9px; font: 700 .68rem/1 "Segoe UI",sans-serif; letter-spacing: .12em; }
+    .header-meta { display: flex; align-items: center; gap: 12px; font-size: .72rem; font-weight: 600; }
+    .live-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; }
+    .live-status::before { content: ''; width: 7px; height: 7px; background: #65ed85; border-radius: 50%; }
+    #dataTime { font-family: monospace; }
+    .train-info-ticker {
+      position: sticky; top: 62px; height: 34px; z-index: 1050;
+      background: #16251d; border-bottom: 1px solid #07120c;
+    }
+    .ticker-label { height: 100%; display: grid; place-items: center; flex: 0 0 auto; padding: 0 14px; background: var(--atos-green); font-size: .68rem; font-weight: 900; }
+    .train-info-content { padding-left: 18px; }
+    .monitor-shell { max-width: 1480px; margin: 0 auto; padding: 14px 16px 80px; }
+    .monitor-toolbar {
+      display: grid; grid-template-columns: auto minmax(240px, 1fr) auto auto; gap: 10px;
+      align-items: end; margin-bottom: 12px; padding: 12px;
+      background: #fff; border: 1px solid var(--atos-border); border-top: 3px solid var(--atos-green);
+      box-shadow: 0 4px 16px rgba(25,60,39,.06);
+    }
+    .toolbar-field { display: flex; flex-direction: column; gap: 5px; }
+    .toolbar-field label { color: var(--atos-muted); font-size: .68rem; font-weight: 800; }
+    #lineSelect { min-height: 42px; border: 1px solid #93aa9c; border-radius: 7px; padding: 7px 36px 7px 12px; background: #fff; color: var(--atos-text); font-weight: 800; }
+    .menu-btn, .update-btn, .dark-mode-btn {
+      min-height: 42px; padding: 8px 15px; border: 1px solid #8ca095; border-radius: 7px; cursor: pointer; box-shadow: none;
+    }
+    .menu-btn { background: #fff; color: var(--atos-green-dark); }
+    .update-btn { background: var(--atos-green); color: #fff; border-color: var(--atos-green-dark); }
+    .dark-mode-btn { background: #eef3f0; color: #34453b; }
+    .monitor-summary { margin: 0 0 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .summary-pill { padding: 5px 10px; background: #fff; border: 1px solid var(--atos-border); color: var(--atos-muted); font-size: .72rem; }
+    .summary-pill strong { color: var(--atos-green); font-size: .9rem; }
+    #monitor { position: relative; }
+    .station-line {
+      margin-bottom: 12px; min-height: 150px; padding: 18px 12px;
+      border: 1px solid var(--atos-border); border-radius: 8px; background: #fff; box-shadow: 0 3px 12px rgba(20,55,34,.05);
+    }
+    .station-line::before, .station-line::after {
+      content: ''; position: absolute; top: 50%; width: 11px; height: 11px;
+      border: 2px solid var(--line-color,#666); border-radius: 50%; background: #fff; transform: translateY(-50%); z-index: 2;
+    }
+    .station-line::before { left: -6px; }
+    .station-line::after { right: -6px; }
+    .track-line { height: 6px; left: 0; right: 0; border-radius: 0; box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+    .station {
+      width: 96px; min-height: 34px; height: auto; padding: 7px 6px; line-height: 1.2;
+      color: #fff; background: #16201a; border: 2px solid #16201a; border-radius: 4px;
+      font-size: 11px; font-weight: 900; box-shadow: 0 2px 5px rgba(0,0,0,.18);
+    }
+    .station:hover { background: var(--atos-green-dark); border-color: var(--atos-green-dark); transform: translate(-50%,-50%) scale(1.04); }
+    .train {
+      width: 128px; min-height: 44px; height: 44px; padding: 5px 10px;
+      color: var(--line-color,#006d80); background: currentColor; border: 0;
+      border-radius: 0; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,.13);
+      transition: transform .12s, box-shadow .12s;
+    }
+    .train.down { clip-path: polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%); }
+    .train.up { clip-path: polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%); }
+    .train::before {
+      content: ''; position: absolute; inset: 3px; z-index: 1; background: #d8dad9;
+      clip-path: inherit;
+    }
+    .train::after { display: none; }
+    .train > * { position: relative; z-index: 2; }
+    .train:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 7px 15px rgba(0,0,0,.18); z-index: 20; }
+    .train-number { color: var(--atos-text); font: 800 13px/1.1 monospace; }
+    .train-info { color: #435047; font-size: 9px; }
+    .delay { color: var(--atos-red); background: #fff1f2; border: 1px solid #e7848b; padding: 1px 3px; border-radius: 3px; }
+    .details, .control-buttons { display: none !important; }
+    .modal { padding: 18px; background: rgba(4,16,9,.62); backdrop-filter: blur(3px); }
+    .modal-content {
+      width: min(1100px,100%); max-width: 1100px; max-height: calc(100vh - 36px); overflow: auto;
+      margin: 0 auto; padding: 0; border: 0; border-radius: 10px; background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    #trainTimetableModal .modal-content { max-width: 920px; }
+    .timetable-header { position: sticky; top: 0; z-index: 5; margin: 0; padding: 13px 18px; color: #fff; background: linear-gradient(90deg,var(--atos-green-dark),var(--atos-green)); }
+    .timetable-header h3 { font-size: 1rem; }
+    .modal-close-btn { position: static; color: #fff; font-size: 28px; line-height: 1; }
+    button.modal-close-btn { padding: 0 4px; border: 0; background: transparent; cursor: pointer; }
+    .modal-close-btn:hover { color: #fff; }
+    #trainTimetableContent, #stationTimetableContent { padding: 16px; }
+    .train-sheet-meta { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
+    .meta-card { padding: 9px 11px; background: #f4f7f5; border: 1px solid var(--atos-border); }
+    .meta-label { color: var(--atos-muted); font-size: .64rem; font-weight: 800; }
+    .meta-value { margin-top: 2px; font-weight: 900; }
+    .meta-value.alert { color: var(--atos-red); }
+    .mobile-atos-table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+    .mobile-atos-table th { padding: 7px 6px; color: #fff; background: var(--atos-green); border: 1px solid rgba(255,255,255,.45); text-align: center; }
+    .mobile-atos-table td { padding: 7px 6px; border: 1px solid #bdc9c1; text-align: center; }
+    .mobile-atos-table tbody tr:nth-child(even) { background: #f4f7f5; }
+    .mobile-atos-table .current-row { background: #fff4d8 !important; box-shadow: inset 4px 0 #e0a000; }
+    .mobile-atos-table .time { font-family: monospace; font-size: .84rem; font-weight: 800; }
+    .predicted { color: var(--atos-red); font-weight: 900; }
+    .station-hero { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; padding: 12px 14px; background: #f4f8f5; border-left: 5px solid var(--line-color,var(--atos-green)); }
+    .station-symbol { min-width: 48px; height: 48px; display: grid; place-items: center; border: 3px solid var(--line-color,var(--atos-green)); border-radius: 50%; color: var(--line-color,var(--atos-green)); font-weight: 900; }
+    .station-hero h4 { margin: 0; font-size: 1.25rem; }
+    .station-sub { color: var(--atos-muted); font-size: .72rem; }
+    .station-facts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+    .fact-chip { padding: 3px 7px; background: #fff; border: 1px solid var(--atos-border); font-size: .67rem; }
+    .departure-board { margin: 12px 0 18px; color: #eaffd9; background: var(--board-bg); border: 5px solid #28372f; box-shadow: inset 0 0 18px #000; }
+    .board-head { display: flex; justify-content: space-between; padding: 8px 11px; color: #fff; border-bottom: 1px solid var(--board-grid); font-weight: 900; }
+    .board-live { color: #80ff8d; font-size: .68rem; }
+    .board-row { display: grid; grid-template-columns: 68px 78px 1fr 78px 66px 70px; gap: 8px; align-items: center; min-height: 40px; padding: 5px 10px; border-bottom: 1px solid var(--board-grid); font-family: monospace; }
+    .board-row:last-child { border-bottom: 0; }
+    .board-time { color: #ffcf33; font-size: 1.12rem; font-weight: 900; }
+    .board-type { color: #a8e7ff; }
+    .board-dest { color: #fff; font-size: .94rem; font-weight: 900; }
+    .board-delay { color: #ff7d7d; font-weight: 900; }
+    .board-on-time { color: #83e493; }
+    .direction-block { margin-top: 14px; }
+    .direction-title { margin: 0; padding: 7px 10px; color: #fff; background: var(--atos-green-dark); font-size: .8rem; }
+    .station-dia-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: .7rem; }
+    .station-dia-table th { padding: 6px 5px; color: #fff; background: #008a70; border: 1px solid #dce5e0; text-align: center; }
+    .station-dia-table td { height: 31px; padding: 5px; color: #111; background: #d8dad9; border: 1px solid #fff; text-align: center; }
+    .station-dia-table tbody tr:nth-child(even) td { background: #cdd0ce; }
+    .station-dia-table .train-link { color: #143aa0; font-family: monospace; font-weight: 900; cursor: pointer; text-decoration: underline; }
+    .station-dia-table button.train-link { padding: 0; border: 0; background: transparent; }
+    .station-dia-table .forecast { color: var(--atos-red); font-weight: 900; }
+    .station-dia-table .direction-cell { color: #fff; background: #4c5350 !important; font-weight: 900; }
+    .monitor-tabs { display: flex; gap: 4px; margin-top: 14px; border-bottom: 2px solid var(--atos-green); }
+    .monitor-tab { padding: 8px 14px; color: var(--atos-green-dark); background: #eef3f0; border: 1px solid var(--atos-border); border-bottom: 0; cursor: pointer; font-weight: 900; }
+    .monitor-tab.active { color: #fff; background: var(--atos-green); }
+    .monitor-view { display: none; }
+    .monitor-view.active { display: block; }
+    .empty-state { padding: 28px; text-align: center; color: var(--atos-muted); }
+    .loading-state { padding: 36px; text-align: center; color: var(--atos-muted); }
+    .spinner { width: 28px; height: 28px; margin: 0 auto 8px; border: 3px solid #d5e0da; border-top-color: var(--atos-green); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media(max-width: 760px) {
+      .page-header { height: 56px; padding: 0 12px; }
+      .header-meta .live-status { display: none; }
+      .train-info-ticker { top: 56px; }
+      .monitor-shell { padding: 10px 8px 70px; }
+      .monitor-toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar-field { grid-column: 1/-1; }
+      .train-sheet-meta { grid-template-columns: 1fr 1fr; }
+      .modal { padding: 6px; }
+      .modal-content { max-height: calc(100vh - 12px); }
+      .board-row { grid-template-columns: 58px 62px 1fr 56px; }
+      .board-platform, .board-number { display: none; }
+      .mobile-atos-table { min-width: 700px; }
+      .table-scroll { overflow-x: auto; }
+    }
+    .dark-mode .train { background: currentColor; }
+    .dark-mode .train::before { background: #363b38; }
+    .dark-mode .train-number { color: #f1f4f2; }
+    .dark-mode .monitor-toolbar, .dark-mode .panel, .dark-mode .summary-pill { background: #202723; color: #e8ece9; border-color: #46534b; }
+    @media(prefers-reduced-motion: reduce) {
+      *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .train-info-content { animation: none !important; }
+    }
   </style>
 </head>
 <body>
   <div id="main-content" style="display: none;"> 
         
-  <div class="page-header">ATOS在線モニタ</div>
+  <div class="page-header">
+    <div class="header-title"><span class="header-mark">ATOS</span><span>列車在線モニタ</span></div>
+    <div class="header-meta"><span class="live-status">自動更新中</span><span id="dataTime">取得中...</span></div>
+  </div>
   <div class="train-info-ticker">
+    <div class="ticker-label">運行情報</div>
     <div class="train-info-content" id="trainInfoTicker">
       運行情報を取得中...
     </div>
   </div>
-  <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-  <br>
-  <br>
-
-  <div class="line-selector">
-    <label for="lineSelect">路線選択:</label>
-    <select id="lineSelect" onchange="render()"></select>
+  <div class="monitor-shell">
+  <div class="monitor-toolbar">
+    <button class="menu-btn" type="button" onclick="window.location.href='toppage.html'">← メインメニュー</button>
+    <div class="toolbar-field">
+      <label for="lineSelect">表示路線</label>
+      <select id="lineSelect" onchange="render()"></select>
+    </div>
+    <button id="updateBtn" class="update-btn" type="button" onclick="manualUpdate()">↻ 最新情報に更新</button>
+    <button id="toggleDarkModeBtn" class="dark-mode-btn" type="button">夜間表示</button>
   </div>
+  <div class="monitor-summary" id="monitorSummary" aria-live="polite"></div>
   <div id="monitor"></div>
+  </div>
 
   <div id="details" class="details">
     <button class="close-btn" onclick="hideDetails()">×</button>
     <div id="details-content"></div>
   </div>
 
-  <div class="control-buttons">
-    <button id="updateBtn" class="update-btn" onclick="manualUpdate()">
-      更　新
-    </button>
-    <button id="toggleDarkModeBtn" class="dark-mode-btn">
-      ダークモード
-    </button>
-  </div>
-  
-  <div id="trainTimetableModal" class="modal">
-    <div class="modal-content">
+  <div id="trainTimetableModal" class="modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="trainTimetableTitle">
       <div class="timetable-header">
         <h3 id="trainTimetableTitle"></h3>
-        <span class="modal-close-btn" onclick="hideTrainTimetableModal()">&times;</span>
+        <button class="modal-close-btn" aria-label="列車時刻表を閉じる" onclick="hideTrainTimetableModal()">&times;</button>
       </div>
       <div id="trainTimetableContent"></div>
     </div>
   </div>
 
-  <div id="stationTimetableModal" class="modal">
-    <div class="modal-content">
+  <div id="stationTimetableModal" class="modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="stationTimetableTitle">
       <div class="timetable-header">
         <h3 id="stationTimetableTitle"></h3>
-        <span class="modal-close-btn" onclick="hideStationTimetableModal()">&times;</span>
+        <button class="modal-close-btn" aria-label="駅詳細を閉じる" onclick="hideStationTimetableModal()">&times;</button>
       </div>
       <div id="stationTimetableContent"></div>
     </div>
@@ -611,6 +792,9 @@
   let detailsTimer = null; 
   let trainInformationData = []; 
   let trainTimetableData = [];
+  let stationInfoData = [];
+  let passengerSurveyData = [];
+  let supplementalPromise = null;
   let autoUpdateInterval = null;
 
   let cachedStationTimetables = {};
@@ -638,6 +822,48 @@
     const parts = stationId.split(".");
     const last = parts[parts.length - 1];
     return shortenStationName(last);
+  }
+
+  function getFullStationTitle(stationId) {
+    if (!stationId) return "不明";
+    const station = stationInfoData.find(s => s["owl:sameAs"] === stationId);
+    if (station?.["odpt:stationTitle"]?.ja) return station["odpt:stationTitle"].ja;
+    for (const line of railwayData) {
+      const item = (line["odpt:stationOrder"] || []).find(s => s["odpt:station"] === stationId);
+      if (item?.["odpt:stationTitle"]?.ja) return item["odpt:stationTitle"].ja;
+    }
+    return getStationTitle(stationId);
+  }
+
+  function addMinutesToTime(time, minutes) {
+    if (!time || !minutes) return time || "";
+    const parts = time.split(":").map(Number);
+    if (parts.some(Number.isNaN)) return time;
+    let total = parts[0] * 60 + parts[1] + minutes;
+    return `${String(Math.floor(total / 60) % 24).padStart(2,"0")}:${String(total % 60).padStart(2,"0")}`;
+  }
+
+  function formatApiTime(value) {
+    if (!value) return "—";
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("ja-JP", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  }
+
+  function getEntryDestination(item,lineId){
+    const direct=item["odpt:destinationStation"]||[];
+    if(direct.length) return direct[0];
+    const number=item["odpt:trainNumber"];
+    const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    if((live?.["odpt:destinationStation"]||[]).length) return live["odpt:destinationStation"][0];
+    const timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    return (timetable?.["odpt:destinationStation"]||[])[0];
+  }
+
+  function getEntryPlatform(item,stationId,lineId){
+    if(item["odpt:platformNumber"]) return item["odpt:platformNumber"];
+    const timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===item["odpt:trainNumber"]&&t["odpt:railway"]===lineId);
+    const stop=(timetable?.["odpt:trainTimetableObject"]||[]).find(s=>(s["odpt:station"]||s["odpt:departureStation"]||s["odpt:arrivalStation"])===stationId);
+    return stop?.["odpt:platformNumber"]||"—";
   }
 
   function getLineTitle(lineId) {
@@ -673,7 +899,9 @@
     select.innerHTML = "";
     
     const addedGroups = new Set();
-    const uniqueLines = [...new Set(trainData.map(t => t["odpt:railway"]))];
+    const supportedLines=Object.keys(lineColors).filter(id=>railwayData.some(r=>r["owl:sameAs"]===id));
+    const uniqueLines = [...new Set([...supportedLines,...trainData.map(t => t["odpt:railway"])])]
+      .sort((a,b)=>getLineTitle(a).localeCompare(getLineTitle(b),'ja'));
     
     uniqueLines.forEach(lineId => {
       let groupName = null;
@@ -783,86 +1011,51 @@
   }
 
   function showDetails(train) {
-    const d = document.getElementById("details");
-    const content = document.getElementById("details-content");
-    const delayMin = train["odpt:delay"] ? Math.floor(train["odpt:delay"] / 60) : 0;
-
-    const fromStation = getStationTitle(train["odpt:fromStation"]) || "不明";
-    const toStation = train["odpt:toStation"] ? getStationTitle(train["odpt:toStation"]) : null;
-    
-    let sectionInfo;
-    if (toStation) {
-      sectionInfo = `${fromStation}〜${toStation}`;
-    } else {
-      sectionInfo = `${fromStation}　　　`;
-    }
-
-    const destStations = train["odpt:destinationStation"] || [];
-    const destination = destStations.length > 0 ? getStationTitle(destStations[0]) : "不明";
-
-    // 遅延情報の追加
-    let delayInfoHtml = `<strong>遅延:</strong> ${delayMin > 0 ? delayMin + "分" : "なし"}<br>`;
-
-    content.innerHTML =
-      `<strong>列車番号:</strong> ${train["odpt:trainNumber"] || '不明'}<br>` +
-      `<strong>方向:</strong> ${getDirectionText(train["odpt:railDirection"], train["odpt:railway"])}<br>` +
-      delayInfoHtml +
-      `<strong>走行区間:</strong> ${sectionInfo}<br>` +
-      `<strong>終点駅:</strong> ${destination}<br>` +
-      `<strong>種別:</strong> ${getTrainTypeName(train["odpt:trainType"])}<br>` +
-      `<strong>編成両数:</strong> ${train["odpt:carComposition"] || '不明'}両`;
-
-    // 列車時刻表ボタンの追加
     const trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
-    if (trainTimetable) {
-        const timetableButton = document.createElement("button");
-        timetableButton.textContent = "時刻表を見る";
-        timetableButton.style.marginTop = "10px";
-        timetableButton.style.backgroundColor = "#33AB94";
-        timetableButton.style.color = "white";
-        timetableButton.style.border = "none";
-        timetableButton.style.padding = "8px 12px";
-        timetableButton.style.borderRadius = "4px";
-        timetableButton.style.cursor = "pointer";
-        timetableButton.onclick = () => showTrainTimetableModal(trainTimetable);
-        content.appendChild(timetableButton);
-    }
-    
-    d.style.display = "block";
-    
-    if (detailsTimer) {
-      clearTimeout(detailsTimer);
-    }
-    
-    detailsTimer = setTimeout(() => {
-      hideDetails();
-    }, 5000);
+    showTrainTimetableModal(trainTimetable, train);
   }
 
-  function showTrainTimetableModal(timetable) {
+  function showTrainTimetableModal(timetable, liveTrain=null) {
     const modal = document.getElementById("trainTimetableModal");
     const title = document.getElementById("trainTimetableTitle");
     const content = document.getElementById("trainTimetableContent");
+    const number = liveTrain?.["odpt:trainNumber"] || timetable?.["odpt:trainNumber"] || "不明";
+    const railway = liveTrain?.["odpt:railway"] || timetable?.["odpt:railway"];
+    const delay = liveTrain?.["odpt:delay"] ? Math.floor(liveTrain["odpt:delay"] / 60) : 0;
+    const type = getTrainTypeName(liveTrain?.["odpt:trainType"] || timetable?.["odpt:trainType"]);
+    const destinationIds = liveTrain?.["odpt:destinationStation"] || timetable?.["odpt:destinationStation"] || [];
+    const destination = destinationIds.length ? getFullStationTitle(destinationIds[0]) : "不明";
+    title.textContent = `${number}列車　運転時刻表`;
 
-    title.textContent = `列車番号: ${timetable["odpt:trainNumber"]} の時刻表`;
-    
-    let tableHtml = `<table class="timetable-table"><thead><tr><th>駅名</th><th>発車時刻</th><th>到着時刻</th></tr></thead><tbody>`;
-    
-    timetable["odpt:trainTimetableObject"].forEach(item => {
-        const stationName = getStationTitle(item["odpt:station"] || item["odpt:departureStation"] || item["odpt:arrivalStation"]);
-        const departureTime = item["odpt:departureTime"] || "";
-        const arrivalTime = item["odpt:arrivalTime"] || "";
-        tableHtml += `<tr><td>${stationName}</td><td>${departureTime}</td><td>${arrivalTime}</td></tr>`;
-    });
-    
-    tableHtml += `</tbody></table>`;
-    content.innerHTML = tableHtml;
-    
+    let html = `<div class="train-sheet-meta">
+      <div class="meta-card"><div class="meta-label">列車番号</div><div class="meta-value">${number}</div></div>
+      <div class="meta-card"><div class="meta-label">種別・行先</div><div class="meta-value">${type} ${destination}行</div></div>
+      <div class="meta-card"><div class="meta-label">方向・両数</div><div class="meta-value">${getDirectionText(liveTrain?.["odpt:railDirection"]||timetable?.["odpt:railDirection"],railway)} ・ ${liveTrain?.["odpt:carComposition"]||"—"}両</div></div>
+      <div class="meta-card"><div class="meta-label">現在の遅延</div><div class="meta-value${delay>0?' alert':''}">${delay>0?'＋'+delay+'分':'定刻'}</div></div>
+    </div>`;
+    const stops = timetable?.["odpt:trainTimetableObject"] || [];
+    if (!stops.length) {
+      html += `<div class="empty-state">この列車の時刻表データはありません。<br>現在位置：${getFullStationTitle(liveTrain?.["odpt:fromStation"])}${liveTrain?.["odpt:toStation"]?' → '+getFullStationTitle(liveTrain["odpt:toStation"]):''}</div>`;
+    } else {
+      html += `<div class="table-scroll"><table class="mobile-atos-table"><thead><tr><th>状態</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th></tr></thead><tbody>`;
+      stops.forEach(item => {
+        const stationId=item["odpt:station"]||item["odpt:departureStation"]||item["odpt:arrivalStation"];
+        const arr=item["odpt:arrivalTime"]||"";
+        const dep=item["odpt:departureTime"]||"";
+        const isCurrent=stationId===liveTrain?.["odpt:fromStation"]||stationId===liveTrain?.["odpt:toStation"];
+        const passed=stationId===liveTrain?.["odpt:fromStation"];
+        html += `<tr class="${isCurrent?'current-row':''}"><td>${passed?'発車':'・'}</td><td><strong>${getFullStationTitle(stationId)}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${item["odpt:platformNumber"]||'—'}</td><td>${isCurrent?'在線区間':delay?'遅延反映':'継送'}</td></tr>`;
+      });
+      html += `</tbody></table></div><div style="margin-top:8px;color:var(--atos-muted);font-size:.68rem;">予測時刻は公開されている遅延時間を計画時刻へ加算した参考値です。データ時刻 ${formatApiTime(liveTrain?.["dc:date"])}</div>`;
+    }
+    content.innerHTML = html;
+    modal.setAttribute("aria-hidden","false");
     modal.style.display = "block";
   }
 
   function hideTrainTimetableModal() {
-      document.getElementById("trainTimetableModal").style.display = "none";
+      const modal=document.getElementById("trainTimetableModal");
+      modal.style.display = "none"; modal.setAttribute("aria-hidden","true");
   }
 
   async function showStationTimetableModal(stationId, lineId) {
@@ -870,15 +1063,17 @@
     const title = document.getElementById("stationTimetableTitle");
     const content = document.getElementById("stationTimetableContent");
     
-    title.textContent = `${getStationTitle(stationId)}駅の時刻表`;
-    content.innerHTML = "時刻表を読み込み中...";
+    title.textContent = `${getFullStationTitle(stationId)}駅　駅情報・発車標`;
+    content.innerHTML = '<div class="loading-state"><div class="spinner"></div>駅情報と時刻表を読み込み中...</div>';
+    modal.setAttribute("aria-hidden","false");
     modal.style.display = "block";
     
     try {
+        await fetchSupplementalData();
         const today = new Date();
         const dayOfWeek = today.getDay();
-        const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json');
-        const holidays = await holidayResponse.json();
+        let holidays={};
+        try { const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json'); if(holidayResponse.ok) holidays=await holidayResponse.json(); } catch(e) {}
         const todayString = today.toISOString().slice(0, 10);
         const isHoliday = holidays.hasOwnProperty(todayString);
         let calendar = (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) ? "SaturdayHoliday" : "Weekday";
@@ -903,11 +1098,13 @@
   }
   
   function hideStationTimetableModal() {
-    document.getElementById("stationTimetableModal").style.display = "none";
+    const modal=document.getElementById("stationTimetableModal");
+    modal.style.display = "none"; modal.setAttribute("aria-hidden","true");
   }
   
   function updateStationTimetableDisplay() {
     const modal = document.getElementById("stationTimetableModal");
+    const stationId = modal.dataset.stationId;
     const lineId = modal.dataset.lineId;
     const cacheKey = modal.dataset.cacheKey;
     const content = document.getElementById("stationTimetableContent");
@@ -915,7 +1112,7 @@
     const allTimetables = cachedStationTimetables[cacheKey] || [];
 
     function sortTimetableObjects(timetableObjects) {
-      return timetableObjects.sort((a, b) => {
+      return [...timetableObjects].sort((a, b) => {
         const timeA = a["odpt:departureTime"];
         const timeB = b["odpt:departureTime"];
         if (!timeA || !timeB) return 0;
@@ -955,43 +1152,69 @@
       return acc;
     }, {});
     
-    let html = "";
-    if (Object.keys(timetablesByDirection).length === 0) {
-      html = `<p>時刻表データがありません。</p>`;
-    } else {
-      for (const [direction, timetables] of Object.entries(timetablesByDirection)) {
-        html += `<h4>${getDirectionText(direction, lineId)}</h4>`;
-        html += `<table class="timetable-table"><thead><tr><th>時刻</th><th>種別</th><th>行先</th></tr></thead><tbody>`;
+    const station=stationInfoData.find(s=>s["owl:sameAs"]===stationId);
+    const lineColor=lineColors[lineId]||"#087a43";
+    const code=station?.["odpt:stationCode"]||stationId?.split(".").pop()||"—";
+    const connected=(station?.["odpt:connectingRailway"]||[]).map(getLineTitle);
+    const survey=passengerSurveyData.find(p=>{const value=p["odpt:station"];return Array.isArray(value)?value.includes(stationId):value===stationId;});
+    const latestSurvey=[...(survey?.["odpt:passengerSurveyObject"]||[])].sort((a,b)=>(b["odpt:surveyYear"]||0)-(a["odpt:surveyYear"]||0))[0];
+    const journeys=latestSurvey?.["odpt:passengerJourneys"];
+    let html=`<div class="station-hero" style="--line-color:${lineColor}"><div class="station-symbol">${code}</div><div><h4>${getFullStationTitle(stationId)}駅</h4><div class="station-sub">${getLineTitle(lineId)}</div><div class="station-facts"><span class="fact-chip">駅コード ${code}</span>${connected.length?`<span class="fact-chip">接続 ${connected.join('・')}</span>`:''}${journeys?`<span class="fact-chip">1日利用 ${Number(journeys).toLocaleString('ja-JP')}人（${latestSurvey["odpt:surveyYear"]}年）</span>`:''}${station?.["geo:lat"]?`<span class="fact-chip">位置 ${station["geo:lat"]}, ${station["geo:long"]}</span>`:''}</div></div></div>`;
 
-        let count = 0;
-        for (const tt of timetables) {
-            if (count >= 5) break;
-            for (const timetableObject of tt["odpt:stationTimetableObject"]) {
-                if (count >= 5) break;
-                const departureTime = timetableObject["odpt:departureTime"] || "";
-                const trainType = getTrainTypeName(timetableObject["odpt:trainType"]);
-                const destination = timetableObject["odpt:destinationStation"] && timetableObject["odpt:destinationStation"].length > 0
-                    ? getStationTitle(timetableObject["odpt:destinationStation"][0])
-                    : "不明";
-                html += `<tr><td>${departureTime}</td><td>${trainType}</td><td>${destination}</td></tr>`;
-                count++;
-            }
-        }
-        html += `</tbody></table>`;
+    const boardItems=[];
+    for(const [direction,timetables] of Object.entries(timetablesByDirection)){
+      for(const tt of timetables){
+        for(const item of tt["odpt:stationTimetableObject"]){ boardItems.push({direction,item}); }
       }
     }
-    
-    content.innerHTML = html;
+    boardItems.sort((a,b)=>(a.item["odpt:departureTime"]||"").localeCompare(b.item["odpt:departureTime"]||""));
+    html+=`<div class="monitor-tabs"><button class="monitor-tab active" onclick="switchStationView('board',this)">ATOS発車標</button><button class="monitor-tab" onclick="switchStationView('dia',this)">駅別ダイヤモニタ</button></div>`;
+    html+=`<div id="station-view-board" class="monitor-view active"><div class="departure-board"><div class="board-head"><span>${getFullStationTitle(stationId)}駅　発車案内</span><span class="board-live">● LIVE ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
+    if(!boardItems.length) html+='<div class="empty-state">本日の発車案内は終了しました</div>';
+    boardItems.slice(0,8).forEach(({direction,item})=>{
+      const number=item["odpt:trainNumber"]||"—";
+      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+      const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
+      const dest=getEntryDestination(item,lineId);
+      html+=`<div class="board-row"><span class="board-time">${delay?addMinutesToTime(item["odpt:departureTime"],delay):item["odpt:departureTime"]||'--:--'}</span><span class="board-type">${getTrainTypeName(item["odpt:trainType"])}<br>${getDirectionText(direction,lineId)}</span><span class="board-dest">${getFullStationTitle(dest)} 行</span><span class="board-platform">${getEntryPlatform(item,stationId,lineId)}番線</span><span class="board-number">${number}</span><span class="${delay?'board-delay':'board-on-time'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
+    });
+    html+='</div></div>';
+
+    html+=`<div id="station-view-dia" class="monitor-view"><div class="table-scroll"><table class="station-dia-table"><thead><tr><th>方向</th><th>列車番号</th><th>種別</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延</th></tr></thead><tbody>`;
+    if(!boardItems.length) html+='<tr><td colspan="11">表示できる列車がありません</td></tr>';
+    boardItems.slice(0,30).forEach(({direction,item})=>{
+      const number=item["odpt:trainNumber"]||"—";
+      const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+      const delay=live?.["odpt:delay"]?Math.floor(live["odpt:delay"]/60):0;
+      const dest=getEntryDestination(item,lineId);
+      const arr=item["odpt:arrivalTime"]||""; const dep=item["odpt:departureTime"]||"";
+      html+=`<tr><td class="direction-cell">${getDirectionText(direction,lineId)}</td><td><button class="train-link" onclick='openTrainByNumber(${JSON.stringify(number)},${JSON.stringify(lineId)})'>${number}</button></td><td>${getTrainTypeName(item["odpt:trainType"])}</td><td>${arr||'…'}</td><td class="forecast">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${dep||'…'}</td><td class="forecast">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${getEntryPlatform(item,stationId,lineId)}</td><td>${live?'在線':'継送'}</td><td>${getFullStationTitle(dest)}</td><td class="forecast">${delay?'＋'+delay:'000'}</td></tr>`;
+    });
+    html+=`</tbody></table></div><div style="margin-top:8px;color:var(--atos-muted);font-size:.67rem;">「予測」は公開遅延情報からの参考計算です。空欄は該当データが配信されていない項目です。</div></div>`;
+    content.innerHTML=html;
+  }
+
+  function switchStationView(name,button){
+    document.querySelectorAll('#stationTimetableContent .monitor-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('#stationTimetableContent .monitor-view').forEach(v=>v.classList.remove('active'));
+    button.classList.add('active'); document.getElementById('station-view-'+name).classList.add('active');
+  }
+
+  function openTrainByNumber(number,lineId){
+    const live=trainData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    const timetable=trainTimetableData.find(t=>t["odpt:trainNumber"]===number&&t["odpt:railway"]===lineId);
+    hideStationTimetableModal();
+    showTrainTimetableModal(timetable,live);
   }
 
   window.onclick = function(event) {
       const modal1 = document.getElementById('trainTimetableModal');
       const modal2 = document.getElementById('stationTimetableModal');
       if (event.target == modal1) {
-          modal1.style.display = "none";
+          hideTrainTimetableModal();
       }
       if (event.target == modal2) {
-          modal2.style.display = "none";
+          hideStationTimetableModal();
       }
   }
 
@@ -1026,6 +1249,9 @@
       .sort((a, b) => a["odpt:index"] - b["odpt:index"]);
     
     const stationIds = allStations.map(s => s["odpt:station"]);
+    const lineTrains=trainData.filter(t=>targetLines.includes(t["odpt:railway"]));
+    const delayed=lineTrains.filter(t=>(t["odpt:delay"]||0)>0).length;
+    document.getElementById("monitorSummary").innerHTML=`<span class="summary-pill">路線 <strong>${getLineTitle(primaryLineId)}</strong></span><span class="summary-pill">在線列車 <strong>${lineTrains.length}</strong>本</span><span class="summary-pill">遅延列車 <strong>${delayed}</strong>本</span><span class="summary-pill">表示駅 <strong>${stationIds.length}</strong>駅</span>`;
 
     let groupIndex = 0;
     for (let i = 0; i < stationIds.length; ) {
@@ -1042,6 +1268,7 @@
 
       const lineDiv = document.createElement("div");
       lineDiv.className = "station-line";
+      lineDiv.style.setProperty("--line-color",color);
 
       const track = document.createElement("div");
       track.className = "track-line";
@@ -1052,8 +1279,12 @@
         const s = document.createElement("div");
         s.className = "station";
         s.textContent = getStationTitle(stationId);
+        s.title = getFullStationTitle(stationId)+"駅の詳細を開く";
+        s.tabIndex = 0; s.setAttribute("role","button");
+        s.setAttribute("aria-label",getFullStationTitle(stationId)+"駅の詳細、発車標、時刻表を開く");
         s.style.left = `${(idx + 1) * (100 / (group.length + 1))}%`;
         s.onclick = () => showStationTimetableModal(stationId, primaryLineId);
+        s.onkeydown = e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();s.click();} };
         lineDiv.appendChild(s);
       });
 
@@ -1127,7 +1358,8 @@
 
         const div = document.createElement("div");
         div.className = "train " + trainDir;
-        div.style.borderColor = color;
+        div.style.color = color;
+        div.style.setProperty("--line-color",color);
         div.style.left = `${trainPosition}%`;
 
         if (trainDir === "up") {
@@ -1142,6 +1374,9 @@
           `<div class="train-info">${statusText ? statusText + " " : ""}${carCount ? carCount + "両" : ""} ${destination}</div>`;
 
         div.onclick = () => showDetails(train);
+        div.tabIndex=0; div.setAttribute("role","button");
+        div.setAttribute("aria-label",`${number}列車、${delay?delay+'分遅延':'定刻'}、運転時刻表を開く`);
+        div.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();div.click();}};
 
         lineDiv.appendChild(div);
       });
@@ -1159,10 +1394,10 @@
     
     fetchData().then(() => {
       btn.disabled = false;
-      btn.textContent = "更　新";
+      btn.textContent = "↻ 最新情報に更新";
     }).catch(() => {
       btn.disabled = false;
-      btn.textContent = "更　新";
+      btn.textContent = "↻ 最新情報に更新";
     });
   }
   
@@ -1170,10 +1405,22 @@
     document.body.classList.toggle('dark-mode');
     const btn = document.getElementById("toggleDarkModeBtn");
     if (document.body.classList.contains('dark-mode')) {
-      btn.textContent = "ライトモード";
+      btn.textContent = "通常表示";
     } else {
-      btn.textContent = "ダークモード";
+      btn.textContent = "夜間表示";
     }
+  }
+
+  function fetchSupplementalData(){
+    if(supplementalPromise) return supplementalPromise;
+    supplementalPromise=Promise.all([
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
+      fetch(`https://api-challenge.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`)
+    ]).then(async([stationRes,passengerRes])=>{
+      if(stationRes.ok) stationInfoData=await stationRes.json();
+      if(passengerRes.ok) passengerSurveyData=await passengerRes.json();
+    }).catch(e=>{ console.warn("駅補足情報を取得できませんでした",e); supplementalPromise=null; });
+    return supplementalPromise;
   }
 
   async function fetchData() {
@@ -1184,8 +1431,8 @@
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0:日, 1:月, ..., 6:土
       
-      const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json');
-      const holidays = await holidayResponse.json();
+      let holidays={};
+      try { const holidayResponse = await fetch('https://holidays-jp.github.io/api/v1/date.json'); if(holidayResponse.ok) holidays=await holidayResponse.json(); } catch(e) {}
       const todayString = today.toISOString().slice(0, 10);
       const isHoliday = holidays.hasOwnProperty(todayString);
       
@@ -1224,6 +1471,9 @@
       trainData = await trainRes.json();
       railwayData = await railRes.json();
 
+      const newest=trainData.map(t=>t["dc:date"]).filter(Boolean).sort().pop();
+      document.getElementById("dataTime").textContent=`データ時刻 ${formatApiTime(newest)}`;
+
       buildStationTitleMap();
       populateLineSelect();
 
@@ -1233,12 +1483,18 @@
 
       render();
     } catch (e) {
-      alert("データの取得に失敗しました: " + e.message);
+      document.getElementById("dataTime").textContent="データ取得エラー";
+      document.getElementById("monitor").innerHTML=`<div class="empty-state">データを取得できませんでした。通信状態を確認して「最新情報に更新」を押してください。<br><small>${e.message}</small></div>`;
     }
   }
   
   document.getElementById("toggleDarkModeBtn").addEventListener("click", toggleDarkMode);
 
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){ hideTrainTimetableModal(); hideStationTimetableModal(); hideDetails(); }
+  });
+
+  fetchSupplementalData();
   fetchData();
   setInterval(fetchData, 30000);
 </script>
