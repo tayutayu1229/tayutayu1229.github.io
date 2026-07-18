@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ATOS情報配信システム</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================
+   東京圏輸送情報システム v9
+   Windows 10/11 風 フラットUI（白・明るいグレー基調）
+   ===================================================== */
+:root {
+  /* ページ / パネル背景 */
+  --bg:        #f3f3f3;
+  --bg2:       #e9e9e9;
+  --bg3:       #eef0ee;
+  --panel:     #ffffff;
+  --surface:   #ffffff;
+
+  /* ボーダー */
+  --border:    #e1e1e1;
+  --border2:   #c8c8c8;
+  --border3:   #a6a6a6;
+
+  /* JR東日本グリーン（ブランドアクセント） */
+  --green:     #0a5c2e;
+  --green2:    #0a7a3d;
+  --green3:    #0a9448;
+  --green4:    #12b357;
+  --green-lt:  #e9f7ee;
+  --green-mid: #8fd4a8;
+
+  /* テキスト */
+  --text:      #1b1b1b;
+  --text2:     #303030;
+  --text3:     #5f6368;
+  --text4:     #8a8a8a;
+
+  /* ステータス */
+  --red:       #d13438;
+  --red2:      #b3181c;
+  --red-lt:    #fdf2f2;
+  --yellow:    #a15c00;
+  --yellow2:   #c77700;
+  --yellow-lt: #fff8ec;
+  --blue:      #005a9e;
+  --blue2:     #0067b8;
+  --blue-lt:   #f0f7fd;
+
+  /* ヘッダー */
+  --header:    #0a5c2e;
+  --header2:   #084923;
+
+  /* フラット装飾（旧ニューモーフィズム変数はここで無効化） */
+  --raised: none;
+  --inset:  none;
+  --btn-top: var(--surface);
+  --btn-green-top: var(--green2);
+  --btn-blue-top: var(--blue2);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  width: 100%; min-height: 100vh;
+  font-family: "Segoe UI", "Yu Gothic UI", 'Noto Sans JP', "Meiryo", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  font-size: 14px;
+}
+
+/* ===== ヘッダー ===== */
+#header {
+  background: var(--header);
+  border-bottom: 3px solid var(--green4);
+  padding: 0 20px; height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 200;
+}
+.header-left { display: flex; align-items: center; gap: 16px; }
+.sys-badge {
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #dcffe4;
+  font-family: 'Oswald', sans-serif; font-size: 0.6rem;
+  font-weight: 700; letter-spacing: 0.22em;
+  padding: 4px 12px; border-radius: 0;
+}
+.sys-title { color: #ffffff; font-size: 1.05rem; font-weight: 900; letter-spacing: 0.06em; }
+.sys-sub { color: rgba(255,255,255,0.6); font-size: 0.58rem; letter-spacing: 0.06em; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 18px; }
+.share-btn,.home-btn,.settings-btn { min-height:32px; padding:5px 11px; border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.1); color:#fff; font:700 .67rem/1 "Segoe UI",sans-serif; cursor:pointer; }
+.share-btn:hover { background:rgba(255,255,255,.2); }
+.home-btn { background:#158b71; border-color:#6ccab5; }
+.home-btn:hover { background:#1aa184; }
+.settings-btn:hover { background:rgba(255,255,255,.2); }
+.live-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 0; padding: 5px 14px;
+  font-size: 0.68rem; color: #d0ffd8;
+  letter-spacing: 0.1em; font-weight: 700;
+}
+.live-dot {
+  width: 8px; height: 8px; background: #58e070; border-radius: 50%;
+  animation: livepulse 1.6s infinite;
+}
+@keyframes livepulse {
+  0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(88,224,112,0.5); }
+  50%{ opacity:0.7; box-shadow:0 0 0 5px rgba(88,224,112,0); }
+}
+#clock { font-family:'Oswald',sans-serif; font-size:1.2rem; color:#ffffff; letter-spacing:0.1em; min-width:96px; text-align:right; }
+#clock-date { font-size:0.58rem; color:rgba(255,255,255,0.6); text-align:right; margin-top:1px; }
+
+/* ===== ステータスバー ===== */
+#status-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  display: flex; gap: 8px; align-items: center; overflow-x: auto;
+}
+.stat-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 0; padding: 5px 14px; white-space: nowrap;
+}
+.sp-label { font-size: 0.6rem; color: var(--text3); letter-spacing: 0.06em; font-weight: 700; }
+.sp-val { font-family:'Oswald',sans-serif; font-size:1.1rem; font-weight:700; letter-spacing:0.02em; }
+.sp-normal .sp-val  { color: var(--green2); }
+.sp-delay  .sp-val  { color: var(--yellow2); }
+.sp-suspend .sp-val { color: var(--red2); }
+.sp-total  .sp-val  { color: var(--blue2); }
+.sp-trains .sp-val  { color: var(--green3); }
+#sb-countdown { font-family:'Oswald',sans-serif; color:var(--text3); font-size:0.85rem; }
+
+/* ===== テロップ ===== */
+#info-ticker {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  height: 34px; display: flex; align-items: center;
+  position: relative; overflow: hidden;
+}
+.ticker-label {
+  background: var(--green);
+  color: #fff; font-size: 0.65rem; font-weight: 900;
+  padding: 0 16px; white-space: nowrap; height: 100%;
+  display: flex; align-items: center; letter-spacing: 0.1em;
+  flex-shrink: 0;
+  position: relative; z-index: 2;
+}
+.ticker-wrap {
+  flex: 1; overflow: hidden; height: 100%;
+  display: flex; align-items: center;
+}
+.ticker-content {
+  white-space: nowrap;
+  animation: scroll-ticker var(--ticker-dur,30s) linear infinite;
+  font-size: 0.8rem; color: var(--text2); padding-left: 20px;
+  display: inline-block;
+}
+@keyframes scroll-ticker { 0%{transform:translateX(100vw);}100%{transform:translateX(-100%);} }
+
+/* ===== タブ ===== */
+#nav-tabs {
+  background: var(--surface);
+  border-bottom: 2px solid var(--green);
+  display: flex; padding: 0 14px; gap: 2px; overflow-x: auto;
+}
+.nav-tab {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 0;
+  padding: 11px 22px; font-size: 0.82rem; font-weight: 700;
+  color: var(--text3); cursor: pointer; white-space: nowrap;
+  margin-top: 6px; min-height: 42px;
+  transition: background-color 0.1s, color 0.1s;
+  letter-spacing: 0.02em; user-select: none;
+}
+.nav-tab:hover { color: var(--green); background: var(--green-lt); }
+.nav-tab.active {
+  background: var(--surface);
+  color: var(--green); border-color: var(--green);
+  border-bottom: 2px solid var(--surface);
+  z-index: 1; margin-bottom: -2px; font-weight: 900;
+}
+.tab-badge { display:inline-block; background:var(--red2); color:#fff; font-size:0.58rem; padding:2px 6px; border-radius:0; margin-left:5px; font-weight:900; }
+.tab-badge.yellow { background: var(--yellow2); }
+
+/* ===== コンテンツ ===== */
+#content { padding: 16px; max-width: 1440px; margin: 0 auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: slideIn 0.15s ease; }
+@keyframes slideIn { from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);} }
+
+/* ===== ボタン ===== */
+.hbtn {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: 0;
+  padding: 10px 20px;
+  font-family: "Segoe UI", 'Noto Sans JP', sans-serif;
+  font-size: 0.82rem; font-weight: 700; color: var(--text2);
+  cursor: pointer; letter-spacing: 0.02em; white-space: nowrap;
+  transition: background-color 0.1s;
+  min-height: 40px;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.hbtn:hover { background: var(--bg2); border-color: var(--green2); color: var(--green); }
+.hbtn:active { background: var(--border); }
+.hbtn.primary {
+  background: var(--green2);
+  color: #fff; border-color: var(--green2);
+}
+.hbtn.primary:hover { background: var(--green3); border-color: var(--green3); color: #fff; }
+.hbtn.blue {
+  background: var(--blue2);
+  color: #fff; border-color: var(--blue2);
+}
+.hbtn.blue:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
+.hbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ===== パネルボックス ===== */
+.panel-box {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 0; margin-bottom: 14px; overflow: hidden;
+}
+.panel-head {
+  background: var(--bg2);
+  border-bottom: 2px solid var(--green);
+  padding: 10px 16px; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.panel-head-title {
+  font-family: 'Oswald', sans-serif; font-size: 0.88rem;
+  color: var(--text); font-weight: 700; letter-spacing: 0.1em;
+  display: flex; align-items: center; gap: 9px;
+}
+.ph-icon {
+  background: var(--green); color: #fff;
+  border-radius: 0; padding: 3px 9px;
+  font-size: 0.62rem; letter-spacing: 0.08em; font-weight: 900;
+}
+.panel-body { padding: 16px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ts-label {
+  font-size: 0.68rem; color: var(--text3);
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 0; padding: 3px 10px;
+  font-family: 'Oswald', sans-serif; letter-spacing: 0.04em;
+}
+.error-box {
+  background: var(--red-lt); border: 1px solid var(--red);
+  border-left: 4px solid var(--red);
+  border-radius: 0; padding: 10px 14px; font-size: 0.8rem;
+  color: var(--red2); font-weight: 700; display: none; margin-bottom: 10px;
+}
+.loading-box { text-align: center; padding: 40px 20px; color: var(--text3); }
+.h-spinner {
+  width: 30px; height: 30px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--green3);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.h-input {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: 0; padding: 9px 14px;
+  font-family: "Segoe UI", 'Noto Sans JP', sans-serif; font-size: 0.85rem;
+  color: var(--text); outline: none; min-width: 180px;
+  transition: border-color 0.15s;
+}
+.h-input:focus { border-color: var(--green3); }
+.h-input::placeholder { color: var(--text4); }
+.h-select {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: 0; padding: 9px 30px 9px 12px;
+  font-family: "Segoe UI", 'Noto Sans JP', sans-serif; font-size: 0.83rem;
+  color: var(--text); cursor: pointer; outline: none;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M0 0l5 7 5-7z' fill='%235f6368'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+  min-width: 120px;
+  transition: border-color 0.15s;
+}
+.h-select:focus { border-color: var(--green3); }
+
+.scroll-area { overflow-y: auto; max-height: 600px; }
+.scroll-area::-webkit-scrollbar { width: 10px; }
+.scroll-area::-webkit-scrollbar-track { background: var(--bg2); border-radius: 0; }
+.scroll-area::-webkit-scrollbar-thumb { background: var(--border3); border-radius: 0; border: 2px solid var(--bg2); }
+.scroll-area::-webkit-scrollbar-thumb:hover { background: var(--green2); }
+.scroll-x { overflow-x: auto; }
+
+/* フィルターチップ */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fchip {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: 0; padding: 8px 18px;
+  font-size: 0.75rem; font-weight: 700; color: var(--text3);
+  cursor: pointer;
+  transition: background-color 0.1s; user-select: none; min-height: 36px;
+  display: inline-flex; align-items: center;
+}
+.fchip:hover { background: var(--green-lt); color: var(--green); border-color: var(--green2); }
+.fchip.active {
+  background: var(--green2);
+  color: #fff; border-color: var(--green2);
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width:960px){ .two-col { grid-template-columns: 1fr; } }
+.search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* ===== 運行情報カード ===== */
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 10px; }
+.train-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--border3);
+  border-radius: 0; padding: 12px 14px;
+}
+.tc-normal  { border-left-color: var(--green3); }
+.tc-delay   { border-left-color: var(--yellow2); background: var(--yellow-lt); }
+.tc-suspend { border-left-color: var(--red2); background: var(--red-lt); }
+.tc-notice  { border-left-color: var(--blue2); background: var(--blue-lt); }
+.card-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.card-line-name { font-weight: 900; font-size: 1rem; color: var(--text); }
+.info-since {
+  font-size: 0.62rem; color: var(--text3);
+  background: var(--bg2); border: 1px solid var(--border2);
+  padding: 2px 7px; border-radius: 0;
+  font-family: 'Oswald', sans-serif; letter-spacing: 0.02em;
+  margin-left: auto;
+}
+.status-stamp {
+  font-size: 0.65rem; font-weight: 900; padding: 3px 10px;
+  border-radius: 0; border: 1px solid; letter-spacing: 0.04em; white-space: nowrap;
+}
+.s-normal  .status-stamp { color: var(--green); border-color: var(--green2); background: var(--green-lt); }
+.s-delay   .status-stamp { color: var(--yellow); border-color: var(--yellow2); background: var(--yellow-lt); }
+.s-suspend .status-stamp { color: var(--red2); border-color: var(--red); background: var(--red-lt); }
+.s-notice  .status-stamp { color: var(--blue2); border-color: var(--blue2); background: var(--blue-lt); }
+.card-meta { font-size: 0.72rem; color: var(--text3); margin-bottom: 5px; }
+.card-text { font-size: 0.8rem; color: var(--text2); line-height: 1.7; border-top: 1px solid var(--border); padding-top: 6px; }
+
+.hist-toggle { font-size: 0.7rem; color: var(--blue2); cursor: pointer; margin-top: 6px; display: inline-block; font-weight: 700; }
+.hist-list { display: none; list-style: none; margin-top: 5px; background: var(--bg); border: 1px solid var(--border2); border-radius: 0; padding: 6px 10px; }
+.hist-item { padding: 5px 0; border-bottom: 1px dashed var(--border2); font-size: 0.73rem; color: var(--text2); }
+.hist-item:last-child { border-bottom: none; }
+.hist-time { font-weight: 700; background: var(--surface); border: 1px solid var(--border2); padding: 1px 6px; border-radius: 0; font-size: 0.66rem; margin-right: 5px; font-family:'Oswald',sans-serif; }
+.hist-s { color: var(--red2); font-weight: 900; }
+
+/* ===== 遅延把握テーブル ===== */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 700px; }
+.data-table thead th {
+  background: #149486;
+  color: #fff; padding: 9px 12px;
+  text-align: left; font-weight: 900; font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  border-bottom: 2px solid #087568;
+  border-right: 1px solid rgba(255,255,255,.5);
+  white-space: nowrap;
+}
+.data-table thead th:last-child { border-right: none; }
+.data-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.08s; }
+.data-table tbody tr:nth-child(even) { background: var(--bg); }
+.data-table tbody tr:hover { background: var(--green-lt); }
+.data-table tbody td { padding: 8px 12px; border-right: 1px solid var(--border); color: var(--text); }
+.data-table tbody td:last-child { border-right: none; }
+.data-table tbody tr.tr-delay td:first-child { border-left: 4px solid var(--yellow2); }
+.data-table tbody tr.tr-big   td:first-child { border-left: 4px solid var(--red2); }
+.delay-chip { font-family:'Oswald',sans-serif; font-size:0.9rem; font-weight:700; padding:3px 10px; border-radius:0; border:1px solid; }
+.dc-0  { color: var(--green);  border-color: var(--green2); background: var(--green-lt); }
+.dc-3  { color: var(--yellow); border-color: var(--yellow2); background: var(--yellow-lt); }
+.dc-10 { color: #a15000; border-color: #c77700; background: #fff2e0; }
+.dc-20 { color: var(--red2); border-color: var(--red); background: var(--red-lt); }
+.mini-num { font-family:'Oswald',sans-serif; font-size:0.88rem; font-weight:600; padding:2px 8px; border-radius:0; background:var(--bg2); border:1px solid var(--border2); color:var(--text3); }
+.mn-warn  { background:var(--yellow-lt); border-color:var(--yellow2); color:var(--yellow); }
+.mn-alert { background:#fff2e0; border-color:#c77700; color:#a15000; }
+.mn-crit  { background:var(--red-lt); border-color:var(--red); color:var(--red2); }
+.ratio-bar { width: 90px; height: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 0; overflow: hidden; }
+.ratio-fill { height: 100%; transition: width 0.6s ease; }
+.rf-low  { background: var(--green3); }
+.rf-mid  { background: var(--yellow2); }
+.rf-high { background: var(--red2); }
+
+/* ===== ATOS 在線モニタ ===== */
+.atos-line-selector-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.atos-note { margin:-6px 0 12px; padding:7px 10px; background:#eef5f0; border-left:4px solid var(--green2); color:var(--text3); font-size:.68rem; line-height:1.5; }
+.parallel-combined-track { position:relative; min-height:190px; margin-bottom:12px; background:#fff; border:1px solid var(--border2); overflow:visible; }
+.parallel-rail { position:absolute; left:0; right:0; height:6px; z-index:1; }
+.parallel-rail.first { top:calc(50% - 11px); }
+.parallel-rail.second { top:calc(50% + 5px); }
+.parallel-line-label { position:absolute; left:7px; z-index:7; transform:translateY(-50%); padding:2px 6px; background:rgba(255,255,255,.95); border:1px solid var(--border2); font-size:.6rem; font-weight:900; }
+.parallel-line-label.first { top:calc(50% - 21px); color:#398800; }
+.parallel-line-label.second { top:calc(50% + 21px); color:#0078bd; }
+.parallel-combined-track .station { z-index:9; }
+.station-line {
+  position: relative;
+  margin-bottom: 18px; min-height: 130px;
+  border: 1px solid var(--border2); border-radius: 0;
+  padding: 16px 12px;
+  background: var(--panel);
+  overflow: visible;
+}
+/* 路線バー */
+.track-line {
+  position: absolute; top: 50%; left: 0; right: 0;
+  height: 5px; transform: translateY(-50%); z-index: 0;
+}
+/* 駅コマ */
+.station {
+  position: absolute;
+  width: 96px; min-height: 38px; height:auto; padding:7px 6px;
+  background: #111914;
+  border: 2px solid #111914;
+  text-align: center; line-height: 1.15;
+  font-size: 10.5px; font-weight: 900; color: #fff;
+  transform: translate(-50%, -50%); top: 50%; z-index: 10;
+  border-radius: 0; cursor: pointer; white-space: nowrap; overflow: hidden;
+  transition: background-color 0.1s;
+}
+.station:hover { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* 列車コマ */
+.train {
+  position: absolute;
+  width: 128px; min-width:128px; height: 44px;
+  padding: 5px 10px;
+  border: 0;
+  background: currentColor;
+  cursor: pointer;
+  box-sizing: border-box; border-radius: 0;
+  white-space: nowrap; font-weight: 700; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; overflow:hidden;
+  transform: translateX(-50%);
+  transition: box-shadow 0.1s, transform 0.08s;
+  color: var(--text);
+}
+.train:hover { box-shadow: 0 6px 14px rgba(0,0,0,.2); z-index:20; }
+.train:active { transform: translateX(-50%) translateY(1px); }
+/* 方向矢印 */
+.train.down { clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%); }
+.train.up { clip-path:polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%); }
+.train::before { content:''; position:absolute; inset:3px; z-index:1; background:#d8dad9; clip-path:inherit; }
+.train > * { position:relative; z-index:2; }
+.train.delayed-train::before { background:#fff0f1; }
+.train-number { white-space:nowrap; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; font-family:'Oswald',sans-serif; color:var(--text); }
+.train-delay  { color: var(--red2); font-weight:900; font-size:10px; }
+.train-info-sub { font-size:8.5px; color:var(--text3); line-height:1.1; margin-top:2px; }
+
+.atos-table-wrap { overflow-x:auto; border:1px solid var(--border2); }
+.atos-table { width:100%; min-width:920px; border-collapse:collapse; table-layout:auto; font-size:.72rem; }
+.atos-table th { padding:6px 7px; color:#fff; background:#149486; border:1px solid rgba(255,255,255,.55); text-align:center; white-space:nowrap; }
+.atos-table td { padding:5px 7px; color:#111; background:#d5d7d6; border:1px solid #fff; text-align:center; white-space:nowrap; }
+.atos-table tbody tr:nth-child(even) td { background:#c9ccca; }
+.atos-table .time { font-family:'Oswald',monospace; font-weight:700; font-size:.84rem; }
+.atos-table .predicted,.atos-table .delay-positive { color:var(--red2); font-weight:900; }
+.atos-table .delay-zero { color:#111; font-weight:800; }
+.atos-table tr[hidden] { display:none; }
+.atos-table .train-link { padding:0; border:0; background:transparent; color:#173c9d; font:900 .75rem/1 monospace; text-decoration:underline; cursor:pointer; }
+.atos-monitor-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:10px; }
+.atos-meta-cell { padding:7px 9px; background:#eef2ef; border:1px solid var(--border2); }
+.atos-meta-label { color:var(--text3); font-size:.6rem; font-weight:800; }
+.atos-meta-value { margin-top:2px; font-weight:900; }
+.atos-filterbar { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:8px 0; padding:7px; background:#d9dedb; border:1px solid var(--border3); }
+.atos-filterbar button { min-height:32px; padding:5px 12px; border:1px solid #8ba096; background:#fff; color:var(--text2); font-weight:800; cursor:pointer; }
+.atos-filterbar button.active { background:#108d78; border-color:#08715f; color:#fff; }
+.atos-view-tabs { display:flex; gap:2px; margin-top:10px; border-bottom:2px solid #087568; }
+.atos-view-tabs button { min-height:36px; padding:6px 16px; border:1px solid var(--border2); border-bottom:0; background:#e5e9e7; color:var(--text3); font-weight:900; cursor:pointer; }
+.atos-view-tabs button.active { background:#149486; color:#fff; }
+.atos-station-view { display:none; }
+.atos-station-view.active { display:block; }
+.departure-board { margin-top:8px; color:#eaffd9; background:#07150d; border:5px solid #27382f; box-shadow:inset 0 0 18px #000; }
+.departure-board-head { display:flex; justify-content:space-between; padding:8px 11px; color:#fff; border-bottom:1px solid #294332; font-weight:900; }
+.departure-board-row { display:grid; grid-template-columns:70px 110px 85px minmax(120px,1fr) 70px 72px; gap:8px; align-items:center; min-height:40px; padding:5px 10px; border-bottom:1px solid #294332; font-family:monospace; }
+.departure-board-row:last-child { border-bottom:0; }
+.departure-board-time { color:#ffcf33; font-size:1.05rem; font-weight:900; }
+.departure-board-line { color:#86e8ff; font-size:.65rem; }
+.departure-board-type { color:#a8e7ff; }
+.departure-board-dest { color:#fff; font-weight:900; }
+.departure-board-delay { color:#ff777d; font-weight:900; }
+.departure-board-ontime { color:#83e493; }
+@media(max-width:700px){ .atos-monitor-meta{grid-template-columns:1fr 1fr;} .station{width:82px;font-size:9.5px;} }
+
+/* 列車詳細パネル */
+#train-details {
+  position: fixed; bottom: 24px; right: 24px; max-width: 290px;
+  background: var(--panel); border: 1px solid var(--green);
+  padding: 16px 18px; font-size: 13px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  border-radius: 0; display: none; z-index: 9999;
+}
+#train-details strong { display:inline-block; width:72px; color:var(--green); font-size:0.73rem; font-weight:900; }
+.details-close { position:absolute; top:8px; right:10px; cursor:pointer; font-weight:700; font-size:18px; color:var(--text3); background:none; border:none; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:0; }
+.details-close:hover { background:var(--bg2); color:var(--text); }
+.details-title { font-family:'Oswald',sans-serif; font-size:1rem; font-weight:700; color:var(--green); margin-bottom:10px; letter-spacing:0.04em; border-bottom:2px solid var(--green); padding-bottom:7px; }
+
+/* ===== モーダル ===== */
+.modal-overlay {
+  display: none; position: fixed; z-index: 10000; inset: 0;
+  background: rgba(0,0,0,0.4);
+}
+.modal-box {
+  background: var(--surface);
+  margin: 4% auto; padding: 0;
+  border: 1px solid var(--border3);
+  width: 94%; max-width: 1150px;
+  border-radius: 0;
+  position: relative;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.2);
+  max-height: 86vh; overflow-y: auto;
+  font-family: "Segoe UI", 'Noto Sans JP', sans-serif;
+}
+/* 書類タイトルバー */
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  background: var(--bg2); border-bottom: 2px solid var(--green);
+}
+.modal-head h3 {
+  font-size: 0.82rem; color: var(--text); font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: 'Oswald', sans-serif;
+}
+.modal-close {
+  color: var(--text3); font-size: 18px; cursor: pointer; background: none;
+  border: 1px solid var(--border3); width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 0; line-height: 1; font-weight: 700;
+  transition: background 0.1s;
+}
+.modal-close:hover { background: var(--border); color: var(--text); }
+.modal-inner { padding: 16px 20px; }
+.settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:9px; }
+.settings-card { padding:12px; border:1px solid var(--border2); background:#f3f6f4; }
+.settings-card h4 { margin-bottom:5px; color:var(--green); font-size:.8rem; }
+.settings-card p { color:var(--text3); font-size:.7rem; line-height:1.55; }
+.diagnostic-toolbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+.diagnostic-summary { padding:8px 10px; background:#101713; color:#9eeab5; font:700 .68rem/1.5 monospace; }
+.diagnostic-console { height:min(58vh,560px); overflow:auto; background:#070b08; color:#d7e4db; border:1px solid #26352c; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.diagnostic-entry { padding:7px 9px; border-bottom:1px solid #1d2921; white-space:pre-wrap; overflow-wrap:anywhere; }
+.diagnostic-entry.error { color:#ff9499; background:#190b0d; }
+.diagnostic-entry.warn { color:#ffd36b; background:#18150a; }
+.diagnostic-entry.info { color:#9ecbff; }
+.diagnostic-entry .diag-meta { color:#829087; font-size:10px; }
+.diagnostic-entry details { margin-top:3px; color:#c7d2cb; }
+.diagnostic-empty { padding:30px;text-align:center;color:#6f7f74; }
+
+/* ===== PDF書類スタイル共通 ===== */
+.doc-header {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-left: 5px solid var(--text);
+  padding: 7px 14px;
+  margin-bottom: 14px;
+  font-size: 0.8rem; color: var(--text);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.doc-badge {
+  background: var(--text); color: #fff;
+  font-size: 0.62rem; font-weight: 900; letter-spacing: 0.1em;
+  padding: 2px 8px; font-family: 'Oswald', sans-serif;
+}
+.doc-train-num {
+  font-family: 'Oswald', sans-serif; font-size: 1rem;
+  font-weight: 700; color: var(--text); letter-spacing: 0.06em;
+}
+.doc-route {
+  font-size: 0.78rem; color: var(--text3);
+}
+
+/* 方向見出し */
+.doc-dir-head {
+  background: var(--bg2);
+  border-top: 2px solid var(--text3);
+  border-bottom: 1px solid var(--border3);
+  padding: 5px 12px;
+  font-size: 0.75rem; font-weight: 900; color: var(--text);
+  letter-spacing: 0.1em; margin-top: 14px;
+  font-family: 'Oswald', sans-serif; text-transform: uppercase;
+}
+.doc-dir-head:first-of-type { margin-top: 0; }
+
+/* メインテーブル */
+.doc-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.8rem; border: 1px solid var(--border3);
+  margin-bottom: 0;
+}
+.doc-table thead tr { background: var(--bg2); }
+.doc-table th {
+  padding: 6px 12px;
+  font-size: 0.7rem; font-weight: 900; color: var(--text);
+  border: 1px solid var(--border3);
+  letter-spacing: 0.08em; white-space: nowrap;
+  font-family: 'Oswald', sans-serif; text-transform: uppercase;
+  text-align: left;
+}
+.doc-table td {
+  padding: 5px 12px; border: 1px solid var(--border2);
+  color: var(--text); background: var(--surface);
+  vertical-align: middle;
+}
+.doc-table tbody tr:nth-child(even) td { background: var(--bg); }
+.doc-table tr.row-delayed td { background: var(--red-lt); color: var(--red2); }
+.doc-table tr.row-delayed td.td-time { color: var(--red2); }
+.doc-table tr.row-delayed .delay-badge {
+  display: inline-block;
+  background: var(--red2); color: #fff;
+  font-size: 0.6rem; font-weight: 900; padding: 1px 5px;
+  font-family: 'Oswald', sans-serif; margin-left: 4px;
+  vertical-align: middle; letter-spacing: 0.04em;
+}
+.doc-table .td-time {
+  font-family: 'Oswald', sans-serif; font-size: 1rem;
+  font-weight: 700; color: var(--text); min-width: 58px;
+  border-right: 2px solid var(--border3); letter-spacing: 0.02em;
+}
+.doc-table .td-num {
+  font-family: 'Oswald', sans-serif; font-size: 0.82rem;
+  color: var(--text3); white-space: nowrap;
+}
+.doc-table .td-type {
+  font-size: 0.72rem; color: var(--text3); white-space: nowrap;
+  border-right: 1px solid var(--border2);
+}
+.doc-table .td-stn { font-weight: 700; color: var(--text); }
+.doc-table .td-stn.is-term { color: var(--green); font-weight: 900; }
+.doc-table .td-arr { font-family: 'Oswald', sans-serif; font-size: 0.82rem; color: var(--text3); }
+.doc-count {
+  font-size: 0.7rem; color: var(--text3);
+  border: 1px solid var(--border2); background: var(--bg2);
+  padding: 3px 10px; margin-bottom: 10px;
+  display: inline-block; font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.timetable-grid { display:block; }
+.tt-entry { display:none; }
+
+/* 乗降客 */
+.survey-card { background:var(--panel); border:1px solid var(--border2); border-radius:0; padding:10px 14px; }
+.survey-bar-bg { flex:1; height:12px; background:var(--bg2); border:1px solid var(--border2); border-radius:0; overflow:hidden; }
+.survey-bar { height:100%; background:var(--green3); border-radius:0; transition:width 0.8s ease; }
+
+/* レスポンシブ */
+@media(max-width:600px){
+  .info-grid { grid-template-columns: 1fr; }
+  #content { padding: 10px; }
+  .panel-body { padding: 10px; }
+  #header { height: 56px; padding: 0 14px; }
+  .sys-title { font-size: 0.88rem; }
+  .nav-tab { padding: 8px 14px; font-size: 0.75rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div id="header">
+  <div class="header-left">
+    <div class="sys-badge">JR-EAST TTC</div>
+    <div>
+      <div class="sys-title">ATOS情報配信システム</div>
+      <div class="sys-sub">統合情報モニタ　列車在線・運行把握・ダイヤ情報</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="home-btn" onclick="goTopMenu()">トップメニューへ</button>
+    <button class="settings-btn" onclick="openSettings()">設定</button>
+    <button class="share-btn" id="share-url-btn" onclick="copyShareUrl()">共有URL</button>
+    <div class="live-pill"><div class="live-dot"></div>稼働中</div>
+    <div><div id="clock">--:--:--</div><div id="clock-date">----/--/--</div></div>
+  </div>
+</div>
+
+<!-- ===== STATUS BAR ===== -->
+<div id="status-bar">
+  <div class="stat-pill sp-total">  <span class="sp-label">総路線</span><span class="sp-val" id="sb-total">--</span></div>
+  <div class="stat-pill sp-normal"> <span class="sp-label">平常</span><span class="sp-val" id="sb-normal">--</span></div>
+  <div class="stat-pill sp-delay">  <span class="sp-label">遅延</span><span class="sp-val" id="sb-delay">--</span></div>
+  <div class="stat-pill sp-suspend"><span class="sp-label">障害</span><span class="sp-val" id="sb-suspend">--</span></div>
+  <div class="stat-pill sp-trains"> <span class="sp-label">走行列車</span><span class="sp-val" id="sb-trains">--</span></div>
+  <div class="stat-pill" style="margin-left:auto;">
+    <span class="sp-label">次回更新</span>
+    <span id="sb-countdown" style="font-family:'Oswald',sans-serif;color:var(--text3);font-size:0.9rem;">60秒</span>
+  </div>
+</div>
+
+<!-- ===== TICKER ===== -->
+<div id="info-ticker">
+  <div class="ticker-label">運行情報</div>
+  <div class="ticker-wrap">
+    <div class="ticker-content" id="ticker-text">運行情報を取得中...</div>
+  </div>
+</div>
+
+<!-- ===== TABS ===== -->
+<div id="nav-tabs">
+  <button class="nav-tab active" data-tab="realtime" onclick="switchTab('realtime',this)">■ ATOS在線モニタ</button>
+  <button class="nav-tab" data-tab="grasp" onclick="switchTab('grasp',this)">▦ 運行把握モニタ
+    <span id="tbadge-grasp" class="tab-badge yellow" style="display:none"></span>
+  </button>
+  <button class="nav-tab" data-tab="info" onclick="switchTab('info',this)">● 運行情報
+    <span id="tbadge-suspend" class="tab-badge" style="display:none"></span>
+    <span id="tbadge-delay" class="tab-badge yellow" style="display:none"></span>
+  </button>
+  <button class="nav-tab" data-tab="timetable" onclick="switchTab('timetable',this)">▷ 駅別・列車別ダイヤ</button>
+  <button class="nav-tab" data-tab="station" onclick="switchTab('station',this)">◇ 駅情報・乗降客数</button>
+</div>
+
+<div id="content">
+
+<!-- ===== 運行情報 ===== -->
+<div id="tab-info" class="tab-panel">
+  <div class="panel-box">
+    <div class="panel-head">
+      <div class="panel-head-title"><span class="ph-icon">情報</span>路線別 運行情報</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="info-ts" class="ts-label">取得中...</span>
+        <button class="hbtn primary" id="btn-info" onclick="refreshInfo()"><span id="ri-icon">↻</span> 更新</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="toolbar">
+        <div class="filter-chips" id="info-filters">
+          <div class="fchip active" onclick="setInfoFilter('all',this)">すべて</div>
+          <div class="fchip" onclick="setInfoFilter('suspend',this)">障害・運休</div>
+          <div class="fchip" onclick="setInfoFilter('delay',this)">遅延</div>
+          <div class="fchip" onclick="setInfoFilter('normal',this)">平常</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.76rem;color:var(--text3);margin-left:auto;cursor:pointer;">
+          <input type="checkbox" id="hide-normal" onchange="renderInfo()" style="accent-color:var(--green3);width:15px;height:15px;"> 平常運転を非表示
+        </label>
+      </div>
+      <div id="err-info" class="error-box">⚠ データの取得に失敗しました</div>
+      <div id="info-grid" class="scroll-area" style="max-height:680px;">
+        <div class="loading-box"><div class="h-spinner"></div><div style="font-size:0.8rem;">運行情報を取得中...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 運行把握 ===== -->
+<div id="tab-grasp" class="tab-panel">
+  <div class="panel-box">
+    <div class="panel-head">
+      <div class="panel-head-title"><span class="ph-icon">遅延</span>遅延把握モニタ</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="grasp-ts" class="ts-label">取得中...</span>
+        <button class="hbtn primary" id="btn-grasp" onclick="refreshGrasp()">↻ 更新</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="toolbar">
+        <div class="filter-chips" id="grasp-filters">
+          <div class="fchip active" onclick="setGraspFilter('all',this)">すべて</div>
+          <div class="fchip" onclick="setGraspFilter('delay',this)">遅延あり</div>
+          <div class="fchip" onclick="setGraspFilter('nodelay',this)">平常のみ</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.73rem;color:var(--text3);">並び替え:</span>
+          <select class="h-select" id="grasp-sort" onchange="renderGrasp();syncUrlState()">
+            <option value="delay">遅延時間順</option>
+            <option value="name">路線名順</option>
+            <option value="ratio">遅延率順</option>
+          </select>
+        </div>
+      </div>
+      <div id="err-grasp" class="error-box">⚠ データの取得に失敗しました</div>
+      <div class="scroll-x">
+        <table class="data-table">
+          <thead><tr>
+            <th>線区名</th><th>最大遅延</th><th>最大遅延列番</th><th>遅延/総本数</th>
+            <th>遅延率</th><th>3分〜</th><th>10分〜</th><th>20分〜</th><th>最高両数</th>
+          </tr></thead>
+          <tbody id="grasp-tbody"><tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text3);">
+            <div class="h-spinner" style="margin:0 auto 8px;"></div>取得中...
+          </td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ATOS在線 ===== -->
+<div id="tab-realtime" class="tab-panel active">
+  <div class="panel-box">
+    <div class="panel-head">
+      <div class="panel-head-title"><span class="ph-icon">在線</span>ATOS在線モニタ</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="atos-ts" class="ts-label">取得中...</span>
+        <button class="hbtn primary" id="btn-atos" onclick="atosManualUpdate()">↻ 更新</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div id="err-atos" class="error-box">⚠ データの取得に失敗しました</div>
+      <div class="atos-line-selector-row">
+        <span style="font-size:0.8rem;font-weight:700;color:var(--text2);">路線選択:</span>
+        <select class="h-select" id="atosLineSelect" onchange="atosLineChanged()" style="min-width:240px;"></select>
+        <select class="h-select" id="atosDirection" onchange="atosRender();syncUrlState()" aria-label="表示方向">
+          <option value="all">上下線両方</option><option value="up">上りのみ</option><option value="down">下りのみ</option>
+        </select>
+        <span id="atos-train-count" style="font-size:0.72rem;color:var(--text3);"></span>
+      </div>
+      <div class="atos-note">駅を選択：駅別ダイヤモニタ　／　列車を選択：列車別ダイヤモニタ　／　上り（A線・北行・内回り）　下り（B線・南行・外回り）</div>
+      <div id="atos-monitor"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 時刻表 ===== -->
+<div id="tab-timetable" class="tab-panel">
+  <div class="two-col">
+    <div class="panel-box">
+      <div class="panel-head"><div class="panel-head-title"><span class="ph-icon">駅別</span>駅別ダイヤモニタ</div></div>
+      <div class="panel-body">
+        <div class="search-row">
+          <select class="h-select" id="stt-line" onchange="loadSttStations()"><option value="">路線を選択</option></select>
+          <select class="h-select" id="stt-station" style="display:none;"><option value="">駅を選択</option></select>
+          <select class="h-select" id="stt-dir" style="display:none;">
+            <option value="Inbound">上り方面</option>
+            <option value="Outbound">下り方面</option>
+          </select>
+          <select class="h-select" id="stt-cal" style="display:none;">
+            <option value="Weekday">平日</option>
+            <option value="SaturdayHoliday">土休日</option>
+          </select>
+          <button class="hbtn blue" onclick="searchStationTimetable()">検索</button>
+        </div>
+        <div id="err-stt" class="error-box"></div>
+        <div id="stt-result" class="scroll-area" style="max-height:520px;">
+          <div style="text-align:center;padding:30px;color:var(--text3);font-size:0.78rem;">路線と駅を選んで検索してください</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-head"><div class="panel-head-title"><span class="ph-icon">列車別</span>列車別ダイヤモニタ</div></div>
+      <div class="panel-body">
+        <div class="search-row">
+          <select class="h-select" id="ttt-line" onchange="loadTttTrains()"><option value="">路線を選択</option></select>
+          <select class="h-select" id="ttt-cal" onchange="loadTttTrains()"><option value="Weekday">平日</option><option value="SaturdayHoliday">土休日</option></select>
+          <select class="h-select" id="ttt-train" style="display:none;"><option value="">列番を選択</option></select>
+          <button class="hbtn blue" onclick="searchTrainTimetable()">検索</button>
+        </div>
+        <div id="err-ttt" class="error-box"></div>
+        <div id="ttt-result" class="scroll-area" style="max-height:520px;">
+          <div style="text-align:center;padding:30px;color:var(--text3);font-size:0.78rem;">路線と列番を選んで検索してください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 駅情報・乗降客数 ===== -->
+<div id="tab-station" class="tab-panel">
+  <div class="two-col">
+    <div class="panel-box">
+      <div class="panel-head">
+        <div class="panel-head-title"><span class="ph-icon">駅情報</span>駅情報</div>
+        <button class="hbtn primary" onclick="loadStations()">↻ 取得</button>
+      </div>
+      <div class="panel-body">
+        <div class="search-row">
+          <select class="h-select" id="stn-line-filter" onchange="renderStations()"><option value="">すべての路線</option></select>
+          <input type="text" class="h-input" id="stn-search" placeholder="駅名で検索（例：新宿）" oninput="renderStations()" style="flex:1;">
+        </div>
+        <div id="err-stn" class="error-box"></div>
+        <div id="stn-count" style="font-size:0.72rem;color:var(--text3);margin-bottom:8px;"></div>
+        <div id="stn-list" class="scroll-area" style="max-height:540px;">
+          <div style="text-align:center;padding:30px;color:var(--text3);font-size:0.78rem;">「取得」ボタンを押してください</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-head">
+        <div class="panel-head-title"><span class="ph-icon">乗降客</span>乗降客数調査</div>
+        <button class="hbtn primary" onclick="loadPassenger()">↻ 取得</button>
+      </div>
+      <div class="panel-body">
+        <div class="search-row">
+          <input type="text" class="h-input" id="psg-search" placeholder="駅名で絞り込み（例：渋谷）" oninput="renderPassenger()" style="flex:1;">
+          <select class="h-select" id="psg-sort" onchange="renderPassenger()">
+            <option value="desc">多い順</option>
+            <option value="asc">少ない順</option>
+            <option value="name">駅名順</option>
+          </select>
+        </div>
+        <div id="err-psg" class="error-box"></div>
+        <div id="psg-count" style="font-size:0.72rem;color:var(--text3);margin-bottom:8px;"></div>
+        <div id="psg-list" class="scroll-area" style="max-height:540px;">
+          <div style="text-align:center;padding:30px;color:var(--text3);font-size:0.78rem;">「取得」ボタンを押してください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- ATOS列車詳細 -->
+<div id="train-details">
+  <button class="details-close" onclick="hideTrainDetails()">×</button>
+  <div class="details-title" id="td-num">---</div>
+  <div id="td-body"></div>
+</div>
+
+<!-- モーダル: 列車時刻表 -->
+<div class="modal-overlay" id="modal-train-tt" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="mtt-title">列車時刻表</h3>
+      <button class="modal-close" onclick="document.getElementById('modal-train-tt').style.display='none'">×</button>
+    </div>
+    <div class="modal-inner" id="mtt-body"></div>
+  </div>
+</div>
+
+<!-- モーダル: 駅時刻表 -->
+<div class="modal-overlay" id="modal-station-tt" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="mstt-title">駅時刻表</h3>
+      <button class="modal-close" onclick="document.getElementById('modal-station-tt').style.display='none'">×</button>
+    </div>
+    <div class="modal-inner" id="mstt-body"></div>
+  </div>
+</div>
+
+<!-- 設定 -->
+<div class="modal-overlay" id="modal-settings" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-head"><h3>システム設定</h3><button class="modal-close" onclick="document.getElementById('modal-settings').style.display='none'">×</button></div>
+    <div class="modal-inner"><div class="settings-grid">
+      <div class="settings-card"><h4>更新・表示</h4><p>60秒ごとの自動更新、現在の路線・方向・モニタ状態を共有URLへ保存します。</p><button class="hbtn primary" style="margin-top:8px" onclick="autoRefreshAll()">今すぐ全更新</button></div>
+      <div class="settings-card"><h4>共有</h4><p>表示中のタブ、路線、方向、駅・列車を含むURLをコピーします。</p><button class="hbtn blue" style="margin-top:8px" onclick="copyShareUrl()">共有URLをコピー</button></div>
+      <div class="settings-card"><h4>詳細診断</h4><p>API通信、JSON解析エラー、ODPT項目欠落をコンソール形式で確認します。トークンは自動的に伏せ字にします。</p><button class="hbtn" style="margin-top:8px" onclick="openDiagnostics()">診断コンソール</button></div>
+      <div class="settings-card"><h4>ショートカット</h4><p><strong>Ctrl/⌘ + Shift + D</strong><br>または入力欄以外で <strong>ATOS</strong> と順に押すと診断コンソールを開きます。</p></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- 裏コマンド: 診断コンソール -->
+<div class="modal-overlay" id="modal-diagnostics" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box" style="max-width:1180px">
+    <div class="modal-head"><h3>ATOS SYSTEM DIAGNOSTIC CONSOLE</h3><button class="modal-close" onclick="closeDiagnostics()">×</button></div>
+    <div class="modal-inner">
+      <div class="diagnostic-toolbar"><button class="hbtn primary" onclick="runSystemCheck()">システム検査</button><button class="hbtn" onclick="renderDiagnostics('all')">すべて</button><button class="hbtn" onclick="renderDiagnostics('error')">エラー</button><button class="hbtn" onclick="renderDiagnostics('warn')">警告</button><button class="hbtn" onclick="exportDiagnostics()">JSON保存</button><button class="hbtn" onclick="clearDiagnostics()">消去</button></div>
+      <div class="diagnostic-summary" id="diagnostic-summary">診断ログ待機中</div>
+      <div class="diagnostic-console" id="diagnostic-console"><div class="diagnostic-empty">API通信またはシステム検査のログがここに表示されます。</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 定数 =====
+const TOKEN = '26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o';
+const BASE  = 'https://api-challenge.odpt.org/api/v4';
+const K     = `acl:consumerKey=${TOKEN}`;
+
+// ===== 裏コマンド・診断コンソール =====
+const diagnosticLogs=[];
+const nativeFetch=window.fetch.bind(window);
+const nativeResponseJson=Response.prototype.json;
+function redactDiagnosticUrl(value){
+  try{const u=new URL(String(value),location.href);if(u.searchParams.has('acl:consumerKey'))u.searchParams.set('acl:consumerKey','***REDACTED***');return u.href;}
+  catch(e){return String(value).replace(/acl:consumerKey=[^&\s]+/g,'acl:consumerKey=***REDACTED***');}
+}
+function addDiagnostic(level,message,details=null,source='system'){
+  diagnosticLogs.push({time:new Date().toISOString(),level,message,source,details});
+  if(diagnosticLogs.length>400) diagnosticLogs.splice(0,diagnosticLogs.length-400);
+  if(document.getElementById('modal-diagnostics')?.style.display==='block') renderDiagnostics(document.getElementById('modal-diagnostics').dataset.filter||'all');
+}
+function analyzeJsonFailure(text,error,url){
+  const message=String(error?.message||error);
+  const posMatch=message.match(/position\s+(\d+)/i);
+  const lineMatch=message.match(/line\s+(\d+)/i), columnMatch=message.match(/column\s+(\d+)/i);
+  let position=posMatch?Number(posMatch[1]):null;
+  let line=lineMatch?Number(lineMatch[1]):null, column=columnMatch?Number(columnMatch[1]):null;
+  if(position!==null&&(!line||!column)){
+    const before=text.slice(0,position); line=(before.match(/\n/g)||[]).length+1; column=position-before.lastIndexOf('\n');
+  }
+  if(position===null&&line&&column){const rows=text.split('\n');position=rows.slice(0,line-1).reduce((n,row)=>n+row.length+1,0)+column-1;}
+  const start=Math.max(0,(position||0)-90), end=Math.min(text.length,(position||0)+90);
+  return {url:redactDiagnosticUrl(url),error:message,position,line,column,excerpt:text.slice(start,end),responseLength:text.length};
+}
+const odptRequiredFields={
+  'Train':['odpt:railway','odpt:trainNumber','odpt:fromStation'],
+  'TrainTimetable':['odpt:railway','odpt:trainNumber','odpt:trainTimetableObject'],
+  'StationTimetable':['odpt:station','odpt:railway','odpt:stationTimetableObject'],
+  'Railway':['owl:sameAs','odpt:stationOrder'],
+  'Station':['owl:sameAs','odpt:stationTitle'],
+  'TrainInformation':['odpt:railway','odpt:trainInformationText'],
+  'PassengerSurvey':['odpt:station','odpt:passengerSurveyObject']
+};
+function inspectOdptJson(data,url){
+  const match=String(url).match(/odpt:([A-Za-z]+)/), type=match?.[1], required=odptRequiredFields[type];
+  if(!required||!Array.isArray(data)) return;
+  const problems=[];
+  data.forEach((item,index)=>{if(!item||typeof item!=='object'){problems.push({index,error:'オブジェクトではありません',valueType:typeof item});return;}const missing=required.filter(key=>!(key in item));if(missing.length)problems.push({index,id:item['owl:sameAs']||item['@id']||item['odpt:trainNumber']||'不明',missing});});
+  if(problems.length) addDiagnostic('warn',`${type} JSON: 必須項目がないレコード ${problems.length}/${data.length}件`,{url:redactDiagnosticUrl(url),problems:problems.slice(0,30)},'json-schema');
+}
+window.fetch=async function(input,init){
+  const url=typeof input==='string'?input:input?.url||String(input), started=performance.now();
+  try{
+    const response=await nativeFetch(input,init), elapsed=Math.round(performance.now()-started);
+    addDiagnostic(response.ok?'info':'error',`HTTP ${response.status} ${response.statusText||''} (${elapsed}ms)`,{method:init?.method||'GET',url:redactDiagnosticUrl(url),contentType:response.headers.get('content-type')||'不明'},'fetch');
+    return response;
+  }catch(error){addDiagnostic('error',`通信失敗: ${error.message}`,{url:redactDiagnosticUrl(url),stack:error.stack},'fetch');throw error;}
+};
+Response.prototype.json=async function(){
+  let backup=null;try{backup=this.clone();}catch(e){}
+  try{const data=await nativeResponseJson.call(this);inspectOdptJson(data,this.url);return data;}
+  catch(error){let text='';try{text=backup?await backup.text():'';}catch(e){}addDiagnostic('error','JSON解析に失敗しました',analyzeJsonFailure(text,error,this.url),'json-parser');throw error;}
+};
+function diagEscape(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function openSettings(){document.getElementById('modal-settings').style.display='block';}
+function openDiagnostics(){document.getElementById('modal-settings').style.display='none';const modal=document.getElementById('modal-diagnostics');modal.style.display='block';renderDiagnostics(modal.dataset.filter||'all');}
+function closeDiagnostics(){document.getElementById('modal-diagnostics').style.display='none';}
+function renderDiagnostics(filter='all'){
+  const modal=document.getElementById('modal-diagnostics');modal.dataset.filter=filter;
+  const logs=filter==='all'?diagnosticLogs:diagnosticLogs.filter(x=>x.level===filter);
+  const counts={error:diagnosticLogs.filter(x=>x.level==='error').length,warn:diagnosticLogs.filter(x=>x.level==='warn').length,info:diagnosticLogs.filter(x=>x.level==='info').length};
+  document.getElementById('diagnostic-summary').textContent=`記録 ${diagnosticLogs.length}件 / ERROR ${counts.error} / WARN ${counts.warn} / INFO ${counts.info} / 表示 ${logs.length}件`;
+  document.getElementById('diagnostic-console').innerHTML=logs.length?logs.slice().reverse().map(log=>`<div class="diagnostic-entry ${log.level}"><div class="diag-meta">${diagEscape(log.time)} [${diagEscape(log.level.toUpperCase())}] ${diagEscape(log.source)}</div><strong>${diagEscape(log.message)}</strong>${log.details?`<details><summary>詳細を表示</summary>${diagEscape(JSON.stringify(log.details,null,2))}</details>`:''}</div>`).join(''):'<div class="diagnostic-empty">該当する診断ログはありません。</div>';
+}
+function clearDiagnostics(){diagnosticLogs.length=0;addDiagnostic('info','診断ログを消去しました',null,'console');renderDiagnostics('all');}
+function exportDiagnostics(){const safe=diagnosticLogs.map(log=>({...log,details:log.details?JSON.parse(JSON.stringify(log.details).replaceAll(TOKEN,'***REDACTED***')):null}));const blob=new Blob([JSON.stringify(safe,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`atos-diagnostics-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function runSystemCheck(){
+  const checks=[['オンライン状態',navigator.onLine],['在線列車データ',Array.isArray(atosTrainData)&&atosTrainData.length>0],['路線データ',Array.isArray(atosRailwayData)&&atosRailwayData.length>0],['運行情報データ',Array.isArray(infoData)&&infoData.length>0],['路線選択',Boolean(document.getElementById('atosLineSelect')?.value)],['共有URL状態',urlStateReady]];
+  checks.forEach(([name,ok])=>addDiagnostic(ok?'info':'warn',`${name}: ${ok?'正常':'未取得または異常'}`,null,'self-check'));
+  addDiagnostic('info','システム検査完了',{activeView:document.querySelector('.nav-tab.active')?.dataset.tab||'不明',selectedLine:document.getElementById('atosLineSelect')?.value||'未選択',trainCount:atosTrainData.length,timetableCount:atosTimetableData.length},'self-check');
+  renderDiagnostics('all');
+}
+window.addEventListener('error',event=>addDiagnostic('error',event.message,{file:event.filename,line:event.lineno,column:event.colno,stack:event.error?.stack},'window'));
+window.addEventListener('unhandledrejection',event=>addDiagnostic('error',`未処理Promise: ${event.reason?.message||event.reason}`,{stack:event.reason?.stack},'promise'));
+let secretKeys='';
+window.addEventListener('keydown',event=>{
+  if((event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key.toLowerCase()==='d'){event.preventDefault();openDiagnostics();return;}
+  if(event.key==='Escape'){document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none');return;}
+  if(/INPUT|SELECT|TEXTAREA/.test(event.target?.tagName||'')) return;
+  if(event.key.length===1){secretKeys=(secretKeys+event.key.toUpperCase()).slice(-4);if(secretKeys==='ATOS'){secretKeys='';openDiagnostics();}}
+});
+
+// ===== 共有URL状態 =====
+function readUrlState(){
+  const query=new URLSearchParams(location.search);
+  const hash=new URLSearchParams(location.hash.replace(/^#/,''));
+  const out={};
+  for(const key of ['view','line','direction','station','train','calendar','info','grasp','sort']) out[key]=query.get(key)||hash.get(key)||'';
+  return out;
+}
+const initialUrlState=readUrlState();
+let urlStateReady=false;
+function syncUrlState(extra={}){
+  if(!urlStateReady) return;
+  const active=document.querySelector('.nav-tab.active')?.dataset.tab||'realtime';
+  const line=document.getElementById('atosLineSelect')?.value||'';
+  const direction=document.getElementById('atosDirection')?.value||'all';
+  const params=new URLSearchParams();
+  params.set('view',extra.view||active);
+  if(line) params.set('line',line);
+  if(direction!=='all') params.set('direction',direction);
+  if(infoFilterMode!=='all') params.set('info',infoFilterMode);
+  if(graspFilterMode!=='all') params.set('grasp',graspFilterMode);
+  const sort=document.getElementById('grasp-sort')?.value;
+  if(sort&&sort!=='delay') params.set('sort',sort);
+  if(extra.station) params.set('station',extra.station);
+  if(extra.train) params.set('train',extra.train);
+  if(extra.calendar) params.set('calendar',extra.calendar);
+  const query=params.toString();
+  const hashParts=[`view=${encodeURIComponent(extra.view||active)}`];
+  if(line) hashParts.push(`line=${encodeURIComponent(line)}`);
+  if(extra.station) hashParts.push(`station=${encodeURIComponent(extra.station)}`);
+  if(extra.train) hashParts.push(`train=${encodeURIComponent(extra.train)}`);
+  history.replaceState(null,'',`${location.pathname}?${query}#${hashParts.join('&')}`);
+}
+async function copyShareUrl(){
+  syncUrlState();
+  const btn=document.getElementById('share-url-btn');
+  try{ await navigator.clipboard.writeText(location.href); btn.textContent='コピー済み'; }
+  catch(e){ window.prompt('このURLをコピーしてください',location.href); btn.textContent='URL表示'; }
+  setTimeout(()=>btn.textContent='共有URL',1800);
+}
+function goTopMenu(){
+  document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none');
+  hideTrainDetails();
+  const button=document.querySelector('.nav-tab[data-tab="realtime"]');
+  if(button) switchTab('realtime',button);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ===== 路線名マップ =====
+const railwayMap = {
+  "JR-East.Chuo":"中央本線","JR-East.ChuoRapid":"中央急行線","JR-East.ChuoSobuLocal":"中央総武緩行線",
+  "JR-East.SobuRapid":"総武快速線","JR-East.Yokosuka":"横須賀線","JR-East.Tokaido":"東海道線",
+  "JR-East.ShonanShinjuku":"湘南新宿ライン","JR-East.SotetsuDirect":"相鉄直通線",
+  "JR-East.SaikyoKawagoe":"埼京川越線","JR-East.Kawagoe":"川越線",
+  "JR-East.Takasaki":"高崎線","JR-East.Utsunomiya":"宇都宮線","JR-East.Nikko":"日光線",
+  "JR-East.Karasuyama":"烏山線","JR-East.JobanRapid":"常磐快速線","JR-East.Joban":"常磐線",
+  "JR-East.JobanLocal":"常磐緩行線","JR-East.Musashino":"武蔵野線","JR-East.Sagami":"相模線",
+  "JR-East.Nambu":"南武線","JR-East.NambuBranch":"南武支線","JR-East.Tsurumi":"鶴見線",
+  "JR-East.TsurumiUmiShibauraBranch":"鶴見線（海芝浦）","JR-East.TsurumiOkawaBranch":"鶴見線（大川）",
+  "JR-East.Yokohama":"横浜線","JR-East.Ito":"伊東線","JR-East.Ome":"青梅線",
+  "JR-East.Itsukaichi":"五日市線","JR-East.Hachiko":"八高線","JR-East.Ryomo":"両毛線",
+  "JR-East.Mito":"水戸線","JR-East.Suigun":"水郡線","JR-East.SuigunBranch":"水郡線常陸太田支線",
+  "JR-East.Sobu":"総武本線","JR-East.Narita":"成田線","JR-East.NaritaAbikoBranch":"成田線（我孫子）",
+  "JR-East.NaritaAirportBranch":"成田線（空港）","JR-East.Kashima":"鹿島線","JR-East.Keiyo":"京葉線",
+  "JR-East.Uchibo":"内房線","JR-East.Sotobo":"外房線","JR-East.Togane":"東金線",
+  "JR-East.Kururi":"久留里線","JR-East.Yamanote":"山手線","JR-East.KeihinTohokuNegishi":"京浜東北根岸線",
+  "JR-East.TohokuShinkansen":"東北新幹線","JR-East.JoetsuShinkansen":"上越新幹線",
+  "JR-East.HokurikuShinkansen":"北陸新幹線","JR-East.YamagataShinkansen":"山形新幹線",
+  "JR-East.AkitaShinkansen":"秋田新幹線","JR-East.ChuoTatsunoBranch":"中央本線（辰野）",
+  "JR-East.BanetsuEast":"磐越東線","JR-East.BanetsuWest":"磐越西線","JR-East.Tadami":"只見線",
+  "JR-East.Joetsu":"上越線","JR-East.Agatsuma":"吾妻線","JR-East.Echigo":"越後線",
+  "JR-East.Hakushin":"白新線","JR-East.Yahiko":"弥彦線","JR-East.Shinonoi":"篠ノ井線",
+  "JR-East.Oito":"大糸線","JR-East.Iiyama":"飯山線","JR-East.Koumi":"小海線",
+  "JR-East.Shinetsu":"信越線","JR-East.Senzan":"仙山線","JR-East.Tohoku":"東北本線",
+  "JR-East.SensekiTohoku":"仙石東北ライン","JR-East.Senseki":"仙石線","JR-East.Ishinomaki":"石巻線",
+  "JR-East.Aterazawa":"左沢線","JR-East.Kesennuma":"気仙沼線","JR-East.Kitakami":"北上線",
+  "JR-East.Kamaishi":"釜石線","JR-East.Yamada":"山田線","JR-East.Hachinohe":"八戸線",
+  "JR-East.Ominato":"大湊線","JR-East.Tazawako":"田沢湖線","JR-East.Oga":"男鹿線",
+  "JR-East.Gono":"五能線","JR-East.Ou":"奥羽本線","JR-East.Uetsu":"羽越線",
+  "JR-East.Hanawa":"花輪線","JR-East.Tsugaru":"津軽線","JR-East.RikuEast":"陸羽東線",
+  "JR-East.RikuWest":"陸羽西線","JR-East.Ofunato":"大船渡線","JR-East.Yonesaka":"米坂線",
+};
+
+// ===== 列車種別マップ =====
+const trainTypeMap = {
+  "JR-East.Local":[1,"普通",""],"JR-East.Rapid":[3,"快速","快"],
+  "JR-East.LimitedExpress":[2,"特急","特"],"JR-East.Express":[2,"急行","急"],
+  "JR-East.SemiExpress":[2,"準急","準"],"JR-East.CommuterRapid":[3,"通勤快速","通快"],
+  "JR-East.CommutingRapid":[3,"通勤快速","通快"],"JR-East.SpecialRapid":[4,"特別快速","特快"],
+  "JR-East.ChuoSpecialRapid":[5,"中央特快","中快"],"JR-East.OmeSpecialRapid":[4,"青梅特快","青快"],
+  "JR-East.CommuterSpecialRapid":[4,"通勤特快","通特"],"JR-East.RegionalRapid":[3,"区間快速","区快"],
+};
+
+// ===== 路線カラー =====
+const lineColors = {
+  "odpt.Railway:JR-East.KeihinTohokuNegishi":"#0078BD",
+  "odpt.Railway:JR-East.ChuoSobuLocal":"#ffe500",
+  "odpt.Railway:JR-East.Takasaki":"#F68B1E","odpt.Railway:JR-East.Utsunomiya":"#F68B1E",
+  "odpt.Railway:JR-East.ShonanShinjuku":"#F68B1E","odpt.Railway:JR-East.Tokaido":"#F68B1E",
+  "odpt.Railway:JR-East.Chuo":"#F15A22","odpt.Railway:JR-East.Ome":"#F15A22",
+  "odpt.Railway:JR-East.Itsukaichi":"#F15A22","odpt.Railway:JR-East.ChuoRapid":"#F15A22",
+  "odpt.Railway:JR-East.Musashino":"#8B4513","odpt.Railway:JR-East.Nambu":"#FFD700",
+  "odpt.Railway:JR-East.Yamanote":"#80C241","odpt.Railway:JR-East.Keiyo":"#EF454A",
+  "odpt.Railway:JR-East.SaikyoKawagoe":"#00AC84","odpt.Railway:JR-East.JobanRapid":"#1e5dc8",
+  "odpt.Railway:JR-East.Yokohama":"#00BB8D","odpt.Railway:JR-East.Yokosuka":"#1a5bb4",
+  "odpt.Railway:JR-East.SobuRapid":"#1a5bb4","odpt.Railway:JR-East.JobanLocal":"#2F9A9A",
+  "odpt.Railway:JR-East.Joban":"#006881","odpt.Railway:JR-East.Sagami":"#4DB200",
+  "odpt.Railway:JR-East.Tsurumi":"#1e64d8","odpt.Railway:JR-East.Sobu":"#FFB101",
+  "odpt.Railway:JR-East.Narita":"#FFB101","odpt.Railway:JR-East.Uchibo":"#0099AA",
+  "odpt.Railway:JR-East.Sotobo":"#0099AA","odpt.Railway:JR-East.TohokuShinkansen":"#3F8B00",
+  "odpt.Railway:JR-East.JoetsuShinkansen":"#c00040","odpt.Railway:JR-East.HokurikuShinkansen":"#0060c0",
+  "odpt.Railway:JR-East.YamagataShinkansen":"#c06000","odpt.Railway:JR-East.AkitaShinkansen":"#cc2020",
+};
+
+// ===== グループ・共有区間 =====
+const lineGroups = {
+  "湘南新宿ライン":["odpt.Railway:JR-East.ShonanShinjuku"],
+  "埼京川越線":["odpt.Railway:JR-East.SaikyoKawagoe"],
+  "京浜東北根岸線":["odpt.Railway:JR-East.KeihinTohokuNegishi"],
+  "中央総武各駅停車":["odpt.Railway:JR-East.ChuoSobuLocal"],
+  "山手線":["odpt.Railway:JR-East.Yamanote"]
+};
+const sharedSections = {
+  "odpt.Railway:JR-East.Takasaki":["odpt.Railway:JR-East.Utsunomiya"],
+  "odpt.Railway:JR-East.Utsunomiya":["odpt.Railway:JR-East.Takasaki"]
+};
+const sharedTrackSections=[
+  {lines:['odpt.Railway:JR-East.Utsunomiya','odpt.Railway:JR-East.Takasaki'],stations:['東京','上野','尾久','赤羽','浦和','さいたま新都心','大宮']},
+  {lines:['odpt.Railway:JR-East.ShonanShinjuku','odpt.Railway:JR-East.SaikyoKawagoe'],stations:['大崎','恵比寿','渋谷','新宿','池袋']},
+  {lines:['odpt.Railway:JR-East.ShonanShinjuku','odpt.Railway:JR-East.Yokosuka'],stations:['大船','戸塚','東戸塚','保土ケ谷','横浜','新川崎','武蔵小杉','西大井']},
+  {lines:['odpt.Railway:JR-East.ShonanShinjuku','odpt.Railway:JR-East.SotetsuDirect'],stations:['西大井','大崎']}
+];
+const parallelDisplayModes={
+  '山手線・京浜東北線（田端〜品川 並走）':{
+    title:'田端〜品川 並走区間',
+    lines:['odpt.Railway:JR-East.Yamanote','odpt.Railway:JR-East.KeihinTohokuNegishi'],
+    stations:['田端','西日暮里','日暮里','鶯谷','上野','御徒町','秋葉原','神田','東京','有楽町','新橋','浜松町','田町','高輪ゲートウェイ','品川']
+  }
+};
+
+// ===== 方向マップ（路線別・全方位対応） =====
+const railwayDirectionMap = {
+  "odpt.Railway:JR-East.ShonanShinjuku":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.ChuoSobuLocal":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.SaikyoKawagoe":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Yamanote":{
+    "odpt.RailDirection:InnerLoop":"up","odpt.RailDirection:OuterLoop":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.KeihinTohokuNegishi":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.ChuoRapid":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.SobuRapid":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Yokosuka":{
+    "odpt.RailDirection:Northbound":"up","odpt.RailDirection:Southbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Tokaido":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Takasaki":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Utsunomiya":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.JobanRapid":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Joban":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.JobanLocal":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Musashino":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Keiyo":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Nambu":{
+    "odpt.RailDirection:Eastbound":"up","odpt.RailDirection:Westbound":"down",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+  "odpt.Railway:JR-East.Yokohama":{
+    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
+  },
+};
+
+// ===== 駅名短縮マップ =====
+const stationNameMap = {
+  "高輪ゲートウェイ":"高輪ゲート","千葉みなと":"千葉港","さいたま新都心":"さ新都心",
+};
+const externalRailwayNames={
+  'odpt.Railway:TWR.Rinkai':'りんかい線','odpt.Railway:Keio.Keio':'京王線','odpt.Railway:Keio.KeioNew':'京王新線','odpt.Railway:Keio.Inokashira':'京王井の頭線',
+  'odpt.Railway:Odakyu.Odawara':'小田急小田原線','odpt.Railway:Seibu.Shinjuku':'西武新宿線','odpt.Railway:Seibu.Ikebukuro':'西武池袋線',
+  'odpt.Railway:Toei.Oedo':'都営大江戸線','odpt.Railway:Toei.Shinjuku':'都営新宿線','odpt.Railway:Toei.Asakusa':'都営浅草線','odpt.Railway:Toei.Mita':'都営三田線',
+  'odpt.Railway:TokyoMetro.Marunouchi':'東京メトロ丸ノ内線','odpt.Railway:TokyoMetro.Fukutoshin':'東京メトロ副都心線','odpt.Railway:TokyoMetro.Ginza':'東京メトロ銀座線',
+  'odpt.Railway:TokyoMetro.Hanzomon':'東京メトロ半蔵門線','odpt.Railway:TokyoMetro.Yurakucho':'東京メトロ有楽町線','odpt.Railway:TokyoMetro.Tozai':'東京メトロ東西線',
+  'odpt.Railway:TokyoMetro.Chiyoda':'東京メトロ千代田線','odpt.Railway:Tokyu.Toyoko':'東急東横線','odpt.Railway:Tokyu.DenEnToshi':'東急田園都市線'
+};
+
+// ===== ヘルパー関数 =====
+function rn(id){ return railwayMap[id]||id; }
+function tn(id){ const t=trainTypeMap[(id||'').replace('odpt.TrainType:','')]; return t?t[1]:(id||'').split(':').pop()||'不明'; }
+function shortenStn(name){
+  if(!name) return '?';
+  if(stationNameMap[name]) return stationNameMap[name];
+  if(name.length>5) return name.slice(0,5);
+  return name;
+}
+
+// ===== 駅名マップ（共通） =====
+let atosStationTitles={};
+
+function getStationTitle(id){
+  if(!id) return '不明';
+  if(atosStationTitles[id]) return atosStationTitles[id];
+  return shortenStn(id.split('.').pop());
+}
+function getFullStationTitle(id){
+  if(!id) return '不明';
+  return atosStationTitles[id]||id.split('.').pop();
+}
+
+// ===== 方向関数 =====
+function getTrainDir(rd, rwId){
+  if(railwayDirectionMap[rwId]?.[rd]) return railwayDirectionMap[rwId][rd];
+  switch(rd){
+    case "odpt.RailDirection:Inbound":    return "up";
+    case "odpt.RailDirection:Outbound":   return "down";
+    case "odpt.RailDirection:Northbound": return "up";
+    case "odpt.RailDirection:Southbound": return "down";
+    case "odpt.RailDirection:Eastbound":  return "down";
+    case "odpt.RailDirection:Westbound":  return "up";
+    case "odpt.RailDirection:InnerLoop":  return "up";
+    case "odpt.RailDirection:OuterLoop":  return "down";
+    default: return "down";
+  }
+}
+function getDirText(rd, rwId){
+  const ls={
+    "odpt.Railway:JR-East.Yamanote":{"odpt.RailDirection:InnerLoop":"内回り","odpt.RailDirection:OuterLoop":"外回り"},
+    "odpt.Railway:JR-East.ChuoSobuLocal":{"odpt.RailDirection:Eastbound":"東行（千葉方面）","odpt.RailDirection:Westbound":"西行（三鷹方面）"},
+    "odpt.Railway:JR-East.ChuoRapid":{"odpt.RailDirection:Eastbound":"東行（東京方面）","odpt.RailDirection:Westbound":"西行（高尾方面）"},
+    "odpt.Railway:JR-East.SobuRapid":{"odpt.RailDirection:Eastbound":"東行（千葉方面）","odpt.RailDirection:Westbound":"西行（東京方面）"},
+    "odpt.Railway:JR-East.Musashino":{"odpt.RailDirection:Eastbound":"東行（西船橋方面）","odpt.RailDirection:Westbound":"西行（府中本町方面）"},
+    "odpt.Railway:JR-East.Nambu":{"odpt.RailDirection:Eastbound":"東行（川崎方面）","odpt.RailDirection:Westbound":"西行（立川方面）"},
+    "odpt.Railway:JR-East.Keiyo":{"odpt.RailDirection:Eastbound":"東行（蘇我方面）","odpt.RailDirection:Westbound":"西行（東京方面）"},
+  };
+  if(ls[rwId]?.[rd]) return ls[rwId][rd];
+  switch(rd){
+    case "odpt.RailDirection:Inbound":    return "上り";
+    case "odpt.RailDirection:Outbound":   return "下り";
+    case "odpt.RailDirection:Northbound": return "北行（上り）";
+    case "odpt.RailDirection:Southbound": return "南行（下り）";
+    case "odpt.RailDirection:Eastbound":  return "東行";
+    case "odpt.RailDirection:Westbound":  return "西行";
+    case "odpt.RailDirection:InnerLoop":  return "内回り";
+    case "odpt.RailDirection:OuterLoop":  return "外回り";
+    default: return rd.replace("odpt.RailDirection:","")||"不明";
+  }
+}
+function getLineTitle(lineId){
+  for(const[g,ls]of Object.entries(lineGroups)) if(ls.includes(lineId)) return g;
+  const l=atosRailwayData.find(r=>r["owl:sameAs"]===lineId);
+  return l?.["odpt:railwayTitle"]?.ja||externalRailwayNames[lineId]||rn(String(lineId||'').replace("odpt.Railway:",""));
+}
+
+// ===== 時計 =====
+function clock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('clock-date').textContent=n.toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'});
+}
+setInterval(clock,1000); clock();
+
+// ===== カウントダウン =====
+let countdownVal=60;
+function tickCountdown(){
+  countdownVal--;
+  document.getElementById('sb-countdown').textContent=countdownVal+'秒';
+  if(countdownVal<=0){ countdownVal=60; autoRefreshAll(); }
+}
+setInterval(tickCountdown,1000);
+function autoRefreshAll(){ fetchInfo(); fetchGraspData(); if(atosLoaded) fetchAtosData(); }
+
+// ===== タブ切替 =====
+function switchTab(name,btn,skipSync=false){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='timetable'&&!railwayListLoaded) loadRailwayList();
+  if(name==='realtime'&&!atosLoaded){ fetchAtosData(); atosLoaded=true; }
+  if(!skipSync) syncUrlState({view:name});
+}
+let atosLoaded=false, railwayListLoaded=false;
+
+// ===== フィルター =====
+let infoFilterMode='all';
+function setInfoFilter(m,el){ infoFilterMode=m; document.querySelectorAll('#info-filters .fchip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderInfo(); syncUrlState(); }
+let graspFilterMode='all';
+function setGraspFilter(m,el){ graspFilterMode=m; document.querySelectorAll('#grasp-filters .fchip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderGrasp(); syncUrlState(); }
+
+// =====================================================
+// ===== 運行情報 =====
+// =====================================================
+let infoData=[];
+async function fetchInfo(){
+  const btn=document.getElementById('btn-info'); btn.disabled=true; document.getElementById('ri-icon').textContent='⏳';
+  try{
+    const r=await fetch(`${BASE}/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&${K}`);
+    if(!r.ok) throw new Error(r.status);
+    infoData=await r.json();
+    saveInfoHistory(infoData);
+    renderInfo(); updateTicker();
+    document.getElementById('err-info').style.display='none';
+  } catch(e){ console.error(e); document.getElementById('err-info').style.display='block'; if(!infoData.length) document.getElementById('info-grid').innerHTML='<div class="loading-box" style="color:var(--red2)">取得失敗</div>'; }
+  finally{ btn.disabled=false; document.getElementById('ri-icon').textContent='↻'; }
+}
+function refreshInfo(){ fetchInfo(); countdownVal=60; }
+
+// 運行情報の履歴保存：テキストが前回と異なる場合のみ記録
+function saveInfoHistory(data){
+  let s={}; try{s=JSON.parse(localStorage.getItem('th_v3')||'{}');}catch(e){}
+  data.forEach(i=>{
+    const id=i["odpt:railway"], text=i["odpt:trainInformationText"]?.ja, date=i["dc:date"];
+    const status=i["odpt:trainInformationStatus"]?.ja||"平常運転";
+    if(!text) return;
+    if(!s[id]) s[id]=[];
+    const last=s[id][0];
+    if(!last||last.text!==text){ s[id].unshift({date,text,status}); if(s[id].length>10) s[id].pop(); }
+  });
+  try{localStorage.setItem('th_v3',JSON.stringify(s));}catch(e){}
+}
+function updateTicker(){
+  if(!infoData.length) return;
+  const abn=infoData.filter(i=>(i["odpt:trainInformationStatus"]?.ja||"平常運転")!=='平常運転');
+  const texts=abn.length>0?abn.map(i=>`【${i["odpt:trainInformationStatus"]?.ja}】${i["odpt:trainInformationText"]?.ja||''}`):["全路線 平常運転中"];
+  const el=document.getElementById('ticker-text');
+  el.textContent=texts.join('  ／  ');
+  el.style.setProperty('--ticker-dur',Math.max(20,el.scrollWidth/50)+'s');
+}
+function renderInfo(){
+  if(!infoData.length) return;
+  const container=document.getElementById('info-grid');
+  const hideNormal=document.getElementById('hide-normal').checked;
+  let store={}; try{store=JSON.parse(localStorage.getItem('th_v3')||'{}');}catch(e){}
+  const d=new Date(infoData[0]["dc:date"]);
+  document.getElementById('info-ts').textContent='更新: '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  const pri={'運転見合わせ':1,'一部運休':1,'運転再開見込':1,'遅延':2,'平常運転':3};
+  const sorted=[...infoData].sort((a,b)=>(pri[a["odpt:trainInformationStatus"]?.ja]||4)-(pri[b["odpt:trainInformationStatus"]?.ja]||4));
+  let normal=0,delay=0,suspend=0;
+  sorted.forEach(i=>{ const s=i["odpt:trainInformationStatus"]?.ja||"平常運転"; if(s==='平常運転') normal++; else if(s.includes('遅延')||s.includes('再開')) delay++; else suspend++; });
+  document.getElementById('sb-total').textContent=sorted.length;
+  document.getElementById('sb-normal').textContent=normal;
+  document.getElementById('sb-delay').textContent=delay;
+  document.getElementById('sb-suspend').textContent=suspend;
+  const bs=document.getElementById('tbadge-suspend'),bd=document.getElementById('tbadge-delay');
+  if(suspend>0){bs.style.display='';bs.textContent=suspend;}else bs.style.display='none';
+  if(delay>0){bd.style.display='';bd.textContent=delay;}else bd.style.display='none';
+  let html='';
+  sorted.forEach((info,idx)=>{
+    const status=info["odpt:trainInformationStatus"]?.ja||"平常運転";
+    if(hideNormal&&status==='平常運転') return;
+    if(infoFilterMode==='suspend'&&!['運転見合わせ','一部運休','運転再開見込'].some(s=>status.includes(s))) return;
+    if(infoFilterMode==='delay'&&!status.includes('遅延')) return;
+    if(infoFilterMode==='normal'&&status!=='平常運転') return;
+    const rId=info["odpt:railway"];
+    const name=rn(rId.replace("odpt.Railway:",""));
+    const currentText=info["odpt:trainInformationText"]?.ja||"平常通り運転しています。";
+    const cause=info["odpt:trainInformationCause"]?.ja, range=info["odpt:trainInformationRange"]?.ja;
+    let cls='s-notice',tcls='tc-notice';
+    if(status==='平常運転'){cls='s-normal';tcls='tc-normal';}
+    else if(status.includes('遅延')||status.includes('再開')){cls='s-delay';tcls='tc-delay';}
+    else if(status.includes('見合わせ')||status.includes('運休')){cls='s-suspend';tcls='tc-suspend';}
+    // 過去履歴：現在のテキストと異なるもののみ
+    const history=(store[rId]||[]).filter(h=>h.text!==currentText);
+    // 現在テキストの初出時刻：store内で現在テキストと一致する最古エントリ
+    const sameEntries=(store[rId]||[]).filter(h=>h.text===currentText);
+    const firstSeenEntry=sameEntries.length>0?sameEntries[sameEntries.length-1]:null;
+    const firstSeenStr=firstSeenEntry
+      ? new Date(firstSeenEntry.date).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : null;
+    html+=`<div class="train-card ${tcls} ${cls}">
+      <div class="card-row1"><span class="card-line-name">${name}</span><span class="status-stamp">${status}</span>
+        ${firstSeenStr?`<span class="info-since">情報取得: ${firstSeenStr}</span>`:''}
+      </div>
+      ${cause||range?`<div class="card-meta">${cause?'事由: '+cause:''}${cause&&range?' ／ ':''}${range?'区間: '+range:''}</div>`:''}
+      <div class="card-text">${currentText}</div>
+      ${history.length>0?`<span class="hist-toggle" onclick="toggleHist('h${idx}',this)">▼ 過去の情報履歴 (${history.length}件)</span>
+      <ul class="hist-list" id="h${idx}">${history.map(p=>`<li class="hist-item"><span class="hist-time">${new Date(p.date).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span><span class="hist-s">[${p.status}]</span> ${p.text}</li>`).join('')}</ul>`:''}
+    </div>`;
+  });
+  container.innerHTML=html||`<div style="text-align:center;padding:40px;color:var(--text3);">表示する情報はありません</div>`;
+}
+function toggleHist(id,el){ const li=document.getElementById(id); const open=li.style.display==='block'; li.style.display=open?'none':'block'; el.textContent=(open?'▼':'▲')+el.textContent.slice(1); }
+
+// =====================================================
+// ===== 運行把握 =====
+// =====================================================
+let graspDataStore={};
+async function fetchGraspData(){
+  const btn=document.getElementById('btn-grasp'); btn.disabled=true;
+  try{
+    const r=await fetch(`${BASE}/odpt:Train?odpt:operator=odpt.Operator:JR-East&${K}`);
+    if(!r.ok) throw new Error(r.status);
+    const data=await r.json();
+    document.getElementById('sb-trains').textContent=data.length;
+    graspDataStore={};
+    data.forEach(t=>{
+      const name=rn(t['odpt:railway'].replace('odpt.Railway:',''));
+      const delay=t['odpt:delay']||0, cars=t['odpt:carComposition']||0;
+      if(!graspDataStore[name]) graspDataStore[name]={maxDelay:0,maxTrain:'',total:0,delayed:0,d3:0,d10:0,d20:0,maxCars:0};
+      const s=graspDataStore[name]; s.total++; if(cars>s.maxCars) s.maxCars=cars;
+      if(delay>0){ s.delayed++; if(delay>s.maxDelay){s.maxDelay=delay;s.maxTrain=t['odpt:trainNumber']||'?';} if(delay>=180&&delay<600) s.d3++; else if(delay>=600&&delay<1200) s.d10++; else if(delay>=1200) s.d20++; }
+    });
+    renderGrasp();
+    document.getElementById('err-grasp').style.display='none';
+    document.getElementById('grasp-ts').textContent='更新: '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  } catch(e){ console.error(e); document.getElementById('err-grasp').style.display='block'; }
+  finally{ btn.disabled=false; }
+}
+function refreshGrasp(){ fetchGraspData(); countdownVal=60; }
+function renderGrasp(){
+  const sort=document.getElementById('grasp-sort').value;
+  let entries=Object.entries(graspDataStore);
+  if(graspFilterMode==='delay') entries=entries.filter(([,s])=>s.delayed>0);
+  if(graspFilterMode==='nodelay') entries=entries.filter(([,s])=>s.delayed===0);
+  if(sort==='delay') entries.sort((a,b)=>b[1].maxDelay-a[1].maxDelay);
+  else if(sort==='name') entries.sort((a,b)=>a[0].localeCompare(b[0],'ja'));
+  else entries.sort((a,b)=>(b[1].delayed/b[1].total)-(a[1].delayed/a[1].total));
+  const maxD=Math.max(...entries.map(([,s])=>s.maxDelay),1);
+  let dl=0;
+  const rows=entries.map(([name,s])=>{
+    const mins=Math.floor(s.maxDelay/60), ratio=s.total>0?s.delayed/s.total:0;
+    const barW=Math.round((s.maxDelay/maxD)*100);
+    const barCls=mins>=20?'rf-high':mins>=5?'rf-mid':'rf-low';
+    const dCls=mins>=20?'dc-20':mins>=10?'dc-10':mins>=3?'dc-3':'dc-0';
+    const trCls=mins>=20?'tr-big':mins>=3?'tr-delay':'';
+    if(s.delayed>0) dl++;
+    return `<tr class="${trCls}"><td><strong style="color:var(--text)">${name}</strong></td>
+      <td><span class="delay-chip ${dCls}">${mins}分</span></td>
+      <td><span style="font-family:'Oswald',sans-serif;font-size:0.88rem;color:var(--green3)">${s.maxTrain||'—'}</span></td>
+      <td><span style="font-family:'Oswald',sans-serif;">${s.delayed}</span><span style="color:var(--text3)">/${s.total}</span></td>
+      <td><div style="display:flex;align-items:center;gap:5px;"><div class="ratio-bar"><div class="ratio-fill ${barCls}" style="width:${barW}%"></div></div><span style="font-size:0.7rem;color:var(--text3);font-family:'Oswald',sans-serif;">${(ratio*100).toFixed(0)}%</span></div></td>
+      <td><span class="mini-num ${s.d3>0?'mn-warn':''}">${s.d3}</span></td>
+      <td><span class="mini-num ${s.d10>0?'mn-alert':''}">${s.d10}</span></td>
+      <td><span class="mini-num ${s.d20>0?'mn-crit':''}">${s.d20}</span></td>
+      <td><span style="font-family:'Oswald',sans-serif;color:var(--text2);">${s.maxCars?s.maxCars+'両':'—'}</span></td></tr>`;
+  }).join('');
+  document.getElementById('grasp-tbody').innerHTML=rows||'<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text3);">データなし</td></tr>';
+  const bg=document.getElementById('tbadge-grasp');
+  if(dl>0){bg.style.display='';bg.textContent=dl;}else bg.style.display='none';
+}
+
+// =====================================================
+// ===== ATOS在線モニタ =====
+// =====================================================
+let atosTrainData=[], atosRailwayData=[], atosDetailTimer=null, atosTimetableData=[], cachedStationTT={};
+let currentAtosCalendar='Weekday';
+const atosTimetableLoadedLines=new Set();
+let atosDeepLinkRestored=false;
+
+function buildAtosStationTitles(){
+  atosRailwayData.forEach(line=>{
+    (line["odpt:stationOrder"]||[]).forEach(st=>{
+      const id=st["odpt:station"];
+      const ja=st["odpt:stationTitle"]?.ja||id.split('.').pop();
+      atosStationTitles[id]=ja;
+    });
+  });
+}
+
+function populateAtosLineSelect(){
+  const sel=document.getElementById('atosLineSelect');
+  const prev=sel.value;
+  sel.innerHTML='';
+  const addedGroups=new Set();
+  const uniqueLines=[...new Set(atosTrainData.map(t=>t["odpt:railway"]))];
+  uniqueLines.forEach(lineId=>{
+    let groupName=null, isGrouped=false;
+    for(const[g,ls]of Object.entries(lineGroups)){ if(ls.includes(lineId)){groupName=g;isGrouped=true;break;} }
+    if(isGrouped&&!addedGroups.has(groupName)){
+      const o=document.createElement('option'); o.value=groupName; o.textContent=groupName;
+      sel.appendChild(o); addedGroups.add(groupName);
+    } else if(!isGrouped){
+      const o=document.createElement('option'); o.value=lineId; o.textContent=getLineTitle(lineId);
+      sel.appendChild(o);
+    }
+  });
+  const pg=document.createElement('optgroup'); pg.label='並走区間（別線）';
+  Object.keys(parallelDisplayModes).forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent='追加表示｜'+name;pg.appendChild(o);});
+  sel.appendChild(pg);
+  const requested=initialUrlState.line||prev;
+  if([...sel.options].some(o=>o.value===requested)) sel.value=requested;
+  if(initialUrlState.direction&&['all','up','down'].includes(initialUrlState.direction)) document.getElementById('atosDirection').value=initialUrlState.direction;
+  atosRender();
+  ensureAtosTimetablesForSelection();
+  restoreAtosDeepLink();
+}
+
+function restoreAtosDeepLink(){
+  if(atosDeepLinkRestored) return;
+  const selected=document.getElementById('atosLineSelect').value;
+  const lines=lineGroups[selected]||[selected];
+  if(initialUrlState.train){
+    const live=atosTrainData.find(t=>t['odpt:trainNumber']===initialUrlState.train&&lines.includes(t['odpt:railway']));
+    if(live){ atosDeepLinkRestored=true; showAtosTrainDetails(live); return; }
+  }
+  if(initialUrlState.station){
+    const primary=lines[0];
+    const line=atosRailwayData.find(r=>r['owl:sameAs']===primary);
+    const station=(line?.['odpt:stationOrder']||[]).find(s=>s['odpt:station']===initialUrlState.station||s['odpt:stationTitle']?.ja===initialUrlState.station);
+    if(station){ atosDeepLinkRestored=true; showAtosStationTT(station['odpt:station'],primary,parallelDisplayModes[selected]?.lines||null); }
+  }
+}
+
+function getAtosSelectionLines(){
+  const selected=document.getElementById('atosLineSelect').value;
+  if(parallelDisplayModes[selected]) return parallelDisplayModes[selected].lines;
+  return lineGroups[selected]||[selected];
+}
+async function ensureAtosTimetablesForSelection(){
+  const lines=getAtosSelectionLines().filter(Boolean);
+  await Promise.all(lines.map(async lineId=>{
+    if(atosTimetableLoadedLines.has(lineId)) return;
+    atosTimetableLoadedLines.add(lineId);
+    try{
+      const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${currentAtosCalendar}&${K}`);
+      if(!r.ok) throw new Error(r.status);
+      const data=await r.json();
+      const keys=new Set(atosTimetableData.map(t=>`${t['odpt:railway']}|${t['odpt:trainNumber']}|${t['odpt:calendar']||''}`));
+      data.forEach(t=>{const key=`${t['odpt:railway']}|${t['odpt:trainNumber']}|${t['odpt:calendar']||''}`;if(!keys.has(key)){atosTimetableData.push(t);keys.add(key);}});
+      atosRender();
+    }catch(e){ atosTimetableLoadedLines.delete(lineId); }
+  }));
+}
+function atosLineChanged(){ atosRender(); ensureAtosTimetablesForSelection(); syncUrlState(); }
+
+async function fetchAtosData(){
+  const btn=document.getElementById('btn-atos'); btn.disabled=true;
+  try{
+    const today=new Date(), dow=today.getDay();
+    let cal='Weekday';
+    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json');
+      if(hr.ok){ const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday'; }
+    } catch(e){}
+    if(dow===0||dow===6) cal='SaturdayHoliday';
+    currentAtosCalendar=cal;
+    const [trainRes,railRes,ttRes]=await Promise.all([
+      fetch(`${BASE}/odpt:Train?odpt:operator=odpt.Operator:JR-East&${K}`),
+      fetch(`${BASE}/odpt:Railway?odpt:operator=odpt.Operator:JR-East&${K}`),
+      fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:calendar=odpt.Calendar:${cal}&${K}`)
+    ]);
+    if(!trainRes.ok||!railRes.ok) throw new Error('API取得エラー');
+    atosTrainData=await trainRes.json();
+    atosRailwayData=await railRes.json();
+    try{ if(ttRes.ok) atosTimetableData=await ttRes.json(); } catch(e){ atosTimetableData=[]; }
+    buildAtosStationTitles();
+    populateAtosLineSelect();
+    document.getElementById('err-atos').style.display='none';
+    document.getElementById('atos-ts').textContent='更新: '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  } catch(e){ console.error(e); document.getElementById('err-atos').style.display='block'; }
+  finally{ btn.disabled=false; }
+}
+function atosManualUpdate(){ fetchAtosData(); countdownVal=60; }
+
+// ===== 列車位置推定 =====
+// toStation が null（発車済み）の場合、時刻表から次の停車駅を推定して
+// fromStation〜nextStation の中間に描画する
+function resolveTrainPosition(train, stationIds, group) {
+  const from = train["odpt:fromStation"];
+  let to   = train["odpt:toStation"];
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+
+  // toStation が明示されていれば通常処理
+  if(to && group.indexOf(to) !== -1){
+    return { from, to };
+  }
+
+  // toStation が null または group外 → 時刻表から次駅を推定
+  if(!to || group.indexOf(to) === -1){
+    const tt = atosTimetableData.find(t =>
+      t["odpt:trainNumber"] === train["odpt:trainNumber"] &&
+      t["odpt:railway"]    === train["odpt:railway"]
+    );
+    if(tt){
+      const stops = tt["odpt:trainTimetableObject"] || [];
+      const fromIdx = stops.findIndex(s =>
+        (s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]) === from
+      );
+      if(fromIdx >= 0 && fromIdx < stops.length - 1){
+        const nextStop = stops[fromIdx + 1];
+        const nextId = nextStop["odpt:departureStation"]||nextStop["odpt:arrivalStation"]||nextStop["odpt:station"];
+        if(nextId && group.indexOf(nextId) !== -1){
+          return { from, to: nextId };
+        }
+      }
+    }
+  }
+  return { from, to };
+}
+
+function atosRenderParallel(mode,monitor,directionFilter){
+  const groups=[];
+  for(let i=0,g=0;i<mode.stations.length;g++){
+    const part=g===0?mode.stations.slice(i,i+4):mode.stations.slice(i-1,i+3);
+    i+=g===0?4:3; if(part.length<2) break; groups.push(part);
+  }
+  const placed=new Set(); let count=0;
+  groups.forEach((group,groupIndex)=>{
+    const box=document.createElement('div'); box.className='parallel-combined-track';
+    mode.lines.forEach((lineId,index)=>{
+      const rail=document.createElement('div'); rail.className=`parallel-rail ${index?'second':'first'}`; rail.style.background=lineColors[lineId]||'#666'; box.appendChild(rail);
+      const label=document.createElement('div'); label.className=`parallel-line-label ${index?'second':'first'}`; label.textContent=getLineTitle(lineId); box.appendChild(label);
+    });
+    group.forEach((name,index)=>{
+      const sid=(atosRailwayData.find(r=>r['owl:sameAs']===mode.lines[0])?.['odpt:stationOrder']||[]).find(s=>s['odpt:stationTitle']?.ja===name)?.['odpt:station'];
+      const station=document.createElement('div'); station.className='station'; station.textContent=shortenStn(name); station.style.left=`${(index+1)*(100/(group.length+1))}%`;
+      if(sid) station.onclick=()=>showAtosStationTT(sid,mode.lines[0],mode.lines);
+      box.appendChild(station);
+    });
+    const stacks=[{},{}], max=[0,0], cards=[];
+    mode.lines.forEach((lineId,lineIndex)=>atosTrainData.forEach(train=>{
+      if(train['odpt:railway']!==lineId) return;
+      const tdir=getTrainDir(train['odpt:railDirection'],lineId); if(directionFilter!=='all'&&tdir!==directionFilter) return;
+      const from=getFullStationTitle(train['odpt:fromStation']), to=train['odpt:toStation']?getFullStationTitle(train['odpt:toStation']):null;
+      const fi=group.indexOf(from), ti=to?group.indexOf(to):-1; if(fi<0) return;
+      const key=`${lineId}|${train['odpt:trainNumber']||train['@id']||from}`; if(placed.has(key)) return;
+      if(ti<0&&to&&groups.some(candidate=>candidate.includes(from)&&candidate.includes(to))) return;
+      const pos=ti>=0?(((fi+1)+(ti+1))/2)*(100/(group.length+1)):(fi+1)*(100/(group.length+1));
+      const pkey=ti>=0?`${Math.min(fi,ti)}-${Math.max(fi,ti)}-${tdir}`:`${fi}-${tdir}`;
+      const offset=stacks[lineIndex][pkey]||0; stacks[lineIndex][pkey]=offset+1; max[lineIndex]=Math.max(max[lineIndex],offset+1);
+      cards.push({train,lineIndex,tdir,pos,offset}); placed.add(key); count++;
+    }));
+    const trainH=56; box.style.height=`${150+(max[0]+max[1])*trainH}px`;
+    cards.forEach(({train,lineIndex,tdir,pos,offset})=>{
+      const card=document.createElement('div'); card.className=`train ${tdir}${train['odpt:delay']?' delayed-train':''}`; card.style.color=lineColors[train['odpt:railway']]||'#666'; card.style.left=`${pos}%`;
+      if(lineIndex===0) card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`; else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
+      const delay=train['odpt:delay']?Math.floor(train['odpt:delay']/60):0, dest=(train['odpt:destinationStation']||[])[0];
+      card.innerHTML=`<div class="train-number">${train['odpt:trainNumber']||'?'}${delay?`<span class="train-delay">+${delay}分</span>`:''}</div><div class="train-info-sub">${train['odpt:carComposition']||''}両 ${shortenStn(getFullStationTitle(dest))}</div>`;
+      card.onclick=()=>showAtosTrainDetails(train); box.appendChild(card);
+    });
+    monitor.appendChild(box);
+  });
+  document.getElementById('atos-train-count').textContent=`並走2路線・表示 ${count}本`;
+}
+
+function atosRender(){
+  const selectedLine = document.getElementById('atosLineSelect').value;
+  const directionFilter=document.getElementById('atosDirection')?.value||'all';
+  const monitor = document.getElementById('atos-monitor');
+  const scrollY = window.scrollY;
+  monitor.innerHTML = '';
+  if(!selectedLine) return;
+  if(parallelDisplayModes[selectedLine]){ atosRenderParallel(parallelDisplayModes[selectedLine],monitor,directionFilter); syncUrlState(); return; }
+
+  let targetLines=[], primaryLineId=selectedLine;
+  if(lineGroups[selectedLine]){ targetLines=lineGroups[selectedLine]; primaryLineId=targetLines[0]; }
+  else{ targetLines=[selectedLine]; if(sharedSections[selectedLine]) targetLines=targetLines.concat(sharedSections[selectedLine]); }
+  sharedTrackSections.filter(s=>s.lines.includes(primaryLineId)).forEach(s=>targetLines.push(...s.lines));
+  targetLines=[...new Set(targetLines)];
+
+  const color=lineColors[primaryLineId]||'#666';
+  const lineData=atosRailwayData.find(l=>l["owl:sameAs"]===primaryLineId);
+  if(!lineData){
+    monitor.innerHTML='<div style="padding:20px;color:var(--text3);font-size:0.8rem;">路線データを取得できませんでした</div>';
+    return;
+  }
+
+  const allStations=(lineData["odpt:stationOrder"]||[]).sort((a,b)=>a["odpt:index"]-b["odpt:index"]);
+  const stationIds=allStations.map(s=>s["odpt:station"]);
+  let trainCount=0;
+  const placedTrainKeys=new Set();
+
+  let groupIndex=0;
+  for(let i=0; i<stationIds.length;){
+    let group;
+    if(groupIndex===0){ group=stationIds.slice(i,i+4); i+=4; }
+    else{ group=stationIds.slice(i-1,i+3); i+=3; }
+    if(group.length<2) break;
+
+    const lineDiv=document.createElement('div');
+    lineDiv.className='station-line';
+
+    // 路線バー
+    const track=document.createElement('div');
+    track.className='track-line'; track.style.background=color;
+    lineDiv.appendChild(track);
+
+    // 駅コマ
+    group.forEach((sid,idx)=>{
+      const s=document.createElement('div');
+      s.className='station';
+      const fullName=atosStationTitles[sid]||sid.split('.').pop();
+      s.textContent=shortenStn(fullName);
+      s.title=fullName;
+      s.style.left=`${(idx+1)*(100/(group.length+1))}%`;
+      s.onclick=()=>showAtosStationTT(sid,primaryLineId);
+      lineDiv.appendChild(s);
+    });
+
+    const posOffsets={};
+    let maxUp=0, maxDown=0;
+    const toRender=[];
+
+    atosTrainData.forEach(train=>{
+      if(!targetLines.includes(train["odpt:railway"])) return;
+      const direction=train["odpt:railDirection"];
+      const tdir=getTrainDir(direction,train["odpt:railway"]);
+      if(directionFilter!=='all'&&tdir!==directionFilter) return;
+      const trainKey=`${train['odpt:railway']}|${train['odpt:trainNumber']||train['@id']||train['odpt:fromStation']}`;
+      if(placedTrainKeys.has(trainKey)) return;
+
+      // ★ 修正：次駅を時刻表から推定
+      const {from, to} = resolveTrainPosition(train, stationIds, group);
+      let localFrom=group.indexOf(from);
+      let localTo=to?group.indexOf(to):-1;
+      if(train['odpt:railway']!==primaryLineId){
+        const fromName=getFullStationTitle(train['odpt:fromStation']);
+        const toName=train['odpt:toStation']?getFullStationTitle(train['odpt:toStation']):null;
+        const shared=sharedTrackSections.find(s=>s.lines.includes(primaryLineId)&&s.lines.includes(train['odpt:railway'])&&s.stations.includes(fromName)&&(!toName||s.stations.includes(toName)));
+        if(!shared) return;
+        const groupNames=group.map(getFullStationTitle);
+        localFrom=groupNames.indexOf(fromName); localTo=toName?groupNames.indexOf(toName):-1;
+      }
+      if(localFrom===-1) return;
+
+      let pos, posKey;
+      if(localTo!==-1 && localTo!==localFrom){
+        // 駅間（fromとtoの中間）
+        const fp=(localFrom+1)*(100/(group.length+1));
+        const tp=(localTo+1)*(100/(group.length+1));
+        pos=(fp+tp)/2;
+        posKey=`btw-${Math.min(localFrom,localTo)}-${Math.max(localFrom,localTo)}-${direction}`;
+      } else {
+        // 発車済みor次駅不明 → from駅上に表示
+        pos=(localFrom+1)*(100/(group.length+1));
+        posKey=`stn-${localFrom}-${direction}`;
+      }
+
+      const oc=posOffsets[posKey]||0; posOffsets[posKey]=oc+1;
+      if(tdir==='up') maxUp=Math.max(maxUp,oc+1); else maxDown=Math.max(maxDown,oc+1);
+      toRender.push({train,pos,tdir,oc});
+      placedTrainKeys.add(trainKey);
+      trainCount++;
+    });
+
+    const trainH=54;
+    lineDiv.style.height=`${Math.max(130,130+(maxUp+maxDown)*trainH)}px`;
+
+    toRender.forEach(({train,pos,tdir,oc})=>{
+      const delay=train["odpt:delay"]?Math.floor(train["odpt:delay"]/60):0;
+      const num=train["odpt:trainNumber"]||'?';
+      const cars=train["odpt:carComposition"]||'';
+      const dest=(train["odpt:destinationStation"]||[]);
+      const destName=dest.length>0?(atosStationTitles[dest[0]]||dest[0].split('.').pop()):'';
+      const shortDest=shortenStn(destName);
+
+      const div=document.createElement('div');
+      div.className='train '+tdir+(delay>0?' delayed-train':'');
+      const trainColor=lineColors[train['odpt:railway']]||color;
+      div.style.color=trainColor;
+      div.style.left=`${pos}%`;
+      if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
+      else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
+
+      div.innerHTML=
+        `<div class="train-number" style="color:var(--text)">${num}${delay>0?`<span class="train-delay">+${delay}分</span>`:''}</div>`+
+        `<div class="train-info-sub">${cars?cars+'両 ':''}${shortDest}</div>`;
+      div.onclick=()=>showAtosTrainDetails(train);
+      lineDiv.appendChild(div);
+    });
+
+    monitor.appendChild(lineDiv);
+    groupIndex++;
+  }
+
+  const cnt=document.getElementById('atos-train-count');
+  if(cnt) cnt.textContent=`表示: ${trainCount}本`;
+  syncUrlState();
+  window.scrollTo(0,scrollY);
+}
+
+function hideTrainDetails(){
+  document.getElementById('train-details').style.display='none';
+  if(atosDetailTimer){ clearTimeout(atosDetailTimer); atosDetailTimer=null; }
+}
+function showAtosTrainDetails(train){
+  const d=document.getElementById('train-details');
+  const delay=train["odpt:delay"]?Math.floor(train["odpt:delay"]/60):0;
+  const from=getFullStationTitle(train["odpt:fromStation"]);
+  const to=train["odpt:toStation"]?getFullStationTitle(train["odpt:toStation"]):null;
+  const dest=(train["odpt:destinationStation"]||[]);
+  const destName=dest.length>0?(atosStationTitles[dest[0]]||dest[0].split('.').pop()):'不明';
+  document.getElementById('td-num').textContent=`列番: ${train["odpt:trainNumber"]||'?'}`;
+  document.getElementById('td-body').innerHTML=
+    `<strong>方向</strong>${getDirText(train["odpt:railDirection"],train["odpt:railway"])}<br>
+    <strong>遅延</strong>${delay>0?delay+'分':'なし'}<br>
+    <strong>走行区間</strong>${to?from+'〜'+to:from}<br>
+    <strong>終着駅</strong>${destName}<br>
+    <strong>種別</strong>${tn(train["odpt:trainType"])}<br>
+    <strong>両数</strong>${train["odpt:carComposition"]||'不明'}両`;
+  const btn=document.createElement('button');
+  btn.className='hbtn primary';
+  btn.style.cssText='margin-top:10px;width:100%;font-size:0.73rem;';
+  btn.textContent='列車別ダイヤモニタを開く';
+  btn.onclick=()=>openAtosTrainTimetable(train);
+  document.getElementById('td-body').appendChild(btn);
+  d.style.display='block';
+  syncUrlState({train:train['odpt:trainNumber']});
+  if(atosDetailTimer) clearTimeout(atosDetailTimer);
+  atosDetailTimer=setTimeout(hideTrainDetails,8000);
+}
+async function openAtosTrainTimetable(train){
+  let tt=atosTimetableData.find(t=>t["odpt:trainNumber"]===train["odpt:trainNumber"]&&t["odpt:railway"]===train["odpt:railway"]);
+  if(!tt){
+    document.getElementById('modal-train-tt').style.display='block';
+    document.getElementById('mtt-body').innerHTML='<div class="loading-box"><div class="h-spinner"></div>列車時刻表を取得中...</div>';
+    const lineId=train['odpt:railway'];
+    atosTimetableLoadedLines.delete(lineId);
+    await ensureAtosTimetablesForSelection();
+    if(!atosTimetableLoadedLines.has(lineId)){
+      try{
+        const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${currentAtosCalendar}&${K}`);
+        if(r.ok) atosTimetableData.push(...await r.json());
+      }catch(e){}
+    }
+    tt=atosTimetableData.find(t=>t["odpt:trainNumber"]===train["odpt:trainNumber"]&&t["odpt:railway"]===lineId);
+  }
+  showAtosTrainTT(tt,train);
+}
+function offsetTime(value,minutes){
+  if(!value||!minutes) return value||'';
+  const [h,m,s='00']=value.split(':');
+  const total=(Number(h)*60+Number(m)+minutes)%(24*60);
+  return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}${value.split(':').length>2?':'+s:''}`;
+}
+function showAtosTrainTT(tt,liveTrain=null){
+  document.getElementById('modal-train-tt').style.display='block';
+  const trainNo=tt?.["odpt:trainNumber"]||liveTrain?.["odpt:trainNumber"]||'不明';
+  document.getElementById('mtt-title').textContent=`列車別ダイヤモニタ　${trainNo}`;
+  const stops=tt?.["odpt:trainTimetableObject"]||[];
+  const railway=tt?.["odpt:railway"]||liveTrain?.["odpt:railway"];
+  const origin=(tt?.["odpt:originStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
+  const destArr=(tt?.["odpt:destinationStation"]||liveTrain?.["odpt:destinationStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
+  const trainType=tn(tt?.["odpt:trainType"]||liveTrain?.["odpt:trainType"]||'');
+  const delay=liveTrain?.["odpt:delay"]?Math.floor(liveTrain["odpt:delay"]/60):0;
+  let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${getLineTitle(railway)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号</div><div class="atos-meta-value">${trainNo}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">種別・行先</div><div class="atos-meta-value">${trainType} ${destArr||'—'}行</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転日区分・遅延</div><div class="atos-meta-value">${currentAtosCalendar==='Weekday'?'平日':'土休日'}・${delay?'<span class="delay-positive">'+String(delay).padStart(3,'0')+'</span>':'000'}</div></div></div>`;
+  if(!stops.length){ document.getElementById('mtt-body').innerHTML=html+'<div class="loading-box">この列車の時刻表はODPT配信対象外、または現在取得できません。</div>'; return; }
+  html+=`<div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車種別</th><th>抑止</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>到着</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>発車</th><th>番線</th><th>遅延(分)</th><th>運用情報</th></tr></thead><tbody>`;
+  stops.forEach((s,i)=>{
+    const stnId=s["odpt:station"]||s["odpt:departureStation"]||s["odpt:arrivalStation"];
+    const stnName=atosStationTitles[stnId]||stnId?.split('.').pop()||'?';
+    const dep=s["odpt:departureTime"]||'';
+    const arr=s["odpt:arrivalTime"]||'';
+    const isCurrent=stnId===liveTrain?.['odpt:fromStation']||stnId===liveTrain?.['odpt:toStation'];
+    html+=`<tr><td>${i===0?trainType:''}</td><td></td><td><strong>${stnName}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td>${isCurrent?'＊':''}</td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td>${isCurrent?'＊':''}</td><td>${s['odpt:platformNumber']||'—'}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td><td>${isCurrent?'在線':'継送'}</td></tr>`;
+  });
+  html+='</tbody></table></div><div style="margin-top:7px;font-size:.67rem;color:var(--text3);">予測時刻は公開遅延を計画時刻へ加算した参考値です。空欄は配信対象外です。</div>';
+  document.getElementById('mtt-body').innerHTML=html;
+  syncUrlState({train:trainNo,calendar:currentAtosCalendar});
+}
+async function showAtosStationTT(stationId, lineId, combinedLines=null){
+  document.getElementById('modal-station-tt').style.display='block';
+  const stnName=atosStationTitles[stationId]||stationId.split('.').pop();
+  document.getElementById('mstt-title').textContent=`駅別ダイヤモニタ　${stnName}`;
+  document.getElementById('mstt-body').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
+  try{
+    const today=new Date(), dow=today.getDay();
+    let cal='Weekday';
+    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json'); if(hr.ok){const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday';} }catch(e){}
+    if(dow===0||dow===6) cal='SaturdayHoliday';
+    const stationName=getFullStationTitle(stationId);
+    const lines=Array.isArray(combinedLines)&&combinedLines.length?combinedLines:[lineId];
+    const contexts=lines.map(id=>{
+      const sid=id===lineId?stationId:(atosRailwayData.find(r=>r['owl:sameAs']===id)?.['odpt:stationOrder']||[]).find(s=>s['odpt:stationTitle']?.ja===stationName)?.['odpt:station'];
+      return {lineId:id,stationId:sid};
+    }).filter(c=>c.stationId);
+    const cacheKey=`${stationName}-${contexts.map(c=>c.lineId).join(',')}-${cal}`;
+    if(!cachedStationTT[cacheKey]){
+      const responses=await Promise.all(contexts.map(c=>fetch(`${BASE}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${c.stationId}&odpt:railway=${c.lineId}&odpt:calendar=odpt.Calendar:${cal}&${K}`)));
+      cachedStationTT[cacheKey]=(await Promise.all(responses.map(r=>r.ok?r.json():[]))).flat();
+    }
+    const allTT=cachedStationTT[cacheKey];
+    const now=new Date(), nh=now.getHours(), nm=now.getMinutes();
+    const nowMins=nh*60+nm;
+
+    // 在線データから遅延列車マップを構築: 列番 -> 遅延秒数
+    const delayMap={};
+    atosTrainData.forEach(t=>{
+      const num=t["odpt:trainNumber"];
+      const delay=t["odpt:delay"]||0;
+      if(num && delay>0) delayMap[num]=Math.floor(delay/60);
+    });
+
+    const entries=[];
+    allTT.forEach(tt=>(tt['odpt:stationTimetableObject']||[]).forEach(obj=>entries.push({dir:tt['odpt:railDirection'],line:tt['odpt:railway']||lineId,obj})));
+    entries.sort((a,b)=>(a.obj['odpt:departureTime']||a.obj['odpt:arrivalTime']||'').localeCompare(b.obj['odpt:departureTime']||b.obj['odpt:arrivalTime']||''));
+    const upcoming=entries.filter(({obj})=>{
+      const raw=obj['odpt:departureTime']||obj['odpt:arrivalTime']||'';
+      if(!raw) return false;
+      const [h,m]=raw.split(':').map(Number), delay=delayMap[obj['odpt:trainNumber']]||0;
+      return h*60+m+delay>=nowMins;
+    });
+    let stationDetails=[], passengerDetails=[];
+    try{
+      const detailResponses=await Promise.all(contexts.map(c=>fetch(`${BASE}/odpt:Station?owl:sameAs=${c.stationId}&${K}`)));
+      stationDetails=(await Promise.all(detailResponses.map(r=>r.ok?r.json():[]))).flat();
+      const passengerResponse=await fetch(`${BASE}/odpt:PassengerSurvey?odpt:station=${stationId}&${K}`);
+      if(passengerResponse.ok) passengerDetails=await passengerResponse.json();
+    }catch(e){}
+    const codes=[...new Set(stationDetails.map(s=>s['odpt:stationCode']).filter(Boolean))];
+    const connections=[...new Set(stationDetails.flatMap(s=>s['odpt:connectingRailway']||[]).map(getLineTitle))];
+    const surveys=passengerDetails.flatMap(p=>p['odpt:passengerSurveyObject']||[]).sort((a,b)=>(b['odpt:surveyYear']||0)-(a['odpt:surveyYear']||0));
+    const latestSurvey=surveys[0];
+    let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${lines.map(getLineTitle).join('・')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅名・駅コード</div><div class="atos-meta-value">${stnName}　${codes.join(' / ')||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日区分・表示列車</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}・${upcoming.length}本</div></div><div class="atos-meta-cell"><div class="atos-meta-label">1日利用</div><div class="atos-meta-value">${latestSurvey?Number(latestSurvey['odpt:passengerJourneys']||0).toLocaleString('ja-JP')+'人（'+latestSurvey['odpt:surveyYear']+'年）':'—'}</div></div>${connections.length?`<div class="atos-meta-cell" style="grid-column:1/-1"><div class="atos-meta-label">接続路線</div><div class="atos-meta-value">${connections.join('・')}</div></div>`:''}</div><div class="atos-view-tabs"><button class="active" onclick="switchAtosStationView('board',this)">ATOS発車標</button><button onclick="switchAtosStationView('dia',this)">駅別ダイヤモニタ</button></div><div class="atos-filterbar"><strong>表示方向：</strong><button class="active" onclick="filterAtosStationRows('all',this)">上下線両方</button><button onclick="filterAtosStationRows('up',this)">上りのみ</button><button onclick="filterAtosStationRows('down',this)">下りのみ</button><span style="margin-left:auto;font-size:.67rem;color:var(--text3)">上り(A線/北行/内回り)・下り(B線/南行/外回り)</span></div>`;
+    if(!upcoming.length) html+='<div class="loading-box">本日の発車列車は終了したか、ODPT配信対象外です。</div>';
+    else{
+      html+=`<div id="atos-station-board" class="atos-station-view active"><div class="departure-board"><div class="departure-board-head"><span>${stnName}駅　発車案内</span><span>● LIVE ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
+      upcoming.slice(0,40).forEach(({dir,line:entryLine,obj})=>{
+        const number=obj['odpt:trainNumber']||'—', delay=delayMap[number]||0, dep=obj['odpt:departureTime']||obj['odpt:arrivalTime']||'';
+        const dests=(obj['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・')||'—';
+        const side=getTrainDir(dir,entryLine);
+        html+=`<div class="departure-board-row" data-atos-side="${side}"><span class="departure-board-time">${delay?offsetTime(dep,delay):dep}</span><span class="departure-board-line">${getLineTitle(entryLine)}</span><span class="departure-board-type">${tn(obj['odpt:trainType'])}</span><span class="departure-board-dest">${dests} 行</span><span>${obj['odpt:platformNumber']||'—'}番線</span><span class="${delay?'departure-board-delay':'departure-board-ontime'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
+      });
+      html+=`</div></div><div id="atos-station-dia" class="atos-station-view"><div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>線別</th><th>列車番号</th><th>種別</th><th>動力</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>到着</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>発車</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延(分)</th></tr></thead><tbody>`;
+      upcoming.slice(0,100).forEach(({dir,line:entryLine,obj})=>{
+        const number=obj['odpt:trainNumber']||'—', delay=delayMap[number]||0;
+        const dep=obj['odpt:departureTime']||'', arr=obj['odpt:arrivalTime']||'';
+        const dests=(obj['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・')||'—';
+        const side=getTrainDir(dir,entryLine);
+        html+=`<tr data-atos-side="${side}"><td>${getLineTitle(entryLine)}<br>${getDirText(dir,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumberFromStation(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+      });
+      html+='</tbody></table></div><div style="margin-top:7px;font-size:.67rem;color:var(--text3)">「000」は定刻、遅延時は赤字の001・002…で表示します。予測時刻は公開遅延からの参考計算です。</div></div>';
+    }
+    document.getElementById('mstt-body').innerHTML=html;
+    const defaultFilter=document.querySelector('#mstt-body .atos-filterbar button.active');
+    if(defaultFilter) filterAtosStationRows('all',defaultFilter);
+    syncUrlState({station:stationId,calendar:cal});
+  } catch(e){ document.getElementById('mstt-body').innerHTML=`<p style="color:var(--red2);padding:12px;">時刻表の取得に失敗しました。</p>`; }
+}
+function switchAtosStationView(name,button){
+  document.querySelectorAll('#mstt-body .atos-view-tabs button').forEach(b=>b.classList.toggle('active',b===button));
+  document.querySelectorAll('#mstt-body .atos-station-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(`atos-station-${name}`)?.classList.add('active');
+}
+function filterAtosStationRows(side,button){
+  document.querySelectorAll('#mstt-body .atos-filterbar button').forEach(b=>b.classList.toggle('active',b===button));
+  const boardRows=[...document.querySelectorAll('#atos-station-board [data-atos-side]')];
+  let boardShown=0;
+  boardRows.forEach(row=>{const match=side==='all'||row.dataset.atosSide===side;const visible=match&&boardShown<8;row.hidden=!visible;if(visible)boardShown++;});
+  document.querySelectorAll('#atos-station-dia [data-atos-side]').forEach(row=>row.hidden=side!=='all'&&row.dataset.atosSide!==side);
+}
+async function openTrainByNumberFromStation(number,lineId){
+  const live=atosTrainData.find(t=>t['odpt:trainNumber']===number&&t['odpt:railway']===lineId);
+  let tt=atosTimetableData.find(t=>t['odpt:trainNumber']===number&&t['odpt:railway']===lineId);
+  if(!tt&&live){ await openAtosTrainTimetable(live); return; }
+  showAtosTrainTT(tt,live);
+}
+
+// =====================================================
+// ===== 時刻表タブ =====
+// =====================================================
+let railwayList=[];
+async function loadRailwayList(){
+  railwayListLoaded=true;
+  try{
+    const r=await fetch(`${BASE}/odpt:Railway?odpt:operator=odpt.Operator:JR-East&${K}`);
+    railwayList=await r.json();
+    railwayList.forEach(rw=>{
+      (rw["odpt:stationOrder"]||[]).forEach(st=>{
+        const id=st["odpt:station"], ja=st["odpt:stationTitle"]?.ja||id.split('.').pop();
+        atosStationTitles[id]=ja;
+      });
+    });
+    const sorted=railwayList.map(rw=>({
+      id:rw['owl:sameAs'].replace('odpt.Railway:',''),
+      label:rw['odpt:railwayTitle']?.ja||rw['dc:title']||rw['owl:sameAs']
+    })).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
+    const opts=sorted.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
+    document.getElementById('stt-line').innerHTML='<option value="">路線を選択</option>'+opts;
+    document.getElementById('ttt-line').innerHTML='<option value="">路線を選択</option>'+opts;
+  } catch(e){ console.error(e); }
+}
+async function loadSttStations(){
+  const line=document.getElementById('stt-line').value;
+  if(!line){ document.getElementById('stt-station').style.display='none'; return; }
+  const rw=railwayList.find(r=>r['owl:sameAs'].includes(line));
+  if(!rw) return;
+  const stations=(rw['odpt:stationOrder']||[]).map(s=>({
+    id:s['odpt:station'].replace('odpt.Station:',''),
+    label:s['odpt:stationTitle']?.ja||s['odpt:station'].split('.').pop()
+  }));
+  const sel=document.getElementById('stt-station');
+  sel.innerHTML='<option value="">駅を選択</option>'+stations.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+  sel.style.display=''; document.getElementById('stt-dir').style.display=''; document.getElementById('stt-cal').style.display='';
+}
+async function searchStationTimetable(){
+  const line=document.getElementById('stt-line').value, station=document.getElementById('stt-station').value;
+  const dir=document.getElementById('stt-dir').value, cal=document.getElementById('stt-cal').value;
+  if(!line||!station){ document.getElementById('stt-result').innerHTML='<div style="padding:20px;color:var(--red2);font-size:0.78rem;">路線と駅を選択してください</div>'; return; }
+  document.getElementById('stt-result').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
+  document.getElementById('err-stt').style.display='none';
+  try{
+    const r=await fetch(`${BASE}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=odpt.Railway:${line}&odpt:station=odpt.Station:${station}&odpt:railDirection=odpt.RailDirection:${dir}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
+    const data=await r.json();
+    if(!data.length){ document.getElementById('stt-result').innerHTML='<div style="padding:20px;color:var(--text3);">データが見つかりませんでした</div>'; return; }
+    const tt=data[0]['odpt:stationTimetableObject']||[];
+    const html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${rn(line)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅</div><div class="atos-meta-value">${document.getElementById('stt-station').selectedOptions[0]?.textContent||station}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">方向・本数</div><div class="atos-meta-value">${dir==='Inbound'?'上り':'下り'}・${tt.length}本</div></div></div><div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車番号</th><th>種別</th><th>動力</th><th>発時刻 計画</th><th>発時刻 予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延(分)</th></tr></thead><tbody>`+
+      tt.map(e=>{
+        const dests=(e['odpt:destinationStation']||[]).map(s=>atosStationTitles['odpt.Station:'+s]||atosStationTitles[s]||s.split('.').pop()).join('・');
+        const typ=tn(e['odpt:trainType']||'');
+        const num=e['odpt:trainNumber']||'—';
+        const live=atosTrainData.find(t=>t['odpt:trainNumber']===num), delay=live?.['odpt:delay']?Math.floor(live['odpt:delay']/60):0;
+        const dep=e['odpt:departureTime']||e['odpt:arrivalTime']||'';
+        return `<tr><td>${num}</td><td>${typ}</td><td>${/D$/.test(num)?'DL':'EC'}</td><td class="time">${dep||'--:--'}</td><td class="time predicted">${delay?offsetTime(dep,delay):''}</td><td>${e['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests||'—'}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+      }).join('')+'</tbody></table></div>';
+    document.getElementById('stt-result').innerHTML=html;
+  } catch(e){ document.getElementById('err-stt').style.display='block'; document.getElementById('err-stt').textContent='⚠ 取得失敗: '+e.message; }
+}
+
+let tttTrainData=[];
+async function loadTttTrains(){
+  const line=document.getElementById('ttt-line').value;
+  const cal=document.getElementById('ttt-cal').value;
+  if(!line){ document.getElementById('ttt-train').style.display='none'; return; }
+  const sel=document.getElementById('ttt-train'); sel.innerHTML='<option value="">取得中...</option>'; sel.style.display='';
+  try{
+    const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=odpt.Railway:${line}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
+    tttTrainData=await r.json();
+    tttTrainData.forEach(t=>{ (t["odpt:trainTimetableObject"]||[]).forEach(s=>{ const id=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]; if(id&&!atosStationTitles[id]) atosStationTitles[id]=id.split('.').pop(); }); });
+    const trains=[...new Set(tttTrainData.map(t=>t['odpt:trainNumber']))].sort();
+    sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${t}">${t}</option>`).join('');
+  } catch(e){ sel.innerHTML='<option value="">取得失敗</option>'; }
+}
+async function searchTrainTimetable(){
+  const trainNum=document.getElementById('ttt-train').value;
+  if(!trainNum) return;
+  const entries=tttTrainData.filter(t=>t['odpt:trainNumber']===trainNum);
+  if(!entries.length){ document.getElementById('ttt-result').innerHTML='<div style="padding:20px;color:var(--text3);">データなし</div>'; return; }
+  const t=entries[0];
+  const stops=t['odpt:trainTimetableObject']||[];
+  const origin=(t['odpt:originStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
+  const dest=(t['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
+  const trainType=tn(t['odpt:trainType']||'');
+  const live=atosTrainData.find(x=>x['odpt:trainNumber']===trainNum&&x['odpt:railway']===t['odpt:railway']);
+  const delay=live?.['odpt:delay']?Math.floor(live['odpt:delay']/60):0;
+  const selectedCal=document.getElementById('ttt-cal').value;
+  let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">列車番号</div><div class="atos-meta-value">${trainNum}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">種別・行先</div><div class="atos-meta-value">${trainType} ${dest}行</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転区間</div><div class="atos-meta-value">${origin} → ${dest}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日・遅延</div><div class="atos-meta-value ${delay?'delay-positive':''}">${selectedCal==='Weekday'?'平日':'土休日'}・${String(delay||0).padStart(3,'0')}</div></div></div>`;
+  html+=`<div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車種別</th><th>抑止</th><th>駅名</th><th>着時刻 計画</th><th>着時刻 予測</th><th>到着</th><th>発時刻 計画</th><th>発時刻 予測</th><th>発車</th><th>番線</th><th>運用情報</th></tr></thead><tbody>`;
+  stops.forEach((s,i)=>{
+    const stnId=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"];
+    const stnName=atosStationTitles[stnId]||stnId?.split('.').pop()||'?';
+    const dep=s['odpt:departureTime']||'';
+    const arr=s['odpt:arrivalTime']||'';
+    html+=`<tr><td>${i===0?trainType:''}</td><td></td><td><strong>${stnName}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${s['odpt:platformNumber']||'—'}</td><td>${live?'在線':'継送'}</td></tr>`;
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('ttt-result').innerHTML=html;
+}
+
+// =====================================================
+// ===== 駅情報 =====
+// =====================================================
+let stationData=[];
+async function loadStations(){
+  document.getElementById('stn-list').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
+  document.getElementById('err-stn').style.display='none';
+  try{
+    const r=await fetch(`${BASE}/odpt:Station?odpt:operator=odpt.Operator:JR-East&${K}`);
+    stationData=await r.json();
+    stationData.forEach(s=>{ const id=s['owl:sameAs']||''; const ja=s['odpt:stationTitle']?.ja||''; if(id&&ja) atosStationTitles[id]=ja; });
+    const lines=[...new Set(stationData.map(s=>s['odpt:railway'].replace('odpt.Railway:','')))];
+    const sorted=lines.map(l=>({key:l,label:rn(l)})).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
+    const sel=document.getElementById('stn-line-filter');
+    sel.innerHTML='<option value="">すべての路線</option>'+sorted.map(l=>`<option value="${l.key}">${l.label}</option>`).join('');
+    renderStations();
+  } catch(e){ document.getElementById('err-stn').style.display='block'; document.getElementById('err-stn').textContent='⚠ 取得失敗'; }
+}
+function renderStations(){
+  if(!stationData.length) return;
+  const lineFilter=document.getElementById('stn-line-filter').value, search=document.getElementById('stn-search').value.trim();
+  let list=[...stationData];
+  if(lineFilter) list=list.filter(s=>s['odpt:railway'].includes(lineFilter));
+  if(search) list=list.filter(s=>(s['odpt:stationTitle']?.ja||'').includes(search));
+  document.getElementById('stn-count').textContent=`${list.length}駅`;
+  const html=`<table class="data-table"><thead><tr><th>駅名</th><th>路線</th><th>駅コード</th></tr></thead><tbody>`+
+    list.slice(0,300).map(s=>`<tr><td><strong>${s['odpt:stationTitle']?.ja||'—'}</strong></td><td style="color:var(--text3)">${rn(s['odpt:railway'].replace('odpt.Railway:',''))}</td><td style="font-family:'Oswald',sans-serif;color:var(--green3)">${s['odpt:stationCode']||'—'}</td></tr>`).join('')+'</tbody></table>';
+  document.getElementById('stn-list').innerHTML=html;
+}
+
+// ===== 乗降客数 =====
+let passengerData=[];
+async function loadPassenger(){
+  document.getElementById('psg-list').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
+  document.getElementById('err-psg').style.display='none';
+  try{
+    const r=await fetch(`${BASE}/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East&${K}`);
+    passengerData=await r.json(); renderPassenger();
+  } catch(e){ document.getElementById('err-psg').style.display='block'; document.getElementById('err-psg').textContent='⚠ 取得失敗'; }
+}
+function renderPassenger(){
+  if(!passengerData.length) return;
+  const search=document.getElementById('psg-search').value.trim(), sort=document.getElementById('psg-sort').value;
+  let list=passengerData.map(d=>{
+    const surveys=d['odpt:passengerSurveyObject']||[];
+    const latest=surveys.sort((a,b)=>b['odpt:surveyYear']-a['odpt:surveyYear'])[0];
+    const stnId=(d['odpt:station']||[])[0]||'';
+    return{
+      name:atosStationTitles[stnId]||stnId.split('.').pop(),
+      line:rn((d['odpt:railway']||[])[0]?.replace('odpt.Railway:','')||''),
+      year:latest?.['odpt:surveyYear']||0,
+      journeys:latest?.['odpt:passengerJourneys']||0
+    };
+  });
+  if(search) list=list.filter(s=>s.name.includes(search));
+  if(sort==='desc') list.sort((a,b)=>b.journeys-a.journeys);
+  else if(sort==='asc') list.sort((a,b)=>a.journeys-b.journeys);
+  else list.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  document.getElementById('psg-count').textContent=`${list.length}駅`;
+  const maxJ=Math.max(...list.map(s=>s.journeys),1);
+  const html='<div style="display:flex;flex-direction:column;gap:5px;">'+
+    list.slice(0,200).map(s=>{
+      const pct=Math.round((s.journeys/maxJ)*100);
+      const jStr=s.journeys>=10000?(s.journeys/10000).toFixed(1)+'万':(s.journeys||'—').toString();
+      return `<div class="survey-card"><div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
+        <span style="font-weight:700;font-size:0.88rem;color:var(--text)">${s.name||'—'}</span>
+        <span style="font-size:0.7rem;color:var(--text3)">${s.line}</span>
+        <span style="font-size:0.66rem;color:var(--text3);margin-left:auto;">${s.year?s.year+'年調査':''}</span></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+        <div class="survey-bar-bg"><div class="survey-bar" style="width:${pct}%"></div></div>
+        <span style="font-family:'Oswald',sans-serif;font-size:0.85rem;font-weight:600;color:var(--green3);min-width:55px;text-align:right;">${jStr}</span>
+        </div></div>`;
+    }).join('')+'</div>';
+  document.getElementById('psg-list').innerHTML=html;
+}
+
+// ===== INIT =====
+if(initialUrlState.info&&['all','suspend','delay','normal'].includes(initialUrlState.info)) infoFilterMode=initialUrlState.info;
+if(initialUrlState.grasp&&['all','delay','nodelay'].includes(initialUrlState.grasp)) graspFilterMode=initialUrlState.grasp;
+const infoModeIndex={all:0,suspend:1,delay:2,normal:3}[infoFilterMode]||0;
+document.querySelectorAll('#info-filters .fchip').forEach((el,i)=>el.classList.toggle('active',i===infoModeIndex));
+const graspModeIndex={all:0,delay:1,nodelay:2}[graspFilterMode]||0;
+document.querySelectorAll('#grasp-filters .fchip').forEach((el,i)=>el.classList.toggle('active',i===graspModeIndex));
+if(initialUrlState.sort&&['delay','name','ratio'].includes(initialUrlState.sort)) document.getElementById('grasp-sort').value=initialUrlState.sort;
+const requestedView=['realtime','grasp','info','timetable','station'].includes(initialUrlState.view)?initialUrlState.view:'realtime';
+const requestedButton=document.querySelector(`.nav-tab[data-tab="${requestedView}"]`);
+if(requestedButton) switchTab(requestedView,requestedButton,true);
+urlStateReady=true;
+fetchInfo();
+fetchGraspData();
+if(requestedView==='realtime'&&!atosLoaded){ atosLoaded=true; fetchAtosData(); }
+syncUrlState({view:requestedView});
+</script>
+   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="auth_guard.js"></script>
+</body>
+</html>
