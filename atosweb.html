@@ -486,6 +486,7 @@ html, body {
 .departure-board { margin-top:8px; color:#eaffd9; background:#07150d; border:5px solid #27382f; box-shadow:inset 0 0 18px #000; }
 .departure-board-head { display:flex; justify-content:space-between; padding:8px 11px; color:#fff; border-bottom:1px solid #294332; font-weight:900; }
 .departure-board-row { display:grid; grid-template-columns:70px 110px 85px minmax(120px,1fr) 70px 72px; gap:8px; align-items:center; min-height:40px; padding:5px 10px; border-bottom:1px solid #294332; font-family:monospace; }
+.departure-board-row[hidden] { display:none !important; }
 .departure-board-row:last-child { border-bottom:0; }
 .departure-board-time { color:#ffcf33; font-size:1.05rem; font-weight:900; }
 .departure-board-line { color:#86e8ff; font-size:.65rem; }
@@ -544,9 +545,9 @@ html, body {
 }
 .modal-close:hover { background: var(--border); color: var(--text); }
 .modal-inner { padding: 16px 20px; }
-.train-monitor-box { width:calc(100% - 24px); max-width:none; height:calc(100vh - 24px); max-height:none; margin:12px auto; display:flex; flex-direction:column; overflow:hidden; }
+.train-monitor-box { width:94%; max-width:1150px; height:auto; max-height:86vh; margin:4% auto; display:flex; flex-direction:column; overflow:hidden; }
 .train-monitor-box .modal-head { flex:0 0 auto; }
-.train-monitor-box .modal-inner { flex:1 1 auto; overflow:auto; padding:12px; }
+.train-monitor-box .modal-inner { flex:1 1 auto; overflow:auto; padding:16px 20px; }
 .atos-table tr.current-train-stop td { background:#fff4bf; }
 .direction-compact { width:62px; min-width:62px; max-width:62px; line-height:1.3; }
 .settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:9px; }
@@ -859,23 +860,24 @@ html, body {
     <div class="panel-box">
       <div class="panel-head"><div class="panel-head-title"><span class="ph-icon">列車別</span>列車別ダイヤモニタ</div></div>
       <div class="panel-body">
-        <div class="atos-view-tabs" style="margin:0 0 12px"><button class="active" onclick="switchTrainSearchSource('json',this)">公開 timetables.json</button><button onclick="switchTrainSearchSource('odpt',this)">ODPT時刻表API</button></div>
+        <div class="atos-note">公開timetables.jsonとODPT時刻表APIを同時に検索します。下のODPT候補から列車番号を選ぶこともできます。</div>
         <div id="train-search-json">
           <div class="search-row">
             <select class="h-select" id="json-tt-line"><option value="">線区を選択</option></select>
             <input class="h-input" type="date" id="json-tt-date">
             <select class="h-select" id="json-tt-crown" style="min-width:70px"><option value="">冠なし</option><option>回</option><option>試</option><option>単</option><option>工</option><option>配</option><option>試単</option></select>
             <input class="h-input" id="json-tt-number" placeholder="列車番号（例 9322M）" style="min-width:170px">
-            <button class="hbtn blue" onclick="searchJsonTrainTimetable()">検索</button>
+            <button class="hbtn blue" onclick="searchUnifiedTrainTimetable()">両方を検索</button>
           </div>
           <div id="json-tt-status" style="font-size:.7rem;color:var(--text3);margin-bottom:10px">公開時刻表データを読み込み中...</div>
         </div>
-        <div id="train-search-odpt" style="display:none">
+        <div id="train-search-odpt" class="settings-card" style="margin-bottom:10px">
+          <h4>ODPTの列車番号候補</h4>
           <div class="search-row">
           <select class="h-select" id="ttt-line" onchange="loadTttTrains()"><option value="">路線を選択</option></select>
           <select class="h-select" id="ttt-cal" onchange="loadTttTrains()"><option value="Weekday">平日</option><option value="SaturdayHoliday">土休日</option></select>
-          <select class="h-select" id="ttt-train" style="display:none;"><option value="">列番を選択</option></select>
-          <button class="hbtn blue" onclick="searchTrainTimetable()">検索</button>
+          <select class="h-select" id="ttt-train" onchange="copyOdptTrainNumberToUnified()" style="display:none;"><option value="">列番を選択</option></select>
+          <button class="hbtn blue" onclick="searchUnifiedTrainTimetable()">選択列車を表示</button>
           </div>
         </div>
         <div id="err-ttt" class="error-box"></div>
@@ -1124,9 +1126,7 @@ function goTopMenu(){
   document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none');
   stationModalBehindTrain=false;
   hideTrainDetails();
-  const button=document.querySelector('.nav-tab[data-tab="realtime"]');
-  if(button) switchTab('realtime',button);
-  window.scrollTo({top:0,behavior:'smooth'});
+  window.location.href='/toppage.html';
 }
 
 // ===== 路線名マップ =====
@@ -1240,7 +1240,7 @@ const railwayDirectionMap = {
     "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
   },
   "odpt.Railway:JR-East.KeihinTohokuNegishi":{
-    "odpt.RailDirection:Northbound":"down","odpt.RailDirection:Southbound":"up",
+    "odpt.RailDirection:Northbound":"up","odpt.RailDirection:Southbound":"down",
     "odpt.RailDirection:Inbound":"up","odpt.RailDirection:Outbound":"down"
   },
   "odpt.Railway:JR-East.ChuoRapid":{
@@ -1301,6 +1301,14 @@ const railwayDirectionMap = {
 const stationNameMap = {
   "高輪ゲートウェイ":"高輪ゲート","千葉みなと":"千葉港","さいたま新都心":"さ新都心",
 };
+const externalStationNameMap={
+  ShinKiba:'新木場',Ebina:'海老名',Shonandai:'湘南台',ShinYokohama:'新横浜',WakoShi:'和光市',Wakoshi:'和光市',
+  MotomachiChukagai:'元町・中華街',Hiyoshi:'日吉',MusashiKosugi:'武蔵小杉',Hanno:'飯能',Kotesashi:'小手指',
+  Kawagoeshi:'川越市',ShinrinKoen:'森林公園',HonAtsugi:'本厚木',Isehara:'伊勢原',Odawara:'小田原',
+  KataseEnoshima:'片瀬江ノ島',Karakida:'唐木田',Hashimoto:'橋本',ZushiHayama:'逗子・葉山',Misakiguchi:'三崎口',
+  IzukyuShimoda:'伊豆急下田',Shuzenji:'修善寺',TobuNikko:'東武日光',KinugawaOnsen:'鬼怒川温泉',
+  HanedaAirportTerminal1and2:'羽田空港第1・第2ターミナル',NaritaAirportTerminal1:'成田空港'
+};
 const externalRailwayNames={
   'odpt.Railway:TWR.Rinkai':'りんかい線','odpt.Railway:Keio.Keio':'京王線','odpt.Railway:Keio.KeioNew':'京王新線','odpt.Railway:Keio.Inokashira':'京王井の頭線',
   'odpt.Railway:Odakyu.Odawara':'小田急小田原線','odpt.Railway:Seibu.Shinjuku':'西武新宿線','odpt.Railway:Seibu.Ikebukuro':'西武池袋線',
@@ -1313,6 +1321,10 @@ const externalRailwayNames={
 // ===== ヘルパー関数 =====
 function rn(id){ return railwayMap[id]||id; }
 function tn(id){ const t=trainTypeMap[(id||'').replace('odpt.TrainType:','')]; return t?t[1]:(id||'').split(':').pop()||'不明'; }
+function isLimitedExpressTrain(train){
+  const raw=String(train?.['odpt:trainType']||'');
+  return tn(raw).includes('特急')||/(LimitedExpress|NaritaExpress|Azusa|Kaiji|Hitachi|Tokiwa|Shonan|Wakashio|Sazanami|Shiosai|Nikko|Kinugawa|Akagi|Kusatsu)/i.test(raw);
+}
 function shortenStn(name){
   if(!name) return '?';
   if(stationNameMap[name]) return stationNameMap[name];
@@ -1326,11 +1338,13 @@ let atosStationTitles={};
 function getStationTitle(id){
   if(!id) return '不明';
   if(atosStationTitles[id]) return atosStationTitles[id];
-  return shortenStn(id.split('.').pop());
+  const code=id.split('.').pop();
+  return shortenStn(externalStationNameMap[code]||code);
 }
 function getFullStationTitle(id){
   if(!id) return '不明';
-  return atosStationTitles[id]||id.split('.').pop();
+  const code=id.split('.').pop();
+  return atosStationTitles[id]||externalStationNameMap[code]||code;
 }
 
 // ===== 方向関数 =====
@@ -1608,6 +1622,27 @@ function buildAtosStationTitles(){
     });
   });
 }
+const destinationTitleRequests=new Set();
+async function hydrateDestinationStationTitles(){
+  const ids=[...new Set(atosTrainData.flatMap(train=>train['odpt:destinationStation']||[]).filter(Boolean))];
+  ids.forEach(id=>{
+    const code=id.split('.').pop();
+    if(!atosStationTitles[id]&&externalStationNameMap[code]) atosStationTitles[id]=externalStationNameMap[code];
+  });
+  const missing=ids.filter(id=>!atosStationTitles[id]&&!destinationTitleRequests.has(id)).slice(0,40);
+  missing.forEach(id=>destinationTitleRequests.add(id));
+  await Promise.all(missing.map(async id=>{
+    try{
+      const response=await fetch(`${BASE}/odpt:Station?owl:sameAs=${encodeURIComponent(id)}&${K}`);
+      if(!response.ok) return;
+      const station=(await response.json())[0];
+      const ja=station?.['odpt:stationTitle']?.ja;
+      if(ja) atosStationTitles[id]=ja;
+    }catch(error){
+      addDiagnostic('warn','直通先駅名の日本語情報を取得できませんでした',{station:id,message:error.message},'station-title');
+    }
+  }));
+}
 
 function populateAtosLineSelect(){
   const sel=document.getElementById('atosLineSelect');
@@ -1697,6 +1732,7 @@ async function fetchAtosData(){
     atosRailwayData=await railRes.json();
     try{ if(ttRes.ok) atosTimetableData=await ttRes.json(); } catch(e){ atosTimetableData=[]; }
     buildAtosStationTitles();
+    await hydrateDestinationStationTitles();
     populateAtosLineSelect();
     document.getElementById('err-atos').style.display='none';
     document.getElementById('atos-ts').textContent='更新: '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
@@ -1761,7 +1797,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
       if(sid) station.onclick=()=>showAtosStationTT(sid,mode.lines[0],mode.lines);
       box.appendChild(station);
     });
-    const stacks=[{},{}], max=[0,0], cards=[];
+    const stacks={up:{},down:{}}, max={up:0,down:0}, cards=[];
     mode.lines.forEach((lineId,lineIndex)=>atosTrainData.forEach(train=>{
       if(train['odpt:railway']!==lineId) return;
       const tdir=getTrainDir(train['odpt:railDirection'],lineId); if(directionFilter!=='all'&&tdir!==directionFilter) return;
@@ -1771,13 +1807,18 @@ function atosRenderParallel(mode,monitor,directionFilter){
       if(ti<0&&to&&groups.some(candidate=>candidate.includes(from)&&candidate.includes(to))) return;
       const pos=ti>=0?(((fi+1)+(ti+1))/2)*(100/(group.length+1)):(fi+1)*(100/(group.length+1));
       const pkey=ti>=0?`${Math.min(fi,ti)}-${Math.max(fi,ti)}-${tdir}`:`${fi}-${tdir}`;
-      const offset=stacks[lineIndex][pkey]||0; stacks[lineIndex][pkey]=offset+1; max[lineIndex]=Math.max(max[lineIndex],offset+1);
+      const laneKey=pkey;
+      const offset=stacks[tdir][laneKey]||0; stacks[tdir][laneKey]=offset+1; max[tdir]=Math.max(max[tdir],offset+1);
       cards.push({train,lineIndex,tdir,pos,offset}); placed.add(key); count++;
     }));
-    const trainH=56; box.style.height=`${150+(max[0]+max[1])*trainH}px`;
+    const trainH=56; box.style.height=`${150+(max.up+max.down)*trainH}px`;
     cards.forEach(({train,lineIndex,tdir,pos,offset})=>{
-      const card=document.createElement('div'); card.className=`train ${tdir}${train['odpt:delay']?' delayed-train':''}`; card.style.color=lineColors[train['odpt:railway']]||'#666'; card.style.left=`${pos}%`;
-      if(lineIndex===0) card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`; else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
+      const limited=isLimitedExpressTrain(train);
+      const card=document.createElement('div'); card.className=`train ${tdir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`; card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666'); card.style.left=`${pos}%`;
+      // 複合表示でも路線別ではなく方向別に上下へ分ける。
+      // 上側＝下り(B線/南行/外回り)、下側＝上り(A線/北行/内回り)。
+      if(tdir==='down') card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`;
+      else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
       const delay=train['odpt:delay']?Math.floor(train['odpt:delay']/60):0, dest=(train['odpt:destinationStation']||[])[0];
       card.innerHTML=`<div class="train-number">${train['odpt:trainNumber']||'?'}${delay?`<span class="train-delay">+${delay}分</span>`:''}</div><div class="train-info-sub">${train['odpt:carComposition']||''}両 ${shortenStn(getFullStationTitle(dest))}</div>`;
       card.onclick=()=>openAtosTrainTimetable(train); box.appendChild(card);
@@ -1895,12 +1936,13 @@ function atosRender(){
       const num=train["odpt:trainNumber"]||'?';
       const cars=train["odpt:carComposition"]||'';
       const dest=(train["odpt:destinationStation"]||[]);
-      const destName=dest.length>0?(atosStationTitles[dest[0]]||dest[0].split('.').pop()):'';
+      const destName=dest.length>0?getFullStationTitle(dest[0]):'';
       const shortDest=shortenStn(destName);
 
       const div=document.createElement('div');
-      div.className='train '+tdir+(delay>0?' delayed-train':'');
-      const trainColor=lineColors[train['odpt:railway']]||color;
+      const limited=isLimitedExpressTrain(train);
+      div.className='train '+tdir+(delay>0?' delayed-train':'')+(limited?' limited-express-train':'');
+      const trainColor=limited?'#d77a80':(lineColors[train['odpt:railway']]||color);
       div.style.color=trainColor;
       div.style.left=`${pos}%`;
       if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
@@ -1933,7 +1975,7 @@ function showAtosTrainDetails(train){
   const from=getFullStationTitle(train["odpt:fromStation"]);
   const to=train["odpt:toStation"]?getFullStationTitle(train["odpt:toStation"]):null;
   const dest=(train["odpt:destinationStation"]||[]);
-  const destName=dest.length>0?(atosStationTitles[dest[0]]||dest[0].split('.').pop()):'不明';
+  const destName=dest.length>0?getFullStationTitle(dest[0]):'不明';
   document.getElementById('td-num').textContent=`列番: ${train["odpt:trainNumber"]||'?'}`;
   document.getElementById('td-body').innerHTML=
     `<strong>方向</strong>${getDirText(train["odpt:railDirection"],train["odpt:railway"])}<br>
@@ -2015,10 +2057,10 @@ function trainProgressMarkers(stops,liveTrain,delayMinutes=0){
   if(dwellIdx>=0){
     stops.forEach((s,i)=>{
       if(i<dwellIdx){
-        blank[i].arrival=Boolean(s['odpt:arrivalTime']);
+        blank[i].arrival=true;
         blank[i].departure=Boolean(s['odpt:departureTime']);
       }else if(i===dwellIdx){
-        blank[i].arrival=Boolean(s['odpt:arrivalTime']);
+        blank[i].arrival=true;
         blank[i].current=true;
       }
     });
@@ -2030,7 +2072,7 @@ function trainProgressMarkers(stops,liveTrain,delayMinutes=0){
   if(fromIdx>=0){
     stops.forEach((s,i)=>{
       if(i<=fromIdx){
-        blank[i].arrival=Boolean(s['odpt:arrivalTime']);
+        blank[i].arrival=true;
         blank[i].departure=Boolean(s['odpt:departureTime']);
       }
       if(i===fromIdx) blank[i].current=true;
@@ -2047,30 +2089,31 @@ function trainProgressMarkers(stops,liveTrain,delayMinutes=0){
   });
   return blank;
 }
-function showAtosTrainTT(tt,liveTrain=null){
-  prepareTrainTimetableModal();
+function showAtosTrainTT(tt,liveTrain=null,inline=false){
+  if(!inline) prepareTrainTimetableModal();
+  const output=document.getElementById(inline?'ttt-result':'mtt-body');
   const trainNo=tt?.["odpt:trainNumber"]||liveTrain?.["odpt:trainNumber"]||'不明';
-  document.getElementById('mtt-title').textContent=`列車別ダイヤモニタ　${trainNo}`;
+  if(!inline) document.getElementById('mtt-title').textContent=`列車別ダイヤモニタ　${trainNo}`;
   const stops=tt?.["odpt:trainTimetableObject"]||[];
   const railway=tt?.["odpt:railway"]||liveTrain?.["odpt:railway"];
-  const origin=(tt?.["odpt:originStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
-  const destArr=(tt?.["odpt:destinationStation"]||liveTrain?.["odpt:destinationStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
+  const origin=(tt?.["odpt:originStation"]||[]).map(getFullStationTitle).join('・');
+  const destArr=(tt?.["odpt:destinationStation"]||liveTrain?.["odpt:destinationStation"]||[]).map(getFullStationTitle).join('・');
   const trainType=tn(tt?.["odpt:trainType"]||liveTrain?.["odpt:trainType"]||'');
   const delay=liveTrain?.["odpt:delay"]?Math.floor(liveTrain["odpt:delay"]/60):0;
   let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${getLineTitle(railway)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号</div><div class="atos-meta-value">${trainNo}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">種別・行先</div><div class="atos-meta-value">${trainType} ${destArr||'—'}行</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転日区分・遅延</div><div class="atos-meta-value">${currentAtosCalendar==='Weekday'?'平日':'土休日'}・${delay?'<span class="delay-positive">'+String(delay).padStart(3,'0')+'</span>':'000'}</div></div></div>`;
-  if(!stops.length){ document.getElementById('mtt-body').innerHTML=html+'<div class="loading-box">この列車の時刻表はODPT配信対象外、または現在取得できません。</div>'; return; }
+  if(!stops.length){ output.innerHTML=html+'<div class="loading-box">この列車の時刻表はODPT配信対象外、または現在取得できません。</div>'; return; }
   const progress=trainProgressMarkers(stops,liveTrain,delay);
   html+=`<div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車種別</th><th>抑止</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>到着</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>発車</th><th>番線</th><th>遅延(分)</th><th>運用情報</th></tr></thead><tbody>`;
   stops.forEach((s,i)=>{
     const stnId=s["odpt:station"]||s["odpt:departureStation"]||s["odpt:arrivalStation"];
-    const stnName=atosStationTitles[stnId]||stnId?.split('.').pop()||'?';
+    const stnName=getFullStationTitle(stnId)||'?';
     const dep=s["odpt:departureTime"]||'';
     const arr=s["odpt:arrivalTime"]||'';
     const marker=progress[i];
     html+=`<tr${marker.current?' class="current-train-stop"':''}><td>${i===0?trainType:''}</td><td></td><td><strong>${stnName}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td>${marker.arrival?'＊':''}</td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td>${marker.departure?'＊':''}</td><td>${s['odpt:platformNumber']||'—'}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td><td>${marker.current?'在線':'継送'}</td></tr>`;
   });
   html+='</tbody></table></div><div style="margin-top:7px;font-size:.67rem;color:var(--text3);">予測時刻は公開遅延を計画時刻へ加算した参考値です。空欄は配信対象外です。</div>';
-  document.getElementById('mtt-body').innerHTML=html;
+  output.innerHTML=html;
   syncUrlState({train:trainNo,calendar:currentAtosCalendar});
 }
 async function showAtosStationTT(stationId, lineId, combinedLines=null){
@@ -2132,7 +2175,7 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
       html+=`<div id="atos-station-board" class="atos-station-view active"><div class="departure-board"><div class="departure-board-head"><span>${stnName}駅　発車案内</span><span>● LIVE ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
       upcoming.slice(0,40).forEach(({dir,line:entryLine,obj})=>{
         const number=obj['odpt:trainNumber']||'—', delay=delayMap[number]||0, dep=obj['odpt:departureTime']||obj['odpt:arrivalTime']||'';
-        const dests=(obj['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・')||'—';
+        const dests=(obj['odpt:destinationStation']||[]).map(getFullStationTitle).join('・')||'—';
         const side=getTrainDir(dir,entryLine);
         html+=`<div class="departure-board-row" data-atos-side="${side}"><span class="departure-board-time">${delay?offsetTime(dep,delay):dep}</span><span class="departure-board-line">${getLineTitle(entryLine)}</span><span class="departure-board-type">${tn(obj['odpt:trainType'])}</span><span class="departure-board-dest">${dests} 行</span><span>${obj['odpt:platformNumber']||'—'}番線</span><span class="${delay?'departure-board-delay':'departure-board-ontime'}">${delay?'＋'+delay+'分':'定刻'}</span></div>`;
       });
@@ -2140,7 +2183,7 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
       upcoming.slice(0,100).forEach(({dir,line:entryLine,obj})=>{
         const number=obj['odpt:trainNumber']||'—', delay=delayMap[number]||0;
         const dep=obj['odpt:departureTime']||'', arr=obj['odpt:arrivalTime']||'';
-        const dests=(obj['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・')||'—';
+        const dests=(obj['odpt:destinationStation']||[]).map(getFullStationTitle).join('・')||'—';
         const side=getTrainDir(dir,entryLine);
         html+=`<tr data-atos-side="${side}"><td class="direction-compact" title="${getLineTitle(entryLine)}">${getDirText(dir,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumberFromStation(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
       });
@@ -2215,32 +2258,79 @@ async function searchJsonTrainTimetable(){
   if(!selected) selected=candidates.filter(x=>(!x.dayType||x.dayType===dayType)&&String(x.startDate||'')<=jsonDate).sort((a,b)=>String(b.startDate||'').localeCompare(String(a.startDate||'')))[0];
   if(!selected) selected=candidates.find(x=>!x.dayType||x.dayType===dayType)||candidates[0];
   if(!selected){result.innerHTML=`<div class="loading-box">${line} ${number}列車（${dayType}）は公開時刻表に見つかりませんでした。</div>`;return;}
-  result.innerHTML=`<div class="atos-note">公開timetables.jsonから ${selected.startDate}・${selected.dayType||dayType} のデータを選択しました。列車別ダイヤモニタを開いています。</div>`;
-  showExternalTrainTimetable(selected,dateValue);
+  showExternalTrainTimetable(selected,dateValue,true);
+}
+let unifiedTrainSearch={external:null,odpt:null,live:null,dateValue:''};
+function copyOdptTrainNumberToUnified(){
+  const value=document.getElementById('ttt-train').value;
+  if(value) document.getElementById('json-tt-number').value=value;
+}
+async function searchUnifiedTrainTimetable(){
+  await loadExternalTimetables();
+  copyOdptTrainNumberToUnified();
+  const result=document.getElementById('ttt-result');
+  const line=document.getElementById('json-tt-line').value;
+  const dateValue=document.getElementById('json-tt-date').value||localInputDate();
+  const number=normalizeTrainKey(document.getElementById('json-tt-crown').value+document.getElementById('json-tt-number').value);
+  if(!number){result.innerHTML='<div class="loading-box">列車番号を入力するか、ODPT候補から選択してください。</div>';return;}
+  result.innerHTML='<div class="loading-box"><div class="h-spinner"></div>2つの時刻表を検索中...</div>';
+
+  const jsonDate=dateValue.replace(/-/g,'/'),dayType=externalDayType(dateValue);
+  const candidates=externalTimetables.filter(x=>(!line||x.line===line)&&normalizeTrainKey(x.trainNumber)===number);
+  let external=candidates.find(x=>x.startDate===jsonDate);
+  if(!external) external=candidates.filter(x=>(!x.dayType||x.dayType===dayType)&&String(x.startDate||'')<=jsonDate).sort((a,b)=>String(b.startDate||'').localeCompare(String(a.startDate||'')))[0];
+  external=external||candidates.find(x=>!x.dayType||x.dayType===dayType)||candidates[0]||null;
+
+  const selectedLine=document.getElementById('ttt-line').value;
+  const calendar=document.getElementById('ttt-cal').value||'Weekday';
+  let odpt=tttTrainData.find(t=>normalizeTrainKey(t['odpt:trainNumber'])===number)||atosTimetableData.find(t=>normalizeTrainKey(t['odpt:trainNumber'])===number);
+  if(!odpt){
+    try{
+      let url=`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:trainNumber=${encodeURIComponent(number)}&odpt:calendar=odpt.Calendar:${calendar}&${K}`;
+      if(selectedLine) url+=`&odpt:railway=odpt.Railway:${encodeURIComponent(selectedLine)}`;
+      const response=await fetch(url);
+      if(response.ok) odpt=(await response.json())[0]||null;
+    }catch(error){addDiagnostic('warn','ODPT列車番号検索に失敗しました',{number,message:error.message},'train-search');}
+  }
+  const live=odpt?atosTrainData.find(t=>t['odpt:trainNumber']===odpt['odpt:trainNumber']&&t['odpt:railway']===odpt['odpt:railway']):null;
+  unifiedTrainSearch={external,odpt,live,dateValue};
+  if(external) renderUnifiedTrainSource('external');
+  else if(odpt) renderUnifiedTrainSource('odpt');
+  else result.innerHTML=`<div class="loading-box">${number}列車はtimetables.json・ODPT時刻表APIのどちらにも見つかりませんでした。</div>`;
+}
+function renderUnifiedTrainSource(source){
+  const match=unifiedTrainSearch;
+  if(source==='external'&&match.external) showExternalTrainTimetable(match.external,match.dateValue,true);
+  else if(source==='odpt'&&match.odpt) showAtosTrainTT(match.odpt,match.live||null,true);
+  const choices=[];
+  if(match.external) choices.push(`<button class="${source==='external'?'active':''}" onclick="renderUnifiedTrainSource('external')">timetables.json</button>`);
+  if(match.odpt) choices.push(`<button class="${source==='odpt'?'active':''}" onclick="renderUnifiedTrainSource('odpt')">ODPT時刻表API</button>`);
+  document.getElementById('ttt-result').insertAdjacentHTML('afterbegin',`<div class="atos-view-tabs" style="margin:0 0 10px">${choices.join('')}</div><div class="atos-note">同時検索結果：${match.external?'timetables.jsonあり':'timetables.jsonなし'} ／ ${match.odpt?'ODPTあり':'ODPTなし'}</div>`);
 }
 function externalTime(value){const text=String(value??'');return !text.trim()||['…','...','・・・','ー','-'].includes(text)?'…':text;}
-function showExternalTrainTimetable(train,dateValue){
-  prepareTrainTimetableModal();
-  document.getElementById('mtt-title').textContent=`列車別ダイヤモニタ　${train.trainNumber||'不明'}`;
+function showExternalTrainTimetable(train,dateValue,inline=false){
+  if(!inline) prepareTrainTimetableModal();
+  const output=document.getElementById(inline?'ttt-result':'mtt-body');
+  if(!inline) document.getElementById('mtt-title').textContent=`列車別ダイヤモニタ　${train.trainNumber||'不明'}`;
   const stops=train.stops||[];
   let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区・施行日</div><div class="atos-meta-value">${train.line||'—'}・${dateValue||train.startDate||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転区間</div><div class="atos-meta-value">${train.origin||'—'} → ${train.destination||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号・種別</div><div class="atos-meta-value">${train.trainNumber||'—'}・${train.type||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">曜日・動力・速度</div><div class="atos-meta-value">${train.dayType||'—'}・${train.power||'—'}・${train.speed||'—'}</div></div></div>`;
   html+=`<div class="atos-table-wrap"><table class="atos-table external-train-table"><thead><tr><th rowspan="2">列車種別</th><th rowspan="2">抑止</th><th rowspan="2">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2">番線</th><th rowspan="2">運用情報</th><th rowspan="2">運用列番</th></tr><tr><th>時間</th><th>到着</th><th>時間</th><th>発車</th></tr></thead><tbody>`;
   stops.forEach((stop,index)=>{
     let operation='',linked='';
-    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr1)},${JSON.stringify(train.kid1||train.kid||'')},"prev")'>${train.tr1}</button>`;}
-    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr2)},${JSON.stringify(train.kid2||train.kid||'')},"next")'>${train.tr2}</button>`;}
+    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr1)},${JSON.stringify(train.kid1||train.kid||'')},"prev",${inline})'>${train.tr1}</button>`;}
+    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr2)},${JSON.stringify(train.kid2||train.kid||'')},"next",${inline})'>${train.tr2}</button>`;}
     html+=`<tr><td>${index===0?(train.type||''):''}</td><td></td><td><strong>${stop.station||'—'}</strong></td><td class="time">${externalTime(stop.arrival)}</td><td></td><td class="time">${stop.departure||''}</td><td></td><td>${stop.trackN||'—'}</td><td>${operation}</td><td>${linked}</td></tr>`;
   });
   html+=`</tbody></table></div><div style="margin-top:8px;font-weight:800;font-size:.7rem">「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止</div>`;
-  document.getElementById('mtt-body').innerHTML=html;
+  output.innerHTML=html;
   syncUrlState({view:'traindia',train:train.trainNumber,calendar:train.dayType||''});
 }
-function openExternalLinkedTrain(number,kid,direction){
+function openExternalLinkedTrain(number,kid,direction,inline=false){
   const key=normalizeTrainKey(number),kidKey=normalizeTrainKey(kid);
   let candidates=externalTimetables.filter(x=>normalizeTrainKey(x.trainNumber)===key),selected=null;
   if(kidKey) selected=candidates.find(x=>normalizeTrainKey(direction==='prev'?x.kid2:x.kid1)===kidKey);
   selected=selected||candidates[0];
-  if(selected)showExternalTrainTimetable(selected,document.getElementById('json-tt-date').value||selected.startDate?.replace(/\//g,'-'));
+  if(selected)showExternalTrainTimetable(selected,document.getElementById('json-tt-date').value||selected.startDate?.replace(/\//g,'-'),inline);
   else addDiagnostic('warn','継送・折返先の列車が見つかりません',{number,kid,direction},'timetable-json');
 }
 
@@ -2291,7 +2381,7 @@ async function searchStationTimetable(){
     const tt=data[0]['odpt:stationTimetableObject']||[];
     const html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${rn(line)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅</div><div class="atos-meta-value">${document.getElementById('stt-station').selectedOptions[0]?.textContent||station}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">方向・本数</div><div class="atos-meta-value">${dir==='Inbound'?'上り':'下り'}・${tt.length}本</div></div></div><div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車番号</th><th>種別</th><th>動力</th><th>発時刻 計画</th><th>発時刻 予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延(分)</th></tr></thead><tbody>`+
       tt.map(e=>{
-        const dests=(e['odpt:destinationStation']||[]).map(s=>atosStationTitles['odpt.Station:'+s]||atosStationTitles[s]||s.split('.').pop()).join('・');
+        const dests=(e['odpt:destinationStation']||[]).map(s=>atosStationTitles['odpt.Station:'+s]||getFullStationTitle(s)).join('・');
         const typ=tn(e['odpt:trainType']||'');
         const num=e['odpt:trainNumber']||'—';
         const live=atosTrainData.find(t=>t['odpt:trainNumber']===num), delay=live?.['odpt:delay']?Math.floor(live['odpt:delay']/60):0;
@@ -2323,8 +2413,7 @@ async function searchTrainTimetable(){
   if(!entries.length){ document.getElementById('ttt-result').innerHTML='<div style="padding:20px;color:var(--text3);">データなし</div>'; return; }
   const t=entries[0];
   const live=atosTrainData.find(x=>x['odpt:trainNumber']===trainNum&&x['odpt:railway']===t['odpt:railway']);
-  document.getElementById('ttt-result').innerHTML='<div class="atos-note">ODPT時刻表APIの検索結果を列車別ダイヤモニタで表示しています。</div>';
-  showAtosTrainTT(t,live||null);
+  showAtosTrainTT(t,live||null,true);
 }
 
 // =====================================================
