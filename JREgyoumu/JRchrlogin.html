@@ -55,16 +55,11 @@
   <p class="text-xs text-gray-500 mt-4 text-center">© 2025 Transport Incident System</p>
 </div>
 
+<script src="JRchr/auth.js"></script>
 <script>
-const supabaseClient = supabase.createClient(
-  "https://cgeexdlnpbqslywcbesp.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWV4ZGxucGJxc2x5d2NiZXNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzU5OTIsImV4cCI6MjA4NzYxMTk5Mn0.KuI5aVvMz2v87EJGviOVw8A5ew8GfzYeqtESIawQmlY"
-);
-
-// ログイン処理
 async function login(){
   const id = document.getElementById('userId').value.trim();
-  const pw = document.getElementById('password').value.trim();
+  const pw = document.getElementById('password').value;
   const errorMsg = document.getElementById('errorMsg');
 
   if(!id || !pw){
@@ -73,30 +68,21 @@ async function login(){
     return;
   }
 
-  // Supabase の users テーブルで照合
-  const { data, error } = await supabaseClient
-    .from("users")
-    .select("*")
-    .eq("user_id", id)
-    .eq("password", pw)
-    .single();
+  const button = document.querySelector('button[onclick="login()"]');
+  button.disabled = true;
+  button.classList.add('opacity-60', 'cursor-wait');
+  const { data, error } = await incidentAuth.signIn(id, pw);
+  button.disabled = false;
+  button.classList.remove('opacity-60', 'cursor-wait');
 
-  if(error || !data){
+  if(error || !data?.session){
     errorMsg.textContent = "ユーザーIDまたはパスワードが正しくありません。";
     errorMsg.classList.remove("hidden");
     return;
   }
 
-  // ★ ログイン成功 → session 保存
-  localStorage.setItem("loggedInUser", id);
-
-  // 輸送障害へ
   window.location.href = "JRchr/JRcht-top.html";
 }
 </script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../auth_guard.js"></script>
 </body>
 </html>
