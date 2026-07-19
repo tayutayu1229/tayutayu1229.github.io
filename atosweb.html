@@ -1447,12 +1447,23 @@ async function fetchInfo(){
 function refreshInfo(){ fetchInfo(); countdownVal=60; }
 
 // 運行情報の履歴保存：テキストが前回と異なる場合のみ記録
+function localDateKey(value=new Date()){
+  const d=value instanceof Date?value:new Date(value);
+  if(Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 function saveInfoHistory(data){
   let s={}; try{s=JSON.parse(localStorage.getItem('th_v3')||'{}');}catch(e){}
+  const today=localDateKey();
+  // 日付が変わった時点で、前日以前の履歴を端末内からも削除する。
+  Object.keys(s).forEach(id=>{
+    s[id]=(Array.isArray(s[id])?s[id]:[]).filter(entry=>localDateKey(entry.date)===today);
+    if(!s[id].length) delete s[id];
+  });
   data.forEach(i=>{
     const id=i["odpt:railway"], text=i["odpt:trainInformationText"]?.ja, date=i["dc:date"];
     const status=i["odpt:trainInformationStatus"]?.ja||"平常運転";
-    if(!text) return;
+    if(!text||localDateKey(date)!==today) return;
     if(!s[id]) s[id]=[];
     const last=s[id][0];
     if(!last||last.text!==text){ s[id].unshift({date,text,status}); if(s[id].length>10) s[id].pop(); }
@@ -1482,6 +1493,8 @@ function renderInfo(){
   const container=document.getElementById('info-grid');
   const hideNormal=document.getElementById('hide-normal').checked;
   let store={}; try{store=JSON.parse(localStorage.getItem('th_v3')||'{}');}catch(e){}
+  const todayKey=localDateKey();
+  Object.keys(store).forEach(id=>{store[id]=(Array.isArray(store[id])?store[id]:[]).filter(entry=>localDateKey(entry.date)===todayKey);});
   const d=new Date(infoData[0]["dc:date"]);
   document.getElementById('info-ts').textContent='更新: '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
   const pri={'運転見合わせ':1,'一部運休':1,'運転再開見込':1,'遅延':2,'平常運転':3};
@@ -1741,41 +1754,14 @@ async function fetchAtosData(){
 }
 function atosManualUpdate(){ fetchAtosData(); countdownVal=60; }
 
-// ===== 列車位置推定 =====
-// toStation が null（発車済み）の場合、時刻表から次の停車駅を推定して
-// fromStation〜nextStation の中間に描画する
+// ===== 列車位置判定 =====
+// 在線APIを絶対優先する。toStationなし／fromStationと同一なら駅停車中、
+// 異なるfromStation・toStationが両方ある時だけ駅間として扱う。
 function resolveTrainPosition(train, stationIds, group) {
   const from = train["odpt:fromStation"];
-  let to   = train["odpt:toStation"];
-  const now = new Date();
-  const nowMin = now.getHours()*60 + now.getMinutes();
-
-  // toStation が明示されていれば通常処理
-  if(to && group.indexOf(to) !== -1){
-    return { from, to };
-  }
-
-  // toStation が null または group外 → 時刻表から次駅を推定
-  if(!to || group.indexOf(to) === -1){
-    const tt = atosTimetableData.find(t =>
-      t["odpt:trainNumber"] === train["odpt:trainNumber"] &&
-      t["odpt:railway"]    === train["odpt:railway"]
-    );
-    if(tt){
-      const stops = tt["odpt:trainTimetableObject"] || [];
-      const fromIdx = stops.findIndex(s =>
-        (s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]) === from
-      );
-      if(fromIdx >= 0 && fromIdx < stops.length - 1){
-        const nextStop = stops[fromIdx + 1];
-        const nextId = nextStop["odpt:departureStation"]||nextStop["odpt:arrivalStation"]||nextStop["odpt:station"];
-        if(nextId && group.indexOf(nextId) !== -1){
-          return { from, to: nextId };
-        }
-      }
-    }
-  }
-  return { from, to };
+  const apiTo = train["odpt:toStation"];
+  const atStation=!apiTo||apiTo===from;
+  return {from,to:atStation?null:apiTo,state:atStation?'station':'between'};
 }
 
 function atosRenderParallel(mode,monitor,directionFilter){
@@ -1907,6 +1893,9 @@ function atosRender(){
         localFrom=groupNames.indexOf(fromName); localTo=toName?groupNames.indexOf(toName):-1;
       }
       if(localFrom===-1) return;
+      // 駅間列車はfrom・toの両駅が同じ表示区間にそろう場所だけへ置く。
+      // 区間端で一度駅上へ飛び、次の描画で駅間へ戻る揺れを防ぐ。
+      if(to&&to!==from&&localTo===-1) return;
 
       let pos, posKey;
       if(localTo!==-1 && localTo!==localFrom){
@@ -2019,47 +2008,23 @@ function offsetTime(value,minutes){
   const total=(Number(h)*60+Number(m)+minutes)%(24*60);
   return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}${value.split(':').length>2?':'+s:''}`;
 }
-function serviceDayMinutes(value){
-  if(!value) return null;
-  const parts=String(value).split(':').map(Number);
-  if(!Number.isFinite(parts[0])||!Number.isFinite(parts[1])) return null;
-  let minutes=parts[0]*60+parts[1];
-  // 0〜3時台は前日の深夜列車として24時以降にそろえる。
-  if(parts[0]<4) minutes+=24*60;
-  return minutes;
-}
-function trainProgressMarkers(stops,liveTrain,delayMinutes=0){
+function trainProgressMarkers(stops,liveTrain){
   const blank=stops.map(()=>({arrival:false,departure:false,current:false}));
   if(!liveTrain||!stops.length) return blank;
   const stationId=s=>s["odpt:station"]||s["odpt:departureStation"]||s["odpt:arrivalStation"];
   const from=liveTrain['odpt:fromStation'];
   const to=liveTrain['odpt:toStation'];
   const fromIdx=stops.findIndex(s=>stationId(s)===from);
-  const toIdx=stops.findIndex(s=>stationId(s)===to);
-  const now=new Date();
-  let nowMinutes=now.getHours()*60+now.getMinutes();
-  if(now.getHours()<4) nowMinutes+=24*60;
+  const atStation=!to||to===from;
 
-  // 公開位置が示す現在区間の両端だけを候補にし、時刻上の停車中を判定する。
-  // 到着後〜発車前なら到着だけ＊、発車後ならその駅の発車にも＊を付ける。
-  let dwellIdx=-1;
-  for(const idx of [...new Set([fromIdx,toIdx])]){
-    if(idx<0) continue;
-    const arr=serviceDayMinutes(stops[idx]['odpt:arrivalTime']);
-    const dep=serviceDayMinutes(stops[idx]['odpt:departureTime']);
-    if(arr!==null&&dep!==null&&nowMinutes>=arr+delayMinutes&&nowMinutes<dep+delayMinutes){
-      dwellIdx=idx;
-      break;
-    }
-  }
-  if(fromIdx>=0&&fromIdx===toIdx) dwellIdx=fromIdx;
-
-  if(dwellIdx>=0){
+  // 駅停車中は在線APIの駅位置を絶対優先する。
+  // 時刻を過ぎていても発車扱いにせず、現在駅は到着だけ＊にする。
+  if(atStation&&fromIdx>=0){
     stops.forEach((s,i)=>{
-      if(i<dwellIdx){
+      if(i<fromIdx){
         blank[i].arrival=true;
-        blank[i].departure=Boolean(s['odpt:departureTime']);
-      }else if(i===dwellIdx){
+        blank[i].departure=true;
+      }else if(i===fromIdx){
         blank[i].arrival=true;
         blank[i].current=true;
       }
@@ -2067,26 +2032,19 @@ function trainProgressMarkers(stops,liveTrain,delayMinutes=0){
     return blank;
   }
 
-  // 駅間では fromStation を発車済み、toStation を未着として扱う。
-  // これにより前駅までの到着・発車はすべて＊、次駅の到着は空欄になる。
-  if(fromIdx>=0){
+  // 駅間はAPIが異なるfromStation・toStationを両方返した場合だけ。
+  if(!atStation&&fromIdx>=0){
     stops.forEach((s,i)=>{
       if(i<=fromIdx){
         blank[i].arrival=true;
-        blank[i].departure=Boolean(s['odpt:departureTime']);
+        blank[i].departure=true;
       }
       if(i===fromIdx) blank[i].current=true;
     });
     return blank;
   }
 
-  // 位置IDが時刻表側と一致しない場合だけ、予測時刻を安全な代替判定に使う。
-  stops.forEach((s,i)=>{
-    const arr=serviceDayMinutes(s['odpt:arrivalTime']);
-    const dep=serviceDayMinutes(s['odpt:departureTime']);
-    blank[i].arrival=arr!==null&&nowMinutes>=arr+delayMinutes;
-    blank[i].departure=dep!==null&&nowMinutes>=dep+delayMinutes;
-  });
+  // IDが時刻表にない場合も時刻から推測しない。誤った発車表示より空欄を優先する。
   return blank;
 }
 function showAtosTrainTT(tt,liveTrain=null,inline=false){
@@ -2102,7 +2060,7 @@ function showAtosTrainTT(tt,liveTrain=null,inline=false){
   const delay=liveTrain?.["odpt:delay"]?Math.floor(liveTrain["odpt:delay"]/60):0;
   let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${getLineTitle(railway)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号</div><div class="atos-meta-value">${trainNo}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">種別・行先</div><div class="atos-meta-value">${trainType} ${destArr||'—'}行</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転日区分・遅延</div><div class="atos-meta-value">${currentAtosCalendar==='Weekday'?'平日':'土休日'}・${delay?'<span class="delay-positive">'+String(delay).padStart(3,'0')+'</span>':'000'}</div></div></div>`;
   if(!stops.length){ output.innerHTML=html+'<div class="loading-box">この列車の時刻表はODPT配信対象外、または現在取得できません。</div>'; return; }
-  const progress=trainProgressMarkers(stops,liveTrain,delay);
+  const progress=trainProgressMarkers(stops,liveTrain);
   html+=`<div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車種別</th><th>抑止</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>到着</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>発車</th><th>番線</th><th>遅延(分)</th><th>運用情報</th></tr></thead><tbody>`;
   stops.forEach((s,i)=>{
     const stnId=s["odpt:station"]||s["odpt:departureStation"]||s["odpt:arrivalStation"];
