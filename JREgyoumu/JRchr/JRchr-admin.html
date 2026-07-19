@@ -8,13 +8,18 @@
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
 
 <style>
-  body { font-family: 'Inter','Noto Sans JP',sans-serif; background-color:#f8fffe; }
-  .header-card { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
-  .system-card { background: #fff; border: 1px solid #d1fae5; box-shadow: 0 1px 3px rgba(6,78,59,0.1); }
-  .input-box { border: 1px solid #d1fae5; }
-  .input-box:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.1); }
+  :root { --console-teal:#075660; --console-teal-dark:#043c44; --console-green:#4e8b17; }
+  body { font-family: 'Inter','Noto Sans JP',sans-serif; background:#e7efee; }
+  .header-card { background:linear-gradient(120deg,var(--console-teal-dark),var(--console-teal)); }
+  .system-card { background:#fff; border:1px solid #b7c7c7; box-shadow:0 2px 8px rgba(4,60,68,.12); }
+  .input-box { border:1px solid #aebfc0; }
+  .input-box:focus { border-color:var(--console-teal); box-shadow:0 0 0 3px rgba(7,86,96,.14); }
+  .console-button { background:var(--console-green); }
+  .console-button:hover:not(:disabled) { background:#3e7011; }
+  .console-button:disabled { cursor:wait; opacity:.65; }
 </style>
 </head>
 
@@ -99,9 +104,9 @@
 
 
   <div class="mt-6 flex gap-4">
-    <button onclick="saveIncident()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-1">
+    <button id="saveButton" type="button" onclick="saveIncident()" class="console-button text-white px-4 py-2 rounded flex items-center gap-1">
       <span class="material-icons-outlined text-base">save</span>
-      保存
+      <span id="saveButtonLabel">保存</span>
     </button>
     <button onclick="clearForm()" class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded flex items-center gap-1">
       <span class="material-icons-outlined text-base">clear</span>
@@ -130,10 +135,15 @@
 </div>
 
 <script>
-const supabaseClient = supabase.createClient(
-  "https://cgeexdlnpbqslywcbesp.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWV4ZGxucGJxc2x5d2NiZXNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzU5OTIsImV4cCI6MjA4NzYxMTk5Mn0.KuI5aVvMz2v87EJGviOVw8A5ew8GfzYeqtESIawQmlY"
-);
+const supabaseClient = incidentAuth.client;
+
+let saveInProgress = false;
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'\"]/g, char => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;"
+  }[char]));
+}
 
 async function loadList() {
   const { data } = await supabaseClient
@@ -144,18 +154,29 @@ async function loadList() {
   const tbody = document.getElementById("list");
   tbody.innerHTML = "";
 
-  data.forEach(row => {
+  (data || []).forEach(row => {
     const tr = document.createElement("tr");
     tr.className = "border-b hover:bg-green-50";
-
-    tr.innerHTML = `
-      <td class="p-2">${row.title}</td>
-      <td class="p-2">${row.datetime}</td>
-      <td class="p-2">
-        <button onclick='editIncident(${JSON.stringify(row)})' class="text-blue-600 hover:underline">編集</button>
-        <button onclick='deleteIncident(${row.id})' class="text-red-600 hover:underline ml-3">削除</button>
-      </td>
-    `;
+    const titleCell = document.createElement("td");
+    titleCell.className = "p-2";
+    titleCell.textContent = row.title ?? "";
+    const datetimeCell = document.createElement("td");
+    datetimeCell.className = "p-2";
+    datetimeCell.textContent = row.datetime ?? "";
+    const actionCell = document.createElement("td");
+    actionCell.className = "p-2";
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "text-blue-700 hover:underline";
+    editButton.textContent = "編集";
+    editButton.addEventListener("click", () => editIncident(row));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "text-red-700 hover:underline ml-3";
+    deleteButton.textContent = "削除";
+    deleteButton.addEventListener("click", () => deleteIncident(row.id));
+    actionCell.append(editButton, deleteButton);
+    tr.append(titleCell, datetimeCell, actionCell);
     tbody.appendChild(tr);
   });
 }
@@ -168,7 +189,7 @@ function clearForm() {
   document.getElementById("trainNo").value = "";
   document.getElementById("description").value = "";
   document.getElementById("notes").value = "";
-  document.getElementById("timeline").value = "";
+  document.getElementById("timelineContainer").innerHTML = "";
 }
 
 function editIncident(row) {
@@ -198,17 +219,42 @@ function addTimelineRow(time = "", text = "") {
   const row = document.createElement("div");
   row.className = "flex gap-2 items-center";
 
-  row.innerHTML = `
-    <input type="time" value="${time}" class="input-box p-2 rounded w-28">
-    <input type="text" value="${text}" class="input-box p-2 rounded flex-1" placeholder="内容を入力">
-    <button type="button" class="text-red-600 font-bold" onclick="this.parentElement.remove()">－</button>
-  `;
+  const timeInput = document.createElement("input");
+  timeInput.type = "time";
+  timeInput.value = time;
+  timeInput.className = "input-box p-2 rounded w-28";
+  const textInput = document.createElement("input");
+  textInput.type = "text";
+  textInput.value = text;
+  textInput.className = "input-box p-2 rounded flex-1";
+  textInput.placeholder = "内容を入力";
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "text-red-600 font-bold";
+  removeButton.textContent = "－";
+  removeButton.addEventListener("click", () => row.remove());
+  row.append(timeInput, textInput, removeButton);
 
   container.appendChild(row);
 }
 
   
 async function saveIncident() {
+  if (saveInProgress) return;
+
+  const title = document.getElementById("title").value.trim();
+  const datetimeValue = document.getElementById("datetime").value;
+  if (!title || !datetimeValue) {
+    alert("タイトルと発生日時を入力してください。");
+    return;
+  }
+
+  saveInProgress = true;
+  const saveButton = document.getElementById("saveButton");
+  const saveButtonLabel = document.getElementById("saveButtonLabel");
+  saveButton.disabled = true;
+  saveButtonLabel.textContent = "保存中…";
+
   const id = document.getElementById("editId").value;
 
   // ★ タイムライン行をすべて取得
@@ -221,8 +267,8 @@ async function saveIncident() {
   });
 
   const payload = {
-    title: document.getElementById("title").value,
-    datetime: document.getElementById("datetime").value.replace("T", " "),
+    title,
+    datetime: datetimeValue.replace("T", " "),
     location: document.getElementById("location").value,
     trainNo: document.getElementById("trainNo").value,
     data: {
@@ -232,14 +278,20 @@ async function saveIncident() {
     }
   };
 
-  if (id) {
-    await supabaseClient.from("incidents").update(payload).eq("id", id);
-  } else {
-    await supabaseClient.from("incidents").insert(payload);
-  }
+  try {
+    const result = id
+      ? await supabaseClient.from("incidents").update(payload).eq("id", id)
+      : await supabaseClient.from("incidents").insert(payload);
 
-  // 保存後に一覧へ戻る
-  location.href = "JRchr.html";
+    if (result.error) throw result.error;
+    location.href = "JRchr.html";
+  } catch (error) {
+    console.error("Incident save failed:", error);
+    alert("保存に失敗しました。通信状況を確認して、もう一度お試しください。");
+    saveInProgress = false;
+    saveButton.disabled = false;
+    saveButtonLabel.textContent = "保存";
+  }
 }
 
 
@@ -249,11 +301,9 @@ async function deleteIncident(id) {
   loadList();
 }
 
-loadList();
+incidentAuth.requireUser({ adminOnly: true }).then(session => {
+  if (session) loadList();
+});
 </script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../../../auth_guard.js"></script>
 </body>
 </html>

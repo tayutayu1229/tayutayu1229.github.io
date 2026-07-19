@@ -9,12 +9,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 <style>
-  body { font-family: 'Inter','Noto Sans JP',sans-serif; background-color:#f8fffe; }
-  .header-card { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
-  .system-card { background: #fff; border: 1px solid #d1fae5; box-shadow: 0 1px 3px rgba(6,78,59,0.1); }
-  .filter-input { background: #fff; border: 1px solid #d1fae5; }
-  .filter-input:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.1); }
-  .timeline-header { background: linear-gradient(90deg,#064e3b 0%,#065f46 100%); }
+  :root { --console-teal:#075660; --console-teal-dark:#043c44; --console-green:#4e8b17; --line:#aebfc0; }
+  body { font-family:'Inter','Noto Sans JP',sans-serif; background:#e7efee; }
+  .header-card { background:linear-gradient(120deg,var(--console-teal-dark),var(--console-teal)); }
+  .system-card { background:#fff; border:1px solid var(--line); box-shadow:0 2px 8px rgba(4,60,68,.12); }
+  .filter-input { background:#fff; border:1px solid var(--line); }
+  .filter-input:focus { border-color:var(--console-teal); box-shadow:0 0 0 3px rgba(7,86,96,.14); }
+  .timeline-header { background:linear-gradient(90deg,var(--console-teal-dark),var(--console-teal)); }
+  .incident-marker { background:var(--console-green); }
+  .timeline-table td { border:1px solid #9eaeae; vertical-align:top; }
+  .timeline-table .timeline-time { width:7rem; background:#edf2f1; font-variant-numeric:tabular-nums; font-weight:700; text-align:center; }
 
   .accordion-content {
     max-height: 0;
@@ -30,7 +34,7 @@
 
 </style>
 </head>
-<body class="text-gray-800 p-6">
+<body class="text-gray-800 p-4 md:p-6">
 
 <header class="mb-6">
   <div class="header-card rounded-lg p-6 text-white shadow-sm flex justify-between">
@@ -39,24 +43,24 @@
         <span class="material-icons-outlined">event_note</span>
       </div>
       <div>
-        <h1 class="text-2xl font-bold">輸送障害一覧</h1>
-        <p class="text-green-100 text-sm">Transport Incident Management</p>
+        <h1 class="text-2xl font-bold">輸送障害記録</h1>
+        <p class="text-teal-100 text-sm">Transport incident coordination console</p>
       </div>
     </div>
     <div class="text-sm text-green-100 text-right">
       <div>システムID: TIM-2025</div>
-      <div>バージョン: 1.4.28</div>
+      <div>情報共有モード</div>
     </div>
   </div>
 </header>
 
 <div class="mb-6 flex gap-4">
-  <button onclick="location.href='JRcht-top.html'" class="bg-green-100 hover:bg-green-200 border border-green-300 text-green-900 px-4 py-2 rounded flex items-center gap-1">
+  <button onclick="location.href='JRcht-top.html'" class="bg-white hover:bg-slate-50 border border-slate-400 text-slate-800 px-4 py-2 rounded flex items-center gap-1">
     <span class="material-icons-outlined text-base">home</span>
     メインページに戻る
   </button>
 
-  <button onclick="location.href='JRchr-admin.html'" class="bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-900 px-4 py-2 rounded flex items-center gap-1">
+  <button onclick="location.href='JRchr-admin.html'" class="bg-lime-700 hover:bg-lime-800 text-white px-4 py-2 rounded flex items-center gap-1">
     <span class="material-icons-outlined text-base">edit</span>
     管理画面
   </button>
@@ -86,16 +90,19 @@
 <div id="container" class="space-y-4"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
 <script>
-  // ログインしていなければログイン画面へ 
-  if (!localStorage.getItem("loggedInUser")) { 
-    window.location.href = "login.html"; 
-  }
   // ★ここを書き換えて：自分のプロジェクトの URL と anon key を入れる
   const SUPABASE_URL = "https://cgeexdlnpbqslywcbesp.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnZWV4ZGxucGJxc2x5d2NiZXNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzU5OTIsImV4cCI6MjA4NzYxMTk5Mn0.KuI5aVvMz2v87EJGviOVw8A5ew8GfzYeqtESIawQmlY";
 
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const supabaseClient = incidentAuth.client;
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>'\"]/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[char]));
+  }
 
   let allData = [];
 
@@ -111,19 +118,20 @@
       div.className = 'system-card rounded-lg overflow-hidden accordion-item';
       
       const header = document.createElement('div');
-      header.className = 'flex justify-between items-center p-6 cursor-pointer hover:bg-green-50 transition-colors duration-200';
+      header.className = 'flex justify-between items-center p-5 cursor-pointer hover:bg-teal-50 transition-colors duration-200';
       header.innerHTML = `
         <div>
-          <h2 class="text-xl font-bold mb-1">${incident.title}</h2>
-          <div class="text-sm text-gray-600">
-            <span class="mr-4"><strong>発生日:</strong> ${incident.datetime}</span>
-            <span><strong>場所:</strong> ${incident.location}</span>
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="incident-marker text-white text-xs px-2 py-1 rounded font-bold">障害記録</span>
+            <span class="text-xs text-slate-500 font-mono">${escapeHtml(incident.datetime)}</span>
+          </div>
+          <h2 class="text-xl font-bold mb-1">${escapeHtml(incident.title)}</h2>
+          <div class="text-sm text-slate-600">
+            <span class="mr-4"><strong>場所:</strong> ${escapeHtml(incident.location)}</span>
+            <span><strong>列車番号:</strong> ${escapeHtml(incident.trainNo)}</span>
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <div class="bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
-            <span class="material-icons-outlined text-sm mr-1">report</span>障害
-          </div>
           <span class="material-icons-outlined text-gray-500 transition-transform duration-300 transform">expand_more</span>
         </div>
       `;
@@ -136,25 +144,25 @@
       };
 
       const content = document.createElement('div');
-      content.className = 'accordion-content p-6 pt-0 border-t border-green-100';
+      content.className = 'accordion-content p-5 pt-0 border-t border-slate-200';
       content.innerHTML = `
         <div class="pb-4">
-          <p class="text-sm text-gray-600 mb-2"><strong>列車番号:</strong> ${incident.trainNo}</p>
-          <p class="text-sm text-gray-600 mb-2"><strong>概況:</strong></p>
-          <p class="mb-4 whitespace-pre-line">${incident.description || ''}</p>
-          ${incident.notes && incident.notes.length ? `<ul class="mb-4 list-disc list-inside text-sm text-gray-700">
-            ${incident.notes.map(n => `<li>${n}</li>`).join('')}
+          <p class="text-sm text-slate-600 mb-2 font-bold">概況</p>
+          <p class="mb-4 whitespace-pre-line leading-relaxed">${escapeHtml(incident.description)}</p>
+          ${incident.notes && incident.notes.length ? `<ul class="mb-4 list-disc list-inside text-sm text-slate-700">
+            ${incident.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}
           </ul>` : ''}
         </div>
-        <div class="border rounded overflow-hidden">
+        <div class="border border-slate-400 rounded overflow-hidden">
           <div class="timeline-header text-white px-4 py-2 font-semibold flex items-center gap-2">
             <span class="material-icons-outlined">timeline</span>ホワイトボード
           </div>
-          <table class="w-full text-sm">
+          <table class="timeline-table w-full text-sm">
+            <thead><tr class="bg-slate-100"><th class="p-2 text-center w-28 border border-slate-400">時分</th><th class="p-2 text-left border border-slate-400">内容</th></tr></thead>
             <tbody>
-              ${(incident.timeline || []).map(t => `<tr class="even:bg-green-50">
-                <td class="px-4 py-2 font-mono w-24">${t.time}</td>
-                <td class="px-4 py-2">${t.text}</td>
+              ${(incident.timeline || []).map(t => `<tr>
+                <td class="timeline-time px-4 py-3 font-mono">${escapeHtml(t.time)}</td>
+                <td class="px-4 py-3 whitespace-pre-line leading-relaxed">${escapeHtml(t.text)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -250,11 +258,9 @@
   document.getElementById('filterInput').addEventListener('input', applyFilters);
   document.getElementById('occurDate').addEventListener('change', applyFilters);
 
-  loadData();
+  incidentAuth.requireUser().then(session => {
+    if (session) loadData();
+  });
 </script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../../../auth_guard.js"></script>
 </body>
 </html>
