@@ -14,6 +14,9 @@ const balanceEl = document.getElementById("balance");
 let currentYear = new Date().getFullYear();
 let expenses = [];
 let users = [];
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+}[char]));
 
 // ===============================
 // 年度セレクト初期化
@@ -63,11 +66,11 @@ function renderExpenseTable() {
 
     tr.innerHTML = `
       <td class="border p-3">
-        <input type="text" value="${item.name}" class="w-full border p-2 rounded">
+        <input type="text" value="${escapeHtml(item.name)}" class="w-full border p-2 rounded">
       </td>
 
       <td class="border p-3">
-        <input type="number" value="${item.amount}" class="w-full border p-2 rounded">
+        <input type="number" value="${escapeHtml(item.amount)}" class="w-full border p-2 rounded">
       </td>
 
       <td class="border p-3 text-center">
@@ -119,7 +122,7 @@ function renderUserTable() {
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
-      <td class="border p-3">${user.email}</td>
+      <td class="border p-3">${escapeHtml(user.email)}</td>
 
       <td class="border p-3">
         <select class="border p-2 rounded w-full">
@@ -129,7 +132,7 @@ function renderUserTable() {
       </td>
 
       <td class="border p-3">
-        <input type="date" value="${user.paidDate || ""}" class="border p-2 rounded w-full">
+        <input type="date" value="${escapeHtml(user.paidDate || "")}" class="border p-2 rounded w-full">
       </td>
 
       <td class="border p-3 text-center">

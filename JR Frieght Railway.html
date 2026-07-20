@@ -110,7 +110,13 @@ async function fetchAndUpdateData() {
 function renderPage(data) {
     document.getElementById('company-name').textContent = data.company || '';
     document.getElementById('updated-time').textContent = `最終更新: ${data.date || ''} ${data.time || ''}`;
-    document.getElementById('status-title').innerHTML = data.status_title ? `<h3>${data.status_title}</h3>` : '';
+    const statusTitle = document.getElementById('status-title');
+    statusTitle.replaceChildren();
+    if (data.status_title) {
+        const heading = document.createElement('h3');
+        heading.textContent = data.status_title;
+        statusTitle.appendChild(heading);
+    }
 
     const incidentsEl = document.getElementById('incidents');
     incidentsEl.innerHTML = '';
@@ -118,10 +124,11 @@ function renderPage(data) {
         data.incidents.forEach(inc => {
             const el = document.createElement('div');
             el.className = 'incident-item';
-            el.innerHTML = `<h5>${inc.impact}</h5>
-                <p><strong>期間:</strong> ${inc.time_period}</p>
-                <p><strong>場所:</strong> ${inc.location}</p>
-                <p><strong>原因:</strong> ${inc.cause}</p>`;
+            [['h5', inc.impact], ['p', `期間: ${inc.time_period || ''}`], ['p', `場所: ${inc.location || ''}`], ['p', `原因: ${inc.cause || ''}`]].forEach(([tag, value]) => {
+                const field = document.createElement(tag);
+                field.textContent = value;
+                el.appendChild(field);
+            });
             incidentsEl.appendChild(el);
         });
     } else {
@@ -140,12 +147,21 @@ function renderPage(data) {
             list.className = 'train-list';
             line.trains.forEach(train => {
                 const statusClass = getStatusClass(train.status);
-                list.innerHTML += `<div class="mb-2 border-bottom pb-2">
-                    <p><strong>列車番号:</strong> ${train.train_number}</p>
-                    <p><strong>区間:</strong> ${train.route}</p>
-                    <p><strong>現在地:</strong> ${train.current_location}</p>
-                    <p><strong>状態:</strong> <span class="status-badge ${statusClass}">${train.status}</span></p>
-                </div>`;
+                const row = document.createElement('div');
+                row.className = 'mb-2 border-bottom pb-2';
+                [['列車番号', train.train_number], ['区間', train.route], ['現在地', train.current_location]].forEach(([label, value]) => {
+                    const p = document.createElement('p');
+                    p.textContent = `${label}: ${value || ''}`;
+                    row.appendChild(p);
+                });
+                const status = document.createElement('p');
+                status.textContent = '状態: ';
+                const badge = document.createElement('span');
+                badge.className = `status-badge ${statusClass}`;
+                badge.textContent = train.status || '';
+                status.appendChild(badge);
+                row.appendChild(status);
+                list.appendChild(row);
             });
             lineDiv.appendChild(list);
             trainsEl.appendChild(lineDiv);

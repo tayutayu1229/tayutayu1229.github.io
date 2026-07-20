@@ -13,6 +13,9 @@ const modal = document.getElementById("modal");
 const modalContent = document.getElementById("modal-content");
 const modalClose = document.getElementById("modal-close");
 const modalCopy = document.getElementById("modal-copy");
+const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, char => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+}[char]));
 
 let modalDuty = null;
 
@@ -261,12 +264,7 @@ async function searchDuties() {
 // 絞り込み状況
 // --------------------------------------
 function updateFilterStatus() {
-  filterStatus.innerHTML = `
-    施行日：${dateInput.value || "指定なし"}　
-    区所名：${depotSelect.value || "指定なし"}　
-    運用番号：${dutyNumberInput.value || "指定なし"}　
-    列車番号：${trainNumberInput.value || "指定なし"}
-  `;
+  filterStatus.textContent = `施行日：${dateInput.value || "指定なし"}　区所名：${depotSelect.value || "指定なし"}　運用番号：${dutyNumberInput.value || "指定なし"}　列車番号：${trainNumberInput.value || "指定なし"}`;
 }
 
 // --------------------------------------
@@ -301,20 +299,20 @@ function renderTable(results) {
     const trainHtml = trains
       .map(t => {
         // 各項目の存在チェックを行い、空でなければ結合して表示
-        const num = t.train_number ? `${t.train_number} ` : "";
-        const sec = (t.origin || t.destination) ? `${t.origin || ""}〜${t.destination || ""}` : "";
+        const num = t.train_number ? `${escapeHtml(t.train_number)} ` : "";
+        const sec = (t.origin || t.destination) ? `${escapeHtml(t.origin)}〜${escapeHtml(t.destination)}` : "";
         return `${num}${sec}`.trim();
       })
       .filter(line => line !== "") // 空文字の行は除外
       .join("<br>");
 
     html += `
-      <tr class="duty-row" data-id="${duty.id}" data-type="${item.type}">
-        <td>${item.type === "extra" ? duty.date : "所定"}</td>
-        <td>${duty.depot}</td>
-        <td>${duty.duty_number}</td>
+      <tr class="duty-row" data-id="${escapeHtml(duty.id)}" data-type="${escapeHtml(item.type)}">
+        <td>${item.type === "extra" ? escapeHtml(duty.date) : "所定"}</td>
+        <td>${escapeHtml(duty.depot)}</td>
+        <td>${escapeHtml(duty.duty_number)}</td>
         <td>${trainHtml}</td>
-        <td>${duty.vehicle_type || ""}</td>
+        <td>${escapeHtml(duty.vehicle_type)}</td>
       </tr>
     `;
   });
@@ -372,11 +370,11 @@ async function openModal(id, type) {
     const label = p.date ? `${p.date} ${p.duty_number}（${p.depot}）` : `${p.duty_number}（${p.depot}）`;
     predecessorHtml = `
       <div class="modal-predecessor small-label">
-        前継承：<a href="#" class="predecessor-link" data-id="${p.id}" data-type="${type}">${label}</a>
+        前継承：<a href="#" class="predecessor-link" data-id="${escapeHtml(p.id)}" data-type="${escapeHtml(type)}">${escapeHtml(label)}</a>
       </div>`;
   } else if (duty.predecessor_text) {
     // 紐付けなしの場合はテキストを表示
-    predecessorHtml = `<div class="modal-predecessor small-label">前継承：${duty.predecessor_text}</div>`;
+    predecessorHtml = `<div class="modal-predecessor small-label">前継承：${escapeHtml(duty.predecessor_text)}</div>`;
   }
 
   // 4. 後継承（successor）の表示
@@ -388,11 +386,11 @@ async function openModal(id, type) {
     if (succ) {
       successorHtml = `
         <div class="modal-successor">
-          後継承：<a href="#" class="successor-link" data-id="${succ.id}" data-type="${duty.successor_type}">${duty.successor_text}</a>
+          後継承：<a href="#" class="successor-link" data-id="${escapeHtml(succ.id)}" data-type="${escapeHtml(duty.successor_type)}">${escapeHtml(duty.successor_text)}</a>
         </div>`;
     }
   } else if (duty.successor_text) {
-    successorHtml = `<div class="modal-successor">後継承：${duty.successor_text}</div>`;
+    successorHtml = `<div class="modal-successor">後継承：${escapeHtml(duty.successor_text)}</div>`;
   }
 
   // 5. 後継候補の検索
@@ -408,25 +406,25 @@ async function openModal(id, type) {
     <div class="candidate-list">
       <h4>後継候補</h4>
       ${candidates.map(c => `
-        <div class="successor-candidate" data-id="${c.id}" data-type="extra">
-          ${c.date}　${c.duty_number}（${c.depot}）
+        <div class="successor-candidate" data-id="${escapeHtml(c.id)}" data-type="extra">
+          ${escapeHtml(c.date)}　${escapeHtml(c.duty_number)}（${escapeHtml(c.depot)}）
         </div>`).join("")}
     </div>` : "";
 
   // 6. HTMLの組み立て
   modalContent.innerHTML = `
-    <div class="modal-date">施行日：${effectiveDate}</div>
-    <h2>${duty.duty_number}　${duty.depot}</h2>
-    <h3>${duty.vehicle_type}</h3>
+    <div class="modal-date">施行日：${escapeHtml(effectiveDate)}</div>
+    <h2>${escapeHtml(duty.duty_number)}　${escapeHtml(duty.depot)}</h2>
+    <h3>${escapeHtml(duty.vehicle_type)}</h3>
     ${predecessorHtml}
     <div class="modal-trains">
       ${trains.map(t => `
         <div class="modal-train-row">
-          <span class="modal-train-num">${t.train_number}</span>
-          <span class="modal-train-sec">${t.origin}〜${t.destination}</span>
+          <span class="modal-train-num">${escapeHtml(t.train_number)}</span>
+          <span class="modal-train-sec">${escapeHtml(t.origin)}〜${escapeHtml(t.destination)}</span>
         </div>`).join("")}
     </div>
-    ${duty.notes ? `<pre class="modal-notes">${duty.notes}</pre>` : ""}
+    ${duty.notes ? `<pre class="modal-notes">${escapeHtml(duty.notes)}</pre>` : ""}
     ${successorHtml}
     ${candidatesHtml}
   `;

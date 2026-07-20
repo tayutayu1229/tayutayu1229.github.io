@@ -6,11 +6,14 @@ const JSON_PATH = '/T-time/timetables.json';
 const params    = new URLSearchParams(window.location.search);
 const targetId  = params.get('id');
 const customDate = params.get('date');
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+}[char]));
 
 window.addEventListener('DOMContentLoaded', async () => {
     const container = document.getElementById('render-target');
     if (!container) { console.error("'render-target' が見つかりません。"); return; }
-    if (!targetId)  { container.innerHTML = "IDが指定されていません。"; return; }
+    if (!targetId)  { container.textContent = "IDが指定されていません。"; return; }
 
     try {
         const response = await fetch(JSON_PATH);
@@ -30,11 +33,11 @@ window.addEventListener('DOMContentLoaded', async () => {
             const mergedTrain = mergeTrainSegments(group);
             renderStaff(mergedTrain, group[0]);
         } else {
-            container.innerHTML = "該当データがありません ID:" + targetId;
+            container.textContent = "該当データがありません ID:" + targetId;
         }
     } catch (e) {
         console.error(e);
-        container.innerHTML = "読み込みエラーが発生しました。";
+        container.textContent = "読み込みエラーが発生しました。";
     }
 });
 
@@ -74,12 +77,12 @@ function formatTime(t, isPassing) {
     }
 
     const p = t.split(':');
-    if (p.length < 2) return `<span class="time-main">${t}</span>`;
+    if (p.length < 2) return `<span class="time-main">${escapeHtml(t)}</span>`;
 
-    const hhmm = `${p[0]}.${p[1]}`;
+    const hhmm = `${escapeHtml(p[0])}.${escapeHtml(p[1])}`;
     const rawSec = p[2] ? p[2].replace(/^0/, '') : '';
     const secStr = (rawSec && rawSec !== '0' && rawSec !== '00')
-        ? `<span class="time-sec">${rawSec}</span>` : '';
+        ? `<span class="time-sec">${escapeHtml(rawSec)}</span>` : '';
 
     const cls = isPassing ? ' class="time-passing"' : '';
     return `<span${cls ? '' : ''}><span class="time-main">${hhmm}</span>${secStr}</span>`;
@@ -128,25 +131,25 @@ function renderStaff(train, firstSegment) {
     const dateDisp = customDate || '';
 
     // 速度情報（改行で複数行対応）
-    const speedVal  = (train.speed  || '').replace(/[,、]/g, '\n');
+    const speedVal  = escapeHtml(train.speed || '').replace(/[,、]/g, '<br>');
     const powerVal  = train.power || '';
     const speedType = train.speedType || '';
 
     // 車両情報
     const carCount = train.carCount || '';
-    const carLabel = carCount ? `${carCount}<span>両</span>` : '';
+    const carLabel = carCount ? `${escapeHtml(carCount)}<span>両</span>` : '';
     const subLabel = train.carLabel || '（乗継）';
 
     // ── HTML構築 ──
     let html = `
         <div class="staff-header">
-            <div class="hd-no">NO.&thinsp;${noNum}</div>
+            <div class="hd-no">NO.&thinsp;${escapeHtml(noNum)}</div>
             <div class="hd-right">
-                ${lineName ? `${lineName}行路` : ''}<br>
+                ${lineName ? `${escapeHtml(lineName)}行路` : ''}<br>
                 ${depot}
             </div>
         </div>
-        <div class="hd-date">施行日&emsp;${dateDisp}</div>
+        <div class="hd-date">施行日&emsp;${escapeHtml(dateDisp)}</div>
 
         <table class="info-table">
             <colgroup>
@@ -162,10 +165,10 @@ function renderStaff(train, firstSegment) {
                 <td>けん引定数</td>
             </tr>
             <tr>
-                <td class="train-num-cell">${train.trainNumber || '―'}</td>
+                <td class="train-num-cell">${escapeHtml(train.trainNumber || '―')}</td>
                 <td><div class="speed-val">${speedVal}</div></td>
-                <td style="font-size:9px;">${speedType}</td>
-                <td style="font-size:9px; line-height:1.3;">${powerVal}</td>
+                <td style="font-size:9px;">${escapeHtml(speedType)}</td>
+                <td style="font-size:9px; line-height:1.3;">${escapeHtml(powerVal)}</td>
             </tr>
         </table>
 
@@ -193,7 +196,7 @@ function renderStaff(train, firstSegment) {
             <tbody>
                 <tr class="car-num-row">
                     <td class="car-num-cell" colspan="2">${carLabel}</td>
-                    <td class="syosho-cell" colspan="5">${subLabel}</td>
+                    <td class="syosho-cell" colspan="5">${escapeHtml(subLabel)}</td>
                 </tr>
     `;
 
@@ -222,10 +225,10 @@ function renderStaff(train, firstSegment) {
         html += `
             <tr style="height:${rowHeight};">
                 <td>${jifunHtml}</td>
-                <td class="${stClass}" style="font-size:${stFontSize};">${stop.station}</td>
+                <td class="${stClass}" style="font-size:${stFontSize};">${escapeHtml(stop.station)}</td>
                 <td${arrTdClass}>${arrHtml}</td>
                 <td${depTdClass}>${depHtml}</td>
-                <td class="track-num">${stop.trackN || ''}</td>
+                <td class="track-num">${escapeHtml(stop.trackN || '')}</td>
                 <td></td>
                 <td></td>
             </tr>
@@ -238,7 +241,7 @@ function renderStaff(train, firstSegment) {
 
         <div class="notes-area">
             <div class="notes-label">注意事項</div>
-            <div class="notes-text">${train.notes || ''}</div>
+            <div class="notes-text">${escapeHtml(train.notes || '')}</div>
         </div>
 
         <div class="staff-footer">${todayStr()}</div>
