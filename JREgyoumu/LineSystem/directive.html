@@ -154,8 +154,7 @@
   const statusDisplay = document.getElementById('status-display');
 
   // ODPT
-  const API_KEY = '26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o';
-  const API_ENDPOINT = 'https://api-challenge.odpt.org/api/v4/';
+  const API_ENDPOINT = '/api/odpt/challenge/';
   // 列車と駅情報にはJR-Eastを、運行情報にはjre-isを使用する
   const API_OPERATOR_TRAIN = 'odpt.Operator:JR-East';
   const API_OPERATOR_INFO = 'odpt.Operator:jre-is';
@@ -209,7 +208,7 @@
   async function fetchRailwayData() {
     try {
       // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
-      const res = await fetch(`${API_ENDPOINT}odpt:Railway?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const res = await fetch(`${API_ENDPOINT}odpt:Railway?odpt:operator=${API_OPERATOR_TRAIN}`);
       if (!res.ok) throw new Error('Failed to fetch railway data');
       allRailways = await res.json();
     } catch (e) { console.error('fetchRailwayData:', e); }
@@ -218,7 +217,7 @@
   async function fetchStationData() {
     try {
       // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
-      const res = await fetch(`${API_ENDPOINT}odpt:Station?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const res = await fetch(`${API_ENDPOINT}odpt:Station?odpt:operator=${API_OPERATOR_TRAIN}`);
       if (!res.ok) throw new Error('Failed to fetch station data');
       const data = await res.json();
       data.forEach(st => {
@@ -235,7 +234,7 @@
   async function fetchTimetableData() {
     try {
       // 列車データがJR-Eastを使用しているため、ここもJR-Eastのままにする
-      const res = await fetch(`${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const res = await fetch(`${API_ENDPOINT}odpt:TrainTimetable?odpt:operator=${API_OPERATOR_TRAIN}`);
       if (!res.ok) throw new Error('Failed to fetch timetable data');
       const data = await res.json();
       data.forEach(tt => {
@@ -250,13 +249,13 @@
   async function updateSummaryAndAlerts() {
     try {
       // 1) 総路線数: 列車リアルタイム情報からのユニーク路線数
-      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const trainsRes = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}`);
       const trainsData = trainsRes.ok ? await trainsRes.json() : [];
       const routeSet = new Set(trainsData.map(t => t['odpt:railway']).filter(Boolean));
       const totalRoutes = routeSet.size;
 
       // 2) 遅延路線数 & 通知: TrainInformation から平常運転とお知らせ以外を抽出
-      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=${API_OPERATOR_INFO}&acl:consumerKey=${API_KEY}`);
+      const infoRes = await fetch(`${API_ENDPOINT}odpt:TrainInformation?odpt:operator=${API_OPERATOR_INFO}`);
       const infos = infoRes.ok ? await infoRes.json() : [];
       // 運行情報テキストまたは運行情報ステータスが「平常運転」でも「お知らせ」でもないものを抽出
       const filtered = infos.filter(info => {
@@ -301,7 +300,7 @@
   /* ---------- realtime trains + map rendering (popup-based) ---------- */
   async function updateDashboard() {
     try {
-      const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}&acl:consumerKey=${API_KEY}`);
+      const res = await fetch(`${API_ENDPOINT}odpt:Train?odpt:operator=${API_OPERATOR_TRAIN}`);
       if (!res.ok) throw new Error('Failed to fetch train data');
       const trains = await res.json();
 

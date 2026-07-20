@@ -50,9 +50,7 @@
     </main>
   </div><div class="toast" id="toast" role="status"></div>
   <script>
-    // 東武鉄道は api-challenge.odpt.org 専用のチャレンジトークンが必要です。
-    const TOBU_CHALLENGE_TOKEN='26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o';
-    const API='https://api-challenge.odpt.org/api/v4/';
+    const API='/api/odpt/challenge/';
     const OP='odpt.Operator:Tobu';
     const REFRESH_SECONDS=60;
     const titles={monitor:'在線モニタ',lines:'路線別運行情報',trains:'列車一覧',data:'データ接続'};
@@ -64,7 +62,7 @@
     function tick(){const n=new Date();$('#clock').textContent=n.toLocaleTimeString('ja-JP',{hour12:false});$('#date').textContent=n.toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'});if(lastSuccess)$('#dataAge').innerHTML=`${Math.max(0,Math.floor((n-lastSuccess)/1000))}<span>秒前</span>`}tick();setInterval(tick,1000);
     function navigate(n){$$('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${n}`));$$('.nav button[data-panel]').forEach(b=>b.classList.toggle('active',b.dataset.panel===n));$('#pageTitle').textContent=titles[n];$('#side').classList.remove('open')}
     $$('.nav button[data-panel]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.panel)));$('#menuBtn').addEventListener('click',()=>$('#side').classList.toggle('open'));
-    async function fetchJson(type){const q=new URLSearchParams({'odpt:operator':OP,'acl:consumerKey':TOBU_CHALLENGE_TOKEN}),r=await fetch(`${API}odpt:${type}?${q}`);if(!r.ok){const e=new Error(`HTTP ${r.status}`);e.status=r.status;throw e}return r.json()}
+    async function fetchJson(type){const q=new URLSearchParams({'odpt:operator':OP}),r=await fetch(`${API}odpt:${type}?${q}`);if(!r.ok){const e=new Error(`HTTP ${r.status}`);e.status=r.status;throw e}return r.json()}
     function lineKey(ref){return tail(ref)}
     function meta(ref){const k=lineKey(ref),r=railways.find(x=>x['owl:sameAs']===ref||lineKey(x['owl:sameAs'])===k),f=fallbackLines.find(x=>x[0]===k);return {key:k,name:loc(r?.['odpt:railwayTitle'])||r?.['dc:title']||f?.[1]||k,code:r?.['odpt:lineCode']||f?.[2]||'—',color:r?.['odpt:color']||f?.[3]||'#1972a4',ref:r?.['owl:sameAs']||ref}}
     function stationName(ref){const s=stations.find(x=>x['owl:sameAs']===ref),same=stations.find(x=>tail(x['owl:sameAs'])===tail(ref));return loc(s?.['odpt:stationTitle']||same?.['odpt:stationTitle'])||tail(ref)||'—'}

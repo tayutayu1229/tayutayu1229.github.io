@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const refreshButton = document.getElementById('refresh-button');
     const backToStationSelectButton = document.getElementById('back-to-station-select-button');
 
-    const API_KEY = "26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o";
+    const ODPT_CHALLENGE_API = '/api/odpt/challenge';
 
     let apiData = {};
     const railwayMap = {};
@@ -244,10 +244,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fetchDataFromAPI = async () => {
         try {
             const API_URLS = {
-                stations: `https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-                railways: `https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-                trainStatus: `https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`,
-                trainInformation: `https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${API_KEY}`
+                stations: `${ODPT_CHALLENGE_API}/odpt:Station?odpt:operator=odpt.Operator:JR-East`,
+                railways: `${ODPT_CHALLENGE_API}/odpt:Railway?odpt:operator=odpt.Operator:JR-East`,
+                trainStatus: `${ODPT_CHALLENGE_API}/odpt:Train?odpt:operator=odpt.Operator:JR-East`,
+                trainInformation: `${ODPT_CHALLENGE_API}/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is`
             };
 
             const apiCalls = [
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ];
 
             const additionalStationCalls = additionalRailwayIds.map(railwayId => 
-                fetch(`https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}&acl:consumerKey=${API_KEY}`).then(res => res.json())
+                fetch(`${ODPT_CHALLENGE_API}/odpt:Station?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}`).then(res => res.json())
             );
             
             const allApiCalls = [...apiCalls, ...additionalStationCalls];
@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const fetchTimetableData = async (stationId, railwayId) => {
         try {
-            const url = `https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}&odpt:station=${stationId}&acl:consumerKey=${API_KEY}`;
+            const url = `${ODPT_CHALLENGE_API}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${railwayId}&odpt:station=${stationId}`;
             const res = await fetch(url);
             const data = await res.json();
             return data;

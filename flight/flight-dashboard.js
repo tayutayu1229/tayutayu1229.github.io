@@ -2,10 +2,8 @@
   "use strict";
 
   const CONFIG = {
-    standardToken: "4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v",
-    challengeToken: "26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o",
-    standardBase: "https://api.odpt.org/api/v4",
-    challengeBase: "https://api-challenge.odpt.org/api/v4",
+    standardBase: "/api/odpt/standard",
+    challengeBase: "/api/odpt/challenge",
     cacheKey: "skyDeskCacheV2",
     favoritesKey: "skyDeskFavoritesV2",
     snapshotsKey: "skyDeskSnapshotsV2"
@@ -152,8 +150,7 @@
   }
   function sourceUrl(source) {
     const base = source.challenge ? CONFIG.challengeBase : CONFIG.standardBase;
-    const token = source.challenge ? CONFIG.challengeToken : CONFIG.standardToken;
-    return `${base}/${source.endpoint}?odpt:operator=odpt.Operator:${source.airline}&acl:consumerKey=${token}`;
+    return `${base}/${source.endpoint}?odpt:operator=odpt.Operator:${source.airline}`;
   }
   async function fetchSource(source) {
     const started = performance.now();

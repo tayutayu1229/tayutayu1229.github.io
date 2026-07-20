@@ -990,9 +990,8 @@ html, body {
 
 <script>
 // ===== 定数 =====
-const TOKEN = '26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o';
-const BASE  = 'https://api-challenge.odpt.org/api/v4';
-const K     = `acl:consumerKey=${TOKEN}`;
+const BASE  = '/api/odpt/challenge';
+const K     = '';
 
 // ===== 裏コマンド・診断コンソール =====
 const diagnosticLogs=[];
@@ -1061,7 +1060,7 @@ function renderDiagnostics(filter='all'){
   document.getElementById('diagnostic-console').innerHTML=logs.length?logs.slice().reverse().map(log=>`<div class="diagnostic-entry ${log.level}"><div class="diag-meta">${diagEscape(log.time)} [${diagEscape(log.level.toUpperCase())}] ${diagEscape(log.source)}</div><strong>${diagEscape(log.message)}</strong>${log.details?`<details><summary>詳細を表示</summary>${diagEscape(JSON.stringify(log.details,null,2))}</details>`:''}</div>`).join(''):'<div class="diagnostic-empty">該当する診断ログはありません。</div>';
 }
 function clearDiagnostics(){diagnosticLogs.length=0;addDiagnostic('info','診断ログを消去しました',null,'console');renderDiagnostics('all');}
-function exportDiagnostics(){const safe=diagnosticLogs.map(log=>({...log,details:log.details?JSON.parse(JSON.stringify(log.details).replaceAll(TOKEN,'***REDACTED***')):null}));const blob=new Blob([JSON.stringify(safe,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`atos-diagnostics-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function exportDiagnostics(){const safe=diagnosticLogs.map(log=>({...log,details:log.details||null}));const blob=new Blob([JSON.stringify(safe,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`atos-diagnostics-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 function runSystemCheck(){
   const checks=[['オンライン状態',navigator.onLine],['在線列車データ',Array.isArray(atosTrainData)&&atosTrainData.length>0],['路線データ',Array.isArray(atosRailwayData)&&atosRailwayData.length>0],['運行情報データ',Array.isArray(infoData)&&infoData.length>0],['路線選択',Boolean(document.getElementById('atosLineSelect')?.value)],['共有URL状態',urlStateReady]];
   checks.forEach(([name,ok])=>addDiagnostic(ok?'info':'warn',`${name}: ${ok?'正常':'未取得または異常'}`,null,'self-check'));

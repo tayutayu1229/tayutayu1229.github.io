@@ -1,6 +1,5 @@
 const $ = id => document.getElementById(id);
-const ODPT_ACCESS_TOKEN = '26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o';
-const ODPT_GTFS_URL = `https://api-challenge.odpt.org/api/v4/files/JR-Freight/data/JR-Freight-Train-GTFS-2500.zip?acl:consumerKey=${ODPT_ACCESS_TOKEN}`;
+const ODPT_GTFS_URL = '/api/odpt/challenge/files/JR-Freight/data/JR-Freight-Train-GTFS-2500.zip';
 const state = {
   db:null, infos:new Map(), stations:[], stationTrips:new Map(), favorites:new Set(), compare:new Set(), shards:new Map(), status:null, logs:[],
   view:'dashboard', selected:null, selectedStation:null, visibleTrips:60, boardMode:'all', mapMode:'network',

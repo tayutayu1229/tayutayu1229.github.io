@@ -669,7 +669,7 @@
   </div>
 
 <script>
-  const token = "26d1y7j8fkzdabx6iuxby79nqu8tdz8h6mmu05apwseyvg8h9uvymkl5y9ikpo9o";
+  const ODPT_CHALLENGE_API = '/api/odpt/challenge';
 
   const lineColors = {
     "odpt.Railway:JR-East.KeihinTohokuNegishi": "#0078BD",
@@ -1298,7 +1298,7 @@
         })).filter(item=>item.stationId);
         const cacheKey = `${stationName}-${contexts.map(c=>c.lineId).sort().join(',')}-${calendar}`;
         if (!cachedStationTimetables[cacheKey]) {
-            const responses=await Promise.all(contexts.map(item=>fetch(`https://api-challenge.odpt.org/api/v4/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${item.stationId}&odpt:railway=${item.lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)));
+            const responses=await Promise.all(contexts.map(item=>fetch(`${ODPT_CHALLENGE_API}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${item.stationId}&odpt:railway=${item.lineId}&odpt:calendar=odpt.Calendar:${calendar}`)));
             const data=await Promise.all(responses.map(async response=>response.ok?response.json():[]));
             cachedStationTimetables[cacheKey] = data.flat();
         }
@@ -1826,9 +1826,9 @@
   function fetchSupplementalData(){
     if(supplementalPromise) return supplementalPromise;
     supplementalPromise=Promise.all([
-      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Station?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-      fetch(`https://api-challenge.odpt.org/api/v4/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-      fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?acl:consumerKey=${token}`)
+      fetch(`${ODPT_CHALLENGE_API}/odpt:Station?odpt:operator=odpt.Operator:JR-East`),
+      fetch(`${ODPT_CHALLENGE_API}/odpt:PassengerSurvey?odpt:operator=odpt.Operator:JR-East`),
+      fetch(`${ODPT_CHALLENGE_API}/odpt:Railway`)
     ]).then(async([stationRes,passengerRes,allRailwayRes])=>{
       if(stationRes.ok) stationInfoData=await stationRes.json();
       if(passengerRes.ok) passengerSurveyData=await passengerRes.json();
@@ -1842,7 +1842,7 @@
     await Promise.all(uniqueLines.map(async lineId=>{
       const key=`${lineId}-${calendar}`;
       if(trainTimetableRequests.has(key)) return trainTimetableRequests.get(key);
-      const request=fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}&acl:consumerKey=${token}`)
+      const request=fetch(`${ODPT_CHALLENGE_API}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${calendar}`)
         .then(async response=>{
           if(!response.ok) throw new Error(`${getLineTitle(lineId)}の列車時刻表を取得できませんでした`);
           const data=await response.json();
@@ -1883,9 +1883,9 @@
       }
       
       const [trainRes, railRes, infoRes] = await Promise.all([
-        fetch(`https://api-challenge.odpt.org/api/v4/odpt:Train?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-        fetch(`https://api-challenge.odpt.org/api/v4/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${token}`),
-        fetch(`https://api-challenge.odpt.org/api/v4/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is&acl:consumerKey=${token}`)
+        fetch(`${ODPT_CHALLENGE_API}/odpt:Train?odpt:operator=odpt.Operator:JR-East`),
+        fetch(`${ODPT_CHALLENGE_API}/odpt:Railway?odpt:operator=odpt.Operator:JR-East`),
+        fetch(`${ODPT_CHALLENGE_API}/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is`)
       ]);
 
       if (!trainRes.ok || !railRes.ok) throw new Error("API取得エラー");

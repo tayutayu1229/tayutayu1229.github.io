@@ -43,7 +43,9 @@ export default {
     const token = source === "standard" ? env.ODPT_STANDARD_TOKEN : env.ODPT_CHALLENGE_TOKEN;
     if (!token) return response("Upstream credentials are not configured", 503);
 
-    const upstream = new URL(path, SOURCES[source]);
+    // `odpt:Train` is an API resource name, not a URL scheme.  Concatenating
+    // it to the trusted source avoids URL treating `odpt:` as a new scheme.
+    const upstream = new URL(`${SOURCES[source]}${path}`);
     for (const [key, value] of incoming.searchParams) {
       if (key !== "acl:consumerKey") upstream.searchParams.append(key, value);
     }

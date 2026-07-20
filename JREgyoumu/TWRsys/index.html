@@ -422,11 +422,9 @@
 
   <script>
     // ============================================================
-    // ODPT API設定
-    // 下の '' の中に、発行されたアクセストークンを貼り付けてください。
-    // 例: const ODPT_ACCESS_TOKEN = 'xxxxxxxxxxxxxxxx';
+    // ODPT API設定は Cloudflare Worker 側で管理します。
     // ============================================================
-    const ODPT_ACCESS_TOKEN = '4tf33x46mhk1umi1jhfiy040thiafy3onu9y71ltyrplwnkjka5u5pni8k2d3z6v';
+    const ODPT_PROXY_BASE = '/api/odpt/standard/';
 
     const stations = [
       { code:'R01', name:'新木場', en:'Shin-kiba', platform:'1・2番線', transfer:'JR京葉線 / 東京メトロ有楽町線', daily:'102,340', times:['12:43','12:50','12:58','13:06','13:14'] },
@@ -448,7 +446,7 @@
     ];
     const titles = { dashboard:'運行ダッシュボード', trains:'列車運行一覧', stations:'駅情報', timetable:'駅時刻表', data:'データ接続' };
     let selectedStation = 3;
-    let apiToken = ODPT_ACCESS_TOKEN;
+    let apiToken = 'worker-managed';
 
     const icon = id => `<svg class="icon"><use href="#${id}"/></svg>`;
     const $ = sel => document.querySelector(sel);
@@ -594,10 +592,8 @@
 
     async function fetchOdpt(){
       if(!apiToken){ toast('ODPTアクセストークンを設定してください'); openSettings(); return; }
-      const base = 'https://api.odpt.org/api/v4/';
-      const token = `&acl:consumerKey=${encodeURIComponent(apiToken)}`;
-      const statusEndpoint = `${base}odpt:TrainInformation?odpt:operator=odpt.Operator:TWR${token}`;
-      const timetableEndpoint = `${base}odpt:StationTimetable?odpt:operator=odpt.Operator:TWR${token}`;
+      const statusEndpoint = `${ODPT_PROXY_BASE}odpt:TrainInformation?odpt:operator=odpt.Operator:TWR`;
+      const timetableEndpoint = `${ODPT_PROXY_BASE}odpt:StationTimetable?odpt:operator=odpt.Operator:TWR`;
       $('#modalState').textContent='接続を確認しています…';
       try {
         const fetchJson = async url => { const response=await fetch(url); if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); };
