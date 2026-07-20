@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const userDoc = await db.collection("users").doc(user.uid).get();
                 
                     // 1. ユーザーデータ存在および承認チェック
-                    if (!userDoc.exists || !userDoc.data().approved) {
+                    if (!userDoc.exists || userDoc.data().approved !== true || userDoc.data().status !== "active") {
                         console.warn("GUARD: ユーザーは未承認またはデータ不完全。アクセス拒否。");
                         await auth.signOut();
                         alert("アクセス権限がありません。管理者による承認を確認してください。");
