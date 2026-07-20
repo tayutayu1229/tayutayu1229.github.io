@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// Source of truth for the Cloud Firestore rules in the Firebase console.
+// Publish this same content after changing it in the console.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdministrator() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || isAdministrator());
+      allow list: if isAdministrator();
+
+      // A registrant may only create their own, pending, non-admin record.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.approved == false
+        && request.resource.data.isAdmin == false
+        && request.resource.data.status == "pending";
+
+      // Non-admin users can only change their display email field.
+      allow update: if isAdministrator() || (
+        signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["email"])
+      );
+      allow delete: if isAdministrator();
+    }
+
+    match /expenses/{document=**} {
+      allow read, write: if isAdministrator();
+    }
+
+    match /payments/{document=**} {
+      allow read, write: if isAdministrator();
+    }
+  }
+}
