@@ -8,16 +8,8 @@ function load_users() {
 }
 
 function login($username, $password) {
-    // ユーザーデータを取得
-    $users = load_users();
-    foreach ($users['users'] as $user) {
-        // ユーザー名とパスワードが一致するか確認
-        if ($user['username'] === $username && password_verify($password, $user['password'])) {
-            $_SESSION['loggedin'] = true;
-            $_SESSION['username'] = $username;
-            return true;
-        }
-    }
+    // 静的サイト上のJSON認証は廃止しました。
+    // 本番認証は Firebase Authentication に統一します。
     return false;
 }
 
