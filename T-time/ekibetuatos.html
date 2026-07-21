@@ -123,15 +123,18 @@
         </div>
     </div>
 
+    <script src="private-data-client.js"></script>
     <script>
         let rawTimetableData = [];
 
         async function loadData() {
             try {
-                const response = await fetch('timetables.json');
-                rawTimetableData = await response.json();
+                rawTimetableData = await TayunetPrivateData.fetchTimetables();
                 populateLines();
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+                alert(e.message);
+            }
         }
 
         function safeVal(val) {
@@ -169,13 +172,24 @@
         function populateLines() {
             const lines = [...new Set(rawTimetableData.map(d => d.line))].sort();
             const lineSelect = document.getElementById('lineSelect');
-            lineSelect.innerHTML = '<option value="">(選択)</option>' + lines.map(l => `<option value="${l}">${l}</option>`).join('');
+            lineSelect.replaceChildren(new Option('(選択)', ''), ...lines.map(l => new Option(l, l)));
             lineSelect.onchange = () => {
                 const stations = new Set();
                 rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
-                document.getElementById('stationSelect').innerHTML = '<option value="">(選択)</option>' + [...stations].sort().map(s => `<option value="${s}">${s}</option>`).join('');
+                document.getElementById('stationSelect').replaceChildren(
+                    new Option('(選択)', ''),
+                    ...[...stations].sort().map(s => new Option(s, s))
+                );
                 render();
             };
+        }
+
+        function appendCell(row, value, className) {
+            const td = document.createElement('td');
+            if (className) td.className = className;
+            td.textContent = value == null ? '' : String(value);
+            row.appendChild(td);
+            return td;
         }
 
         // 運用情報のラベル判定ロジック
@@ -261,17 +275,22 @@
                         tr.appendChild(tdLine);
                     }
 
-                    tr.innerHTML += `
-                        <td class="link-text" onclick="showOverlay('${train.trainNumber}', '${train.startDate}')">${safeVal(train.trainNumber)}</td>
-                        <td style="text-align:left; padding-left:4px;">${safeVal(train.type)}</td>
-                        <td>${autoDeterminePower(train)}</td>
-                        <td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td>
-                        <td class="col-time">${formatDisplayTime(s.departure)}</td><td></td>
-                        <td class="col-trk">${safeVal(s.trackN)}</td>
-                        <td>${getUnyouStatus(train, isFirst, isLast)}</td>
-                        <td class="link-text">${isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : "")}</td>
-                        <td style="text-align:left; padding-left:4px;">${safeVal(train.destination)}</td>
-                    `;
+                    const trainCell = appendCell(tr, safeVal(train.trainNumber), 'link-text');
+                    trainCell.addEventListener('click', () => showOverlay(train.trainNumber, train.startDate));
+                    const typeCell = appendCell(tr, safeVal(train.type));
+                    typeCell.style.textAlign = 'left';
+                    typeCell.style.paddingLeft = '4px';
+                    appendCell(tr, autoDeterminePower(train));
+                    appendCell(tr, formatDisplayTime(s.arrival), 'col-time');
+                    appendCell(tr, '');
+                    appendCell(tr, formatDisplayTime(s.departure), 'col-time');
+                    appendCell(tr, '');
+                    appendCell(tr, safeVal(s.trackN), 'col-trk');
+                    appendCell(tr, getUnyouStatus(train, isFirst, isLast));
+                    appendCell(tr, isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : ''), 'link-text');
+                    const destinationCell = appendCell(tr, safeVal(train.destination));
+                    destinationCell.style.textAlign = 'left';
+                    destinationCell.style.paddingLeft = '4px';
                     tbody.appendChild(tr);
                 });
             });
@@ -282,10 +301,11 @@
             const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
             if (!train) return;
 
-            document.getElementById('modalTrainInfo').innerHTML = 
-                `列車番号: ${train.trainNumber} / 列車種別: ${train.type} / 運転区間: ${train.origin} ～ ${train.destination}`;
-            
-            let html = `<table><thead>
+            document.getElementById('modalTrainInfo').textContent =
+                `列車番号: ${safeVal(train.trainNumber)} / 列車種別: ${safeVal(train.type)} / 運転区間: ${safeVal(train.origin)} ～ ${safeVal(train.destination)}`;
+
+            const table = document.createElement('table');
+            table.innerHTML = `<thead>
                 <tr>
                     <th rowspan="2" style="width:120px;">駅名</th>
                     <th colspan="2">着時刻</th>
@@ -296,19 +316,22 @@
                     <th style="width:90px;">計画</th><th style="width:45px;">到着</th>
                     <th style="width:90px;">計画</th><th style="width:45px;">発車</th>
                 </tr>
-                </thead><tbody>`;
-            
+                </thead>`;
+            const modalBody = document.createElement('tbody');
             train.stops.forEach(s => {
-                html += `<tr>
-                    <td style="text-align:left; padding-left:10px;">${s.station}</td>
-                    <td class="col-time">${formatDisplayTime(s.arrival)}</td><td></td>
-                    <td class="col-time">${formatDisplayTime(s.departure)}</td><td></td>
-                    <td class="col-trk">${safeVal(s.trackN)}</td>
-                </tr>`;
+                const row = document.createElement('tr');
+                const stationCell = appendCell(row, safeVal(s.station));
+                stationCell.style.textAlign = 'left';
+                stationCell.style.paddingLeft = '10px';
+                appendCell(row, formatDisplayTime(s.arrival), 'col-time');
+                appendCell(row, '');
+                appendCell(row, formatDisplayTime(s.departure), 'col-time');
+                appendCell(row, '');
+                appendCell(row, safeVal(s.trackN), 'col-trk');
+                modalBody.appendChild(row);
             });
-            html += `</tbody></table>`;
-            
-            document.getElementById('modalTableContainer').innerHTML = html;
+            table.appendChild(modalBody);
+            document.getElementById('modalTableContainer').replaceChildren(table);
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 

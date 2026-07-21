@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const JSON_PATH = '../../T-time/timetables.json';
     const listBody = document.querySelector('#timetable-list tbody');
     const searchDateInput = document.getElementById('search-date');
     const searchNumberInput = document.getElementById('search-number');
@@ -61,9 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─── データ読み込み ───
     const loadTimetables = async () => {
         try {
-            const response = await fetch(JSON_PATH);
-            if (!response.ok) throw new Error('JSON読み込み失敗');
-            cachedAllData = await response.json();
+            cachedAllData = await TayunetPrivateData.fetchTimetables();
             renderTimetableList(cachedAllData);
         } catch (error) {
             listBody.innerHTML =

@@ -46,6 +46,8 @@
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
   <button class="btn-gray" onclick="document.getElementById('importFile').click()">💾 インポート</button>
   <button class="btn-blue" onclick="copyJson()">📋 JSONコピー</button>
+  <button class="btn-green" onclick="downloadMergedMaster()">⬇ 全件JSONを保存</button>
+  <button class="btn-gray" onclick="TayunetPrivateData.openLogin()">🔐 データ用ログイン</button>
   <button class="btn-green" onclick="prepareNextSection()">➡ 次区間へスライド</button>
   <button class="btn-orange" onclick="quoteLineTemplate()">🔍 路線から駅を引用</button>
   <button class="btn-purple" onclick="reverseStops()">🔃 駅順を反転</button>
@@ -113,6 +115,7 @@
 <datalist id="lineList"></datalist>
 <datalist id="trackSuggestions"></datalist>
 
+<script src="T-time/private-data-client.js"></script>
 <script>
   let stops = [];
   let masterData = [];
@@ -120,9 +123,8 @@
   window.onload = async function() {
     const status = document.getElementById('loadStatus');
     try {
-      const res = await fetch('T-time/timetables.json');
-      if(res.ok) {
-        masterData = await res.json();
+      masterData = await TayunetPrivateData.fetchTimetables();
+      if(Array.isArray(masterData)) {
         const lines = [...new Set(masterData.map(t => t.line))].filter(Boolean).sort();
         const lineL = document.getElementById('lineList');
         lines.forEach(l => lineL.appendChild(new Option(l, l)));
@@ -133,7 +135,10 @@
         status.style.background = "#dcfce7";
         status.style.color = "#166534";
       }
-    } catch(e) { status.innerText = "Master: Offline"; }
+    } catch(e) {
+      status.innerText = "Master: Login required";
+      status.title = e.message;
+    }
   };
 
   function clearAllStops() {
@@ -178,18 +183,31 @@
 
   function updateUI() {
     const tbody = document.getElementById("stopsBody");
-    tbody.innerHTML = "";
+    tbody.replaceChildren();
     stops.forEach((stop, i) => {
       const tr = document.createElement("tr");
       const trackDlId = `dl_track_${i}`;
-      tr.innerHTML = `
-        <td><input type="text" value="${stop.station}" list="stationList" oninput="stops[${i}].station=this.value;updateJSON()"></td>
-        <td><input type="text" value="${stop.arrival}" oninput="stops[${i}].arrival=this.value;updateJSON()"></td>
-        <td><input type="text" value="${stop.departure}" oninput="stops[${i}].departure=this.value;updateJSON()"></td>
-        <td><input type="text" value="${stop.trackN}" list="${trackDlId}" onfocus="createDynamicDatalist(${i}, '${stop.station}')" oninput="stops[${i}].trackN=this.value;updateJSON()">
-            <datalist id="${trackDlId}"></datalist></td>
-        <td><button class="btn-red" style="padding:2px 6px;" onclick="stops.splice(${i},1);updateUI()">×</button></td>
-      `;
+      const addInputCell = (field, listId = '') => {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'text'; input.value = stop[field] || '';
+        if (listId) input.setAttribute('list', listId);
+        input.addEventListener('input', () => { stops[i][field] = input.value; updateJSON(); });
+        td.appendChild(input); tr.appendChild(td); return input;
+      };
+      addInputCell('station', 'stationList');
+      addInputCell('arrival');
+      addInputCell('departure');
+      const trackInput = addInputCell('trackN', trackDlId);
+      const trackList = document.createElement('datalist'); trackList.id = trackDlId;
+      trackInput.parentElement.appendChild(trackList);
+      trackInput.addEventListener('focus', () => createDynamicDatalist(i, stops[i].station));
+      const actionCell = document.createElement('td');
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button'; removeButton.className = 'btn-del'; removeButton.textContent = '×';
+      removeButton.style.padding = '2px 6px';
+      removeButton.addEventListener('click', () => { stops.splice(i, 1); updateUI(); });
+      actionCell.appendChild(removeButton); tr.appendChild(actionCell);
       tbody.appendChild(tr);
     });
     updateJSON();
@@ -256,7 +274,13 @@
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
-        const d = JSON.parse(e.target.result);
+        const parsed = JSON.parse(e.target.result);
+        const d = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (Array.isArray(parsed)) {
+          masterData = parsed;
+          showActionMsg(`💾 全件JSONを読込 (${parsed.length}件)。先頭データを編集中`);
+        }
+        if (!d || typeof d !== 'object') throw new Error('列車データではありません');
         const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2"];
         ids.forEach(id => {
             if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
@@ -264,7 +288,7 @@
         if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
         stops = Array.isArray(d.stops) ? d.stops : [];
         updateUI();
-        showActionMsg("💾 インポート完了");
+        if (!Array.isArray(parsed)) showActionMsg("💾 1件JSONをインポートしました");
       } catch (err) { alert("JSON解析エラー"); }
     };
     reader.readAsText(file);
@@ -272,14 +296,48 @@
 
   function showActionMsg(msg) {
     const el = document.getElementById("actionMessage");
-    el.innerHTML = `<span class="hint-msg">${msg}</span>`;
-    setTimeout(() => { el.innerHTML = ""; }, 3000);
+    el.textContent = msg;
+    el.className = 'hint-msg';
+    setTimeout(() => { el.textContent = ""; }, 3000);
   }
 
   function copyJson() {
     document.getElementById("jsonOutput").select();
     document.execCommand("copy");
     alert("コピー完了");
+  }
+
+  function currentRecord() {
+    return JSON.parse(document.getElementById('jsonOutput').value);
+  }
+
+  function recordKey(item) {
+    return [item.trainNumber, item.line, item.dayType, item.startDate].map(v => String(v || '')).join('\u001f');
+  }
+
+  function downloadMergedMaster() {
+    if (!Array.isArray(masterData) || masterData.length === 0) {
+      alert('先に「データ用ログイン」を済ませて再読込するか、既存の全件JSONをインポートしてください。');
+      return;
+    }
+    const record = currentRecord();
+    if (!record.trainNumber || !record.line || !record.startDate || !Array.isArray(record.stops) || record.stops.length === 0) {
+      alert('列車番号・路線名・始発駅発日・停車駅を入力してください。');
+      return;
+    }
+    const merged = masterData.map(item => JSON.parse(JSON.stringify(item)));
+    const index = merged.findIndex(item => recordKey(item) === recordKey(record));
+    if (index >= 0) {
+      if (!confirm('同じ列車番号・路線・曜日種別・施行日のデータがあります。置き換えますか？')) return;
+      merged[index] = record;
+    } else {
+      merged.push(record);
+    }
+    const blob = new Blob([JSON.stringify(merged, null, 2) + '\n'], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = 'timetables.json'; link.click();
+    URL.revokeObjectURL(link.href);
+    showActionMsg(`⬇ 全件JSONを保存しました (${merged.length}件)`);
   }
 </script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>

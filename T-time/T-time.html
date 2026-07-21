@@ -174,19 +174,16 @@
     </table>
   </div>
 
+  <script src="private-data-client.js"></script>
   <script>
     let timetableData = [];
     let currentMatches = [];
 
     async function loadTimetableData() {
       try {
-        const res = await fetch("timetables.json");
-        if (!res.ok) {
-          throw new Error(`JSONファイルの読み込みに失敗しました (${res.status} ${res.statusText})`);
-        }
-        timetableData = await res.json();
+        timetableData = await TayunetPrivateData.fetchTimetables();
         if (!Array.isArray(timetableData) || timetableData.length === 0) {
-          throw new Error("timetables.jsonに有効なデータがありません。ファイルが空か、形式が間違っています。");
+          throw new Error("時刻表APIに有効なデータがありません。");
         }
 
         const lines = [...new Set(timetableData.map(t => t.line))];
@@ -200,7 +197,7 @@
 
         const crowns = [...new Set(timetableData.map(t => t.crown).filter(c => c))].sort();
         const crownSelect = document.getElementById("crown");
-        crownSelect.innerHTML = `<option value="">すべて</option>`;
+        crownSelect.replaceChildren(new Option("すべて", ""));
         crowns.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c;
@@ -231,13 +228,17 @@
       tbody.innerHTML = "";
       train.stops.forEach((stop, index) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${index === 0 ? train.type : ""}</td>
-          <td>${stop.station}</td>
-          <td>${stop.arrival || "…"}</td>
-          <td>${stop.departure || "…"}</td>
-          <td>${stop.trackN || ""}</td>
-        `;
+        [
+          index === 0 ? train.type : "",
+          stop.station,
+          stop.arrival || "…",
+          stop.departure || "…",
+          stop.trackN || ""
+        ].forEach(value => {
+          const td = document.createElement("td");
+          td.textContent = value == null ? "" : String(value);
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
     }
@@ -290,7 +291,7 @@
       } else {
         const dateSelect = document.getElementById("select-date");
         const uniqueDates = [...new Set(currentMatches.map(d => d.startDate))];
-        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join("");
+        dateSelect.replaceChildren(...uniqueDates.map(d => new Option(d, d)));
         document.getElementById("date-selector-container").classList.remove("hidden");
         displayTrain(currentMatches[0]);
       }

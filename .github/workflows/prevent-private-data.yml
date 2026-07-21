@@ -1,0 +1,20 @@
+name: Prevent private timetable publication
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject private timetable files and legacy readers
+        run: |
+          test ! -e T-time/timetables.json
+          test ! -e T-time/station.json
+          ! grep -R -n -E "T-time/(timetables|station)\\.json|fetch\\(['\"](timetables|station)\\.json" \
+            --include='*.html' --include='*.js' .
