@@ -461,10 +461,10 @@ h2 {
         </div>
     </div>
 
+    <script src="../../T-time/private-data-client.js"></script>
     <script>
         // JavaScript
         document.addEventListener('DOMContentLoaded', () => {
-            const JSON_PATH = '../../T-time/timetables.json'; 
             const listBody = document.querySelector('#timetable-list tbody');
             const searchDateInput = document.getElementById('search-date');
             const searchNumberInput = document.getElementById('search-number');
@@ -512,15 +512,11 @@ h2 {
             // fetchでJSON_PATHからデータを取得する関数
             const loadTimetables = async () => {
                 try {
-                    const response = await fetch(JSON_PATH);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status} - JSONファイルの読み込みに失敗しました。パスを確認してください。`);
-                    }
-                    cachedAllData = await response.json();
+                    cachedAllData = await TayunetPrivateData.fetchTimetables();
                     renderTimetableList(cachedAllData);
                 } catch (error) {
                     console.error('Error fetching the timetable data:', error);
-                    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">データの読み込みに失敗しました。JSONファイルが存在するか、パスが正しいか確認してください。</td></tr>';
+                    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">保護データを読み込めません。データ用ログイン後に再読み込みしてください。</td></tr>';
                     cachedAllData = [];
                 }
             };

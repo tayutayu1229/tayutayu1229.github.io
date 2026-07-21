@@ -244,9 +244,9 @@
         </div>
     </div>
 
+    <script src="private-data-client.js"></script>
     <script>
         let rawJsonData = [];
-        const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         let holidayData = {}; 
 
@@ -289,9 +289,7 @@
                 const holidayResponse = await fetch(HOLIDAY_API_URL);
                 if (holidayResponse.ok) holidayData = await holidayResponse.json();
                 
-                const dataResponse = await fetch(JSON_FILE);
-                if (!dataResponse.ok) throw new Error(`HTTP error! status: ${dataResponse.status}`);
-                rawJsonData = await dataResponse.json();
+                rawJsonData = await TayunetPrivateData.fetchTimetables();
             } catch (error) {
                 console.error(`Error loading required data:`, error);
                 const msgArea = document.getElementById('messageArea');
@@ -376,9 +374,10 @@
         function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
-            document.getElementById('trainSummary').innerHTML = 
-                `■${selectedLine} 施行日:${selectedDateJSON}<br>` +
-                `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
+            const summary = document.getElementById('trainSummary');
+            summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
+                document.createElement('br'), document.createTextNode(
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
@@ -425,7 +424,7 @@
                 const typeText = (index === 0) ? data.type : '';
                 
                 let opInfo = ""; 
-                let opNum = "";
+                let opTrain = null;
                 let currentKid = data.kid || ''; 
 
                 if (index === 0) {
@@ -434,7 +433,7 @@
                     
                     if (data.tr1) {
                         const kidToPass = data.kid1 || currentKid; 
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kidToPass}', 'prev')">${data.tr1}</span>`;
+                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev' };
                     }
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
@@ -442,7 +441,7 @@
 
                     if (data.tr2) {
                         const kidToPass = data.kid2 || currentKid; 
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kidToPass}', 'next')">${data.tr2}</span>`;
+                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next' };
                     }
                 }
 
@@ -450,17 +449,21 @@
                 const displayArrival = getDisplayTime(stop.arrival);
                 const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
                 
-                // HTML生成
-                tr.innerHTML = `
-                    <td class="col-align-left">${typeText}</td> 
-                    <td></td> <td class="col-station">${stop.station}</td>
-                    
-                    <td class="col-align-right">${displayArrival}</td>
-                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${displayDeparture}</td>
-                    <td class="col-align-center cell-narrow"></td> <td class="col-align-right">${stop.trackN}</td>
-                    <td>${opInfo}</td>
-                    <td>${opNum}</td>
-                `;
+                const appendCell = (value, className = '') => {
+                    const td = document.createElement('td'); td.className = className;
+                    td.textContent = value == null ? '' : String(value); tr.appendChild(td); return td;
+                };
+                appendCell(typeText, 'col-align-left'); appendCell(''); appendCell(stop.station, 'col-station');
+                appendCell(displayArrival, 'col-align-right'); appendCell('', 'col-align-center cell-narrow');
+                appendCell(displayDeparture, 'col-align-right'); appendCell('', 'col-align-center cell-narrow');
+                appendCell(stop.trackN, 'col-align-right'); appendCell(opInfo);
+                const opCell = appendCell('');
+                if (opTrain) {
+                    const link = document.createElement('button'); link.type = 'button';
+                    link.className = 'link-text'; link.textContent = opTrain.number;
+                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction));
+                    opCell.appendChild(link);
+                }
 
                 tbody.appendChild(tr);
             });

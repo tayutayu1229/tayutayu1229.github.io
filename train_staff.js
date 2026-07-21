@@ -2,7 +2,12 @@
  * 列車運転時刻表 (スタフ) 制御スクリプト
  */
 
-const JSON_PATH = '/T-time/timetables.json';
+const privateDataReady = window.TayunetPrivateData ? Promise.resolve() : new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/T-time/private-data-client.js';
+    script.onload = resolve; script.onerror = () => reject(new Error('保護データクライアントを読み込めませんでした。'));
+    document.head.appendChild(script);
+});
 const params    = new URLSearchParams(window.location.search);
 const targetId  = params.get('id');
 const customDate = params.get('date');
@@ -16,9 +21,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!targetId)  { container.textContent = "IDが指定されていません。"; return; }
 
     try {
-        const response = await fetch(JSON_PATH);
-        if (!response.ok) throw new Error("JSONの取得に失敗しました");
-        const allData = await response.json();
+        await privateDataReady;
+        const allData = await TayunetPrivateData.fetchTimetables();
 
         const group = allData.filter(item => {
             const dateStr = item.startDate || item.dayType || "";
