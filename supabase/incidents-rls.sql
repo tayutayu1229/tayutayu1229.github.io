@@ -3,6 +3,11 @@
 
 alter table public.incidents enable row level security;
 
+-- Remove policy names used by the previous configuration as well, so this
+-- script always leaves one authoritative policy per operation.
+drop policy if exists "administrators can create incidents" on public.incidents;
+drop policy if exists "administrators can update incidents" on public.incidents;
+
 drop policy if exists "authenticated users can read incidents" on public.incidents;
 drop policy if exists "incident admins can insert incidents" on public.incidents;
 drop policy if exists "incident admins can update incidents" on public.incidents;
