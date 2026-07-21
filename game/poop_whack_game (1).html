@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>うんちバトル・コロシアム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tile-a:#ffe4c2;
+    --tile-b:#ffcd94;
+    --grout:#f0a34e;
+    --porcelain:#fff8ef;
+    --poop:#7a4a23;
+    --poop-dark:#5c3416;
+    --poop-light:#9c6a3a;
+    --gold:#ffb703;
+    --gold-dark:#c97a00;
+    --trap:#ff5d7a;
+    --trap-dark:#c1263f;
+    --ink:#5c2c0a;
+    --panel:#5c2a0d;
+    --panel-2:#7a3c14;
+    --cta:#ff6a1a;
+    --cta-dark:#c94f0a;
+    --accent:#2dd4bf;
+    --accent-glow: rgba(45,212,191,0.55);
+    --danger:#ff4d4d;
+    --paper:#fff3e2;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    font-family:'Zen Maru Gothic', sans-serif;
+    color:var(--ink);
+    background:
+      repeating-linear-gradient(45deg, var(--tile-a) 0 40px, var(--tile-b) 40px 80px);
+    overflow:hidden;
+    user-select:none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select:none;
+    touch-action: manipulation;
+  }
+  button, .critter, .hole, .btn{
+    touch-action: manipulation;
+  }
+  #app{
+    position:relative;
+    width:100%; height:100vh;
+    display:flex; flex-direction:column;
+    align-items:center;
+    padding:10px 10px 0;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    width:100%; max-width:640px;
+    display:flex; gap:6px;
+    margin-bottom:8px;
+  }
+  .hud-box{
+    flex:1;
+    min-width:0;
+    background:var(--panel);
+    border-radius:14px;
+    padding:8px 6px;
+    box-shadow: inset 0 0 0 2px var(--panel-2), 0 4px 0 rgba(0,0,0,0.15);
+    color:var(--paper);
+    text-align:center;
+  }
+  .hud-label{
+    font-size:11px;
+    opacity:0.7;
+    letter-spacing:1px;
+  }
+  .hud-value{
+    font-family:'Yusei Magic', sans-serif;
+    font-size:clamp(15px,4.6vw,22px);
+    line-height:1.1;
+    color:var(--gold);
+    text-shadow:0 0 8px rgba(255,207,63,0.5);
+    white-space:nowrap;
+  }
+  .hud-label{ white-space:nowrap; }
+  #comboBox .hud-value{ color:var(--accent); text-shadow:0 0 8px var(--accent-glow);}
+  #timeBox.warn .hud-value{ color:var(--danger); animation:pulse 0.5s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  /* ---------- title bar ---------- */
+  #titleBar{
+    width:100%; max-width:640px;
+    text-align:center;
+    margin-bottom:6px;
+  }
+  #titleBar h1{
+    font-family:'Yusei Magic', sans-serif;
+    font-size:26px;
+    margin:0;
+    color:var(--panel);
+    letter-spacing:2px;
+  }
+  #titleBar h1 span{ color:var(--poop); }
+
+  /* ---------- playfield ---------- */
+  #field{
+    position:relative;
+    isolation:isolate;
+    width:100%; max-width:640px;
+    aspect-ratio: 4 / 3;
+    background:
+      linear-gradient(var(--porcelain), var(--porcelain)) padding-box,
+      repeating-linear-gradient(0deg, transparent 0 78px, var(--grout) 78px 82px),
+      repeating-linear-gradient(90deg, transparent 0 78px, var(--grout) 78px 82px);
+    border-radius:20px;
+    box-shadow: 0 8px 0 var(--grout), 0 10px 20px rgba(0,0,0,0.2);
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap:0;
+    overflow:hidden;
+    touch-action: manipulation;
+  }
+  .hole{
+    position:relative;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .hole::before{
+    /* toilet drain hole */
+    content:'';
+    position:absolute;
+    bottom:8%;
+    width:62%;
+    height:34%;
+    background: radial-gradient(ellipse at 50% 30%, #3a3a3a 0%, #101010 70%);
+    border-radius:50%;
+    box-shadow: inset 0 6px 10px rgba(0,0,0,0.6), 0 2px 0 rgba(255,255,255,0.5);
+  }
+  .critter{
+    position:absolute;
+    bottom:8%;
+    width:56%;
+    height:70%;
+    display:flex; align-items:flex-end; justify-content:center;
+    font-size:min(11vw,52px);
+    transform: translateY(85%);
+    transition: transform 0.16s cubic-bezier(.34,1.56,.64,1);
+    cursor:pointer;
+    filter: drop-shadow(0 4px 3px rgba(0,0,0,0.35));
+    z-index:2;
+  }
+  .critter.up{ transform: translateY(-6%); }
+  .critter.retreat{ transition: transform 0.12s ease-in; transform: translateY(85%); }
+  .critter.gold{ filter: drop-shadow(0 0 10px var(--gold)) drop-shadow(0 4px 3px rgba(0,0,0,0.35)); }
+  .critter.ice{ filter: hue-rotate(155deg) saturate(2) brightness(1.15) drop-shadow(0 0 10px #7fdcff) drop-shadow(0 4px 3px rgba(0,0,0,0.3)); }
+  .critter.tiny{ width:38%; height:52%; font-size:min(7.5vw,34px); }
+  .critter.rainbow{
+    filter: hue-rotate(0deg) saturate(2.2) brightness(1.2) drop-shadow(0 0 12px #ff8fe0) drop-shadow(0 4px 3px rgba(0,0,0,0.3));
+    animation: rainbowSpin 0.9s linear infinite;
+  }
+  @keyframes rainbowSpin{
+    0%{ filter: hue-rotate(0deg) saturate(2.2) brightness(1.2) drop-shadow(0 0 12px #ff8fe0); }
+    100%{ filter: hue-rotate(360deg) saturate(2.2) brightness(1.2) drop-shadow(0 0 12px #ff8fe0); }
+  }
+  .critter.hit{ animation: squish 0.28s ease-out forwards; }
+  @keyframes squish{
+    0%{ transform: translateY(-6%) scale(1); }
+    40%{ transform: translateY(10%) scale(1.3,0.7) rotate(8deg); opacity:1;}
+    100%{ transform: translateY(40%) scale(0.4,0.4) rotate(30deg); opacity:0;}
+  }
+  .critter.poof{ animation: poof 0.25s ease-out forwards; }
+  @keyframes poof{
+    0%{ opacity:1; }
+    100%{ opacity:0; transform: translateY(-6%) scale(0.6); }
+  }
+
+  .floater{
+    position:absolute;
+    left:50%; top:30%;
+    transform:translate(-50%,-50%);
+    font-family:'Yusei Magic', sans-serif;
+    font-weight:900;
+    font-size:20px;
+    pointer-events:none;
+    z-index:5;
+    animation: floatUp 0.85s ease-out forwards;
+    white-space:nowrap;
+  }
+  @keyframes floatUp{
+    0%{ opacity:0; transform:translate(-50%,-30%) scale(0.6);}
+    15%{ opacity:1; transform:translate(-50%,-60%) scale(1.1);}
+    100%{ opacity:0; transform:translate(-50%,-140%) scale(1);}
+  }
+
+  .confetti{
+    position:absolute;
+    top:8%;
+    width:8px; height:14px;
+    border-radius:2px;
+    z-index:15;
+    pointer-events:none;
+    animation: confettiFall 1.4s ease-in forwards;
+  }
+  @keyframes confettiFall{
+    0%{ transform: translate(0,0) rotate(0deg); opacity:1; }
+    100%{ transform: translate(var(--dx), 320px) rotate(var(--rot)); opacity:0; }
+  }
+
+  .comboToast{
+    position:absolute;
+    left:50%; top:12%;
+    transform:translate(-50%,-50%);
+    font-family:'Yusei Magic', sans-serif;
+    font-size:clamp(16px,4.5vw,26px);
+    color:var(--accent);
+    text-shadow:0 0 14px var(--accent-glow), 0 2px 3px rgba(0,0,0,0.3);
+    background:rgba(255,255,255,0.85);
+    padding:6px 18px;
+    border-radius:999px;
+    pointer-events:none;
+    z-index:6;
+    animation: toastPop 1s ease-out forwards;
+    white-space:nowrap;
+  }
+  @keyframes toastPop{
+    0%{ opacity:0; transform:translate(-50%,-50%) scale(0.5);}
+    15%{ opacity:1; transform:translate(-50%,-50%) scale(1.15);}
+    25%{ transform:translate(-50%,-50%) scale(1);}
+    80%{ opacity:1; }
+    100%{ opacity:0; transform:translate(-50%,-90%) scale(1);}
+  }
+
+  #field.shake{ animation: shake 0.35s; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0);}
+    20%{ transform:translateX(-8px) rotate(-0.5deg);}
+    40%{ transform:translateX(8px) rotate(0.5deg);}
+    60%{ transform:translateX(-6px);}
+    80%{ transform:translateX(6px);}
+  }
+
+  /* ---------- overlays ---------- */
+  .overlay{
+    position:absolute; inset:0;
+    background:rgba(58,26,8,0.94);
+    border-radius:20px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+    color:var(--paper);
+    text-align:center;
+    padding:20px;
+    z-index:10;
+  }
+  .overlay h2{
+    font-family:'Yusei Magic', sans-serif;
+    font-size:24px;
+    margin:0 0 4px;
+  }
+  .overlay p{ margin:0; font-size:14px; line-height:1.6; opacity:0.9; max-width:420px;}
+  .diffRow{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+  .btn{
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:700;
+    font-size:15px;
+    padding:10px 20px;
+    border:none;
+    border-radius:999px;
+    background:var(--cta);
+    color:#3a1400;
+    cursor:pointer;
+    box-shadow:0 4px 0 var(--cta-dark);
+    transition: transform 0.1s;
+  }
+  .btn:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--cta-dark); }
+  .btn.secondary{ background:var(--gold); box-shadow:0 4px 0 var(--gold-dark); color:#442c00;}
+  .btn.big{ font-size:18px; padding:14px 34px; }
+  .btn.ghost{ background:transparent; color:var(--paper); box-shadow:inset 0 0 0 2px var(--paper); }
+  .diffBtn.selected{ outline:3px solid var(--gold); }
+  .modeBtn.selected{ outline:3px solid var(--accent); }
+  .modeRow{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+
+  #resultGrade{
+    font-family:'Yusei Magic', sans-serif;
+    font-size:56px;
+    color:var(--gold);
+    text-shadow:0 0 16px rgba(255,207,63,0.6);
+    line-height:1;
+  }
+  #resultScore{ font-size:20px; font-family:'Yusei Magic', sans-serif; }
+  #resultStats{
+    font-size:12px;
+    color:var(--paper);
+    opacity:0.8;
+    background:rgba(255,255,255,0.12);
+    padding:5px 12px;
+    border-radius:999px;
+  }
+
+  #gearBtn{
+    position:fixed;
+    top:14px; right:14px;
+    width:44px; height:44px;
+    border-radius:50%;
+    border:none;
+    background:var(--panel);
+    color:var(--paper);
+    font-size:20px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 3px 0 #2a1206, 0 2px 8px rgba(0,0,0,0.25);
+    z-index:60;
+    transition: transform 0.15s;
+  }
+  #gearBtn:active{ transform:translateY(2px) rotate(20deg); box-shadow:0 1px 0 #2a1206; }
+
+  #settingsOverlay{
+    position:fixed; inset:0;
+    background:rgba(30,12,2,0.72);
+    backdrop-filter: blur(2px);
+    z-index:70;
+    display:none;
+    align-items:center; justify-content:center;
+    padding:16px;
+  }
+  #settingsOverlay.show{ display:flex; }
+  #settingsPanel{
+    width:100%; max-width:460px;
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--paper);
+    border-radius:20px;
+    padding:22px 22px 18px;
+    box-shadow:0 10px 0 var(--panel-2), 0 20px 40px rgba(0,0,0,0.35);
+  }
+  #settingsPanel h2{
+    font-family:'Yusei Magic', sans-serif;
+    font-size:20px;
+    margin:0 0 12px;
+    color:var(--panel);
+    text-align:center;
+  }
+  .sHeading{
+    font-size:12px;
+    font-weight:700;
+    color:var(--cta-dark);
+    letter-spacing:1px;
+    margin:16px 0 6px;
+  }
+  .ruleList{
+    list-style:none;
+    margin:0; padding:0;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .ruleList li{
+    display:flex; align-items:center; gap:8px;
+    background:#fff;
+    border-radius:12px;
+    padding:8px 10px;
+    font-size:13px;
+    box-shadow: inset 0 0 0 1.5px #ffe0bd;
+  }
+  .ruleList b{ font-family:'Yusei Magic', sans-serif; font-weight:400; color:var(--cta-dark); }
+  .toggleRow{
+    display:flex; gap:10px; flex-wrap:wrap;
+  }
+  .toggleBtn{
+    flex:1; min-width:130px;
+    font-family:'Zen Maru Gothic', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:none;
+    background:#fff;
+    box-shadow: inset 0 0 0 2px #ffd9ac;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .toggleBtn.on{
+    background:var(--cta);
+    color:#3a1400;
+    box-shadow: inset 0 0 0 2px var(--cta-dark);
+  }
+  #settingsCloseBtn{ width:100%; margin-top:18px; }
+  #settingsNote{
+    font-size:11px;
+    color:var(--panel-2);
+    text-align:center;
+    margin-top:8px;
+    opacity:0.85;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="titleBar"><h1>うんち<span>バトル</span>・コロシアム</h1></div>
+
+  <div id="hud">
+    <div class="hud-box"><div class="hud-label" id="scoreLabel">スコア</div><div class="hud-value" id="scoreVal">0</div></div>
+    <div class="hud-box" id="comboBox"><div class="hud-label">コンボ</div><div class="hud-value" id="comboVal">×1.0</div></div>
+    <div class="hud-box" id="timeBox"><div class="hud-label" id="timeLabel">のこり</div><div class="hud-value" id="timeVal">45</div></div>
+    <div class="hud-box" id="livesBox" style="display:none;"><div class="hud-label">ライフ</div><div class="hud-value" id="livesVal">❤️❤️❤️</div></div>
+    <div class="hud-box"><div class="hud-label">ベスト</div><div class="hud-value" id="bestVal">0</div></div>
+  </div>
+
+  <div id="field">
+    <!-- holes injected by JS -->
+    <div class="overlay" id="startOverlay">
+      <h2>💩 うんちバトル・コロシアム 💩</h2>
+      <p>
+        飛び出す うんち をタップして叩こう！<br>
+        ✨金・❄️氷・🔹ミニ・⚡フェイント・🌈レジェンド…色んなうんちが出るよ。<br>
+        👻おばけ・🌸花 を叩くと減点＆コンボが切れるので気をつけて！
+      </p>
+      <div class="sHeading" style="color:#fff;opacity:0.85;">▶ モード</div>
+      <div class="modeRow">
+        <button class="btn modeBtn" data-m="normal">ノーマル</button>
+        <button class="btn modeBtn" data-m="timeattack" style="background:var(--accent);box-shadow:0 4px 0 #1a9c8c;color:#04332c;">タイムアタック</button>
+        <button class="btn modeBtn" data-m="survival" style="background:var(--trap);box-shadow:0 4px 0 var(--trap-dark);color:#3a0010;">サバイバル</button>
+      </div>
+      <div class="sHeading" style="color:#fff;opacity:0.85;">▶ 難易度</div>
+      <div class="diffRow">
+        <button class="btn diffBtn" data-d="easy">かんたん</button>
+        <button class="btn diffBtn secondary" data-d="normal">ふつう</button>
+        <button class="btn diffBtn" data-d="hard" style="background:var(--trap);box-shadow:0 4px 0 var(--trap-dark);color:#3a0010;">むずかしい</button>
+      </div>
+      <button class="btn big" id="startBtn">スタート！</button>
+    </div>
+
+    <div class="overlay" id="resultOverlay" style="display:none;">
+      <div id="resultGrade">S</div>
+      <div id="resultScore">スコア: 0</div>
+      <p id="resultComment"></p>
+      <div id="resultStats"></div>
+      <div class="diffRow">
+        <button class="btn big" id="retryBtn">もう一回！</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="gearBtn" aria-label="設定・遊び方">⚙️</button>
+
+  <div id="settingsOverlay">
+    <div id="settingsPanel">
+      <h2>⚙️ 設定・遊び方</h2>
+
+      <div class="sHeading">▶ あそびかた</div>
+      <ul class="ruleList">
+        <li>💩 <b>ふつう</b> +10点</li>
+        <li>💩 <b>でかうんち</b> +20点（大きくてゆっくり）</li>
+        <li>❄️💩 <b>氷うんち</b> +15点（出現時間が長め、初心者向け）</li>
+        <li>🔹💩 <b>ミニうんち</b> +30点（小さくてすばやい）</li>
+        <li>✨💩 <b>金うんち</b> +50点（レア）</li>
+        <li>⚡💩 <b>フェイント</b> +80点（一瞬だけ出現、反射神経が命）</li>
+        <li>🌈💩 <b>レジェンドうんち</b> +100点（激レア！光り輝く）</li>
+        <li>👻🌸 <b>ワナ</b> -15点＆コンボが切れる。叩かないで！</li>
+        <li>🔥 ミスなく連続ヒットでコンボが伸び、5コンボごとにスコア倍率アップ（最大×3）</li>
+      </ul>
+
+      <div class="sHeading">▶ モード（次のゲームから適用）</div>
+      <ul class="ruleList">
+        <li>🎯 <b>ノーマル</b>：制限時間内にどれだけ稼げるか</li>
+        <li>⏱ <b>タイムアタック</b>：目標スコアに最速で到達せよ</li>
+        <li>❤️ <b>サバイバル</b>：ワナを一定回数叩くとゲームオーバー、時間無制限</li>
+      </ul>
+      <div class="modeRow">
+        <button class="btn modeBtn" data-m="normal">ノーマル</button>
+        <button class="btn modeBtn" data-m="timeattack" style="background:var(--accent);box-shadow:0 4px 0 #1a9c8c;color:#04332c;">タイムアタック</button>
+        <button class="btn modeBtn" data-m="survival" style="background:var(--trap);box-shadow:0 4px 0 var(--trap-dark);color:#3a0010;">サバイバル</button>
+      </div>
+
+      <div class="sHeading">▶ 難易度（次のゲームから適用）</div>
+      <div class="diffRow">
+        <button class="btn diffBtn" data-d="easy">かんたん</button>
+        <button class="btn diffBtn secondary" data-d="normal">ふつう</button>
+        <button class="btn diffBtn" data-d="hard" style="background:var(--trap);box-shadow:0 4px 0 var(--trap-dark);color:#3a0010;">むずかしい</button>
+      </div>
+
+      <div class="sHeading">▶ サウンド・振動</div>
+      <div class="toggleRow">
+        <button class="toggleBtn on" id="soundToggleBtn">🔊 サウンド：ON</button>
+        <button class="toggleBtn on" id="vibeToggleBtn">📳 バイブ：ON</button>
+      </div>
+
+      <button class="btn big" id="settingsCloseBtn">とじる</button>
+      <div id="settingsNote">プレイ中に開くとゲームが一時停止します</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const HOLE_COUNT = 12;
+  const field = document.getElementById('field');
+  const scoreVal = document.getElementById('scoreVal');
+  const scoreLabel = document.getElementById('scoreLabel');
+  const comboVal = document.getElementById('comboVal');
+  const timeVal = document.getElementById('timeVal');
+  const timeLabel = document.getElementById('timeLabel');
+  const timeBox = document.getElementById('timeBox');
+  const livesBox = document.getElementById('livesBox');
+  const livesVal = document.getElementById('livesVal');
+  const bestVal = document.getElementById('bestVal');
+  const startOverlay = document.getElementById('startOverlay');
+  const resultOverlay = document.getElementById('resultOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  const soundToggleBtn = document.getElementById('soundToggleBtn');
+  const vibeToggleBtn = document.getElementById('vibeToggleBtn');
+  const gearBtn = document.getElementById('gearBtn');
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+  const diffBtns = document.querySelectorAll('.diffBtn');
+  const modeBtns = document.querySelectorAll('.modeBtn');
+
+  let selectedDiff = 'normal';
+  let selectedMode = 'normal';
+  let activeDiff = 'normal';
+  let activeMode = 'normal';
+  let activeTarget = 0;
+  let activeLives = 0;
+  let soundOn = true;
+  let vibeOn = true;
+  let wasRunningBeforeSettings = false;
+  let running = false;
+
+  const bestRecords = {
+    normal:     { easy:0, normal:0, hard:0 },
+    timeattack: { easy:null, normal:null, hard:null },
+    survival:   { easy:0, normal:0, hard:0 }
+  };
+
+  const TIMEATTACK_TARGET = { easy:250, normal:400, hard:600 };
+  const SURVIVAL_LIVES = { easy:5, normal:3, hard:2 };
+
+  const DIFFICULTIES = {
+    easy:   { time: 50, spawnMin: 700, spawnMax: 1100, upTimeMin: 900,  upTimeMax: 1300, trapChance: 0.10, goldChance: 0.14, feintChance: 0.06, maxConcurrent: 1, rampEvery: 9000 },
+    normal: { time: 45, spawnMin: 550, spawnMax: 900,  upTimeMin: 700,  upTimeMax: 1050, trapChance: 0.16, goldChance: 0.16, feintChance: 0.10, maxConcurrent: 2, rampEvery: 7000 },
+    hard:   { time: 40, spawnMin: 380, spawnMax: 650,  upTimeMin: 480,  upTimeMax: 780,  trapChance: 0.22, goldChance: 0.18, feintChance: 0.16, maxConcurrent: 3, rampEvery: 6000 }
+  };
+
+  // ---- game state ----
+  let score = 0, combo = 0, timeLeft = 45;
+  let spawnTimer = null, countdownTimer = null, gameStart = 0;
+  let cfg = DIFFICULTIES.normal;
+  let maxCombo = 0, trapHits = 0;
+
+  // ---- build holes ----
+  const holes = [];
+  for(let i=0;i<HOLE_COUNT;i++){
+    const hole = document.createElement('div');
+    hole.className = 'hole';
+    field.appendChild(hole);
+    holes.push({ el: hole, busy: false });
+  }
+  // keep overlays on top (they were added before holes in DOM order originally,
+  // but appendChild above placed holes before... fix by moving overlays to end)
+  field.appendChild(startOverlay);
+  field.appendChild(resultOverlay);
+
+  // ---- audio ----
+  let actx = null;
+  function ensureAudio(){
+    if(!actx){
+      try{ actx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){}
+    }
+  }
+  function beep(freq, dur, type, gainPeak){
+    if(!soundOn || !actx) return;
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, actx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(gainPeak||0.25, actx.currentTime+0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+dur);
+    osc.connect(gain).connect(actx.destination);
+    osc.start();
+    osc.stop(actx.currentTime+dur+0.02);
+  }
+  function sndHit(){ beep(520,0.12,'triangle',0.22); }
+  function sndGold(){ beep(880,0.09,'square',0.2); setTimeout(()=>beep(1200,0.12,'square',0.18),70); }
+  function sndFeint(){ beep(1400,0.07,'square',0.2); }
+  function sndTrap(){ beep(140,0.25,'sawtooth',0.25); }
+  function sndBig(){ beep(300,0.2,'triangle',0.22); }
+  function sndStart(){ beep(440,0.1,'sine',0.2); setTimeout(()=>beep(660,0.12,'sine',0.2),110); }
+  function sndEnd(){ beep(660,0.12,'sine',0.2); setTimeout(()=>beep(440,0.18,'sine',0.2),140); }
+
+  function vibrate(pattern){
+    if(!vibeOn) return;
+    try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
+  }
+
+  soundToggleBtn.addEventListener('click', ()=>{
+    soundOn = !soundOn;
+    soundToggleBtn.textContent = soundOn ? '🔊 サウンド：ON' : '🔇 サウンド：OFF';
+    soundToggleBtn.classList.toggle('on', soundOn);
+  });
+  vibeToggleBtn.addEventListener('click', ()=>{
+    vibeOn = !vibeOn;
+    vibeToggleBtn.textContent = vibeOn ? '📳 バイブ：ON' : '📴 バイブ：OFF';
+    vibeToggleBtn.classList.toggle('on', vibeOn);
+    if(vibeOn) vibrate(20);
+  });
+
+  // ---- settings modal (pauses the game while open) ----
+  function openSettings(){
+    wasRunningBeforeSettings = running;
+    if(running) pauseGame();
+    settingsOverlay.classList.add('show');
+  }
+  function closeSettings(){
+    settingsOverlay.classList.remove('show');
+    if(wasRunningBeforeSettings) resumeGame();
+  }
+  gearBtn.addEventListener('click', openSettings);
+  settingsCloseBtn.addEventListener('click', closeSettings);
+  settingsOverlay.addEventListener('click', (e)=>{
+    if(e.target===settingsOverlay) closeSettings();
+  });
+
+  // ---- difficulty & mode selection ----
+  function selectDiff(d){
+    selectedDiff = d;
+    diffBtns.forEach(b=>b.classList.toggle('selected', b.dataset.d===d));
+    updateHUD();
+  }
+  diffBtns.forEach(b=>b.addEventListener('click', ()=>selectDiff(b.dataset.d)));
+  selectDiff('normal');
+
+  function selectMode(m){
+    selectedMode = m;
+    modeBtns.forEach(b=>b.classList.toggle('selected', b.dataset.m===m));
+    updateHUD();
+  }
+  modeBtns.forEach(b=>b.addEventListener('click', ()=>selectMode(b.dataset.m)));
+  selectMode('normal');
+
+  function multiplier(){
+    return 1 + Math.min(4, Math.floor(combo/5)) * 0.5;
+  }
+
+  function modeForDisplay(){ return running ? activeMode : selectedMode; }
+  function diffForDisplay(){ return running ? activeDiff : selectedDiff; }
+
+  function bestDisplayText(mode, diff){
+    if(mode==='timeattack'){
+      const b = bestRecords.timeattack[diff];
+      return b===null ? '--' : b.toFixed(1)+'秒';
+    }
+    return bestRecords[mode][diff];
+  }
+
+  function updateHUD(){
+    const mode = modeForDisplay();
+    const diff = diffForDisplay();
+
+    scoreVal.textContent = Math.floor(score);
+    comboVal.textContent = '×' + multiplier().toFixed(1) + '  (' + combo + ')';
+    bestVal.textContent = bestDisplayText(mode, diff);
+
+    if(mode==='timeattack'){
+      scoreLabel.textContent = 'スコア(目標' + TIMEATTACK_TARGET[diff] + ')';
+      timeLabel.textContent = 'けいか';
+      timeVal.textContent = timeLeft.toFixed(1);
+      timeBox.classList.remove('warn');
+      livesBox.style.display = 'none';
+    } else if(mode==='survival'){
+      scoreLabel.textContent = 'スコア';
+      timeLabel.textContent = 'けいか';
+      timeVal.textContent = timeLeft.toFixed(1);
+      timeBox.classList.remove('warn');
+      livesBox.style.display = 'flex';
+      const lives = SURVIVAL_LIVES[diff];
+      const remain = Math.max(0, lives - trapHits);
+      livesVal.textContent = '❤️'.repeat(remain) + '🖤'.repeat(lives-remain);
+    } else {
+      scoreLabel.textContent = 'スコア';
+      timeLabel.textContent = 'のこり';
+      timeVal.textContent = Math.max(0, Math.ceil(timeLeft));
+      timeBox.classList.toggle('warn', timeLeft<=10 && timeLeft>0);
+      livesBox.style.display = 'none';
+    }
+  }
+
+  function floatText(hole, text, color){
+    const f = document.createElement('div');
+    f.className = 'floater';
+    f.textContent = text;
+    f.style.color = color || '#fff';
+    hole.el.appendChild(f);
+    setTimeout(()=>f.remove(), 900);
+  }
+
+  function confettiBurst(){
+    const colors = ['#ff6a1a','#ffb703','#2dd4bf','#fff8ef','#ff5d7a'];
+    for(let i=0;i<28;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti';
+      p.style.left = (45 + Math.random()*10) + '%';
+      p.style.background = colors[Math.floor(Math.random()*colors.length)];
+      p.style.setProperty('--dx', (Math.random()*260-130) + 'px');
+      p.style.setProperty('--rot', (Math.random()*720-360) + 'deg');
+      p.style.animationDelay = (Math.random()*0.15) + 's';
+      field.appendChild(p);
+      setTimeout(()=>p.remove(), 1500);
+    }
+  }
+
+  function showComboToast(combo){
+    const t = document.createElement('div');
+    t.className = 'comboToast';
+    t.textContent = combo + 'コンボ！絶好調 🔥';
+    field.appendChild(t);
+    vibrate([15,20,15,20,30]);
+    setTimeout(()=>t.remove(), 1000);
+  }
+
+  function shakeField(){
+    field.classList.remove('shake');
+    void field.offsetWidth;
+    field.classList.add('shake');
+  }
+
+  const TYPES = {
+    normal:  { emoji:'💩', cls:'',        score:10 },
+    big:     { emoji:'💩', cls:'big',     score:20, big:true },
+    ice:     { emoji:'💩', cls:'ice',     score:15 },
+    tiny:    { emoji:'💩', cls:'tiny',    score:30 },
+    gold:    { emoji:'💩', cls:'gold',    score:50 },
+    feint:   { emoji:'💩', cls:'feint',   score:80 },
+    rainbow: { emoji:'💩', cls:'rainbow', score:100 },
+    ghost:   { emoji:'👻', cls:'trap', trap:true },
+    flower:  { emoji:'🌸', cls:'trap', trap:true }
+  };
+
+  function pickType(){
+    if(Math.random() < cfg.trapChance) return Math.random()<0.5 ? 'ghost' : 'flower';
+    const pool = [
+      { k:'normal',  w:50 },
+      { k:'big',     w:15 },
+      { k:'ice',     w:12 },
+      { k:'tiny',    w:10 },
+      { k:'gold',    w: cfg.goldChance*100 },
+      { k:'feint',   w: cfg.feintChance*100 },
+      { k:'rainbow', w:2 }
+    ];
+    const total = pool.reduce((s,p)=>s+p.w,0);
+    let r = Math.random()*total;
+    for(const p of pool){
+      if(r < p.w) return p.k;
+      r -= p.w;
+    }
+    return 'normal';
+  }
+
+  function freeHoles(){
+    return holes.filter(h=>!h.busy);
+  }
+
+  function spawnOne(){
+    if(!running) return;
+    const avail = freeHoles();
+    if(avail.length===0) return;
+    const hole = avail[Math.floor(Math.random()*avail.length)];
+    hole.busy = true;
+
+    const typeKey = pickType();
+    const t = TYPES[typeKey];
+    const critter = document.createElement('div');
+    critter.className = 'critter';
+    critter.textContent = t.emoji;
+    if(t.trap) critter.classList.add('trap-item');
+    if(t.cls) critter.classList.add(t.cls);
+    hole.el.appendChild(critter);
+
+    let resolved = false;
+    const elapsedFrac = Math.min(1, (Date.now()-gameStart) / 30000); // ramps over 30s
+    let upTime;
+    if(typeKey==='feint'){
+      upTime = 180 + Math.random()*90; // very short
+    } else if(typeKey==='rainbow'){
+      upTime = 480 + Math.random()*150; // rare & quick
+    } else if(typeKey==='tiny'){
+      upTime = 380 + Math.random()*140; // small & quick
+    } else if(typeKey==='ice'){
+      upTime = (cfg.upTimeMax+400) - elapsedFrac*150; // extra long, beginner friendly
+    } else if(t.big){
+      upTime = (cfg.upTimeMax+200) - elapsedFrac*150;
+    } else {
+      upTime = (cfg.upTimeMin + Math.random()*(cfg.upTimeMax-cfg.upTimeMin)) * (1 - elapsedFrac*0.35);
+    }
+    upTime = Math.max(180, upTime);
+
+    requestAnimationFrame(()=>critter.classList.add('up'));
+
+    function cleanup(){
+      hole.busy = false;
+      setTimeout(()=>{ if(critter.parentNode) critter.remove(); }, 260);
+    }
+
+    function retreat(){
+      if(resolved) return;
+      resolved = true;
+      critter.classList.remove('up');
+      critter.classList.add('retreat');
+      cleanup();
+    }
+
+    const hideTimer = setTimeout(retreat, upTime);
+
+    critter.addEventListener('pointerdown', (e)=>{
+      e.stopPropagation();
+      if(resolved || !running) return;
+      resolved = true;
+      clearTimeout(hideTimer);
+
+      if(t.trap){
+        combo = 0;
+        trapHits++;
+        score = Math.max(0, score - 15);
+        sndTrap();
+        vibrate([40,30,40]);
+        shakeField();
+        floatText(hole, '-15', '#ffb3c0');
+        critter.classList.add('poof');
+        updateHUD();
+        cleanup();
+        if(activeMode==='survival' && trapHits>=activeLives){ endGame(); return; }
+      } else {
+        combo++;
+        maxCombo = Math.max(maxCombo, combo);
+        const gained = t.score * multiplier();
+        score += gained;
+        switch(typeKey){
+          case 'gold':    sndGold();    vibrate(15); floatText(hole, '✨+'+Math.round(gained), '#ffb703'); break;
+          case 'feint':   sndFeint();   vibrate(15); floatText(hole, '⚡+'+Math.round(gained)+' ナイス反射!', '#2dd4bf'); break;
+          case 'rainbow': sndRainbow(); vibrate([10,10,10,10,20]); floatText(hole, '🌈+'+Math.round(gained)+' レジェンド!', '#ff5d7a'); break;
+          case 'ice':     sndIce();     vibrate(10); floatText(hole, '❄️+'+Math.round(gained), '#8fd9ff'); break;
+          case 'tiny':    sndTiny();    vibrate(8);  floatText(hole, '🔹+'+Math.round(gained)+' ナイス!', '#ffffff'); break;
+          case 'big':     sndBig();     vibrate(15); floatText(hole, '+'+Math.round(gained), '#ffffff'); break;
+          default:        sndHit();     vibrate(10); floatText(hole, '+'+Math.round(gained), '#ffffff');
+        }
+        critter.classList.remove('up');
+        critter.classList.add('hit');
+        if(combo>0 && combo%10===0) showComboToast(combo);
+        updateHUD();
+        cleanup();
+        if(activeMode==='timeattack' && score>=activeTarget){ endGame(); return; }
+      }
+    }, { once:true });
+  }
+
+  function scheduleSpawn(){
+    if(!running) return;
+    const elapsedFrac = Math.min(1, (Date.now()-gameStart) / 30000);
+    const min = cfg.spawnMin * (1 - elapsedFrac*0.4);
+    const max = cfg.spawnMax * (1 - elapsedFrac*0.4);
+    const delay = min + Math.random()*(max-min);
+    spawnTimer = setTimeout(()=>{
+      spawnOne();
+      // occasionally spawn a second one at higher difficulty / later time
+      const concurrentChance = 0.15 + elapsedFrac*0.3;
+      if(cfg.maxConcurrent>1 && Math.random()<concurrentChance) spawnOne();
+      scheduleSpawn();
+    }, Math.max(150, delay));
+  }
+
+  let pausedAt = 0;
+  function pauseGame(){
+    running = false;
+    clearTimeout(spawnTimer);
+    clearInterval(countdownTimer);
+    pausedAt = Date.now();
+  }
+  function resumeGame(){
+    gameStart += (Date.now() - pausedAt);
+    running = true;
+    scheduleSpawn();
+    countdownTimer = setInterval(()=>{
+      timeLeft--;
+      updateHUD();
+      if(timeLeft<=0) endGame();
+    },1000);
+  }
+
+  function startGame(){
+    ensureAudio();
+    sndStart();
+    cfg = DIFFICULTIES[selectedDiff];
+    score = 0; combo = 0; timeLeft = cfg.time; running = true; gameStart = Date.now();
+    maxCombo = 0; trapHits = 0;
+    startOverlay.style.display = 'none';
+    resultOverlay.style.display = 'none';
+    updateHUD();
+    scheduleSpawn();
+    countdownTimer = setInterval(()=>{
+      timeLeft--;
+      updateHUD();
+      if(timeLeft<=0) endGame();
+    },1000);
+  }
+
+  function clearField(){
+    holes.forEach(h=>{
+      h.busy = false;
+      h.el.querySelectorAll('.critter').forEach(c=>c.remove());
+    });
+  }
+
+  function grade(finalScore){
+    if(finalScore>=1200) return {g:'SS', c:'伝説のうんちハンター！殿堂入りだ！'};
+    if(finalScore>=800)  return {g:'S',  c:'素晴らしい反射神経！お見事！'};
+    if(finalScore>=500)  return {g:'A',  c:'なかなかの腕前だね！'};
+    if(finalScore>=300)  return {g:'B',  c:'いい調子！もう一段上を目指そう。'};
+    if(finalScore>=120)  return {g:'C',  c:'まずまず。フェイントに気をつけて！'};
+    return {g:'D', c:'次はもっとうんちを叩けるはず！'};
+  }
+
+  function endGame(){
+    running = false;
+    clearTimeout(spawnTimer);
+    clearInterval(countdownTimer);
+    sndEnd();
+    clearField();
+
+    let finalScore = Math.floor(score);
+    const perfect = trapHits===0 && maxCombo>0;
+    if(perfect){ finalScore += 100; }
+
+    const isNewBest = finalScore > bestScores[selectedDiff];
+    if(isNewBest){ bestScores[selectedDiff] = finalScore; }
+    updateHUD();
+
+    const g = grade(finalScore);
+    document.getElementById('resultGrade').textContent = g.g;
+    document.getElementById('resultScore').textContent = 'スコア: ' + finalScore + '（ベスト: ' + bestScores[selectedDiff] + '）';
+    let comment = g.c;
+    if(perfect) comment = '🌟パーフェクト！ワナを一切叩かずボーナス+100点！ ' + comment;
+    if(isNewBest) comment = '🎉自己ベスト更新！ ' + comment;
+    document.getElementById('resultComment').textContent = comment;
+    document.getElementById('resultStats').textContent =
+      '最大コンボ: ' + maxCombo + '　／　ミスタップ: ' + trapHits + '回';
+    resultOverlay.style.display = 'flex';
+    if(isNewBest) confettiBurst();
+  }
+
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', ()=>{
+    resultOverlay.style.display = 'none';
+    startOverlay.style.display = 'flex';
+  });
+
+  updateHUD();
+})();
+</script>
+</body>
+</html>
