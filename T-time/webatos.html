@@ -517,9 +517,10 @@
                 「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止
             </div>
         </div>
-    </div> <script>
+    </div>
+    <script src="private-data-client.js"></script>
+    <script>
         let rawJsonData = [];
-        const JSON_FILE = 'timetables.json';
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         
         let holidayData = {}; 
@@ -584,15 +585,11 @@
                     console.warn(`Holiday API error! status: ${holidayResponse.status}. Proceeding without external holiday data.`);
                 }
                 
-                const dataResponse = await fetch(JSON_FILE);
-                if (!dataResponse.ok) {
-                    throw new Error(`HTTP error! status: ${dataResponse.status}`);
-                }
-                rawJsonData = await dataResponse.json();
+                rawJsonData = await TayunetPrivateData.fetchTimetables();
                 
             } catch (error) {
                 console.error(`Error loading required data:`, error);
-                document.getElementById('messageArea').innerText = `データ (${JSON_FILE} または 祝日API) の読み込み中にエラーが発生しました。`;
+                document.getElementById('messageArea').innerText = `時刻表データを読み込めません。${error.message}`;
                 document.getElementById('messageArea').classList.remove('hidden');
             }
         }
@@ -695,9 +692,13 @@
             document.getElementById('messageArea').classList.add('hidden');
 
             // Summary表示の修正
-            document.getElementById('trainSummary').innerHTML = 
-                `<span class="summary-line">■${selectedLine}</span> 施行日:${selectedDateJSON}<br>` +
-                `運転区間:${result.origin}～${result.destination} 列車番号: ${crownPart}${numberPart}`;
+            const summary = document.getElementById('trainSummary');
+            const firstLine = document.createElement('span');
+            firstLine.className = 'summary-line';
+            firstLine.textContent = `■${selectedLine}`;
+            summary.replaceChildren(firstLine, document.createTextNode(` 施行日:${selectedDateJSON}`),
+                document.createElement('br'), document.createTextNode(
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
 
             updateSystemClock(selectedDateJSON);
             renderTable(result);
@@ -718,7 +719,7 @@
                 const typeText = (index === 0) ? data.type : '';
                 
                 let opInfo = ""; 
-                let opNum = "";
+                let opTrain = null;
                 let currentKid = data.kid || ''; 
 
                 // 運用情報 / 運用列番 の判定ロジック
@@ -728,7 +729,7 @@
                     
                     if (data.tr1) {
                         const kidToPass = data.kid1 || currentKid; 
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr1}', '${kidToPass}', 'prev')">${data.tr1}</span>`;
+                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev' };
                     }
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
@@ -736,16 +737,28 @@
 
                     if (data.tr2) {
                         const kidToPass = data.kid2 || currentKid; 
-                        opNum = `<span class="link-text" onclick="jumpToTrain('${data.tr2}', '${kidToPass}', 'next')">${data.tr2}</span>`;
+                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next' };
                     }
                 }
                 
-                // ★修正: 13列のTDを生成
-                tr.innerHTML = `
-                    <td class="col-type">${typeText}</td> 
-                    <td></td> <td class="col-station">${stop.station}</td>
-                    
-                    <td class="col-time">${stop.arrival || ''}</td> <td></td> <td></td> <td class="col-time">${stop.departure || ''}</td> <td></td> <td></td> <td>${stop.trackN}</td> <td></td> <td>${opInfo}</td> <td>${opNum}</td> `;
+                const appendCell = (value, className = '') => {
+                    const td = document.createElement('td');
+                    td.className = className;
+                    td.textContent = value == null ? '' : String(value);
+                    tr.appendChild(td);
+                    return td;
+                };
+                appendCell(typeText, 'col-type'); appendCell(''); appendCell(stop.station, 'col-station');
+                appendCell(stop.arrival || '', 'col-time'); appendCell(''); appendCell('');
+                appendCell(stop.departure || '', 'col-time'); appendCell(''); appendCell('');
+                appendCell(stop.trackN); appendCell(''); appendCell(opInfo);
+                const opCell = appendCell('');
+                if (opTrain) {
+                    const link = document.createElement('button');
+                    link.type = 'button'; link.className = 'link-text'; link.textContent = opTrain.number;
+                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction));
+                    opCell.appendChild(link);
+                }
 
                 tbody.appendChild(tr);
             });

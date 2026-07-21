@@ -860,7 +860,7 @@ html, body {
     <div class="panel-box">
       <div class="panel-head"><div class="panel-head-title"><span class="ph-icon">列車別</span>列車別ダイヤモニタ</div></div>
       <div class="panel-body">
-        <div class="atos-note">公開timetables.jsonとODPT時刻表APIを同時に検索します。下のODPT候補から列車番号を選ぶこともできます。</div>
+        <div class="atos-note">保護時刻表データとODPT時刻表APIを同時に検索します。下のODPT候補から列車番号を選ぶこともできます。</div>
         <div id="train-search-json">
           <div class="search-row">
             <select class="h-select" id="json-tt-line"><option value="">線区を選択</option></select>
@@ -988,6 +988,7 @@ html, body {
   </div>
 </div>
 
+<script src="T-time/private-data-client.js"></script>
 <script>
 // ===== 定数 =====
 const BASE  = '/api/odpt/challenge';
@@ -2174,7 +2175,6 @@ async function openTrainByNumberFromStation(number,lineId){
 // =====================================================
 // ===== 時刻表タブ =====
 // =====================================================
-const EXTERNAL_TIMETABLE_URL='https://tayunet-traininfo.com/T-time/timetables.json';
 let externalTimetables=[], externalTimetablePromise=null, externalHolidayData={};
 function normalizeTrainKey(value){return String(value||'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,s=>String.fromCharCode(s.charCodeAt(0)-0xFEE0)).toUpperCase().replace(/\s/g,'').trim();}
 function localInputDate(date=new Date()){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const get=t=>parts.find(p=>p.type===t)?.value;return `${get('year')}-${get('month')}-${get('day')}`;}
@@ -2189,17 +2189,17 @@ function loadExternalTimetables(){
   if(externalTimetablePromise) return externalTimetablePromise;
   const status=document.getElementById('json-tt-status');
   externalTimetablePromise=Promise.all([
-    fetch(EXTERNAL_TIMETABLE_URL).then(r=>{if(!r.ok)throw new Error(`timetables.json HTTP ${r.status}`);return r.json();}),
+    TayunetPrivateData.fetchTimetables(),
     fetch('https://holidays-jp.github.io/api/v1/date.json').then(r=>r.ok?r.json():{}).catch(()=>({}))
   ]).then(([data,holidays])=>{
     if(!Array.isArray(data)) throw new Error('timetables.jsonのルートが配列ではありません');
     externalTimetables=data;externalHolidayData=holidays||{};
     const lines=[...new Set(data.map(x=>x.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
     document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${line}">${line}</option>`).join('');
-    status.textContent=`公開時刻表 ${data.length.toLocaleString('ja-JP')}列車・${lines.length}線区を読込済み`;
-    addDiagnostic('info','公開timetables.json読込完了',{records:data.length,lines:lines.length,url:EXTERNAL_TIMETABLE_URL},'timetable-json');
+    status.textContent=`保護時刻表 ${data.length.toLocaleString('ja-JP')}列車・${lines.length}線区を読込済み`;
+    addDiagnostic('info','保護時刻表データ読込完了',{records:data.length,lines:lines.length},'timetable-api');
     return data;
-  }).catch(error=>{status.textContent=`公開時刻表の読込失敗: ${error.message}`;status.style.color='var(--red2)';addDiagnostic('error','公開timetables.json読込失敗',{message:error.message,stack:error.stack},'timetable-json');externalTimetablePromise=null;return [];});
+  }).catch(error=>{status.textContent=`保護時刻表の読込失敗: ${error.message}`;status.style.color='var(--red2)';addDiagnostic('error','保護時刻表データ読込失敗',{message:error.message,stack:error.stack},'timetable-api');externalTimetablePromise=null;return [];});
   return externalTimetablePromise;
 }
 function externalDayType(dateValue){const d=new Date(`${dateValue}T12:00:00+09:00`),day=d.getDay();return day===0||day===6||Boolean(externalHolidayData[dateValue])?'土休日':'平日';}

@@ -40,27 +40,37 @@
   <tbody id="trainTable"></tbody>
 </table>
 
+<script src="private-data-client.js"></script>
 <script>
-  fetch("timetables.json")
-    .then(res => res.json())
+  TayunetPrivateData.fetchTimetables()
     .then(data => {
       const tbody = document.getElementById("trainTable");
       data.forEach(d => {
-        const row = `<tr>
-          <td>${d.line}</td>
-          <td>${d.trainNumber}</td>
-          <td>${d.type}</td>
-          <td>${d.startDate}</td>
-          <td>${d.dayType}</td>
-          <td>${d.origin}〜${d.destination}</td>
-          <td>${d.name}</td>
-        </tr>`;
-        tbody.insertAdjacentHTML("beforeend", row);
+        const tr = document.createElement("tr");
+        [
+          d.line,
+          d.trainNumber,
+          d.type,
+          d.startDate,
+          d.dayType,
+          `${d.origin || ""}〜${d.destination || ""}`,
+          d.name
+        ].forEach(value => {
+          const td = document.createElement("td");
+          td.textContent = value == null ? "" : String(value);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
       });
     })
     .catch(err => {
       const tbody = document.getElementById("trainTable");
-      tbody.innerHTML = `<tr><td colspan="7">データの読み込みに失敗しました: ${err.message}</td></tr>`;
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.textContent = `データの読み込みに失敗しました: ${err.message}`;
+      tr.appendChild(td);
+      tbody.replaceChildren(tr);
     });
 
 </script>

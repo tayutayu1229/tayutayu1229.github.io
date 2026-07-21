@@ -108,12 +108,7 @@ function readTransferredTrain() {
 }
 
 async function fetchTimetables() {
-  const local = ['localhost','127.0.0.1'].includes(location.hostname) || location.protocol === 'file:';
-  const candidates = local ? ['./timetables.json','https://tayunet-traininfo.com/T-time/timetables.json'] : ['https://tayunet-traininfo.com/T-time/timetables.json','./timetables.json'];
-  for (const path of candidates) {
-    try { const response = await fetch(path); if (response.ok) return response.json(); } catch { /* next */ }
-  }
-  throw new Error('時刻表データを読み込めませんでした。');
+  return TayunetPrivateData.fetchTimetables();
 }
 
 function findTrain(allData) {
