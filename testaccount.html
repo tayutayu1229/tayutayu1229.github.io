@@ -1,0 +1,2162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者パネル - 東京圏輸送情報システム</title>
+
+<style>
+    :root {
+        --bg: #f3f3f3;
+        --surface: #ffffff;
+        --border: #e1e1e1;
+        --border2: #c8c8c8;
+        --border3: #a6a6a6;
+        --text: #1b1b1b;
+        --text2: #3a3a3a;
+        --text3: #5f6368;
+        --text4: #8a8a8a;
+
+        --green: #009944;
+        --green-dark: #007533;
+        --green-lt: #e6f4ee;
+
+        --red: #c62828;
+        --red-lt: #fdecea;
+        --red-dark: #a01f1f;
+
+        --blue: #084298;
+        --blue-lt: #e6f0ff;
+        --blue-dark: #063075;
+
+        --gray: #333333;
+        --gray2: #767676;
+        --gray2-dark: #5d5d5d;
+
+        /* Finance accent */
+        --fin: #1a4fa0;
+        --fin-lt: #e8eef8;
+        --fin-dark: #133a78;
+        --income: #1a5c2e;
+        --expense: #961717;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0; padding: 0;
+        font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+    }
+
+    .layout { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ===== サイドバー ===== */
+    .sidebar {
+        width: 220px; flex-shrink: 0;
+        background-color: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex; flex-direction: column;
+        overflow-y: auto;
+    }
+    .sidebar-header { display: flex; align-items: center; gap: 10px; padding: 18px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sidebar-mark { width: 34px; height: 34px; background: var(--green); color: #fff; font-weight: 900; font-size: 0.85em; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sidebar-header h2 { font-size: 0.92rem; font-weight: 800; color: var(--text); margin: 0; line-height: 1.3; }
+    .sidebar-header .sub { font-size: 0.65rem; color: var(--text4); margin-top: 1px; }
+
+    .menu-group { padding: 8px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .menu-group + .menu-group { border-top: 1px solid var(--border); }
+    .menu-group-label { font-size: 0.65rem; font-weight: 800; color: var(--text4); letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px 2px; }
+    .menu-item { padding: 9px 12px; cursor: pointer; border-left: 3px solid transparent; font-size: 0.82rem; font-weight: 600; color: var(--text3); display: flex; align-items: center; gap: 8px; justify-content: space-between; transition: background-color 0.1s, color 0.1s; }
+    .menu-item .mi-left { display: flex; align-items: center; gap: 8px; }
+    .menu-item svg { flex-shrink: 0; }
+    .menu-item:hover { background-color: var(--green-lt); color: var(--green-dark); }
+    .menu-item.active { border-left-color: var(--green); background-color: var(--green-lt); color: var(--green-dark); font-weight: 800; }
+    .menu-item.fin-item:hover { background-color: var(--fin-lt); color: var(--fin-dark); }
+    .menu-item.fin-item.active { border-left-color: var(--fin); background-color: var(--fin-lt); color: var(--fin-dark); }
+    .menu-spacer { margin-top: auto; }
+    .badge { min-width: 18px; padding: 2px 7px; background-color: var(--red); color: #fff; font-size: 0.66rem; font-weight: 800; text-align: center; }
+    .badge.gray { background-color: var(--gray2); }
+
+    /* ===== コンテンツ ===== */
+    .content { flex: 1; padding: 22px 26px 40px; overflow-y: auto; display: none; }
+    .content-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .content-title { font-size: 1.2rem; font-weight: 900; color: var(--text); }
+    #user-info { font-weight: 700; font-size: 0.82rem; color: var(--text3); background: var(--surface); border: 1px solid var(--border2); padding: 6px 14px; margin: 0; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border2); border-left: 4px solid var(--border3); padding: 12px 16px; }
+    .stat-card .stat-num { font-size: 1.6rem; font-weight: 900; line-height: 1.1; }
+    .stat-card .stat-label { font-size: 0.72rem; color: var(--text3); margin-top: 3px; }
+    .stat-card.total { border-left-color: var(--blue); } .stat-card.total .stat-num { color: var(--blue); }
+    .stat-card.pending { border-left-color: var(--red); } .stat-card.pending .stat-num { color: var(--red); }
+    .stat-card.disabled { border-left-color: var(--gray2); } .stat-card.disabled .stat-num { color: var(--gray2); }
+    .stat-card.admin { border-left-color: var(--green); } .stat-card.admin .stat-num { color: var(--green-dark); }
+    .stat-card.fin-income { border-left-color: var(--income); } .stat-card.fin-income .stat-num { color: var(--income); }
+    .stat-card.fin-expense { border-left-color: var(--expense); } .stat-card.fin-expense .stat-num { color: var(--expense); }
+    .stat-card.fin-budget { border-left-color: var(--fin); } .stat-card.fin-budget .stat-num { color: var(--fin); }
+    .stat-card.clickable { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+    .stat-card.clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.09); }
+
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 14px; }
+    .panel { border: 1px solid var(--border); background: #fff; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .panel-head h4 { margin: 0; font-size: .82rem; }
+    .panel-head span { color: var(--text4); font-size: .72rem; }
+    .panel-body { padding: 12px 13px; }
+    .health-list { margin: 0; padding: 0; list-style: none; }
+    .health-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .health-list li:last-child { border-bottom: 0; }
+    .health-ok, .health-warn { font-size: .72rem; font-weight: 800; padding: 3px 7px; border: 1px solid; }
+    .health-ok { color: var(--green-dark); background: var(--green-lt); border-color: var(--green); }
+    .health-warn { color: var(--red-dark); background: var(--red-lt); border-color: var(--red); }
+    .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .quick-action { border: 1px solid var(--border3); background: #fff; text-align: left; padding: 10px; margin: 0; color: var(--text2); cursor: pointer; }
+    .quick-action:hover { background: var(--green-lt); color: var(--green-dark); }
+    .quick-action b, .quick-action small { display: block; }
+    .quick-action small { color: var(--text3); font-weight: 400; margin-top: 3px; font-size: .7rem; }
+    .recent-list { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    .recent-list td { border: 0; border-bottom: 1px solid var(--border); padding: 8px 4px; }
+    .recent-list tr:last-child td { border-bottom: 0; }
+    .muted { color: var(--text4); }
+    .tag { display: inline-block; margin: 2px 3px 2px 0; padding: 2px 6px; border: 1px solid var(--border3); background: var(--bg); color: var(--text3); font-size: .7rem; }
+
+    .section { background-color: var(--surface); border: 1px solid var(--border2); padding: 0; margin-bottom: 22px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-bottom: 2px solid var(--green); background: var(--bg); }
+    .section-head.fin-head { border-bottom-color: var(--fin); }
+    .section-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+    .section-head-actions { display: flex; gap: 6px; align-items: center; }
+    .section-body { padding: 16px 18px; }
+
+    .toolbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .search-box { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border3); background: #fafafa; padding: 6px 10px; flex: 1 1 220px; min-width: 180px; }
+    .search-box svg { flex-shrink: 0; color: var(--text4); }
+    .search-box input { border: none; outline: none; background: none; width: 100%; font-size: 0.85rem; font-family: inherit; color: var(--text); }
+    .refresh-btn, .bulk-btn { background: var(--surface); border: 1px solid var(--border3); padding: 7px 14px; font-size: 0.8rem; font-weight: 700; color: var(--text2); cursor: pointer; white-space: nowrap; }
+    .refresh-btn:hover { background: var(--bg); }
+    .bulk-btn { background: var(--green); color: #fff; border-color: var(--green); }
+    .bulk-btn:hover { background: var(--green-dark); }
+    .bulk-btn.fin { background: var(--fin); border-color: var(--fin); }
+    .bulk-btn.fin:hover { background: var(--fin-dark); }
+    .bulk-btn.danger { background: var(--red); border-color: var(--red); }
+    .bulk-btn.danger:hover { background: var(--red-dark); }
+    .bulk-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; }
+    th { background-color: var(--bg); font-weight: 800; font-size: 0.78rem; color: var(--text2); }
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { background-color: #e6e6e6; }
+    th.sortable .sort-arrow { font-size: 0.7rem; color: var(--text4); margin-left: 3px; }
+    tbody tr:hover { background-color: var(--green-lt); }
+    tbody tr.fin-row:hover { background-color: var(--fin-lt); }
+    tbody tr.row-hidden { display: none; }
+    td.chk-col, th.chk-col { width: 34px; text-align: center; }
+    td.amt { text-align: right; font-family: 'Courier New', monospace; font-size: 0.82rem; white-space: nowrap; }
+    td.income-cell { color: var(--income); font-weight: 700; }
+    td.expense-cell { color: var(--expense); font-weight: 700; }
+
+    .status-badge { padding: 3px 9px; font-size: 0.72rem; font-weight: 800; display: inline-block; border: 1px solid; }
+    .status-active { background-color: var(--bg); color: var(--text2); border-color: var(--border3); }
+    .status-disabled { background-color: var(--red-lt); color: var(--red-dark); border-color: var(--red); }
+    .status-admin { background-color: var(--blue-lt); color: var(--blue); border-color: var(--blue); }
+    .badge-paid { background: #d4edda; color: var(--income); border: 1px solid #a3d4b0; padding: 2px 8px; font-size: 0.72rem; font-weight: 800; display: inline-block; }
+    .badge-unpaid { background: var(--red-lt); color: var(--red-dark); border: 1px solid #f0aaaa; padding: 2px 8px; font-size: 0.72rem; font-weight: 800; display: inline-block; }
+    .badge-exempt { background: var(--blue-lt); color: var(--blue); border: 1px solid #b0c6e8; padding: 2px 8px; font-size: 0.72rem; font-weight: 800; display: inline-block; }
+
+    button { padding: 7px 12px; border: none; border-radius: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; margin-right: 4px; margin-bottom: 4px; transition: opacity 0.1s; }
+    button:hover { opacity: 0.88; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-approve { background-color: var(--green); color: white; }
+    .btn-disable { background-color: var(--gray); color: white; }
+    .btn-enable { background-color: var(--gray2); color: white; }
+    .btn-delete { background-color: var(--red); color: white; }
+    .btn-admin { background-color: var(--gray); color: white; }
+    .btn-revoke { background-color: var(--gray2); color: white; }
+    .btn-detail { background-color: var(--blue); color: white; }
+    .btn-copy { background-color: var(--surface); color: var(--text2); border: 1px solid var(--border3); }
+    .btn-fin { background-color: var(--fin); color: white; }
+    .btn-fin-s { background-color: var(--surface); color: var(--fin); border: 1px solid var(--fin); }
+    .btn-sm { padding: 4px 8px; font-size: 0.72rem; margin: 0 2px 2px 0; }
+
+    .empty-msg { color: var(--text4); font-size: 0.85rem; padding: 14px 0; }
+    .loading-msg { color: var(--text3); font-size: 0.85rem; padding: 14px 0; display: flex; align-items: center; gap: 10px; }
+    .h-spinner { width: 18px; height: 18px; border: 2.5px solid var(--border2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== モーダル ===== */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 10000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border3); width: 92%; max-width: 580px; box-shadow: 0 4px 18px rgba(0,0,0,0.2); max-height: 90vh; display: flex; flex-direction: column; }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg); border-bottom: 2px solid var(--green); flex-shrink: 0; }
+    .modal-head.fin-modal-head { border-bottom-color: var(--fin); }
+    .modal-head h3 { margin: 0; font-size: 0.95rem; font-weight: 800; }
+    .modal-close-btn { background: none; border: 1px solid var(--border3); width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; margin: 0; }
+    .modal-close-btn:hover { background: var(--border); }
+    .modal-body { padding: 18px; font-size: 0.86rem; color: var(--text2); overflow-y: auto; }
+    .modal-body p { margin: 0 0 14px 0; }
+    .modal-body label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text3); margin-bottom: 4px; margin-top: 10px; }
+    .modal-body label:first-child { margin-top: 0; }
+    .modal-body input[type=text], .modal-body input[type=email], .modal-body input[type=password],
+    .modal-body input[type=number], .modal-body input[type=date] {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--border3); font-size: 0.86rem; font-family: inherit; outline: none;
+    }
+    .modal-body input:focus { border-color: var(--fin); }
+    .modal-body select { width: 100%; padding: 8px 10px; border: 1px solid var(--border3); font-size: 0.86rem; font-family: inherit; outline: none; background: #fff; }
+    .modal-body select:focus { border-color: var(--fin); }
+    .modal-body textarea { width: 100%; min-height: 72px; padding: 8px 10px; border: 1px solid var(--border3); font: inherit; resize: vertical; font-size: 0.86rem; }
+    .modal-body textarea:focus { border-color: var(--fin); outline: none; }
+    .detail-grid { display: grid; grid-template-columns: 120px 1fr; border: 1px solid var(--border); margin: 0 0 14px; }
+    .detail-grid dt, .detail-grid dd { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .detail-grid dt { background: var(--bg); font-weight: 800; color: var(--text3); }
+    .detail-grid dd { overflow-wrap: anywhere; }
+    .detail-grid dt:last-of-type, .detail-grid dd:last-of-type { border-bottom: 0; }
+    .modal-error { color: var(--red-dark); font-size: 0.78rem; margin-top: 8px; display: none; background: var(--red-lt); border: 1px solid var(--red); padding: 6px 10px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    .modal-actions button { margin: 0; }
+    .btn-cancel { background: var(--surface); border: 1px solid var(--border3); color: var(--text2); }
+    .btn-cancel:hover { background: var(--bg); }
+    .btn-confirm { background: var(--green); color: #fff; }
+    .btn-confirm.danger { background: var(--red); }
+    .btn-confirm.fin-confirm { background: var(--fin); }
+    .form-row { display: grid; gap: 10px; }
+    .form-row.cols2 { grid-template-columns: 1fr 1fr; }
+    .form-row.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    /* ===== Finance specific ===== */
+    .fin-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+    .fin-stat-card { background: var(--surface); border: 1px solid var(--border2); padding: 12px 16px; }
+    .fin-stat-card .fsn { font-size: 1.4rem; font-weight: 900; font-family: 'Courier New', monospace; }
+    .fin-stat-card .fsl { font-size: 0.7rem; color: var(--text3); margin-top: 2px; }
+
+    .progress-wrap { width: 100%; background: #e0e4e8; height: 8px; }
+    .progress-bar { height: 8px; transition: width 0.3s; }
+    .progress-bar.ok { background: var(--green); }
+    .progress-bar.warn { background: #d4820a; }
+    .progress-bar.over { background: var(--red); }
+
+    .year-selector { display: flex; align-items: center; gap: 8px; }
+    .year-selector label { font-size: 0.78rem; font-weight: 700; color: var(--text3); }
+    .year-selector select { border: 1px solid var(--border3); padding: 5px 8px; font-size: 0.82rem; background: #fff; cursor: pointer; outline: none; font-family: inherit; }
+    .year-selector select:focus { border-color: var(--fin); }
+
+    .info-bar { background: var(--fin-lt); border: 1px solid #b0c6e8; color: var(--fin-dark); padding: 7px 12px; font-size: 0.78rem; margin-bottom: 12px; }
+
+    /* Receipt */
+    .receipt-box { border: 2px solid #000; padding: 30px; max-width: 560px; margin: 0 auto; background: #fff; }
+    .receipt-box h2 { text-align: center; font-size: 18px; letter-spacing: 0.1em; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px; }
+
+    /* Monthly chart */
+    .month-chart { display: grid; grid-template-columns: repeat(12,1fr); gap: 3px; align-items: end; height: 80px; margin-bottom: 4px; }
+    .month-col { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .month-bars { display: flex; gap: 1px; align-items: flex-end; height: 70px; width: 100%; }
+    .month-bar-i { flex: 1; background: var(--income); opacity: 0.8; min-height: 1px; }
+    .month-bar-e { flex: 1; background: var(--expense); opacity: 0.8; min-height: 1px; }
+    .month-label { font-size: 9px; color: var(--text4); }
+
+    /* ===== トースト ===== */
+    #toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+    .toast { background: var(--surface); border: 1px solid var(--border3); border-left: 4px solid var(--green); padding: 10px 16px; font-size: 0.82rem; color: var(--text2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 220px; animation: toast-in 0.15s ease; }
+    .toast.error { border-left-color: var(--red); color: var(--red-dark); }
+    .toast.warn { border-left-color: #d4820a; color: #6b4000; }
+    .toast.fin { border-left-color: var(--fin); }
+    @keyframes toast-in { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+    @media (max-width: 900px) { .stat-row, .fin-stat-grid { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) {
+        .layout { flex-direction: column; height: auto; }
+        .sidebar { width: 100%; flex-direction: row; overflow-x: auto; height: auto; }
+        .sidebar-header { display: none; }
+        .menu-group { flex-direction: row; }
+        .menu-group + .menu-group { border-top: none; border-left: 1px solid var(--border); }
+        .menu-spacer { margin-top: 0; }
+        .content { padding: 16px; }
+        table { font-size: 0.78rem; }
+        th, td { padding: 6px 8px; }
+        .form-row.cols2, .form-row.cols3 { grid-template-columns: 1fr; }
+    }
+    @media print {
+        .sidebar, .section-head-actions, .toolbar-row, .modal-overlay, #toast-stack { display: none !important; }
+        .content { padding: 0; display: block !important; }
+        .section { border: none; }
+    }
+</style>
+</head>
+
+<body>
+<div class="layout">
+
+    <!-- ===== サイドバー ===== -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-mark">管</div>
+            <div>
+                <h2>管理メニュー</h2>
+                <div class="sub">東京圏輸送情報システム</div>
+            </div>
+        </div>
+
+        <div class="menu-group">
+            <div class="menu-item" id="menu-back-main">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M3 9.5 10 3l7 6.5M5 8.5V17h10V8.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    メインメニューへ戻る
+                </span>
+            </div>
+        </div>
+
+        <!-- ユーザー管理 -->
+        <div class="menu-group">
+            <div class="menu-group-label">ユーザー管理</div>
+            <div class="menu-item" data-target="dashboard">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="7" height="6" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="7" height="10" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="11" width="7" height="6" stroke="currentColor" stroke-width="1.5"/></svg>
+                    ダッシュボード
+                </span>
+            </div>
+            <div class="menu-item" data-target="pending">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    承認待ち
+                </span>
+                <span id="pending-badge" class="badge" style="display:none;">0</span>
+            </div>
+            <div class="menu-item active" data-target="users">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c0.8-3.2 3-4.5 6-4.5s5.2 1.3 6 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    ユーザー管理
+                </span>
+            </div>
+            <div class="menu-item" data-target="disabled-users">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    無効化ユーザー
+                </span>
+                <span id="disabled-badge" class="badge gray" style="display:none;">0</span>
+            </div>
+            <div class="menu-item" data-target="account">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M10 2l1.2 2.4 2.6 0.4-1.9 1.9 0.5 2.6-2.4-1.3-2.4 1.3 0.5-2.6-1.9-1.9 2.6-0.4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    アカウント設定
+                </span>
+            </div>
+        </div>
+
+        <!-- 財務管理 -->
+        <div class="menu-group" id="fin-menu-group" style="display:none;">
+            <div class="menu-group-label">財務管理</div>
+            <div class="menu-item fin-item" data-target="fin-dashboard">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="10" width="4" height="7" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="6" width="4" height="11" stroke="currentColor" stroke-width="1.4"/><rect x="14" y="3" width="4" height="14" stroke="currentColor" stroke-width="1.4"/></svg>
+                    財務ダッシュボード
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-budget">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="12" rx="0" stroke="currentColor" stroke-width="1.4"/><path d="M3 8h14" stroke="currentColor" stroke-width="1.4"/><path d="M8 4v12M13 4v12" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2"/></svg>
+                    予算管理
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-transactions">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M4 6h12M4 10h8M4 14h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="15" cy="14" r="3" stroke="currentColor" stroke-width="1.4"/></svg>
+                    入出金管理
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-summary">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M3 15 7 9l4 3 3-5 3 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    集計・分析
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-fees">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M10 7v6M7.5 8.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.5-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5" stroke="currentColor" stroke-width="1.3"/></svg>
+                    年会費管理
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-receipt">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M5 3h10v14l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5V3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 8h4M8 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                    領収書発行
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-export">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M10 3v10M6 9l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    データ出力
+                </span>
+            </div>
+            <div class="menu-item fin-item" data-target="fin-settings">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.1 5.1l1.4 1.4M13.5 13.5l1.4 1.4M14.9 5.1l-1.4 1.4M6.5 13.5l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                    財務設定
+                </span>
+            </div>
+        </div>
+
+        <div class="menu-group menu-spacer">
+            <div class="menu-item" id="logout-button">
+                <span class="mi-left">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M8 3H4v14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 6l4 4-4 4M16 10H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    ログアウト
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== コンテンツエリア ===== -->
+    <div class="content">
+
+        <div class="content-top">
+            <div class="content-title">管理者パネル</div>
+            <p id="user-info"></p>
+        </div>
+
+        <div class="stat-row">
+            <div class="stat-card total clickable" data-open-section="users"><div class="stat-num" id="stat-total">-</div><div class="stat-label">総ユーザー数</div></div>
+            <div class="stat-card pending clickable" data-open-section="pending"><div class="stat-num" id="stat-pending">-</div><div class="stat-label">承認待ち</div></div>
+            <div class="stat-card disabled clickable" data-open-section="disabled-users"><div class="stat-num" id="stat-disabled">-</div><div class="stat-label">無効化済み</div></div>
+            <div class="stat-card admin clickable" data-open-section="users"><div class="stat-num" id="stat-admin">-</div><div class="stat-label">管理者数</div></div>
+        </div>
+
+        <!-- ユーザーダッシュボード -->
+        <div id="dashboard" class="section" style="display:none;">
+            <div class="section-head"><h3>運用ダッシュボード</h3><span id="dashboard-updated" class="muted">更新待ち</span></div>
+            <div class="section-body">
+                <div class="dashboard-grid">
+                    <div class="panel">
+                        <div class="panel-head"><h4>最近の登録</h4><span>直近8件</span></div>
+                        <div class="panel-body" id="recent-users-list"><div class="empty-msg">読み込み中...</div></div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>システム状態</h4><span>ユーザー管理</span></div>
+                        <div class="panel-body">
+                            <ul class="health-list">
+                                <li><span>管理者セッション</span><span class="health-ok">確認済み</span></li>
+                                <li><span>承認待ちユーザー</span><span id="health-pending" class="health-ok">0件</span></li>
+                                <li><span>無効化ユーザー</span><span id="health-disabled" class="health-ok">0件</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>クイック操作</h4><span>よく使う操作</span></div>
+                        <div class="panel-body quick-actions">
+                            <button class="quick-action" data-open-section="pending"><b>承認待ちを確認</b><small>登録リクエストを処理</small></button>
+                            <button class="quick-action" onclick="refreshUsers()"><b>データを更新</b><small>一覧を再読み込み</small></button>
+                            <button class="quick-action" data-open-section="fin-dashboard"><b>財務状況を確認</b><small>予算・収支の概要</small></button>
+                            <button class="quick-action" onclick="exportUsersCsv()"><b>CSVを出力</b><small>現在の一覧を保存</small></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 承認待ち -->
+        <div id="pending" class="section" style="display:none;">
+            <div class="section-head">
+                <h3>承認待ちユーザー</h3>
+                <div class="section-head-actions"><button class="refresh-btn" onclick="refreshUsers()">更新</button></div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="pending-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                    <button class="bulk-btn" id="bulk-approve-btn" onclick="bulkApprove()" disabled>選択した項目を承認 (<span id="bulk-approve-count">0</span>)</button>
+                    <button class="refresh-btn" id="bulk-disable-pending-btn" onclick="bulkDisablePending()" disabled>選択した項目を無効化</button>
+                </div>
+                <div id="pending-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- アクティブユーザー -->
+        <div id="users" class="section" style="display:block;">
+            <div class="section-head">
+                <h3>ユーザー管理</h3>
+                <div class="section-head-actions">
+                    <button class="refresh-btn" onclick="refreshUsers()">更新</button>
+                    <button class="refresh-btn" onclick="exportUsersCsv()">CSV出力</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="existing-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                </div>
+                <div id="existing-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- 無効化ユーザー -->
+        <div id="disabled-users" class="section" style="display:none;">
+            <div class="section-head">
+                <h3>無効化ユーザー</h3>
+                <div class="section-head-actions"><button class="refresh-btn" onclick="refreshUsers()">更新</button></div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" class="table-search" data-target-table="disabled-users-list" placeholder="メールアドレスで検索...">
+                    </div>
+                    <button class="bulk-btn danger" id="bulk-delete-btn" onclick="bulkDelete()" disabled>選択した項目を削除 (<span id="bulk-delete-count">0</span>)</button>
+                    <button class="bulk-btn" id="bulk-enable-btn" onclick="bulkEnable()" disabled>選択した項目を再有効化</button>
+                </div>
+                <div id="disabled-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+            </div>
+        </div>
+
+        <!-- アカウント設定 -->
+        <div id="account" class="section" style="display:none;">
+            <div class="section-head"><h3>アカウント設定</h3></div>
+            <div class="section-body">
+                <button id="change-email-button">メールアドレス変更</button>
+                <button id="change-password-button">パスワード変更</button>
+            </div>
+        </div>
+
+        <!-- ══════════ 財務ダッシュボード ══════════ -->
+        <div id="fin-dashboard" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>財務ダッシュボード</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-dash-year" onchange="loadFinDashboard()"></select>
+                    </div>
+                    <button class="refresh-btn" onclick="loadFinDashboard()">更新</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div id="fin-dash-cards" class="fin-stat-grid"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px">
+                    <div class="panel">
+                        <div class="panel-head"><h4>カテゴリ別予算消化率</h4></div>
+                        <div class="panel-body" id="fin-dash-bars"><div class="empty-msg">読み込み中...</div></div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>直近の入出金</h4><span>10件</span></div>
+                        <div class="panel-body" style="padding:0">
+                            <table class="recent-list" id="fin-dash-recent">
+                                <tbody><tr><td class="muted" style="padding:12px">読み込み中...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>年会費 未収一覧</h4></div>
+                        <div class="panel-body" style="padding:0">
+                            <table class="recent-list" id="fin-dash-fees">
+                                <tbody><tr><td class="muted" style="padding:12px">読み込み中...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>収支バランス</h4></div>
+                        <div class="panel-body" id="fin-dash-balance"><div class="empty-msg">読み込み中...</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 予算管理 ══════════ -->
+        <div id="fin-budget" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>予算管理</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-budget-year" onchange="loadBudgets()"></select>
+                    </div>
+                    <button class="bulk-btn fin" onclick="openBudgetModal()">＋ カテゴリ追加</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" id="budget-search" placeholder="カテゴリ名・備考で検索..." oninput="renderBudgets()">
+                    </div>
+                    <select id="budget-sort" onchange="renderBudgets()" style="border:1px solid var(--border3);padding:7px 10px;font-size:0.8rem;background:#fff;font-family:inherit">
+                        <option value="cat">カテゴリ名順</option>
+                        <option value="amt-desc">金額 大→小</option>
+                        <option value="amt-asc">金額 小→大</option>
+                    </select>
+                </div>
+                <p id="budget-total-label" style="font-size:0.78rem;color:var(--text3);margin-bottom:8px"></p>
+                <div id="budget-table-wrap">
+                    <div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 入出金管理 ══════════ -->
+        <div id="fin-transactions" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>入出金管理</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-txn-year" onchange="loadTxns()"></select>
+                    </div>
+                    <button class="bulk-btn fin" onclick="openTxnModal()">＋ 追加</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="toolbar-row">
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M17 17l-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <input type="text" id="txn-search" placeholder="内容・備考で検索..." oninput="renderTxns()">
+                    </div>
+                    <select id="txn-filter-type" onchange="renderTxns()" style="border:1px solid var(--border3);padding:7px 10px;font-size:0.8rem;background:#fff;font-family:inherit">
+                        <option value="">すべての種別</option>
+                        <option value="income">収入のみ</option>
+                        <option value="expense">支出のみ</option>
+                    </select>
+                    <select id="txn-filter-cat" onchange="renderTxns()" style="border:1px solid var(--border3);padding:7px 10px;font-size:0.8rem;background:#fff;font-family:inherit">
+                        <option value="">すべてのカテゴリ</option>
+                    </select>
+                    <input type="date" id="txn-date-from" oninput="renderTxns()" style="border:1px solid var(--border3);padding:7px 10px;font-size:0.8rem;font-family:inherit">
+                    <span style="font-size:0.78rem;color:var(--text3)">〜</span>
+                    <input type="date" id="txn-date-to" oninput="renderTxns()" style="border:1px solid var(--border3);padding:7px 10px;font-size:0.8rem;font-family:inherit">
+                    <button class="refresh-btn" onclick="clearTxnFilters()">クリア</button>
+                </div>
+                <p id="txn-summary-label" style="font-size:0.78rem;color:var(--text3);margin-bottom:8px"></p>
+                <div id="txn-table-wrap">
+                    <div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 集計・分析 ══════════ -->
+        <div id="fin-summary" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>集計・分析</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-summary-year" onchange="loadSummary()"></select>
+                    </div>
+                    <button class="refresh-btn" onclick="loadSummary()">更新</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div id="summary-cards" class="fin-stat-grid"></div>
+                <table id="summary-table" style="margin-bottom:16px">
+                    <thead>
+                        <tr>
+                            <th>カテゴリ</th>
+                            <th style="text-align:right">予算額</th>
+                            <th style="text-align:right">収入合計</th>
+                            <th style="text-align:right">支出合計</th>
+                            <th style="text-align:right">残額（予算−支出）</th>
+                            <th style="width:160px">使用率</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-tbody"></tbody>
+                </table>
+                <div class="panel">
+                    <div class="panel-head"><h4>月別収支推移</h4></div>
+                    <div class="panel-body" id="monthly-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 年会費管理 ══════════ -->
+        <div id="fin-fees" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>年会費管理</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-fee-year" onchange="loadFees()"></select>
+                    </div>
+                    <button class="bulk-btn fin" onclick="openMemberModal()">＋ メンバー追加</button>
+                    <button class="refresh-btn" onclick="bulkMarkPaid()">選択を支払済に</button>
+                </div>
+            </div>
+            <div class="section-body">
+                <div class="info-bar">会費免除メンバーは「免除」バッジで表示されます。支払日は後から個別に編集可能です。</div>
+                <p id="fee-summary-label" style="font-size:0.78rem;color:var(--text3);margin-bottom:8px"></p>
+                <div id="fee-table-wrap">
+                    <div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 領収書発行 ══════════ -->
+        <div id="fin-receipt" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>領収書発行</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-receipt-year" onchange="loadReceiptPage()"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="section-body">
+                <div style="display:grid;grid-template-columns:260px 1fr;gap:16px">
+                    <div>
+                        <div class="panel" style="margin-bottom:12px">
+                            <div class="panel-head"><h4>発行設定</h4></div>
+                            <div class="panel-body" style="display:flex;flex-direction:column;gap:8px">
+                                <div>
+                                    <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--text3);margin-bottom:3px">発行組織名</label>
+                                    <input type="text" id="r-org" value="東京圏輸送情報システム" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--text3);margin-bottom:3px">代表者名</label>
+                                    <input type="text" id="r-rep" placeholder="代表者名" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--text3);margin-bottom:3px">発行日</label>
+                                    <input type="date" id="r-date" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--text3);margin-bottom:3px">宛名メンバー</label>
+                                    <select id="r-member" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem;background:#fff">
+                                        <option value="">── 選択 ──</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--text3);margin-bottom:3px">摘要</label>
+                                    <input type="text" id="r-note" placeholder="○○年度 年会費" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem">
+                                </div>
+                                <div style="display:flex;gap:6px;margin-top:4px">
+                                    <button class="btn-fin btn-sm" onclick="previewReceipt()">プレビュー</button>
+                                    <button class="btn-approve btn-sm" onclick="printReceipt()">🖨 印刷</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="receipt-preview-area"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ データ出力 ══════════ -->
+        <div id="fin-export" class="section" style="display:none;">
+            <div class="section-head fin-head">
+                <h3>データ出力</h3>
+                <div class="section-head-actions">
+                    <div class="year-selector">
+                        <label>年度：</label>
+                        <select id="fin-export-year"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="section-body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                    <div class="panel">
+                        <div class="panel-head"><h4>CSV エクスポート</h4></div>
+                        <div class="panel-body" style="display:flex;flex-direction:column;gap:6px">
+                            <button class="bulk-btn fin btn-sm" style="width:100%;padding:7px" onclick="exportCSV('budgets')">予算データ CSV</button>
+                            <button class="bulk-btn fin btn-sm" style="width:100%;padding:7px" onclick="exportCSV('transactions')">入出金データ CSV</button>
+                            <button class="bulk-btn fin btn-sm" style="width:100%;padding:7px" onclick="exportCSV('fees')">会費データ CSV</button>
+                            <button class="btn-approve btn-sm" style="width:100%;padding:7px" onclick="exportCSV('all')">全データ一括 CSV</button>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>JSON バックアップ</h4></div>
+                        <div class="panel-body" style="display:flex;flex-direction:column;gap:6px">
+                            <button class="bulk-btn fin btn-sm" style="width:100%;padding:7px" onclick="exportJSON('year')">選択年度 JSON</button>
+                            <button class="btn-approve btn-sm" style="width:100%;padding:7px" onclick="exportJSON('all')">全年度 完全バックアップ</button>
+                            <p style="font-size:0.72rem;color:var(--text3);margin-top:4px">最終バックアップ：<strong id="last-backup-label">未実施</strong></p>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>収支報告書</h4></div>
+                        <div class="panel-body">
+                            <p style="font-size:0.78rem;color:var(--text3);margin-bottom:8px">選択年度の収支報告書を印刷用フォーマットで生成します。</p>
+                            <button class="bulk-btn fin btn-sm" style="padding:7px 14px" onclick="printReport()">印刷用 収支報告書</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════ 財務設定 ══════════ -->
+        <div id="fin-settings" class="section" style="display:none;">
+            <div class="section-head fin-head"><h3>財務設定</h3></div>
+            <div class="section-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                    <div class="panel">
+                        <div class="panel-head"><h4>年度管理</h4></div>
+                        <div class="panel-body">
+                            <div style="display:flex;gap:8px;margin-bottom:10px">
+                                <input type="number" id="add-year-input" placeholder="例：2026" style="border:1px solid var(--border3);padding:6px 10px;font-size:0.86rem;font-family:inherit;width:120px">
+                                <button class="btn-fin btn-sm" onclick="addYear()">追加</button>
+                            </div>
+                            <div id="year-list"></div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>カテゴリ管理</h4></div>
+                        <div class="panel-body">
+                            <p style="font-size:0.78rem;color:var(--text3);margin-bottom:8px">入出金・予算のカテゴリを事前登録できます。</p>
+                            <div style="display:flex;gap:8px;margin-bottom:10px">
+                                <input type="text" id="add-cat-input" placeholder="カテゴリ名" style="border:1px solid var(--border3);padding:6px 10px;font-size:0.86rem;font-family:inherit;flex:1">
+                                <button class="btn-fin btn-sm" onclick="addCategory()">追加</button>
+                            </div>
+                            <div id="cat-list"></div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>⚠️ 危険な操作</h4></div>
+                        <div class="panel-body">
+                            <p style="font-size:0.78rem;color:var(--red-dark);margin-bottom:8px">選択年度の財務データ（予算・入出金・会費記録）を全削除します。この操作は元に戻せません。</p>
+                            <div class="year-selector" style="margin-bottom:8px">
+                                <label>年度：</label>
+                                <select id="danger-year" style="border:1px solid var(--border3);padding:5px 8px;font-size:0.82rem;background:#fff;font-family:inherit"></select>
+                            </div>
+                            <button class="btn-delete btn-sm" onclick="dangerDeleteYear()">選択年度のデータ全削除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /content -->
+</div><!-- /layout -->
+
+<!-- ===== 汎用モーダル ===== -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-head" id="modal-head-el">
+            <h3 id="modal-title">タイトル</h3>
+            <button class="modal-close-btn" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+    </div>
+</div>
+
+<div id="toast-stack"></div>
+
+<!-- Firebase v8 -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+/* ═══════════════════════════════════
+   Firebase 初期化
+═══════════════════════════════════ */
+const firebaseConfig = {
+    apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
+    authDomain: "tokyo-pass.firebaseapp.com",
+    projectId: "tokyo-pass",
+    storageBucket: "tokyo-pass.firebasestorage.app",
+    messagingSenderId: "950120670058",
+    appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
+    measurementId: "G-DSQQ31EZE9"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const FS = firebase.firestore.FieldValue;
+
+let CURRENT_USER_UID = null;
+
+/* ═══════════════════════════════════
+   ユーザー管理 状態
+═══════════════════════════════════ */
+let pendingUsers = [], activeUsers = [], disabledUsers = [], adminNotesByUid = {};
+const sortState = {
+    pending: { key: 'registeredAt', dir: 'desc' },
+    users:   { key: 'email', dir: 'asc' },
+    disabled:{ key: 'email', dir: 'asc' }
+};
+
+/* ═══════════════════════════════════
+   財務管理 状態
+═══════════════════════════════════ */
+let finYears = [];
+let finCategories = [];
+let budgetsCache = [];
+let txnsCache = [];
+let membersCache = [];
+let feePayCache = {};   // memberId → payment doc
+let savingFin = false;
+
+/* ═══════════════════════════════════
+   ユーティリティ
+═══════════════════════════════════ */
+function esc(v) {
+    return String(v ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
+}
+function fmt(n) { return '¥' + Number(n||0).toLocaleString('ja-JP'); }
+function fmtDate(v) { return v ? String(v).slice(0,10) : ''; }
+function formatDate(v) { return v ? v.toLocaleString("ja-JP") : "-"; }
+
+function showToast(msg, type) {
+    const stack = document.getElementById("toast-stack");
+    if (!stack) return;
+    const t = document.createElement("div");
+    t.className = "toast" + (type === "error" ? " error" : type === "warn" ? " warn" : type === "fin" ? " fin" : "");
+    t.textContent = msg;
+    stack.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity 0.3s"; setTimeout(() => t.remove(), 300); }, 2800);
+}
+
+function statusLabel(s) {
+    if (s === "pending")  return '<span class="status-badge status-disabled">承認待ち</span>';
+    if (s === "disabled") return '<span class="status-badge status-disabled">停止中</span>';
+    return '<span class="status-badge status-active">利用可能</span>';
+}
+
+/* ═══════════════════════════════════
+   モーダル
+═══════════════════════════════════ */
+const modalOverlay = document.getElementById("modal-overlay");
+const modalTitle   = document.getElementById("modal-title");
+const modalBody    = document.getElementById("modal-body");
+const modalHead    = document.getElementById("modal-head-el");
+
+function openModal(title, bodyHtml, fin) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = bodyHtml;
+    modalHead.className = "modal-head" + (fin ? " fin-modal-head" : "");
+    modalOverlay.classList.add("open");
+}
+function closeModal() { modalOverlay.classList.remove("open"); modalBody.innerHTML = ""; }
+window.closeModal = closeModal;
+modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
+
+function confirmModal(message, label, danger, onConfirm) {
+    openModal("確認", `
+        <p>${message}</p>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm ${danger ? 'danger' : ''}" id="modal-confirm-btn">${label}</button>
+        </div>`);
+    document.getElementById("modal-confirm-btn").addEventListener("click", async () => {
+        const btn = document.getElementById("modal-confirm-btn");
+        btn.disabled = true; btn.textContent = "処理中...";
+        await onConfirm(); closeModal();
+    });
+}
+
+function confirmDeleteFin(msg, fn) {
+    openModal("削除確認（第1段階）", `
+        <p>${msg}</p>
+        <div class="info-bar" style="background:var(--red-lt);border-color:var(--red);color:var(--red-dark)">この操作は元に戻せません。</div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm danger" id="conf1-btn">次へ →</button>
+        </div>`, true);
+    document.getElementById("conf1-btn").addEventListener("click", () => {
+        openModal("削除確認（第2段階）", `
+            <p>本当に削除しますか？<br>確認のため <strong>「削除」</strong> と入力してください。</p>
+            <input type="text" id="conf2-input" placeholder="削除" style="width:100%;border:1px solid var(--border3);padding:8px;font-size:0.86rem;font-family:inherit;margin-top:8px">
+            <div class="modal-actions" style="margin-top:12px">
+                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-confirm danger" id="conf2-btn">削除する</button>
+            </div>`, true);
+        document.getElementById("conf2-btn").addEventListener("click", () => {
+            if (document.getElementById("conf2-input").value !== "削除") {
+                showToast("「削除」と入力してください", "error"); return;
+            }
+            closeModal(); fn();
+        });
+    });
+}
+
+/* ═══════════════════════════════════
+   認証
+═══════════════════════════════════ */
+auth.onAuthStateChanged(async user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    CURRENT_USER_UID = user.uid;
+    try {
+        const userDoc = await db.collection("users").doc(user.uid).get();
+        if (!userDoc.exists) { alert("ユーザーデータが存在しません。"); await auth.signOut(); return; }
+        const data = userDoc.data();
+        if (data.status !== "active") { alert("アクセス権限がありません。"); await auth.signOut(); return; }
+        document.getElementById("user-info").textContent = `${user.email} でログイン中`;
+        const contentArea = document.querySelector(".content");
+        contentArea.style.display = "block";
+        if (data.isAdmin === true) {
+            loadAllUsers();
+            document.getElementById("fin-menu-group").style.display = "block";
+            await initFinance();
+        } else {
+            ["pending","users","disabled-users"].forEach(id => document.getElementById(id).style.display = "none");
+        }
+    } catch (e) { console.error(e); await auth.signOut(); }
+});
+
+/* ═══════════════════════════════════
+   財務 初期化
+═══════════════════════════════════ */
+async function initFinance() {
+    const snap = await db.collection("finYears").get();
+    finYears = snap.docs.map(d => d.data().year).sort((a,b) => b-a);
+    if (finYears.length === 0) {
+        const yr = new Date().getFullYear();
+        await db.collection("finYears").doc(String(yr)).set({ year: yr });
+        finYears = [yr];
+    }
+    const catSnap = await db.collection("finCategories").get();
+    finCategories = catSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    populateYearSelects();
+    renderYearList();
+    renderCatList();
+    const lb = localStorage.getItem("finLastBackup");
+    if (lb) document.getElementById("last-backup-label").textContent = lb;
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById("r-date").value = today;
+}
+
+function populateYearSelects() {
+    const ids = ["fin-dash-year","fin-budget-year","fin-txn-year","fin-summary-year",
+                 "fin-fee-year","fin-receipt-year","fin-export-year","danger-year"];
+    ids.forEach(id => {
+        const sel = document.getElementById(id); if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = finYears.map(y => `<option value="${y}">${y}年度</option>`).join("");
+        if (cur && finYears.includes(parseInt(cur))) sel.value = cur;
+    });
+}
+
+function getYear(id) { return parseInt(document.getElementById(id).value); }
+
+/* ═══════════════════════════════════
+   ナビゲーション
+═══════════════════════════════════ */
+function openSection(target) {
+    if (!document.getElementById(target)) return;
+    document.querySelectorAll(".menu-item").forEach(i => i.classList.toggle("active", i.dataset.target === target));
+    document.querySelectorAll(".section").forEach(s => s.style.display = "none");
+    document.getElementById(target).style.display = "block";
+    // lazy load finance sections
+    if (target === "fin-dashboard")   loadFinDashboard();
+    if (target === "fin-budget")      loadBudgets();
+    if (target === "fin-transactions") loadTxns();
+    if (target === "fin-summary")     loadSummary();
+    if (target === "fin-fees")        loadFees();
+    if (target === "fin-receipt")     loadReceiptPage();
+}
+window.openSection = openSection;
+
+document.querySelectorAll(".menu-item").forEach(item => {
+    item.addEventListener("click", () => {
+        if (item.id === "menu-back-main") { window.location.href = "toppage.html"; return; }
+        if (item.id === "logout-button") return;
+        const t = item.dataset.target; if (!t) return;
+        openSection(t);
+    });
+});
+document.querySelectorAll("[data-open-section]").forEach(el => {
+    el.addEventListener("click", () => openSection(el.dataset.openSection));
+});
+
+/* ═══════════════════════════════════
+   財務ダッシュボード
+═══════════════════════════════════ */
+window.loadFinDashboard = async function() {
+    const year = getYear("fin-dash-year");
+    const [bS, tS, mS, fpS] = await Promise.all([
+        db.collection("budgets").where("year","==",year).get(),
+        db.collection("transactions").where("year","==",year).get(),
+        db.collection("members").get(),
+        db.collection("feePayments").where("year","==",year).get()
+    ]);
+    const budgets = bS.docs.map(d=>({id:d.id,...d.data()}));
+    const txns    = tS.docs.map(d=>({id:d.id,...d.data()}));
+    const members = mS.docs.map(d=>({id:d.id,...d.data()}));
+    const pays    = {}; fpS.docs.forEach(d=>{ pays[d.data().memberId]={id:d.id,...d.data()}; });
+
+    const totalBudget  = budgets.reduce((s,b)=>s+(b.amount||0),0);
+    const totalIncome  = txns.filter(t=>t.type==="income").reduce((s,t)=>s+(t.amount||0),0);
+    const totalExpense = txns.filter(t=>t.type==="expense").reduce((s,t)=>s+(t.amount||0),0);
+    const balance      = totalIncome - totalExpense;
+    const unpaidCnt    = members.filter(m=>!m.feeExempt&&(!pays[m.id]||pays[m.id].status==="unpaid"||!pays[m.id].status)).length;
+    const usagePct     = totalBudget>0 ? Math.round(totalExpense/totalBudget*100) : 0;
+
+    document.getElementById("fin-dash-cards").innerHTML = `
+        <div class="fin-stat-card"><div class="fsl">年度予算総額</div><div class="fsn" style="color:var(--fin)">${fmt(totalBudget)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">収入合計</div><div class="fsn" style="color:var(--income)">${fmt(totalIncome)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">支出合計</div><div class="fsn" style="color:var(--expense)">${fmt(totalExpense)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">収支残高</div><div class="fsn" style="color:${balance>=0?'var(--income)':'var(--expense)'}">${fmt(balance)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">予算残額（予算−支出）</div><div class="fsn">${fmt(totalBudget-totalExpense)}</div><div class="fsl">使用率 ${usagePct}%</div></div>
+        <div class="fin-stat-card"><div class="fsl">年会費 未収人数</div><div class="fsn" style="color:${unpaidCnt>0?'var(--expense)':'var(--income)'}">${unpaidCnt}名</div><div class="fsl">全${members.length}名中</div></div>
+    `;
+
+    // Category bars
+    const catMap = {};
+    budgets.forEach(b=>{ catMap[b.category]={budget:b.amount||0,expense:0}; });
+    txns.filter(t=>t.type==="expense").forEach(t=>{ if(!catMap[t.category]) catMap[t.category]={budget:0,expense:0}; catMap[t.category].expense+=(t.amount||0); });
+    const barsHtml = Object.entries(catMap).slice(0,8).map(([cat,d])=>{
+        const pct=d.budget>0?Math.min(100,Math.round(d.expense/d.budget*100)):0;
+        const cls=pct>=100?'over':pct>=80?'warn':'ok';
+        return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:0.72rem;margin-bottom:3px"><span>${esc(cat)}</span><span>${pct}%</span></div>
+            <div class="progress-wrap"><div class="progress-bar ${cls}" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join("") || '<div class="empty-msg">予算データなし</div>';
+    document.getElementById("fin-dash-bars").innerHTML = barsHtml;
+
+    // Recent txns
+    const sorted = [...txns].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
+    document.getElementById("fin-dash-recent").querySelector("tbody").innerHTML =
+        sorted.length ? sorted.map(t=>`<tr>
+            <td><b>${esc(t.title||t.category||"")}</b><br><span class="muted">${fmtDate(t.date)}</span></td>
+            <td><span style="color:${t.type==='income'?'var(--income)':'var(--expense)'};font-weight:700;font-size:0.78rem">${t.type==='income'?'収入':'支出'}</span></td>
+            <td class="amt ${t.type==='income'?'income-cell':'expense-cell'}">${fmt(t.amount)}</td>
+        </tr>`).join("") : '<tr><td colspan="3" class="muted" style="padding:12px;text-align:center">データなし</td></tr>';
+
+    // Unpaid fees
+    const unpaid = members.filter(m=>!m.feeExempt&&(!pays[m.id]||pays[m.id].status==="unpaid"||!pays[m.id].status));
+    document.getElementById("fin-dash-fees").querySelector("tbody").innerHTML =
+        unpaid.length ? unpaid.map(m=>`<tr>
+            <td>${esc(m.name||"")}</td>
+            <td class="amt">${fmt(m.feeAmount||0)}</td>
+            <td><span class="badge-unpaid">未払</span></td>
+        </tr>`).join("") : '<tr><td colspan="3" class="muted" style="padding:12px;text-align:center">未払なし</td></tr>';
+
+    // Balance widget
+    document.getElementById("fin-dash-balance").innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.84rem">
+            <div style="display:flex;justify-content:space-between"><span>収入合計</span><strong class="income-cell">${fmt(totalIncome)}</strong></div>
+            <div style="display:flex;justify-content:space-between"><span>支出合計</span><strong class="expense-cell">${fmt(totalExpense)}</strong></div>
+            <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;justify-content:space-between">
+                <span>収支差額</span><strong style="color:${balance>=0?'var(--income)':'var(--expense)'}">${fmt(balance)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between"><span>予算使用率</span><strong>${usagePct}%</strong></div>
+            <div class="progress-wrap"><div class="progress-bar ${usagePct>=100?'over':usagePct>=80?'warn':'ok'}" style="width:${Math.min(100,usagePct)}%"></div></div>
+        </div>`;
+};
+
+/* ═══════════════════════════════════
+   予算管理
+═══════════════════════════════════ */
+window.loadBudgets = async function() {
+    const year = getYear("fin-budget-year");
+    document.getElementById("budget-table-wrap").innerHTML = '<div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>';
+    const snap = await db.collection("budgets").where("year","==",year).get();
+    budgetsCache = snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderBudgets();
+};
+
+window.renderBudgets = function() {
+    const q = (document.getElementById("budget-search")||{}).value?.toLowerCase()||"";
+    const sort = (document.getElementById("budget-sort")||{}).value||"cat";
+    let data = budgetsCache.filter(b=>!q||(b.category||"").toLowerCase().includes(q)||(b.note||"").toLowerCase().includes(q));
+    if (sort==="amt-desc") data.sort((a,b)=>(b.amount||0)-(a.amount||0));
+    else if (sort==="amt-asc") data.sort((a,b)=>(a.amount||0)-(b.amount||0));
+    else data.sort((a,b)=>(a.category||"").localeCompare(b.category||"","ja"));
+    const total = data.reduce((s,b)=>s+(b.amount||0),0);
+    document.getElementById("budget-total-label").textContent = `${data.length}件 ｜ 合計予算：${fmt(total)}`;
+    if (!data.length) {
+        document.getElementById("budget-table-wrap").innerHTML = '<div class="empty-msg">予算データがありません。「カテゴリ追加」から登録してください。</div>';
+        return;
+    }
+    document.getElementById("budget-table-wrap").innerHTML = `<table>
+        <thead><tr><th>カテゴリ名</th><th style="text-align:right">予算額</th><th>備考</th><th style="width:120px">操作</th></tr></thead>
+        <tbody class="fin-rows">${data.map(b=>`<tr class="fin-row">
+            <td>${esc(b.category||"")}</td>
+            <td class="amt">${fmt(b.amount)}</td>
+            <td style="font-size:0.78rem;color:var(--text3)">${esc(b.note||"")}</td>
+            <td>
+                <button class="btn-fin btn-sm" onclick="openBudgetModal('${b.id}')">編集</button>
+                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('予算「${esc(b.category)}」を削除しますか？',()=>deleteBudget('${b.id}'))">削除</button>
+            </td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+};
+
+window.openBudgetModal = function(id) {
+    const b = id ? budgetsCache.find(x=>x.id===id) : null;
+    const cats = getCatOptions(b?.category||"");
+    openModal(id ? "予算 編集" : "予算 追加", `
+        <label>カテゴリ名 <span style="color:var(--red)">*</span></label>
+        <input type="text" id="m-bcat" value="${esc(b?.category||"")}" placeholder="例：サーバー費用">
+        <label>予算額（円）<span style="color:var(--red)">*</span></label>
+        <input type="number" id="m-bamt" value="${b?.amount||""}" min="0" step="1" placeholder="0">
+        <label>備考</label>
+        <textarea id="m-bnote">${esc(b?.note||"")}</textarea>
+        <div class="modal-error" id="m-berr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm fin-confirm" id="m-bsave" onclick="saveBudget('${id||""}')">保存</button>
+        </div>`, true);
+};
+
+window.saveBudget = async function(id) {
+    if (savingFin) return;
+    const cat = document.getElementById("m-bcat").value.trim();
+    const amt = parseFloat(document.getElementById("m-bamt").value);
+    const note = document.getElementById("m-bnote").value.trim();
+    const year = getYear("fin-budget-year");
+    const err = document.getElementById("m-berr");
+    if (!cat) { err.textContent="カテゴリ名を入力してください"; err.style.display="block"; return; }
+    if (isNaN(amt)||amt<0) { err.textContent="金額は0以上の数値を入力してください"; err.style.display="block"; return; }
+    const dup = budgetsCache.find(b=>b.category===cat&&b.id!==id);
+    if (dup) { err.textContent="同じカテゴリ名が既に存在します"; err.style.display="block"; return; }
+    savingFin = true;
+    document.getElementById("m-bsave").disabled = true;
+    try {
+        const data = { year, category:cat, amount:amt, note, updatedAt:FS.serverTimestamp() };
+        if (id) { await db.collection("budgets").doc(id).update(data); showToast("予算を更新しました","fin"); }
+        else     { await db.collection("budgets").add({...data, createdAt:FS.serverTimestamp()}); showToast("予算を追加しました","fin"); }
+        closeModal(); await loadBudgets();
+    } catch(e) { err.textContent="保存に失敗しました："+e.message; err.style.display="block"; }
+    savingFin = false;
+};
+
+window.deleteBudget = async function(id) {
+    await db.collection("budgets").doc(id).delete();
+    showToast("予算を削除しました","warn");
+    await loadBudgets();
+};
+
+/* ═══════════════════════════════════
+   入出金管理
+═══════════════════════════════════ */
+window.loadTxns = async function() {
+    const year = getYear("fin-txn-year");
+    document.getElementById("txn-table-wrap").innerHTML = '<div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>';
+    const snap = await db.collection("transactions").where("year","==",year).get();
+    txnsCache = snap.docs.map(d=>({id:d.id,...d.data()}));
+    // populate category filter
+    const cats = [...new Set([...txnsCache.map(t=>t.category),...budgetsCache.map(b=>b.category),...finCategories.map(c=>c.name)].filter(Boolean))].sort();
+    const sel = document.getElementById("txn-filter-cat");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">すべてのカテゴリ</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    if (cur) sel.value = cur;
+    renderTxns();
+};
+
+window.renderTxns = function() {
+    const q    = (document.getElementById("txn-search")||{}).value?.toLowerCase()||"";
+    const type = (document.getElementById("txn-filter-type")||{}).value||"";
+    const cat  = (document.getElementById("txn-filter-cat")||{}).value||"";
+    const from = (document.getElementById("txn-date-from")||{}).value||"";
+    const to   = (document.getElementById("txn-date-to")||{}).value||"";
+    let data = txnsCache.filter(t=>{
+        if (type && t.type!==type) return false;
+        if (cat  && t.category!==cat) return false;
+        if (q    && !((t.title||"").toLowerCase().includes(q)||(t.note||"").toLowerCase().includes(q))) return false;
+        if (from && (t.date||"")<from) return false;
+        if (to   && (t.date||"")>to) return false;
+        return true;
+    }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const inc  = data.filter(t=>t.type==="income").reduce((s,t)=>s+(t.amount||0),0);
+    const exp  = data.filter(t=>t.type==="expense").reduce((s,t)=>s+(t.amount||0),0);
+    document.getElementById("txn-summary-label").textContent = `${data.length}件 ｜ 収入：${fmt(inc)} ｜ 支出：${fmt(exp)}`;
+    if (!data.length) {
+        document.getElementById("txn-table-wrap").innerHTML = '<div class="empty-msg">データがありません。</div>';
+        return;
+    }
+    document.getElementById("txn-table-wrap").innerHTML = `<div style="overflow-x:auto"><table>
+        <thead><tr><th>日付</th><th>種別</th><th>カテゴリ</th><th style="text-align:right">金額</th><th>内容</th><th>備考</th><th style="width:110px">操作</th></tr></thead>
+        <tbody>${data.map(t=>`<tr class="fin-row">
+            <td style="white-space:nowrap">${fmtDate(t.date)}</td>
+            <td><span style="font-weight:700;font-size:0.78rem;color:${t.type==='income'?'var(--income)':'var(--expense)'}">${t.type==='income'?'収入':'支出'}</span></td>
+            <td>${esc(t.category||"")}</td>
+            <td class="amt ${t.type==='income'?'income-cell':'expense-cell'}">${fmt(t.amount)}</td>
+            <td>${esc(t.title||"")}</td>
+            <td style="font-size:0.72rem;color:var(--text3);max-width:120px;white-space:normal">${esc(t.note||"")}</td>
+            <td>
+                <button class="btn-fin btn-sm" onclick="openTxnModal('${t.id}')">編集</button>
+                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('「${esc(t.title||t.category)}」を削除しますか？',()=>deleteTxn('${t.id}'))">削除</button>
+            </td>
+        </tr>`).join("")}</tbody>
+    </table></div>`;
+};
+
+window.clearTxnFilters = function() {
+    ["txn-search","txn-filter-type","txn-filter-cat","txn-date-from","txn-date-to"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+    renderTxns();
+};
+
+function getCatOptions(current) {
+    const all = [...new Set([...finCategories.map(c=>c.name),...budgetsCache.map(b=>b.category),...txnsCache.map(t=>t.category)].filter(Boolean))].sort();
+    if (current && !all.includes(current)) all.unshift(current);
+    return all.map(c=>`<option value="${esc(c)}" ${c===current?'selected':''}>${esc(c)}</option>`).join("") + '<option value="__other__">その他（直接入力）</option>';
+}
+
+window.openTxnModal = function(id) {
+    const t = id ? txnsCache.find(x=>x.id===id) : null;
+    openModal(id ? "入出金 編集" : "入出金 追加", `
+        <div class="form-row cols2">
+            <div><label>日付 <span style="color:var(--red)">*</span></label>
+                <input type="date" id="m-tdate" value="${esc(t?.date||new Date().toISOString().slice(0,10))}"></div>
+            <div><label>種別 <span style="color:var(--red)">*</span></label>
+                <select id="m-ttype"><option value="expense" ${(!t||t.type==='expense')?'selected':''}>支出</option><option value="income" ${t?.type==='income'?'selected':''}>収入</option></select></div>
+        </div>
+        <div class="form-row cols2">
+            <div><label>カテゴリ <span style="color:var(--red)">*</span></label>
+                <select id="m-tcat">${getCatOptions(t?.category||"")}</select></div>
+            <div><label>金額（円）<span style="color:var(--red)">*</span></label>
+                <input type="number" id="m-tamt" value="${t?.amount||""}" min="0" step="1" placeholder="0"></div>
+        </div>
+        <label>内容 <span style="color:var(--red)">*</span></label>
+        <input type="text" id="m-ttitle" value="${esc(t?.title||"")}" placeholder="内容を入力">
+        <label>備考</label>
+        <textarea id="m-tnote">${esc(t?.note||"")}</textarea>
+        <div class="modal-error" id="m-terr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm fin-confirm" id="m-tsave" onclick="saveTxn('${id||""}')">保存</button>
+        </div>`, true);
+    // Handle "other" category
+    document.getElementById("m-tcat").addEventListener("change", function() {
+        if (this.value === "__other__") {
+            const v = prompt("カテゴリ名を入力してください：","");
+            if (v) { const opt = new Option(v,v,true,true); this.insertBefore(opt,this.lastElementChild); this.value=v; }
+            else this.value = "";
+        }
+    });
+};
+
+window.saveTxn = async function(id) {
+    if (savingFin) return;
+    const date  = document.getElementById("m-tdate").value;
+    const type  = document.getElementById("m-ttype").value;
+    const cat   = document.getElementById("m-tcat").value;
+    const amt   = parseFloat(document.getElementById("m-tamt").value);
+    const title = document.getElementById("m-ttitle").value.trim();
+    const note  = document.getElementById("m-tnote").value.trim();
+    const year  = getYear("fin-txn-year");
+    const err   = document.getElementById("m-terr");
+    if (!date)              { err.textContent="日付を入力してください"; err.style.display="block"; return; }
+    if (!cat||cat==="__other__") { err.textContent="カテゴリを入力してください"; err.style.display="block"; return; }
+    if (isNaN(amt)||amt<0)  { err.textContent="金額は0以上の数値を入力してください"; err.style.display="block"; return; }
+    if (!title)             { err.textContent="内容を入力してください"; err.style.display="block"; return; }
+    savingFin = true;
+    document.getElementById("m-tsave").disabled = true;
+    try {
+        const data = { year, date, type, category:cat, amount:amt, title, note, updatedAt:FS.serverTimestamp() };
+        if (id) { await db.collection("transactions").doc(id).update(data); showToast("入出金を更新しました","fin"); }
+        else     { await db.collection("transactions").add({...data,createdAt:FS.serverTimestamp()}); showToast("入出金を追加しました","fin"); }
+        closeModal(); await loadTxns();
+    } catch(e) { err.textContent="保存に失敗しました："+e.message; err.style.display="block"; }
+    savingFin = false;
+};
+
+window.deleteTxn = async function(id) {
+    await db.collection("transactions").doc(id).delete();
+    showToast("入出金を削除しました","warn");
+    await loadTxns();
+};
+
+/* ═══════════════════════════════════
+   集計・分析
+═══════════════════════════════════ */
+window.loadSummary = async function() {
+    const year = getYear("fin-summary-year");
+    const [bS,tS] = await Promise.all([
+        db.collection("budgets").where("year","==",year).get(),
+        db.collection("transactions").where("year","==",year).get()
+    ]);
+    const budgets = bS.docs.map(d=>d.data());
+    const txns    = tS.docs.map(d=>d.data());
+    const totalBudget  = budgets.reduce((s,b)=>s+(b.amount||0),0);
+    const totalIncome  = txns.filter(t=>t.type==="income").reduce((s,t)=>s+(t.amount||0),0);
+    const totalExpense = txns.filter(t=>t.type==="expense").reduce((s,t)=>s+(t.amount||0),0);
+    document.getElementById("summary-cards").innerHTML = `
+        <div class="fin-stat-card"><div class="fsl">総予算</div><div class="fsn" style="color:var(--fin)">${fmt(totalBudget)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">収入合計</div><div class="fsn" style="color:var(--income)">${fmt(totalIncome)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">支出合計</div><div class="fsn" style="color:var(--expense)">${fmt(totalExpense)}</div></div>
+        <div class="fin-stat-card"><div class="fsl">予算残額（予算−支出）</div><div class="fsn">${fmt(totalBudget-totalExpense)}</div></div>
+    `;
+    const catMap = {};
+    budgets.forEach(b=>{ catMap[b.category]={budget:b.amount||0,income:0,expense:0}; });
+    txns.forEach(t=>{
+        if(!catMap[t.category]) catMap[t.category]={budget:0,income:0,expense:0};
+        if(t.type==="income") catMap[t.category].income+=(t.amount||0);
+        else catMap[t.category].expense+=(t.amount||0);
+    });
+    const rows = Object.entries(catMap).sort((a,b)=>a[0].localeCompare(b[0],"ja")).map(([cat,d])=>{
+        const remain = d.budget - d.expense;
+        const pct = d.budget>0 ? Math.min(200,Math.round(d.expense/d.budget*100)) : (d.expense>0?100:0);
+        const cls = pct>=100?'over':pct>=80?'warn':'ok';
+        const bar = d.budget>0
+            ? `<div class="progress-wrap"><div class="progress-bar ${cls}" style="width:${Math.min(100,pct)}%"></div></div><span style="font-size:0.7rem;color:var(--text3)">${pct}%</span>`
+            : '<span class="muted" style="font-size:0.72rem">予算未設定</span>';
+        return `<tr class="fin-row">
+            <td>${esc(cat)}</td>
+            <td class="amt">${fmt(d.budget)}</td>
+            <td class="amt income-cell">${fmt(d.income)}</td>
+            <td class="amt expense-cell">${fmt(d.expense)}</td>
+            <td class="amt ${remain<0?'expense-cell':''}">${fmt(remain)}</td>
+            <td>${bar}</td>
+        </tr>`;
+    }).join("") || '<tr><td colspan="6" class="empty-msg" style="text-align:center;padding:14px">データなし</td></tr>';
+    document.getElementById("summary-tbody").innerHTML = rows;
+
+    // Monthly chart
+    const months = {};
+    for(let m=1;m<=12;m++) months[String(m).padStart(2,"0")]={income:0,expense:0};
+    txns.forEach(t=>{ const mo=(t.date||"").slice(5,7); if(months[mo]){ if(t.type==="income") months[mo].income+=(t.amount||0); else months[mo].expense+=(t.amount||0); } });
+    const maxVal = Math.max(...Object.values(months).flatMap(v=>[v.income,v.expense]),1);
+    document.getElementById("monthly-chart").innerHTML = `
+        <div class="month-chart">${Object.entries(months).map(([mo,v])=>`
+            <div class="month-col" title="${parseInt(mo)}月 収入:${fmt(v.income)} 支出:${fmt(v.expense)}">
+                <div class="month-bars">
+                    <div class="month-bar-i" style="height:${Math.round(v.income/maxVal*70)}px"></div>
+                    <div class="month-bar-e" style="height:${Math.round(v.expense/maxVal*70)}px"></div>
+                </div>
+                <div class="month-label">${parseInt(mo)}月</div>
+            </div>`).join("")}</div>
+        <div style="display:flex;gap:14px;font-size:0.72rem;margin-top:4px;color:var(--text3)">
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--income);margin-right:4px;opacity:0.8"></span>収入</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--expense);margin-right:4px;opacity:0.8"></span>支出</span>
+        </div>`;
+};
+
+/* ═══════════════════════════════════
+   年会費管理
+═══════════════════════════════════ */
+window.loadFees = async function() {
+    const year = getYear("fin-fee-year");
+    document.getElementById("fee-table-wrap").innerHTML = '<div class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>';
+    const [mS,fpS] = await Promise.all([
+        db.collection("members").get(),
+        db.collection("feePayments").where("year","==",year).get()
+    ]);
+    membersCache = mS.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||"","ja"));
+    feePayCache = {};
+    fpS.docs.forEach(d=>{ feePayCache[d.data().memberId]={id:d.id,...d.data()}; });
+    renderFeeTable();
+};
+
+function renderFeeTable() {
+    let paid=0,unpaid=0,exempt=0,totalAmt=0;
+    const rows = membersCache.map(m=>{
+        const fp = feePayCache[m.id];
+        const status = m.feeExempt?"exempt":(fp?(fp.status||"unpaid"):"unpaid");
+        if(status==="paid"){ paid++; totalAmt+=(fp?.amount||m.feeAmount||0); }
+        else if(status==="exempt") exempt++;
+        else unpaid++;
+        const badge = status==="paid"?'<span class="badge-paid">支払済</span>':status==="exempt"?'<span class="badge-exempt">免除</span>':'<span class="badge-unpaid">未払</span>';
+        return `<tr class="fin-row">
+            <td class="chk-col"><input type="checkbox" class="fee-chk" data-id="${m.id}"></td>
+            <td>${esc(m.name||"")}</td>
+            <td style="font-size:0.78rem;color:var(--text3)">${esc(m.role||"")}</td>
+            <td class="amt">${fmt(m.feeAmount||0)}</td>
+            <td>${m.feeExempt?'<span class="badge-exempt">免除</span>':''}</td>
+            <td>${badge}</td>
+            <td style="font-size:0.78rem;white-space:nowrap">${fmtDate(fp?.paymentDate||"")||"—"}</td>
+            <td style="font-size:0.72rem;color:var(--text3);max-width:100px;white-space:normal">${esc(fp?.note||m.note||"")}</td>
+            <td>
+                <button class="btn-fin btn-sm" onclick="openFeePayModal('${m.id}')">支払登録</button>
+                <button class="btn-detail btn-sm" onclick="openMemberModal('${m.id}')">編集</button>
+                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('メンバー「${esc(m.name)}」を削除しますか？',()=>deleteMember('${m.id}'))">削除</button>
+            </td>
+        </tr>`;
+    }).join("")||'<tr><td colspan="9" class="empty-msg" style="text-align:center;padding:14px">メンバーがいません</td></tr>';
+    document.getElementById("fee-summary-label").textContent =
+        `全${membersCache.length}名 ｜ 支払済：${paid}名 ｜ 未払：${unpaid}名 ｜ 免除：${exempt}名 ｜ 徴収合計：${fmt(totalAmt)}`;
+    document.getElementById("fee-table-wrap").innerHTML = `<div style="overflow-x:auto"><table>
+        <thead><tr>
+            <th class="chk-col"><input type="checkbox" id="fee-check-all" onchange="document.querySelectorAll('.fee-chk').forEach(c=>c.checked=this.checked)"></th>
+            <th>メンバー名</th><th>役職</th><th style="text-align:right">会費額</th><th>免除</th><th>状態</th><th>支払日</th><th>備考</th><th style="width:180px">操作</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+window.openMemberModal = function(id) {
+    const m = id ? membersCache.find(x=>x.id===id) : null;
+    openModal(id?"メンバー 編集":"メンバー 追加", `
+        <div class="form-row cols2">
+            <div><label>メンバー名 <span style="color:var(--red)">*</span></label>
+                <input type="text" id="m-mname" value="${esc(m?.name||"")}" placeholder="氏名"></div>
+            <div><label>役職</label>
+                <input type="text" id="m-mrole" value="${esc(m?.role||"")}" placeholder="代表、副代表 等"></div>
+        </div>
+        <label>会費額（円）</label>
+        <input type="number" id="m-mfee" value="${m?.feeAmount||""}" min="0" step="1" placeholder="0">
+        <label style="margin-top:10px;display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="m-mexempt" ${m?.feeExempt?'checked':''}> 会費免除
+        </label>
+        <label>備考</label>
+        <textarea id="m-mnote">${esc(m?.note||"")}</textarea>
+        <div class="modal-error" id="m-merr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm fin-confirm" id="m-msave" onclick="saveMember('${id||""}')">保存</button>
+        </div>`, true);
+};
+
+window.saveMember = async function(id) {
+    if (savingFin) return;
+    const name    = document.getElementById("m-mname").value.trim();
+    const role    = document.getElementById("m-mrole").value.trim();
+    const feeAmt  = parseFloat(document.getElementById("m-mfee").value)||0;
+    const exempt  = document.getElementById("m-mexempt").checked;
+    const note    = document.getElementById("m-mnote").value.trim();
+    const err     = document.getElementById("m-merr");
+    if (!name) { err.textContent="メンバー名を入力してください"; err.style.display="block"; return; }
+    savingFin = true;
+    document.getElementById("m-msave").disabled = true;
+    try {
+        const data = { name, role, feeAmount:feeAmt, feeExempt:exempt, note, updatedAt:FS.serverTimestamp() };
+        if (id) { await db.collection("members").doc(id).update(data); showToast("メンバーを更新しました","fin"); }
+        else     { await db.collection("members").add({...data,createdAt:FS.serverTimestamp()}); showToast("メンバーを追加しました","fin"); }
+        closeModal(); await loadFees();
+    } catch(e) { err.textContent="保存に失敗しました："+e.message; err.style.display="block"; }
+    savingFin = false;
+};
+
+window.deleteMember = async function(id) {
+    await db.collection("members").doc(id).delete();
+    showToast("メンバーを削除しました","warn");
+    await loadFees();
+};
+
+window.openFeePayModal = function(memberId) {
+    const fp = feePayCache[memberId];
+    const m  = membersCache.find(x=>x.id===memberId);
+    openModal(`会費支払登録 ─ ${esc(m?.name||"")}`, `
+        <label>支払状態</label>
+        <select id="m-fpstatus">
+            <option value="unpaid" ${(!fp||fp.status==="unpaid"||!fp.status)?'selected':''}>未払</option>
+            <option value="paid" ${fp?.status==="paid"?'selected':''}>支払済</option>
+            <option value="exempt" ${fp?.status==="exempt"?'selected':''}>免除</option>
+        </select>
+        <label>支払日</label>
+        <input type="date" id="m-fpdate" value="${fmtDate(fp?.paymentDate||"")}">
+        <label>支払金額（円）</label>
+        <input type="number" id="m-fpamt" value="${fp?.amount||m?.feeAmount||""}" min="0" step="1">
+        <label>備考</label>
+        <textarea id="m-fpnote">${esc(fp?.note||"")}</textarea>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+            <button class="btn-confirm fin-confirm" onclick="saveFeePayment('${memberId}')">保存</button>
+        </div>`, true);
+};
+
+window.saveFeePayment = async function(memberId) {
+    const fp = feePayCache[memberId];
+    const year = getYear("fin-fee-year");
+    const data = {
+        memberId, year,
+        status: document.getElementById("m-fpstatus").value,
+        paymentDate: document.getElementById("m-fpdate").value,
+        amount: parseFloat(document.getElementById("m-fpamt").value)||0,
+        note: document.getElementById("m-fpnote").value.trim(),
+        updatedAt: FS.serverTimestamp()
+    };
+    try {
+        if (fp) { await db.collection("feePayments").doc(fp.id).update(data); }
+        else     { await db.collection("feePayments").add({...data,createdAt:FS.serverTimestamp()}); }
+        showToast("支払情報を保存しました","fin");
+        closeModal(); await loadFees();
+    } catch(e) { showToast("保存に失敗しました","error"); }
+};
+
+window.bulkMarkPaid = async function() {
+    const checked = [...document.querySelectorAll(".fee-chk:checked")].map(c=>c.dataset.id);
+    if (!checked.length) { showToast("メンバーを選択してください","warn"); return; }
+    if (!confirm(`${checked.length}名を支払済にしますか？`)) return;
+    const year = getYear("fin-fee-year");
+    const today = new Date().toISOString().slice(0,10);
+    const batch = db.batch();
+    for (const mid of checked) {
+        const fp = feePayCache[mid];
+        const m  = membersCache.find(x=>x.id===mid);
+        const data = { memberId:mid, year, status:"paid", paymentDate:today, amount:m?.feeAmount||0, note:"", updatedAt:FS.serverTimestamp() };
+        if (fp) { batch.update(db.collection("feePayments").doc(fp.id), data); }
+        else     { batch.set(db.collection("feePayments").doc(), {...data,createdAt:FS.serverTimestamp()}); }
+    }
+    await batch.commit();
+    showToast(`${checked.length}名を支払済にしました`,"fin");
+    await loadFees();
+};
+
+/* ═══════════════════════════════════
+   領収書
+═══════════════════════════════════ */
+window.loadReceiptPage = async function() {
+    const year = getYear("fin-receipt-year");
+    const [mS,fpS] = await Promise.all([
+        db.collection("members").get(),
+        db.collection("feePayments").where("year","==",year).get()
+    ]);
+    const members = mS.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+    const pays = {}; fpS.docs.forEach(d=>{ pays[d.data().memberId]={id:d.id,...d.data()}; });
+    const sel = document.getElementById("r-member");
+    sel.innerHTML = '<option value="">── 選択 ──</option>' + members.map(m=>{
+        const fp = pays[m.id];
+        const status = m.feeExempt?"免除":(fp?.status==="paid"?"支払済":"未払");
+        return `<option value="${m.id}" data-fee="${fp?.amount||m.feeAmount||0}" data-name="${esc(m.name)}" data-date="${fp?.paymentDate||""}">${esc(m.name)}（${status}）</option>`;
+    }).join("");
+};
+
+window.previewReceipt = function() {
+    const sel = document.getElementById("r-member");
+    const opt = sel.selectedOptions[0];
+    if (!opt||!opt.value) { showToast("メンバーを選択してください","warn"); return; }
+    const org  = document.getElementById("r-org").value||"東京圏輸送情報システム";
+    const rep  = document.getElementById("r-rep").value||"";
+    const date = document.getElementById("r-date").value;
+    const note = document.getElementById("r-note").value||`${getYear("fin-receipt-year")}年度 年会費`;
+    const name = opt.dataset.name;
+    const fee  = parseInt(opt.dataset.fee)||0;
+    const payDate = opt.dataset.date;
+    const num  = "R"+getYear("fin-receipt-year")+"-"+String(Math.floor(Math.random()*9000+1000));
+    document.getElementById("receipt-preview-area").innerHTML = `
+        <div class="receipt-box">
+            <div style="text-align:right;font-size:0.72rem;color:#666;margin-bottom:6px">領収書番号：${num}</div>
+            <h2>領 収 書</h2>
+            <div style="margin:14px 0">
+                <span style="font-size:15px;border-bottom:1px solid #000;padding-bottom:2px;display:inline-block;min-width:180px">${esc(name)} 殿</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border:2px solid #000;padding:10px 14px;margin:18px 0">
+                <span style="font-size:13px;font-weight:700">金　額</span>
+                <span style="font-size:22px;font-weight:900;font-family:'Courier New',monospace">¥${fee.toLocaleString("ja-JP")} −</span>
+            </div>
+            <div style="margin:8px 0;font-size:13px">但し、<span style="border-bottom:1px solid #888;display:inline-block;min-width:200px;padding-bottom:1px">${esc(note)}</span>　として</div>
+            <div style="margin:6px 0;font-size:13px">上記正に領収いたしました。</div>
+            ${payDate?`<div style="margin:4px 0;font-size:0.78rem;color:#666">（支払日：${payDate}）</div>`:''}
+            <div style="margin-top:28px;text-align:right;font-size:13px">
+                <div>発行日：${date}</div>
+                <div style="margin-top:10px;font-size:15px;font-weight:800">${esc(org)}</div>
+                ${rep?`<div>${esc(rep)}　㊞</div>`:''}
+            </div>
+            <hr style="margin:16px 0;border-color:#000">
+            <div style="font-size:0.7rem;color:#888;text-align:center">${esc(org)}　発行</div>
+        </div>`;
+};
+
+window.printReceipt = function() { previewReceipt(); setTimeout(()=>window.print(),300); };
+
+/* ═══════════════════════════════════
+   データ出力
+═══════════════════════════════════ */
+function dlFile(filename, content, mime) {
+    const blob = new Blob([content],{type:mime});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+    const ts = new Date().toLocaleString("ja-JP");
+    localStorage.setItem("finLastBackup",ts);
+    document.getElementById("last-backup-label").textContent = ts;
+}
+
+window.exportCSV = async function(type) {
+    const year = getYear("fin-export-year");
+    const now  = new Date().toISOString().slice(0,10);
+    let rows = [], fname = "";
+    if (type==="budgets"||type==="all") {
+        const s = await db.collection("budgets").where("year","==",year).get();
+        const hdr = ["年度","カテゴリ","予算額","備考"];
+        const r   = s.docs.map(d=>{const v=d.data();return[v.year,v.category,v.amount,v.note||""];});
+        if (type==="budgets") { rows=[hdr,...r]; fname=`budgets_${year}_${now}.csv`; }
+        else rows.push(["=== 予算 ===","","",""],hdr,...r,[]);
+    }
+    if (type==="transactions"||type==="all") {
+        const s = await db.collection("transactions").where("year","==",year).get();
+        const hdr = ["年度","日付","種別","カテゴリ","金額","内容","備考"];
+        const r   = s.docs.map(d=>{const v=d.data();return[v.year,v.date,v.type==="income"?"収入":"支出",v.category,v.amount,v.title||"",v.note||""];}).sort((a,b)=>a[1].localeCompare(b[1]));
+        if (type==="transactions") { rows=[hdr,...r]; fname=`transactions_${year}_${now}.csv`; }
+        else rows.push(["=== 入出金 ===","","","","","",""],hdr,...r,[]);
+    }
+    if (type==="fees"||type==="all") {
+        const [mS,fpS] = await Promise.all([db.collection("members").get(),db.collection("feePayments").where("year","==",year).get()]);
+        const pays={}; fpS.docs.forEach(d=>{pays[d.data().memberId]=d.data();});
+        const hdr = ["メンバー名","役職","会費額","免除","状態","支払日","支払金額","備考"];
+        const r   = mS.docs.map(d=>{const m=d.data();const fp=pays[d.id];return[m.name,m.role||"",m.feeAmount||0,m.feeExempt?"免除":"",fp?.status||"未払",fp?.paymentDate||"",fp?.amount||"",fp?.note||""];});
+        if (type==="fees") { rows=[hdr,...r]; fname=`fees_${year}_${now}.csv`; }
+        else rows.push(["=== 会費 ===","","","","","","",""],hdr,...r);
+    }
+    if (type==="all") fname=`all_data_${year}_${now}.csv`;
+    const csv = "\uFEFF" + rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    dlFile(fname,csv,"text/csv;charset=utf-8");
+    showToast("CSVをエクスポートしました","fin");
+};
+
+window.exportJSON = async function(scope) {
+    const year = getYear("fin-export-year");
+    const now  = new Date().toISOString().slice(0,10);
+    let result = {}, fname = "";
+    if (scope==="year") {
+        const [bS,tS,fpS] = await Promise.all([
+            db.collection("budgets").where("year","==",year).get(),
+            db.collection("transactions").where("year","==",year).get(),
+            db.collection("feePayments").where("year","==",year).get()
+        ]);
+        result = { year, exportedAt:new Date().toISOString(),
+            budgets:bS.docs.map(d=>({id:d.id,...d.data()})),
+            transactions:tS.docs.map(d=>({id:d.id,...d.data()})),
+            feePayments:fpS.docs.map(d=>({id:d.id,...d.data()})) };
+        fname = `backup_${year}_${now}.json`;
+    } else {
+        const [bS,tS,mS,fpS] = await Promise.all([
+            db.collection("budgets").get(),db.collection("transactions").get(),
+            db.collection("members").get(),db.collection("feePayments").get()
+        ]);
+        result = { exportedAt:new Date().toISOString(),
+            budgets:bS.docs.map(d=>({id:d.id,...d.data()})),
+            transactions:tS.docs.map(d=>({id:d.id,...d.data()})),
+            members:mS.docs.map(d=>({id:d.id,...d.data()})),
+            feePayments:fpS.docs.map(d=>({id:d.id,...d.data()})) };
+        fname = `backup_all_${now}.json`;
+    }
+    dlFile(fname,JSON.stringify(result,null,2),"application/json");
+    showToast("JSONをエクスポートしました","fin");
+};
+
+window.printReport = async function() {
+    const year = getYear("fin-export-year");
+    const [bS,tS] = await Promise.all([
+        db.collection("budgets").where("year","==",year).get(),
+        db.collection("transactions").where("year","==",year).get()
+    ]);
+    const budgets = bS.docs.map(d=>d.data());
+    const txns    = tS.docs.map(d=>d.data()).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+    const totalIncome  = txns.filter(t=>t.type==="income").reduce((s,t)=>s+(t.amount||0),0);
+    const totalExpense = txns.filter(t=>t.type==="expense").reduce((s,t)=>s+(t.amount||0),0);
+    const win = window.open("","_blank");
+    win.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${year}年度 収支報告書</title>
+    <style>body{font-family:"Segoe UI","Yu Gothic UI",Meiryo,sans-serif;font-size:12px;margin:30px;color:#111}
+    h1{font-size:17px;text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:18px}
+    h2{font-size:13px;margin:14px 0 6px;border-bottom:1px solid #999;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px}
+    th,td{border:1px solid #bbb;padding:5px 8px;font-size:11px}th{background:#eee;font-weight:800}
+    .r{text-align:right;font-family:'Courier New',monospace}.g{color:#1a5c2e}.rd{color:#961717}
+    .total td{font-weight:800;background:#f5f5f5}@media print{body{margin:15px}}</style></head><body>
+    <h1>${year}年度 収支報告書</h1>
+    <p style="text-align:right;font-size:11px">作成日：${new Date().toLocaleDateString("ja-JP")}</p>
+    <h2>収支概要</h2>
+    <table><tr><th>項目</th><th class="r">金額</th></tr>
+    <tr><td>収入合計</td><td class="r g">¥${totalIncome.toLocaleString()}</td></tr>
+    <tr><td>支出合計</td><td class="r rd">¥${totalExpense.toLocaleString()}</td></tr>
+    <tr class="total"><td>収支差額</td><td class="r ${totalIncome-totalExpense>=0?'g':'rd'}">¥${(totalIncome-totalExpense).toLocaleString()}</td></tr></table>
+    <h2>予算概要</h2>
+    <table><tr><th>カテゴリ</th><th class="r">予算額</th></tr>
+    ${budgets.map(b=>`<tr><td>${b.category}</td><td class="r">¥${(b.amount||0).toLocaleString()}</td></tr>`).join("")}
+    <tr class="total"><td>合計</td><td class="r">¥${budgets.reduce((s,b)=>s+(b.amount||0),0).toLocaleString()}</td></tr></table>
+    <h2>入出金明細</h2>
+    <table><tr><th>日付</th><th>種別</th><th>カテゴリ</th><th>内容</th><th class="r">金額</th><th>備考</th></tr>
+    ${txns.map(t=>`<tr><td>${t.date}</td><td class="${t.type==='income'?'g':'rd'}">${t.type==='income'?'収入':'支出'}</td><td>${t.category}</td><td>${t.title||""}</td><td class="r ${t.type==='income'?'g':'rd'}">¥${(t.amount||0).toLocaleString()}</td><td>${t.note||""}</td></tr>`).join("")}
+    </table><script>window.onload=()=>window.print();<\/script></body></html>`);
+    win.document.close();
+};
+
+/* ═══════════════════════════════════
+   財務設定 – 年度・カテゴリ
+═══════════════════════════════════ */
+window.addYear = async function() {
+    const yr = parseInt(document.getElementById("add-year-input").value);
+    if (!yr||yr<2000||yr>2100) { showToast("有効な年度を入力してください","error"); return; }
+    if (finYears.includes(yr)) { showToast("その年度はすでに存在します","warn"); return; }
+    await db.collection("finYears").doc(String(yr)).set({ year:yr });
+    finYears.push(yr); finYears.sort((a,b)=>b-a);
+    populateYearSelects(); renderYearList();
+    showToast(`${yr}年度を追加しました`,"fin");
+};
+
+function renderYearList() {
+    const el = document.getElementById("year-list"); if (!el) return;
+    el.innerHTML = finYears.map(y=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            <span>${y}年度</span>
+            <button class="btn-delete btn-sm" onclick="removeYear(${y})">削除</button>
+        </div>`).join("") || '<div class="empty-msg">年度なし</div>';
+}
+window.removeYear = async function(yr) {
+    if (!confirm(`${yr}年度を年度リストから削除しますか？（財務データは削除されません）`)) return;
+    await db.collection("finYears").doc(String(yr)).delete();
+    finYears = finYears.filter(y=>y!==yr);
+    populateYearSelects(); renderYearList();
+    showToast(`${yr}年度を削除しました`,"warn");
+};
+
+window.addCategory = async function() {
+    const name = document.getElementById("add-cat-input").value.trim();
+    if (!name) { showToast("カテゴリ名を入力してください","warn"); return; }
+    if (finCategories.some(c=>c.name===name)) { showToast("そのカテゴリはすでに存在します","warn"); return; }
+    const ref = await db.collection("finCategories").add({ name });
+    finCategories.push({ id:ref.id, name });
+    renderCatList();
+    document.getElementById("add-cat-input").value = "";
+    showToast(`カテゴリ「${name}」を追加しました`,"fin");
+};
+
+function renderCatList() {
+    const el = document.getElementById("cat-list"); if (!el) return;
+    el.innerHTML = finCategories.map(c=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:0.84rem">${esc(c.name)}</span>
+            <button class="btn-delete btn-sm" onclick="removeCategory('${c.id}','${esc(c.name)}')">削除</button>
+        </div>`).join("") || '<div class="empty-msg">カテゴリなし</div>';
+}
+window.removeCategory = async function(id,name) {
+    if (!confirm(`カテゴリ「${name}」を削除しますか？`)) return;
+    await db.collection("finCategories").doc(id).delete();
+    finCategories = finCategories.filter(c=>c.id!==id);
+    renderCatList();
+    showToast("カテゴリを削除しました","warn");
+};
+
+window.dangerDeleteYear = async function() {
+    const year = getYear("danger-year");
+    if (!confirm(`⚠️ ${year}年度の財務データ（予算・入出金・会費記録）を全削除しますか？\nこの操作は元に戻せません。`)) return;
+    const input = prompt(`確認のため「${year}」と入力してください：`);
+    if (input !== String(year)) { showToast("入力が一致しません。操作をキャンセルしました","warn"); return; }
+    const [bS,tS,fpS] = await Promise.all([
+        db.collection("budgets").where("year","==",year).get(),
+        db.collection("transactions").where("year","==",year).get(),
+        db.collection("feePayments").where("year","==",year).get()
+    ]);
+    const batch = db.batch();
+    [...bS.docs,...tS.docs,...fpS.docs].forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    showToast(`${year}年度の財務データを全削除しました`,"warn");
+};
+
+/* ═══════════════════════════════════
+   ユーザー管理（既存のまま）
+═══════════════════════════════════ */
+const userInfo          = document.getElementById("user-info");
+const pendingUsersList  = document.getElementById("pending-users-list");
+const existingUsersList = document.getElementById("existing-users-list");
+const disabledUsersList = document.getElementById("disabled-users-list");
+const pendingBadge      = document.getElementById("pending-badge");
+const disabledBadge     = document.getElementById("disabled-badge");
+const statTotal         = document.getElementById("stat-total");
+const statPending       = document.getElementById("stat-pending");
+const statDisabled      = document.getElementById("stat-disabled");
+const statAdmin         = document.getElementById("stat-admin");
+const logoutButton      = document.getElementById("logout-button");
+
+function escapeHtml(v) { return String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+function formatDate2(v){ return v?v.toLocaleString("ja-JP"):"-"; }
+function statusLabel2(s){
+    if(s==="pending") return'<span class="status-badge status-disabled">承認待ち</span>';
+    if(s==="disabled")return'<span class="status-badge status-disabled">停止中</span>';
+    return'<span class="status-badge status-active">利用可能</span>';
+}
+
+async function loadAllUsers() {
+    try {
+        const [snapshot, notesSnapshot] = await Promise.all([
+            db.collection("users").orderBy("registeredAt","desc").get(),
+            db.collection("admin_notes").get()
+        ]);
+        adminNotesByUid = {};
+        notesSnapshot.forEach(doc=>{ adminNotesByUid[doc.id]=doc.data()||{}; });
+        pendingUsers=[]; activeUsers=[]; disabledUsers=[];
+        let adminCount=0;
+        snapshot.forEach(doc=>{
+            const u=doc.data(); const ad=adminNotesByUid[doc.id]||{};
+            const row={uid:doc.id,email:u.email||"",isAdmin:!!u.isAdmin,status:u.status,
+                registeredAt:u.registeredAt?u.registeredAt.toDate():null,
+                adminNote:ad.note||"",tags:Array.isArray(ad.tags)?ad.tags.filter(t=>typeof t==="string"):[],
+                lastManagedAt:u.lastManagedAt?u.lastManagedAt.toDate():null};
+            if(row.isAdmin) adminCount++;
+            if(u.status==="pending") pendingUsers.push(row);
+            else if(u.status==="disabled") disabledUsers.push(row);
+            else activeUsers.push(row);
+        });
+        renderPending(); renderUsers(); renderDisabled(); renderDashboard();
+        statTotal.textContent=snapshot.size; statPending.textContent=pendingUsers.length;
+        statDisabled.textContent=disabledUsers.length; statAdmin.textContent=adminCount;
+        pendingBadge.style.display=pendingUsers.length>0?"inline-block":"none";
+        pendingBadge.textContent=pendingUsers.length;
+        disabledBadge.style.display=disabledUsers.length>0?"inline-block":"none";
+        disabledBadge.textContent=disabledUsers.length;
+        updateBulkButtons();
+    } catch(e){ console.error(e); showToast("ユーザー一覧の読み込みに失敗しました。","error"); }
+}
+window.refreshUsers = loadAllUsers;
+
+function renderDashboard(){
+    const all=[...pendingUsers,...activeUsers,...disabledUsers].sort((a,b)=>(b.registeredAt||0)-(a.registeredAt||0)).slice(0,8);
+    const recent=document.getElementById("recent-users-list");
+    if(recent) recent.innerHTML=all.length?`<table class="recent-list"><tbody>${all.map(u=>`
+        <tr><td><b>${escapeHtml(u.email||"メール未設定")}</b><br><span class="muted">${formatDate2(u.registeredAt)}</span></td>
+        <td>${statusLabel2(u.status)}</td><td><button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>`).join("")}</tbody></table>`:
+        '<div class="empty-msg">登録ユーザーはいません。</div>';
+    const ph=document.getElementById("health-pending");
+    const dh=document.getElementById("health-disabled");
+    if(ph){ph.textContent=`${pendingUsers.length}件`;ph.className=pendingUsers.length?"health-warn":"health-ok";}
+    if(dh){dh.textContent=`${disabledUsers.length}件`;dh.className=disabledUsers.length?"health-warn":"health-ok";}
+    const up=document.getElementById("dashboard-updated");
+    if(up) up.textContent=`最終更新 ${new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}`;
+}
+
+function sortRows(rows,key,dir){
+    return [...rows].sort((a,b)=>{
+        let av=a[key],bv=b[key];
+        if(key==="registeredAt"){av=av?av.getTime():0;bv=bv?bv.getTime():0;}
+        else{av=(av||"").toString().toLowerCase();bv=(bv||"").toString().toLowerCase();}
+        if(av<bv)return dir==="asc"?-1:1;if(av>bv)return dir==="asc"?1:-1;return 0;
+    });
+}
+function sortArrow(t,k){const s=sortState[t];if(s.key!==k)return'';return s.dir==="asc"?"▲":"▼";}
+window.toggleSort=function(t,k){const s=sortState[t];if(s.key===k)s.dir=s.dir==="asc"?"desc":"asc";else{s.key=k;s.dir="asc";}
+    if(t==="pending")renderPending();else if(t==="users")renderUsers();else renderDisabled();};
+
+function renderPending(){
+    if(!pendingUsers.length){pendingUsersList.innerHTML='<div class="empty-msg">承認待ちのユーザーはいません。</div>';return;}
+    const rows=sortRows(pendingUsers,sortState.pending.key,sortState.pending.dir);
+    pendingUsersList.innerHTML=`<table><thead><tr>
+        <th class="chk-col"><input type="checkbox" id="pending-select-all" onchange="toggleSelectAll('pending',this.checked)"></th>
+        <th class="sortable" onclick="toggleSort('pending','email')">メール <span class="sort-arrow">${sortArrow("pending","email")}</span></th>
+        <th class="sortable" onclick="toggleSort('pending','registeredAt')">登録日 <span class="sort-arrow">${sortArrow("pending","registeredAt")}</span></th>
+        <th>操作</th></tr></thead><tbody>
+        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+            <td>${escapeHtml(u.email)}</td><td>${formatDate2(u.registeredAt)}</td>
+            <td><button class="btn-approve btn-sm" onclick="approveUser('${u.uid}')">承認</button>
+                <button class="btn-disable btn-sm" onclick="disableUser('${u.uid}')">無効化</button>
+                <button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>`).join("")}
+    </tbody></table>`;
+    applyTableFilter("pending-users-list");
+}
+
+function renderUsers(){
+    if(!activeUsers.length){existingUsersList.innerHTML='<div class="empty-msg">ユーザーがいません。</div>';return;}
+    const rows=sortRows(activeUsers,sortState.users.key,sortState.users.dir);
+    existingUsersList.innerHTML=`<table><thead><tr>
+        <th class="sortable" onclick="toggleSort('users','email')">メール <span class="sort-arrow">${sortArrow("users","email")}</span></th>
+        <th>状態</th><th class="sortable" onclick="toggleSort('users','isAdmin')">権限 <span class="sort-arrow">${sortArrow("users","isAdmin")}</span></th>
+        <th>操作</th></tr></thead><tbody>
+        ${rows.map(u=>{
+            const tags=u.tags.length?`<div>${u.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`:"";
+            let btns="";
+            if(u.uid!==CURRENT_USER_UID){
+                btns=`<button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button>
+                      <button class="btn-disable btn-sm" onclick="disableUser('${u.uid}')">無効化</button>`+
+                    (u.isAdmin?`<button class="btn-revoke btn-sm" onclick="revokeAdmin('${u.uid}')">権限剥奪</button>`:
+                               `<button class="btn-admin btn-sm" onclick="promoteAdmin('${u.uid}')">管理者付与</button>`);
+            }else btns="自分自身";
+            return`<tr><td>${escapeHtml(u.email)}${tags}</td>
+                <td>${statusLabel2(u.status)}</td>
+                <td>${u.isAdmin?'<span class="status-badge status-admin">管理者</span>':"一般"}</td>
+                <td>${btns}</td></tr>`;
+        }).join("")}</tbody></table>`;
+    applyTableFilter("existing-users-list");
+}
+
+function renderDisabled(){
+    if(!disabledUsers.length){disabledUsersList.innerHTML='<div class="empty-msg">無効化されたユーザーはいません。</div>';return;}
+    const rows=sortRows(disabledUsers,sortState.disabled.key,sortState.disabled.dir);
+    disabledUsersList.innerHTML=`<table><thead><tr>
+        <th class="chk-col"><input type="checkbox" id="disabled-select-all" onchange="toggleSelectAll('disabled',this.checked)"></th>
+        <th class="sortable" onclick="toggleSort('disabled','email')">メール <span class="sort-arrow">${sortArrow("disabled","email")}</span></th>
+        <th>状態</th><th>操作</th></tr></thead><tbody>
+        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+            <td>${escapeHtml(u.email)}</td><td><span class="status-badge status-disabled">停止中</span></td>
+            <td><button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button>
+                <button class="btn-enable btn-sm" onclick="enableUser('${u.uid}')">再有効化</button>
+                <button class="btn-delete btn-sm" onclick="deleteUser('${u.uid}')">削除</button></td></tr>`).join("")}
+    </tbody></table>`;
+    applyTableFilter("disabled-users-list");
+}
+
+function applyTableFilter(cid){
+    const inp=document.querySelector(`.table-search[data-target-table="${cid}"]`);
+    if(!inp||!inp.value.trim())return;
+    const kw=inp.value.trim().toLowerCase();
+    document.getElementById(cid).querySelectorAll("tbody tr").forEach(r=>r.classList.toggle("row-hidden",!r.textContent.toLowerCase().includes(kw)));
+}
+document.querySelectorAll(".table-search").forEach(inp=>{
+    inp.addEventListener("input",()=>{
+        const kw=inp.value.trim().toLowerCase();
+        const c=document.getElementById(inp.dataset.targetTable);if(!c)return;
+        c.querySelectorAll("tbody tr").forEach(r=>r.classList.toggle("row-hidden",!!kw&&!r.textContent.toLowerCase().includes(kw)));
+    });
+});
+
+window.toggleSelectAll=function(t,checked){document.querySelectorAll(t==="pending"?".pending-chk":".disabled-chk").forEach(c=>{c.checked=checked;});updateBulkButtons();};
+window.updateBulkButtons=function(){
+    const pc=document.querySelectorAll(".pending-chk:checked").length;
+    const dc=document.querySelectorAll(".disabled-chk:checked").length;
+    const ab=document.getElementById("bulk-approve-btn");const dpb=document.getElementById("bulk-disable-pending-btn");
+    const db2=document.getElementById("bulk-delete-btn");const eb=document.getElementById("bulk-enable-btn");
+    if(ab){ab.disabled=pc===0;document.getElementById("bulk-approve-count").textContent=pc;}
+    if(dpb)dpb.disabled=pc===0;
+    if(db2){db2.disabled=dc===0;document.getElementById("bulk-delete-count").textContent=dc;}
+    if(eb)eb.disabled=dc===0;
+};
+
+window.bulkApprove=function(){
+    const uids=[...document.querySelectorAll(".pending-chk:checked")].map(e=>e.dataset.uid);if(!uids.length)return;
+    confirmModal(`選択した${uids.length}件のユーザーを承認します。よろしいですか？`,"承認する",false,async()=>{
+        await Promise.all(uids.map(uid=>db.collection("users").doc(uid).update({status:"active",approved:true,disabled:false,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID})));
+        showToast(`${uids.length}件のユーザーを承認しました。`);loadAllUsers();
+    });
+};
+window.bulkDelete=function(){
+    const uids=[...document.querySelectorAll(".disabled-chk:checked")].map(e=>e.dataset.uid);if(!uids.length)return;
+    confirmModal(`選択した${uids.length}件のユーザーを完全に削除します。この操作は取り消せません。よろしいですか？`,"削除する",true,async()=>{
+        await Promise.all(uids.map(uid=>db.collection("users").doc(uid).delete()));
+        showToast(`${uids.length}件のユーザーを削除しました。`);loadAllUsers();
+    });
+};
+window.bulkDisablePending=function(){
+    const uids=[...document.querySelectorAll(".pending-chk:checked")].map(e=>e.dataset.uid);if(!uids.length)return;
+    confirmModal(`選択した${uids.length}件を無効化します。`,"無効化する",true,async()=>{
+        await Promise.all(uids.map(uid=>db.collection("users").doc(uid).update({status:"disabled",approved:false,disabled:true,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID})));
+        showToast(`${uids.length}件を無効化しました。`);loadAllUsers();
+    });
+};
+window.bulkEnable=function(){
+    const uids=[...document.querySelectorAll(".disabled-chk:checked")].map(e=>e.dataset.uid);if(!uids.length)return;
+    confirmModal(`選択した${uids.length}件を再有効化します。`,"再有効化する",false,async()=>{
+        await Promise.all(uids.map(uid=>db.collection("users").doc(uid).update({status:"active",approved:true,disabled:false,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID})));
+        showToast(`${uids.length}件を再有効化しました。`);loadAllUsers();
+    });
+};
+function findUser(uid){return[...pendingUsers,...activeUsers,...disabledUsers].find(u=>u.uid===uid);}
+
+window.openUserDetail=function(uid){
+    const u=findUser(uid);if(!u){showToast("ユーザー情報を見つけられません。","error");return;}
+    const tagsText=u.tags.join(", ");
+    const tagsHtml=u.tags.length?u.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join(""):'<span class="muted">未設定</span>';
+    openModal("ユーザー詳細",`
+        <dl class="detail-grid">
+            <dt>メールアドレス</dt><dd>${escapeHtml(u.email)} <button class="btn-copy btn-sm" onclick="copyUserEmail('${u.uid}')">コピー</button></dd>
+            <dt>状態</dt><dd>${statusLabel2(u.status)}</dd>
+            <dt>権限</dt><dd>${u.isAdmin?'<span class="status-badge status-admin">管理者</span>':"一般ユーザー"}</dd>
+            <dt>登録日時</dt><dd>${formatDate2(u.registeredAt)}</dd>
+            <dt>最終管理日時</dt><dd>${formatDate2(u.lastManagedAt)}</dd>
+            <dt>現在のタグ</dt><dd>${tagsHtml}</dd>
+        </dl>
+        <label>運用タグ（カンマ区切り）</label>
+        <input type="text" id="detail-tags-input" value="${escapeHtml(tagsText)}" placeholder="例: 本社, 要確認">
+        <label>管理メモ</label>
+        <textarea id="detail-note-input">${escapeHtml(u.adminNote)}</textarea>
+        <div class="modal-error" id="detail-modal-error"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">閉じる</button>
+            <button class="btn-confirm" id="detail-save-btn">メモを保存</button>
+        </div>`);
+    document.getElementById("detail-save-btn").addEventListener("click",async()=>{
+        const btn=document.getElementById("detail-save-btn");
+        const tags=document.getElementById("detail-tags-input").value.split(",").map(t=>t.trim()).filter(Boolean).slice(0,12);
+        const note=document.getElementById("detail-note-input").value.trim().slice(0,1000);
+        btn.disabled=true;btn.textContent="保存中...";
+        try{
+            await db.collection("admin_notes").doc(uid).set({tags,note:note,updatedAt:FS.serverTimestamp(),updatedBy:CURRENT_USER_UID},{merge:true});
+            showToast("ユーザー詳細を保存しました。");closeModal();loadAllUsers();
+        }catch(e){
+            document.getElementById("detail-modal-error").textContent="保存に失敗しました。";
+            document.getElementById("detail-modal-error").style.display="block";
+            btn.disabled=false;btn.textContent="メモを保存";
+        }
+    });
+};
+window.copyUserEmail=async function(uid){
+    const u=findUser(uid);if(!u)return;
+    try{await navigator.clipboard.writeText(u.email);showToast("メールアドレスをコピーしました。");}
+    catch{showToast("コピーに失敗しました。","error");}
+};
+window.exportUsersCsv=function(){
+    const rows=[["メールアドレス","状態","権限","登録日時","運用タグ","管理メモ"]];
+    [...pendingUsers,...activeUsers,...disabledUsers].sort((a,b)=>a.email.localeCompare(b.email,"ja"))
+        .forEach(u=>rows.push([u.email,u.status||"active",u.isAdmin?"admin":"user",formatDate2(u.registeredAt),u.tags.join("|"),u.adminNote]));
+    const csv="\uFEFF"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+    const a=document.createElement("a");a.href=url;a.download=`users-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+    URL.revokeObjectURL(url);showToast("ユーザー一覧をCSVで出力しました。");
+};
+window.approveUser=async function(uid){
+    try{await db.collection("users").doc(uid).update({status:"active",approved:true,disabled:false,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID});showToast("ユーザーを承認しました。");loadAllUsers();}
+    catch(e){console.error(e);showToast("承認に失敗しました。","error");}
+};
+window.disableUser=function(uid){
+    confirmModal("このユーザーを無効化します。よろしいですか？","無効化する",true,async()=>{
+        try{await db.collection("users").doc(uid).update({status:"disabled",approved:false,disabled:true,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID});showToast("ユーザーを無効化しました。");loadAllUsers();}
+        catch(e){console.error(e);showToast("無効化に失敗しました。","error");}
+    });
+};
+window.enableUser=async function(uid){
+    try{await db.collection("users").doc(uid).update({status:"active",approved:true,disabled:false,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID});showToast("ユーザーを再有効化しました。");loadAllUsers();}
+    catch(e){console.error(e);showToast("再有効化に失敗しました。","error");}
+};
+window.deleteUser=function(uid){
+    confirmModal("このユーザーを完全に削除します。この操作は取り消せません。よろしいですか？","削除する",true,async()=>{
+        try{await db.collection("users").doc(uid).delete();showToast("ユーザーを削除しました。");loadAllUsers();}
+        catch(e){console.error(e);showToast("削除に失敗しました。","error");}
+    });
+};
+window.promoteAdmin=function(uid){
+    confirmModal("このユーザーに管理者権限を付与します。よろしいですか？","付与する",false,async()=>{
+        try{await db.collection("users").doc(uid).update({isAdmin:true,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID});showToast("管理者権限を付与しました。");loadAllUsers();}
+        catch(e){console.error(e);showToast("権限付与に失敗しました。","error");}
+    });
+};
+window.revokeAdmin=function(uid){
+    const rem=activeUsers.filter(u=>u.isAdmin&&u.uid!==uid);
+    if(!rem.length){showToast("最後の管理者の権限は剥奪できません。","error");return;}
+    confirmModal("このユーザーの管理者権限を剥奪します。よろしいですか？","剥奪する",true,async()=>{
+        try{await db.collection("users").doc(uid).update({isAdmin:false,lastManagedAt:FS.serverTimestamp(),lastManagedBy:CURRENT_USER_UID});showToast("管理者権限を剥奪しました。");loadAllUsers();}
+        catch(e){console.error(e);showToast("権限剥奪に失敗しました。","error");}
+    });
+};
+
+/* ログアウト */
+logoutButton.addEventListener("click",()=>{
+    confirmModal("ログアウトします。よろしいですか？","ログアウト",true,async()=>{ await auth.signOut(); });
+});
+
+/* メールアドレス変更 */
+document.getElementById("change-email-button").addEventListener("click",()=>{
+    openModal("メールアドレス変更",`
+        <label>新しいメールアドレス</label><input type="email" id="new-email-input" placeholder="new@example.com">
+        <label>現在のパスワード（再認証）</label><input type="password" id="reauth-password-input-email">
+        <div class="modal-error" id="email-modal-error"></div>
+        <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">キャンセル</button><button class="btn-confirm" id="email-submit-btn">変更する</button></div>`);
+    document.getElementById("email-submit-btn").addEventListener("click",async()=>{
+        const newEmail=document.getElementById("new-email-input").value.trim();
+        const pw=document.getElementById("reauth-password-input-email").value;
+        const eb=document.getElementById("email-modal-error");eb.style.display="none";
+        if(!newEmail||!pw){eb.textContent="すべての項目を入力してください。";eb.style.display="block";return;}
+        const btn=document.getElementById("email-submit-btn");btn.disabled=true;btn.textContent="処理中...";
+        try{
+            const user=auth.currentUser;
+            const cred=firebase.auth.EmailAuthProvider.credential(user.email,pw);
+            await user.reauthenticateWithCredential(cred);
+            await user.updateEmail(newEmail);
+            await db.collection("users").doc(user.uid).update({email:newEmail});
+            document.getElementById("user-info").textContent=`${newEmail} でログイン中`;
+            showToast("メールアドレスを変更しました。");closeModal();
+        }catch(e){eb.textContent="変更に失敗しました。パスワードが違う可能性があります。";eb.style.display="block";btn.disabled=false;btn.textContent="変更する";}
+    });
+});
+
+/* パスワード変更 */
+document.getElementById("change-password-button").addEventListener("click",()=>{
+    openModal("パスワード変更",`
+        <label>現在のパスワード（再認証）</label><input type="password" id="old-password-input">
+        <label>新しいパスワード</label><input type="password" id="new-password-input">
+        <label>新しいパスワード（確認）</label><input type="password" id="new-password-confirm-input">
+        <div class="modal-error" id="password-modal-error"></div>
+        <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">キャンセル</button><button class="btn-confirm" id="password-submit-btn">変更する</button></div>`);
+    document.getElementById("password-submit-btn").addEventListener("click",async()=>{
+        const old=document.getElementById("old-password-input").value;
+        const nw=document.getElementById("new-password-input").value;
+        const cf=document.getElementById("new-password-confirm-input").value;
+        const eb=document.getElementById("password-modal-error");eb.style.display="none";
+        if(!old||!nw||!cf){eb.textContent="すべての項目を入力してください。";eb.style.display="block";return;}
+        if(nw!==cf){eb.textContent="新しいパスワードが一致しません。";eb.style.display="block";return;}
+        const btn=document.getElementById("password-submit-btn");btn.disabled=true;btn.textContent="処理中...";
+        try{
+            const user=auth.currentUser;
+            const cred=firebase.auth.EmailAuthProvider.credential(user.email,old);
+            await user.reauthenticateWithCredential(cred);
+            await user.updatePassword(nw);
+            showToast("パスワードを変更しました。");closeModal();
+        }catch(e){eb.textContent="変更に失敗しました。現在のパスワードが違う可能性があります。";eb.style.display="block";btn.disabled=false;btn.textContent="変更する";}
+    });
+});
+
+}); // DOMContentLoaded
+</script>
+</body>
+</html>
