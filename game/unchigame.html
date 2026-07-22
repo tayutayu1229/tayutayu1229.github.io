@@ -155,6 +155,7 @@
   .critter.up{ transform: translateY(-6%); }
   .critter.retreat{ transition: transform 0.12s ease-in; transform: translateY(85%); }
   .critter.gold{ filter: drop-shadow(0 0 10px var(--gold)) drop-shadow(0 4px 3px rgba(0,0,0,0.35)); }
+  .critter.big{ width:70%; height:80%; font-size:min(15vw,66px); }
   .critter.ice{ filter: hue-rotate(155deg) saturate(2) brightness(1.15) drop-shadow(0 0 10px #7fdcff) drop-shadow(0 4px 3px rgba(0,0,0,0.3)); }
   .critter.tiny{ width:38%; height:52%; font-size:min(7.5vw,34px); }
   .critter.rainbow{
@@ -384,7 +385,20 @@
     color:#3a1400;
     box-shadow: inset 0 0 0 2px var(--cta-dark);
   }
-  #settingsCloseBtn{ width:100%; margin-top:18px; }
+  #pauseBadge{
+    display:none;
+    text-align:center;
+    font-family:'Yusei Magic', sans-serif;
+    font-size:13px;
+    color:#fff;
+    background:var(--trap);
+    border-radius:999px;
+    padding:5px 14px;
+    width:fit-content;
+    margin:0 auto 10px;
+    box-shadow:0 2px 0 var(--trap-dark);
+  }
+  #settingsResumeBtn{ width:100%; margin-top:18px; }
   #settingsNote{
     font-size:11px;
     color:var(--panel-2);
@@ -414,7 +428,8 @@
       <p>
         飛び出す うんち をタップして叩こう！<br>
         ✨金・❄️氷・🔹ミニ・⚡フェイント・🌈レジェンド…色んなうんちが出るよ。<br>
-        👻おばけ・🌸花 を叩くと減点＆コンボが切れるので気をつけて！
+        👻おばけ・🌸花 を叩くと減点＆コンボが切れるので気をつけて！<br>
+        <span style="opacity:0.8;font-size:12px;">💡 プレイ中は右上の⏸ボタンでいつでも一時停止・タイトルに戻れます</span>
       </p>
       <div class="sHeading" style="color:#fff;opacity:0.85;">▶ モード</div>
       <div class="modeRow">
@@ -442,10 +457,11 @@
     </div>
   </div>
 
-  <button id="gearBtn" aria-label="設定・遊び方">⚙️</button>
+  <button id="gearBtn" aria-label="一時停止・設定・遊び方">⚙️</button>
 
   <div id="settingsOverlay">
     <div id="settingsPanel">
+      <div id="pauseBadge">⏸ 一時停止中</div>
       <h2>⚙️ 設定・遊び方</h2>
 
       <div class="sHeading">▶ あそびかた</div>
@@ -486,8 +502,9 @@
         <button class="toggleBtn on" id="vibeToggleBtn">📳 バイブ：ON</button>
       </div>
 
-      <button class="btn big" id="settingsCloseBtn">とじる</button>
-      <div id="settingsNote">プレイ中に開くとゲームが一時停止します</div>
+      <button class="btn big" id="settingsResumeBtn">とじる</button>
+      <button class="btn" id="settingsQuitBtn" style="display:none;background:var(--panel);box-shadow:0 4px 0 #2a1206;color:var(--paper);width:100%;margin-top:8px;">🏠 タイトルに戻る（今のプレイは終了します）</button>
+      <div id="settingsNote">プレイ中に開くとゲームが一時停止します。ベスト記録・設定はこのタブを開いている間ずっと覚えています（タブを閉じると消えます）</div>
     </div>
   </div>
 
@@ -516,7 +533,6 @@
   const vibeToggleBtn = document.getElementById('vibeToggleBtn');
   const gearBtn = document.getElementById('gearBtn');
   const settingsOverlay = document.getElementById('settingsOverlay');
-  const settingsCloseBtn = document.getElementById('settingsCloseBtn');
   const diffBtns = document.querySelectorAll('.diffBtn');
   const modeBtns = document.querySelectorAll('.modeBtn');
 
@@ -590,6 +606,14 @@
   function sndFeint(){ beep(1400,0.07,'square',0.2); }
   function sndTrap(){ beep(140,0.25,'sawtooth',0.25); }
   function sndBig(){ beep(300,0.2,'triangle',0.22); }
+  function sndIce(){ beep(660,0.15,'sine',0.18); }
+  function sndTiny(){ beep(950,0.06,'square',0.18); }
+  function sndRainbow(){
+    beep(600,0.07,'square',0.2);
+    setTimeout(()=>beep(800,0.07,'square',0.2),60);
+    setTimeout(()=>beep(1000,0.07,'square',0.2),120);
+    setTimeout(()=>beep(1300,0.14,'square',0.22),180);
+  }
   function sndStart(){ beep(440,0.1,'sine',0.2); setTimeout(()=>beep(660,0.12,'sine',0.2),110); }
   function sndEnd(){ beep(660,0.12,'sine',0.2); setTimeout(()=>beep(440,0.18,'sine',0.2),140); }
 
@@ -611,17 +635,38 @@
   });
 
   // ---- settings modal (pauses the game while open) ----
+  const settingsResumeBtn = document.getElementById('settingsResumeBtn');
+  const settingsQuitBtn = document.getElementById('settingsQuitBtn');
+  const pauseBadge = document.getElementById('pauseBadge');
+
   function openSettings(){
     wasRunningBeforeSettings = running;
     if(running) pauseGame();
     settingsOverlay.classList.add('show');
+    const inSession = wasRunningBeforeSettings; // a run is paused and waiting to resume
+    settingsResumeBtn.textContent = inSession ? '▶ 再開する' : 'とじる';
+    settingsQuitBtn.style.display = inSession ? 'block' : 'none';
+    pauseBadge.style.display = inSession ? 'block' : 'none';
   }
   function closeSettings(){
     settingsOverlay.classList.remove('show');
     if(wasRunningBeforeSettings) resumeGame();
   }
+  function quitToTitle(){
+    running = false;
+    clearTimeout(spawnTimer);
+    clearInterval(countdownTimer);
+    clearField();
+    wasRunningBeforeSettings = false;
+    settingsOverlay.classList.remove('show');
+    resultOverlay.style.display = 'none';
+    startOverlay.style.display = 'flex';
+    gearBtn.textContent = '⚙️';
+    updateHUD();
+  }
   gearBtn.addEventListener('click', openSettings);
-  settingsCloseBtn.addEventListener('click', closeSettings);
+  settingsResumeBtn.addEventListener('click', closeSettings);
+  settingsQuitBtn.addEventListener('click', quitToTitle);
   settingsOverlay.addEventListener('click', (e)=>{
     if(e.target===settingsOverlay) closeSettings();
   });
@@ -874,6 +919,19 @@
   }
 
   let pausedAt = 0;
+
+  function tickClock(){
+    if(activeMode==='normal'){
+      const remain = cfg.time - (Date.now()-gameStart)/1000;
+      timeLeft = Math.max(0, remain);
+      updateHUD();
+      if(timeLeft<=0) endGame();
+    } else {
+      timeLeft = (Date.now()-gameStart)/1000;
+      updateHUD();
+    }
+  }
+
   function pauseGame(){
     running = false;
     clearTimeout(spawnTimer);
@@ -884,28 +942,28 @@
     gameStart += (Date.now() - pausedAt);
     running = true;
     scheduleSpawn();
-    countdownTimer = setInterval(()=>{
-      timeLeft--;
-      updateHUD();
-      if(timeLeft<=0) endGame();
-    },1000);
+    countdownTimer = setInterval(tickClock, 100);
   }
 
   function startGame(){
     ensureAudio();
     sndStart();
-    cfg = DIFFICULTIES[selectedDiff];
-    score = 0; combo = 0; timeLeft = cfg.time; running = true; gameStart = Date.now();
-    maxCombo = 0; trapHits = 0;
+    activeDiff = selectedDiff;
+    activeMode = selectedMode;
+    cfg = DIFFICULTIES[activeDiff];
+    activeTarget = TIMEATTACK_TARGET[activeDiff];
+    activeLives = SURVIVAL_LIVES[activeDiff];
+
+    score = 0; combo = 0; maxCombo = 0; trapHits = 0;
+    timeLeft = activeMode==='normal' ? cfg.time : 0;
+    running = true; gameStart = Date.now();
+
     startOverlay.style.display = 'none';
     resultOverlay.style.display = 'none';
+    gearBtn.textContent = '⏸';
     updateHUD();
     scheduleSpawn();
-    countdownTimer = setInterval(()=>{
-      timeLeft--;
-      updateHUD();
-      if(timeLeft<=0) endGame();
-    },1000);
+    countdownTimer = setInterval(tickClock, 100);
   }
 
   function clearField(){
@@ -924,31 +982,77 @@
     return {g:'D', c:'次はもっとうんちを叩けるはず！'};
   }
 
+  function gradeTimeAttack(t){
+    if(t<=15) return {g:'SS', c:'神業スピード！誰にも真似できない！'};
+    if(t<=25) return {g:'S',  c:'とんでもない速さだ！お見事！'};
+    if(t<=35) return {g:'A',  c:'なかなかの俊足クリア！'};
+    if(t<=50) return {g:'B',  c:'いい調子！もっと縮められるはず。'};
+    if(t<=70) return {g:'C',  c:'クリアおめでとう！次はもっと速く！'};
+    return {g:'D', c:'まずは完走おめでとう！'};
+  }
+
   function endGame(){
     running = false;
     clearTimeout(spawnTimer);
     clearInterval(countdownTimer);
     sndEnd();
     clearField();
+    gearBtn.textContent = '⚙️';
 
-    let finalScore = Math.floor(score);
-    const perfect = trapHits===0 && maxCombo>0;
-    if(perfect){ finalScore += 100; }
+    let resultTitle, resultMainText, comment, statsText, isNewBest;
 
-    const isNewBest = finalScore > bestScores[selectedDiff];
-    if(isNewBest){ bestScores[selectedDiff] = finalScore; }
-    updateHUD();
+    if(activeMode==='timeattack'){
+      let clearTime = (Date.now()-gameStart)/1000;
+      const perfect = trapHits===0;
+      if(perfect) clearTime = Math.max(0, clearTime-3);
+      clearTime = Math.round(clearTime*10)/10;
 
-    const g = grade(finalScore);
-    document.getElementById('resultGrade').textContent = g.g;
-    document.getElementById('resultScore').textContent = 'スコア: ' + finalScore + '（ベスト: ' + bestScores[selectedDiff] + '）';
-    let comment = g.c;
-    if(perfect) comment = '🌟パーフェクト！ワナを一切叩かずボーナス+100点！ ' + comment;
+      const prevBest = bestRecords.timeattack[activeDiff];
+      isNewBest = (prevBest===null || clearTime<prevBest);
+      if(isNewBest) bestRecords.timeattack[activeDiff] = clearTime;
+
+      const g = gradeTimeAttack(clearTime);
+      resultTitle = g.g;
+      resultMainText = 'タイム: ' + clearTime.toFixed(1) + '秒（ベスト: ' + bestRecords.timeattack[activeDiff].toFixed(1) + '秒）';
+      comment = (perfect ? '🌟パーフェクト！ワナ0回で-3秒ボーナス！ ' : '') + g.c;
+      statsText = '最大コンボ: ' + maxCombo + '　／　ミスタップ: ' + trapHits + '回';
+    } else if(activeMode==='survival'){
+      const finalScore = Math.floor(score);
+      const survivedTime = (Date.now()-gameStart)/1000;
+
+      const prevBest = bestRecords.survival[activeDiff];
+      isNewBest = finalScore > prevBest;
+      if(isNewBest) bestRecords.survival[activeDiff] = finalScore;
+
+      const g = grade(finalScore);
+      resultTitle = g.g;
+      resultMainText = 'スコア: ' + finalScore + '（ベスト: ' + bestRecords.survival[activeDiff] + '）';
+      comment = g.c;
+      statsText = '生存時間: ' + survivedTime.toFixed(1) + '秒　／　最大コンボ: ' + maxCombo;
+    } else {
+      let finalScore = Math.floor(score);
+      const perfect = trapHits===0 && maxCombo>0;
+      if(perfect) finalScore += 100;
+
+      const prevBest = bestRecords.normal[activeDiff];
+      isNewBest = finalScore > prevBest;
+      if(isNewBest) bestRecords.normal[activeDiff] = finalScore;
+
+      const g = grade(finalScore);
+      resultTitle = g.g;
+      resultMainText = 'スコア: ' + finalScore + '（ベスト: ' + bestRecords.normal[activeDiff] + '）';
+      comment = (perfect ? '🌟パーフェクト！ワナを一切叩かずボーナス+100点！ ' : '') + g.c;
+      statsText = '最大コンボ: ' + maxCombo + '　／　ミスタップ: ' + trapHits + '回';
+    }
+
     if(isNewBest) comment = '🎉自己ベスト更新！ ' + comment;
+
+    document.getElementById('resultGrade').textContent = resultTitle;
+    document.getElementById('resultScore').textContent = resultMainText;
     document.getElementById('resultComment').textContent = comment;
-    document.getElementById('resultStats').textContent =
-      '最大コンボ: ' + maxCombo + '　／　ミスタップ: ' + trapHits + '回';
+    document.getElementById('resultStats').textContent = statsText;
     resultOverlay.style.display = 'flex';
+    updateHUD();
     if(isNewBest) confettiBurst();
   }
 
