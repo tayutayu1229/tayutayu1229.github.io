@@ -222,29 +222,22 @@
         /*
          * 数字はArial系を優先して、斜線入りの0を回避。
          * 時刻は左寄りの固定位置、着発線は右側の固定位置。
+         */
         .time-value {
-    position: absolute;
-    top: 0;
-
-    /* 時刻の左端を固定する */
-    left: 18px;
-    width: 78px;
-
-    transform: none;
-    display: block;
-    text-align: left;
-
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 13.2px;
-    font-weight: 500.2;
-
-    /* 数字幅を揃える */
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
-
-    letter-spacing: 0;
-    white-space: nowrap;
-}
+            position: absolute;
+            top: 0;
+            left: 42%;
+            transform: translateX(-50%);
+            display: block;
+            text-align: center;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 13.2px;
+            font-weight: 500.2;
+            font-variant-numeric: normal;
+            font-feature-settings: normal;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
 
         .track-value {
             position: absolute;
@@ -264,6 +257,18 @@
             line-height: 18px;
             letter-spacing: 0;
             white-space: nowrap;
+        }
+
+        /*
+         * 秒が00のときは文字だけ非表示にし、幅は残す。
+         * これで秒あり・秒なしでも時刻本体の位置が揃う。
+         */
+        .seconds-part {
+            display: inline;
+        }
+
+        .seconds-part.is-zero {
+            visibility: hidden;
         }
 
         .special-time .time-value {
@@ -506,29 +511,61 @@
 
     <script>
         const formatTime = (time) => {
-    if (!time || String(time).trim() === '' || time === '―') return '…';
-    if (time === '||' || time === '…' || time === '=') return time;
+            if (!time || String(time).trim() === '' || time === '―') return '…';
+            if (time === '||' || time === '…' || time === '=') return time;
 
-    const parts = String(time).split(':');
+            const parts = String(time).split(':');
+            const hour = String(parseInt(parts[0], 10));
 
-    // 時は先頭の0を削除（09→9）
-    const hour = String(parseInt(parts[0], 10));
+            if (parts.length === 3) {
+                return parts[2] === '00'
+                    ? `${hour}:${parts[1]}`
+                    : `${hour}:${parts[1]} ${parts[2]}`;
+            }
 
-    if (parts.length === 3) {
-        // 秒が00なら非表示
-        if (parts[2] === '00') {
-            return `${hour}:${parts[1]}`;
-        }
+            if (parts.length === 2) {
+                return `${hour}:${parts[1]}`;
+            }
 
-        return `${hour}:${parts[1]} ${parts[2]}`;
-    }
+            return String(time);
+        };
 
-    if (parts.length === 2) {
-        return `${hour}:${parts[1]}`;
-    }
+        const setFormattedTime = (element, time) => {
+            if (!time || String(time).trim() === '' || time === '―') {
+                element.textContent = '…';
+                return;
+            }
 
-    return String(time);
-};
+            if (time === '||' || time === '…' || time === '=') {
+                element.textContent = time;
+                return;
+            }
+
+            const parts = String(time).split(':');
+            const hour = String(parseInt(parts[0], 10));
+
+            if (parts.length === 3) {
+                const minuteText = document.createTextNode(
+                    `${hour}:${parts[1]}`
+                );
+                const seconds = document.createElement('span');
+                seconds.className =
+                    parts[2] === '00'
+                        ? 'seconds-part is-zero'
+                        : 'seconds-part';
+                seconds.textContent = ` ${parts[2]}`;
+
+                element.replaceChildren(minuteText, seconds);
+                return;
+            }
+
+            if (parts.length === 2) {
+                element.textContent = `${hour}:${parts[1]}`;
+                return;
+            }
+
+            element.textContent = String(time);
+        };
 
         const createTimeCell = (
             row,
@@ -545,7 +582,12 @@
 
             const timeValue = document.createElement('span');
             timeValue.className = 'time-value';
-            timeValue.textContent = forceBlank ? '' : formatTime(time);
+
+            if (forceBlank) {
+                timeValue.textContent = '';
+            } else {
+                setFormattedTime(timeValue, time);
+            }
 
             if (['…', '||', '='].includes(timeValue.textContent)) {
                 inner.classList.add('special-time');
