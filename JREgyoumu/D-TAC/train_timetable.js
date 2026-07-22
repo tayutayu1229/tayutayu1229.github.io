@@ -1,7 +1,7 @@
 const params = new URLSearchParams(location.search);
 const targetId = params.get('id');
-const FILES_API = 'https://api.tayunet-traininfo.com/api/files';
-const FILE_BASE = 'https://api.tayunet-traininfo.com/file';
+const FILES_API = TayunetDocumentAPI.apiBase + '/files';
+const FILE_BASE = TayunetDocumentAPI.fileBase;
 const MARKER_COLORS = ['red','green','blue','yellow','brown'];
 const MARKER_TEXTS = ['無地','徐行','規制','注意','両数','停車','始発','時変','合図'];
 
@@ -353,14 +353,14 @@ async function loadAttachments(force=false) {
   const list = document.getElementById('attachment-list');
   list.innerHTML = '<div class="attachment-loading">運転関係書類を読み込んでいます…</div>';
   try {
-    const response = await fetch(FILES_API,{cache:'no-store'});
+    const response = await TayunetDocumentAPI.request('/api/files');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const files = await response.json();
     attachmentData = files.filter(file => file.tag === 'driving').sort((a,b) => dateValue(b.date)-dateValue(a.date));
     attachmentsLoaded = true;
     renderAttachments();
   } catch (error) {
-    list.innerHTML = `<div class="attachment-empty">文書を読み込めませんでした。<br>${esc(error.message)}</div>`;
+    TayunetDocumentAPI.showLoginNotice(list, '運転関係書類を表示するにはデータ利用ログインが必要です。');
   }
 }
 
@@ -387,11 +387,9 @@ function openDocument(file) {
   if (file.type === 'image') {
     body.innerHTML = `<img src="${esc(url)}" alt="${esc(file.title || file.filename)}">`;
   } else if (file.type === 'pdf') {
-    const touch = matchMedia('(hover:none)').matches || /iPad|iPhone|Android/i.test(navigator.userAgent);
-    const viewer = touch ? `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}` : `${url}#view=FitH`;
-    body.innerHTML = `<iframe src="${esc(viewer)}" title="${esc(file.title || file.filename)}"></iframe>`;
+    body.innerHTML = `<iframe src="${esc(url)}#view=FitH" title="${esc(file.title || file.filename)}"></iframe>`;
   } else if (file.type === 'word' || file.type === 'excel') {
-    body.innerHTML = `<iframe src="https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}" title="${esc(file.title || file.filename)}"></iframe>`;
+    body.innerHTML = '<div class="document-fallback">保護されたOffice文書は埋め込み表示できません。<br>「別画面で開く」を使用してください。</div>';
   } else {
     body.innerHTML = `<div class="document-fallback">この形式は埋め込み表示できません。<br>「別画面で開く」を使用してください。</div>`;
   }
