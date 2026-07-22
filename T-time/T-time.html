@@ -112,6 +112,14 @@
       border: 1px solid #990000;
       display: none;
     }
+
+    #loading-status {
+      background-color: #e6f7f3;
+      color: #005f4d;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #01977a;
+    }
   </style>
 </head>
 <body>
@@ -123,6 +131,7 @@
     <a href="alltrain.html">登録列車一覧を見る</a>
 
     <div id="error-log"></div>
+    <div id="loading-status" role="status" aria-live="polite">列車時刻表を読み込み中...</div>
 
     
     <div class="selection">
@@ -174,6 +183,10 @@
     </table>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="../auth_guard.js"></script>
   <script src="private-data-client.js"></script>
   <script>
     let timetableData = [];
@@ -204,7 +217,9 @@
           opt.textContent = c;
           crownSelect.appendChild(opt);
         });
+        document.getElementById("loading-status").style.display = "none";
       } catch (e) {
+        document.getElementById("loading-status").style.display = "none";
         document.getElementById("error-log").textContent = "エラー: " + e.message;
         document.getElementById("error-log").style.display = "block";
         document.getElementById("display-button").disabled = true;
@@ -312,12 +327,8 @@
     });
 
       
-    loadTimetableData();
+    document.addEventListener("DOMContentLoaded", loadTimetableData, { once: true });
     
   </script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../auth_guard.js"></script>
 </body>
 </html>
