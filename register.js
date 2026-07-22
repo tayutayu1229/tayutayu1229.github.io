@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 await docRef.set({
                     email: email,
                     approved: false, // 承認フラグを false に設定
+                    disabled: false,
                     isAdmin: false,
                     status: "pending", 
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
