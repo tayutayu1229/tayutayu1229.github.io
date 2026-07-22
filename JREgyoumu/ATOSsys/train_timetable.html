@@ -545,24 +545,38 @@
             const hour = String(parseInt(parts[0], 10));
 
             if (parts.length === 3) {
-                const minuteText = document.createTextNode(
-                    `${hour}:${parts[1]}`
-                );
-                const seconds = document.createElement('span');
-                seconds.className =
-                    parts[2] === '00'
-                        ? 'seconds-part is-zero'
-                        : 'seconds-part';
-                seconds.textContent = ` ${parts[2]}`;
+    const minuteText = document.createTextNode(
+        `${hour}:${parts[1]}`
+    );
 
-                element.replaceChildren(minuteText, seconds);
-                return;
-            }
+    const seconds = document.createElement('span');
+    seconds.className =
+        parts[2] === '00'
+            ? 'seconds-part is-zero'
+            : 'seconds-part';
+    seconds.textContent = ` ${parts[2]}`;
 
-            if (parts.length === 2) {
-                element.textContent = `${hour}:${parts[1]}`;
-                return;
-            }
+    element.replaceChildren(minuteText, seconds);
+    return;
+}
+
+if (parts.length === 2) {
+    /*
+     * 元データに秒が無い場合も、
+     * 秒ありの行と時刻位置を揃えるため、
+     * 見えない秒欄を確保する。
+     */
+    const minuteText = document.createTextNode(
+        `${hour}:${parts[1]}`
+    );
+
+    const seconds = document.createElement('span');
+    seconds.className = 'seconds-part is-zero';
+    seconds.textContent = ' 00';
+
+    element.replaceChildren(minuteText, seconds);
+    return;
+}
 
             element.textContent = String(time);
         };
