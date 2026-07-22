@@ -15,6 +15,8 @@ let markerColor = 'green';
 let markers = new Map();
 let attachmentData = [];
 let attachmentsLoaded = false;
+let documentObjectUrl = null;
+let documentRequestId = 0;
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -379,25 +381,50 @@ function renderAttachments() {
 }
 
 function fileUrl(file) { return `${FILE_BASE}/${encodeURIComponent(file.filename || file.title)}`; }
-function openDocument(file) {
+async function openDocument(file) {
+  const requestId = ++documentRequestId;
   const url = fileUrl(file);
   const body = document.getElementById('document-body');
   document.getElementById('document-title').textContent = file.title || file.filename;
-  document.getElementById('document-open').href = url;
-  if (file.type === 'image') {
-    body.innerHTML = `<img src="${esc(url)}" alt="${esc(file.title || file.filename)}">`;
-  } else if (file.type === 'pdf') {
-    body.innerHTML = `<iframe src="${esc(url)}#view=FitH" title="${esc(file.title || file.filename)}"></iframe>`;
-  } else if (file.type === 'word' || file.type === 'excel') {
-    body.innerHTML = '<div class="document-fallback">保護されたOffice文書は埋め込み表示できません。<br>「別画面で開く」を使用してください。</div>';
-  } else {
-    body.innerHTML = `<div class="document-fallback">この形式は埋め込み表示できません。<br>「別画面で開く」を使用してください。</div>`;
-  }
+  const openLink = document.getElementById('document-open');
+  openLink.href = '#';
+  body.innerHTML = '<div class="document-fallback">認証済みファイルを読み込んでいます…</div>';
   document.getElementById('document-viewer').hidden = false;
+  try {
+    const response = await TayunetDocumentAPI.requestUrl(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const objectUrl = URL.createObjectURL(await response.blob());
+    if (requestId !== documentRequestId) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    if (documentObjectUrl) URL.revokeObjectURL(documentObjectUrl);
+    documentObjectUrl = objectUrl;
+    openLink.href = objectUrl;
+    if (file.type === 'word' || file.type === 'excel' || file.type === 'other') openLink.download = file.filename || file.title;
+    else openLink.removeAttribute('download');
+    if (file.type === 'image') {
+      body.innerHTML = `<img src="${esc(objectUrl)}" alt="${esc(file.title || file.filename)}">`;
+    } else if (file.type === 'pdf') {
+      body.innerHTML = `<iframe src="${esc(objectUrl)}#view=FitH" title="${esc(file.title || file.filename)}"></iframe>`;
+    } else {
+      body.innerHTML = '<div class="document-fallback">この形式は埋め込み表示できません。<br>「別画面で開く」を使用してください。</div>';
+    }
+  } catch (error) {
+    if (requestId === documentRequestId) {
+      TayunetDocumentAPI.showLoginNotice(body, 'この資料を表示するには、Firebase承認とデータ利用ログインが必要です。');
+    }
+  }
 }
 function closeDocument() {
+  documentRequestId += 1;
   document.getElementById('document-viewer').hidden = true;
   document.getElementById('document-body').innerHTML = '';
+  document.getElementById('document-open').href = '#';
+  if (documentObjectUrl) {
+    URL.revokeObjectURL(documentObjectUrl);
+    documentObjectUrl = null;
+  }
 }
 
 function dateValue(value) {

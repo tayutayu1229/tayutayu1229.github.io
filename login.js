@@ -63,10 +63,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                if (!userDoc.data().approved) {
+                const profile = userDoc.data();
+                if (profile.approved !== true || profile.status !== 'active' || profile.disabled === true) {
                     console.warn("DEBUG: ユーザーは未承認。ログアウト処理中...");
                     await auth.signOut();
-                    showError('ログインできません。このアカウントは管理者による承認が完了していません。');
+                    showError('ログインできません。このアカウントは未承認または利用停止中です。');
                     return;
                 }
                 
