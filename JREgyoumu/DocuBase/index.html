@@ -482,12 +482,14 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
   </div>
 </div>
 
+<script src="../../T-time/protected-document-client.js"></script>
 <script>
 // ============================================================
 // 定数
 // ============================================================
-const API_BASE  = 'https://api.tayunet-traininfo.com/api';
-const FILE_BASE = 'https://api.tayunet-traininfo.com/file'; // express.static("/file", BASE) と対応
+const API_BASE  = TayunetDocumentAPI.apiBase;
+const FILE_BASE = TayunetDocumentAPI.fileBase;
+const documentFetch = (url, opts={}) => fetch(url, { credentials:'include', cache:'no-store', ...opts });
 
 // ファイル種別タグ（ご要望のカテゴリ）。新しい種別が必要な場合はここに追記する。
 const TAG_LABELS = {
@@ -645,12 +647,11 @@ const createTab = (label, active, fn) => {
 };
 const showPdfDirect = url => { pmBody.innerHTML = `<iframe src="${url}"></iframe>`; };
 const showPdfGoogle = url => {
-  const gv = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
-  pmBody.innerHTML = `<iframe src="${gv}"></iframe>`;
+  // 外部ビューアーへ保護URLを渡さず、認証Cookieが使える直接表示に統一する。
+  showPdfDirect(url);
 };
 const showOffice = url => {
-  const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
-  pmBody.innerHTML = `<iframe src="${viewer}"></iframe>`;
+  pmBody.innerHTML = '<p style="padding:20px;">保護されたOffice文書は埋め込み表示できません。「新しいタブで開く」またはダウンロードを使用してください。</p>';
 };
 
 const closePreview = () => {
@@ -668,7 +669,7 @@ const downloadFile = async (f, silent) => {
   const url  = fileUrl(f);
   const name = getFilename(f);
   try {
-    const res  = await fetch(url, { credentials: 'omit' });
+    const res  = await documentFetch(url);
     if (!res.ok) throw new Error('fetch failed: ' + res.status);
     const blob = await res.blob();
     const a    = document.createElement('a');
@@ -751,7 +752,7 @@ emSaveBtn.onclick = async () => {
   emSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
 
   try {
-    const res = await fetch(`${API_BASE}/files/${encodeURIComponent(orig)}`, {
+    const res = await documentFetch(`${API_BASE}/files/${encodeURIComponent(orig)}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
@@ -811,7 +812,7 @@ delOkBtn.onclick = async () => {
   delOkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 削除中...';
   const fn = getFilename(deleteTarget);
   try {
-    const res = await fetch(`${API_BASE}/delete/${encodeURIComponent(fn)}`, { method:'DELETE' });
+    const res = await documentFetch(`${API_BASE}/delete/${encodeURIComponent(fn)}`, { method:'DELETE' });
     if (res.ok) {
       closeDeleteModal();
       toast('削除しました', 'ok');
@@ -965,7 +966,7 @@ const runUpload = async (items) => {
     fd.append('tag', item.tag || 'other');
 
     try {
-      const res = await fetch(`${API_BASE}/upload`, { method:'POST', body: fd });
+      const res = await documentFetch(`${API_BASE}/upload`, { method:'POST', body: fd });
       if (res.ok) ok++; else { console.error('upload fail:', await res.text()); failed.push(item); }
     } catch (e) { console.error(e); failed.push(item); }
   }
@@ -1459,7 +1460,7 @@ const renderTagMgrList = (query) => {
       const fn = e.target.getAttribute('data-fn');
       const newTag = e.target.value;
       try {
-        const res = await fetch(`${API_BASE}/files/${encodeURIComponent(fn)}`, {
+        const res = await documentFetch(`${API_BASE}/files/${encodeURIComponent(fn)}`, {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ tag: newTag }),
@@ -1491,7 +1492,7 @@ document.getElementById('tagMgrSearch').addEventListener('input', e => {
 const fetchWithTimeout = (url, opts={}, ms=20000) => {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
+  return documentFetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
 };
 
 const loadFiles = async (silent) => {
@@ -1517,13 +1518,8 @@ const loadFiles = async (silent) => {
     }
   }
   ov.classList.add('hidden');
-  document.getElementById('fileGrid').innerHTML = `
-    <div id="loadError">
-      <i class="fas fa-triangle-exclamation" style="font-size:1.6em;"></i>
-      <p>ファイルの読み込みに失敗しました。<br><small>${escHtml(lastErr ? lastErr.message : '')}</small></p>
-      <button id="retryLoadBtn"><i class="fas fa-redo"></i> 再読み込み</button>
-    </div>`;
-  document.getElementById('retryLoadBtn').onclick = () => loadFiles();
+  const grid = document.getElementById('fileGrid');
+  TayunetDocumentAPI.showLoginNotice(grid, 'DocuBaseを利用するにはデータ利用ログインが必要です。');
 };
 
 // ============================================================
@@ -1534,6 +1530,6 @@ document.addEventListener('DOMContentLoaded', loadFiles);
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="../../../auth_guard.js"></script>
+<script src="../../auth_guard.js"></script>
 </body>
 </html>
