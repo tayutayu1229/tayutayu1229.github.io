@@ -972,25 +972,81 @@ function confirmDeleteFin(msg, fn) {
 /* ═══════════════════════════════════
    認証
 ═══════════════════════════════════ */
-auth.onAuthStateChanged(async user => {
-    if (!user) { window.location.href = "index.html"; return; }
+/* ═══════════════════════════════════
+   認証
+═══════════════════════════════════ */
+auth.onAuthStateChanged(async (user) => {
+    console.log("===== Auth State Changed =====");
+    console.log("User:", user);
+
+    if (!user) {
+        console.error("❌ ログイン情報がありません (user == null)");
+        alert("ログイン情報がありません。ログインページへ戻ります。");
+        window.location.href = "index.html";
+        return;
+    }
+
+    console.log("✅ UID:", user.uid);
+    console.log("✅ Email:", user.email);
+
     CURRENT_USER_UID = user.uid;
+
     try {
+        console.log("Firestoreからユーザー情報を取得します...");
+
         const userDoc = await db.collection("users").doc(user.uid).get();
-        if (!userDoc.exists) { alert("ユーザーデータが存在しません。"); await auth.signOut(); return; }
+
+        console.log("取得結果:", userDoc);
+
+        if (!userDoc.exists) {
+            console.error("❌ usersコレクションにユーザーが存在しません");
+            alert("ユーザーデータが存在しません。");
+            await auth.signOut();
+            return;
+        }
+
         const data = userDoc.data();
-        if (data.status !== "active") { alert("アクセス権限がありません。"); await auth.signOut(); return; }
-        document.getElementById("user-info").textContent = `${user.email} でログイン中`;
+
+        console.log("ユーザーデータ:", data);
+
+        if (data.status !== "active") {
+            console.error("❌ statusがactiveではありません:", data.status);
+            alert("アクセス権限がありません。（status: " + data.status + "）");
+            await auth.signOut();
+            return;
+        }
+
+        console.log("✅ 認証成功");
+
+        document.getElementById("user-info").textContent =
+            `${user.email} でログイン中`;
+
         const contentArea = document.querySelector(".content");
         contentArea.style.display = "block";
+
         if (data.isAdmin === true) {
+            console.log("管理者ユーザーです");
+
             loadAllUsers();
+
             document.getElementById("fin-menu-group").style.display = "block";
+
             await initFinance();
+
         } else {
-            ["pending","users","disabled-users"].forEach(id => document.getElementById(id).style.display = "none");
+            console.log("一般ユーザーです");
+
+            ["pending", "users", "disabled-users"].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = "none";
+            });
         }
-    } catch (e) { console.error(e); await auth.signOut(); }
+
+    } catch (e) {
+        console.error("🔥 Firestore取得エラー", e);
+        alert("エラー: " + e.message);
+        await auth.signOut();
+    }
 });
 
 /* ═══════════════════════════════════
