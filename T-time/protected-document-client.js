@@ -2,13 +2,35 @@
   "use strict";
 
   const origin = "https://api.tayunet-traininfo.com";
+  const authHelperUrl = "/T-time/firebase-data-auth.js";
+  let authHelperPromise;
 
-  function request(path, options) {
+  function loadAuthHelper() {
+    if (global.TayunetFirebaseDataAuth) return Promise.resolve(global.TayunetFirebaseDataAuth);
+    if (authHelperPromise) return authHelperPromise;
+    authHelperPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = authHelperUrl;
+      script.onload = () => global.TayunetFirebaseDataAuth
+        ? resolve(global.TayunetFirebaseDataAuth)
+        : reject(new Error("Firebase認証ヘルパーを読み込めませんでした。"));
+      script.onerror = () => reject(new Error("Firebase認証ヘルパーを読み込めませんでした。"));
+      document.head.appendChild(script);
+    });
+    return authHelperPromise;
+  }
+
+  async function requestUrl(url, options) {
     const settings = Object.assign({
       credentials: "include",
       cache: "no-store",
     }, options || {});
-    return fetch(`${origin}${path}`, settings);
+    const authHelper = await loadAuthHelper();
+    return fetch(url, await authHelper.authorizedOptions(settings));
+  }
+
+  function request(path, options) {
+    return requestUrl(`${origin}${path}`, options);
   }
 
   function loginNotice(message) {
@@ -48,6 +70,7 @@
     apiBase: `${origin}/api`,
     fileBase: `${origin}/file`,
     request,
+    requestUrl,
     loginNotice,
     showLoginNotice,
   });

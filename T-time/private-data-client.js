@@ -3,6 +3,8 @@
 
   const API_ORIGIN = "https://secure.tayunet-traininfo.com";
   const LOGIN_URL = `${API_ORIGIN}/healthz`;
+  const AUTH_HELPER_URL = "/T-time/firebase-data-auth.js";
+  let authHelperPromise;
 
   class PrivateDataError extends Error {
     constructor(message, code) {
@@ -12,14 +14,29 @@
     }
   }
 
-  function showLoginNotice() {
+  function loadAuthHelper() {
+    if (window.TayunetFirebaseDataAuth) return Promise.resolve(window.TayunetFirebaseDataAuth);
+    if (authHelperPromise) return authHelperPromise;
+    authHelperPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = AUTH_HELPER_URL;
+      script.onload = () => window.TayunetFirebaseDataAuth
+        ? resolve(window.TayunetFirebaseDataAuth)
+        : reject(new PrivateDataError("Firebase認証ヘルパーを読み込めませんでした。", "firebase_unavailable"));
+      script.onerror = () => reject(new PrivateDataError("Firebase認証ヘルパーを読み込めませんでした。", "firebase_unavailable"));
+      document.head.appendChild(script);
+    });
+    return authHelperPromise;
+  }
+
+  function showLoginNotice(messageText) {
     if (!document.body || document.getElementById("tayunet-private-data-notice")) return;
     const notice = document.createElement("div");
     notice.id = "tayunet-private-data-notice";
     notice.setAttribute("role", "alert");
     notice.style.cssText = "position:fixed;z-index:2147483647;left:16px;right:16px;bottom:16px;padding:14px 16px;background:#fff;border:2px solid #087f5b;border-radius:8px;box-shadow:0 6px 24px #0004;color:#17352c;font:14px/1.5 sans-serif;display:flex;gap:12px;align-items:center;flex-wrap:wrap";
     const message = document.createElement("span");
-    message.textContent = "時刻表データの認証が必要です。ログイン後、この画面を再読み込みしてください。";
+    message.textContent = messageText || "時刻表データの認証が必要です。Firebaseへのログインとデータ用ログインを確認してください。";
     message.style.flex = "1 1 320px";
     const login = document.createElement("a");
     login.href = LOGIN_URL;
@@ -46,26 +63,39 @@
 
     let response;
     try {
+      const authHelper = await loadAuthHelper();
+      const token = await authHelper.getIdToken();
       response = await fetch(url, {
         method: "GET",
         credentials: "include",
         cache: "no-store",
-        headers: { Accept: "application/json" }
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
       });
-    } catch (_error) {
-      showLoginNotice();
+    } catch (error) {
+      const firebaseMessage = error?.code === "firebase_login_required"
+        ? "システムへFirebaseログインしてから、画面を再読み込みしてください。"
+        : "保護データへ接続できません。Firebaseログインとデータ用ログインを確認してください。";
+      showLoginNotice(firebaseMessage);
       throw new PrivateDataError(
-        "保護データへ接続できません。先にデータ用ログインを開き、認証後にこの画面を再読み込みしてください。",
-        "access_required"
+        firebaseMessage,
+        error?.code || "access_required"
       );
     }
 
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok || !contentType.includes("application/json")) {
-      showLoginNotice();
+      let errorCode = response.status === 401 ? "firebase_login_required" : "access_required";
+      try {
+        const payload = contentType.includes("application/json") ? await response.clone().json() : null;
+        if (payload?.error) errorCode = payload.error;
+      } catch (_error) { /* use the status-derived error */ }
+      const message = errorCode === "firebase_not_approved"
+        ? "このFirebaseアカウントはデータ利用が未承認、停止中、または無効です。管理者へ確認してください。"
+        : "保護データの認証が必要です。Firebaseログインとデータ用ログインを確認してください。";
+      showLoginNotice(message);
       throw new PrivateDataError(
-        "保護データの認証が必要です。データ用ログインを開いてから再読み込みしてください。",
-        response.status === 403 ? "forbidden" : "access_required"
+        message,
+        errorCode
       );
     }
 

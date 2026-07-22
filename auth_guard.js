@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.warn("GUARD: ユーザーは未承認またはデータ不完全。アクセス拒否。");
                         await auth.signOut();
                         alert("アクセス権限がありません。管理者による承認を確認してください。");
-                        window.location.href = 'index.html';
+                        window.location.href = 'https://tayunet-traininfo.com/index.html';
                         return;
                     }
                     
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.warn("GUARD: ユーザーは管理者によりアクセス停止されています。アクセス拒否。");
                         await auth.signOut();
                         alert("このアカウントは管理者によりアクセスが停止されています。");
-                        window.location.href = 'index.html';
+                        window.location.href = 'https://tayunet-traininfo.com/index.html';
                         return;
                     }
                     
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error("ERROR: Firestoreアクセスエラー (認証ガード)", error);
                     await auth.signOut();
                     alert("認証システムエラーが発生しました。");
-                    window.location.href = 'index.html';
+                    window.location.href = 'https://tayunet-traininfo.com/index.html';
                 }
 
             } else {
@@ -94,6 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error("FATAL ERROR: Firebase SDK 初期化失敗 (認証ガード)", e);
         alert('システムエラー: 認証システムの初期化に失敗しました。');
         // 致命的なエラー時は安全のためログインページへ強制リダイレクト
-        window.location.href = '../index.html'; 
+        window.location.href = 'https://tayunet-traininfo.com/index.html';
     }
 });
