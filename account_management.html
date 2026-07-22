@@ -872,7 +872,7 @@ document.addEventListener("DOMContentLoaded", function () {
         confirmModal(`選択した${uids.length}件のユーザーを承認します。よろしいですか？`, "承認する", false, async () => {
             try {
                 await Promise.all(uids.map(uid => db.collection("users").doc(uid).update({
-                    status: "active", approved: true,
+                    status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件のユーザーを承認しました。`);
@@ -905,7 +905,7 @@ document.addEventListener("DOMContentLoaded", function () {
         confirmModal(`選択した${uids.length}件を無効化します。`, "無効化する", true, async () => {
             try {
                 await Promise.all(uids.map(uid => db.collection("users").doc(uid).update({
-                    status: "disabled", approved: false,
+                    status: "disabled", approved: false, disabled: true,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件を無効化しました。`);
@@ -920,7 +920,7 @@ document.addEventListener("DOMContentLoaded", function () {
         confirmModal(`選択した${uids.length}件を再有効化します。`, "再有効化する", false, async () => {
             try {
                 await Promise.all(uids.map(uid => db.collection("users").doc(uid).update({
-                    status: "active", approved: true,
+                    status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件を再有効化しました。`);
@@ -1008,7 +1008,7 @@ document.addEventListener("DOMContentLoaded", function () {
     ============================ */
     window.approveUser = async function (uid) {
         try {
-                await db.collection("users").doc(uid).update({ status: "active", approved: true,
+                await db.collection("users").doc(uid).update({ status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
             showToast("ユーザーを承認しました。");
             loadAllUsers();
@@ -1018,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", function () {
     window.disableUser = function (uid) {
         confirmModal("このユーザーを無効化します。よろしいですか？", "無効化する", true, async () => {
             try {
-                await db.collection("users").doc(uid).update({ status: "disabled", approved: false,
+                await db.collection("users").doc(uid).update({ status: "disabled", approved: false, disabled: true,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
                 showToast("ユーザーを無効化しました。");
                 loadAllUsers();
@@ -1028,7 +1028,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     window.enableUser = async function (uid) {
         try {
-                await db.collection("users").doc(uid).update({ status: "active", approved: true,
+                await db.collection("users").doc(uid).update({ status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
             showToast("ユーザーを再有効化しました。");
             loadAllUsers();

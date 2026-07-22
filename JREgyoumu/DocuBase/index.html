@@ -489,7 +489,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 // ============================================================
 const API_BASE  = TayunetDocumentAPI.apiBase;
 const FILE_BASE = TayunetDocumentAPI.fileBase;
-const documentFetch = (url, opts={}) => fetch(url, { credentials:'include', cache:'no-store', ...opts });
+const documentFetch = (url, opts={}) => TayunetDocumentAPI.requestUrl(url, opts);
 
 // ファイル種別タグ（ご要望のカテゴリ）。新しい種別が必要な場合はここに追記する。
 const TAG_LABELS = {
@@ -592,45 +592,58 @@ const pmBody    = document.getElementById('pmBody');
 const pmCap     = document.getElementById('pmCap');
 const pmTabs    = document.getElementById('pmTabs');
 const pmOpenExt = document.getElementById('pmOpenExt');
+let previewObjectUrl = null;
+let previewRequestId = 0;
 
-const openPreview = f => {
+const openPreview = async f => {
+  const requestId = ++previewRequestId;
   const url = fileUrl(f);
   pmBody.innerHTML = '';
   pmTabs.innerHTML = '';
   pmCap.textContent = f.title || getFilename(f);
-  pmOpenExt.href = url;
-
-  if (f.type === 'image') {
-    const img = new Image();
-    img.alt = f.title;
-    img.onerror = () => {
-      pmBody.innerHTML = `<div class="pm-alt"><i class="fas fa-triangle-exclamation"></i> 画像を読み込めませんでした。<br>
-        <a href="${url}" target="_blank" rel="noopener">ブラウザで直接開く</a></div>`;
-    };
-    img.src = url;
-    pmBody.appendChild(img);
-
-  } else if (f.type === 'pdf') {
-    // スマホ・タブレットはブラウザ内蔵PDF表示が安定しないため、最初からGoogleビューアを既定にする
-    const directTab = createTab('直接表示',       !IS_TOUCH, () => showPdfDirect(url));
-    const googleTab = createTab('Googleビューア', IS_TOUCH,  () => showPdfGoogle(url));
-    pmTabs.appendChild(directTab);
-    pmTabs.appendChild(googleTab);
-    if (IS_TOUCH) showPdfGoogle(url); else showPdfDirect(url);
-
-  } else if (f.type === 'word' || f.type === 'excel') {
-    const officeTab = createTab('Office Online', true,  () => showOffice(url));
-    const googleTab = createTab('Googleビューア', false, () => showPdfGoogle(url));
-    pmTabs.appendChild(officeTab);
-    pmTabs.appendChild(googleTab);
-    showOffice(url);
-
-  } else {
-    pmBody.innerHTML = `<div class="pm-alt">このファイル形式はブラウザでプレビューできません。<br>
-      <a href="${url}" target="_blank" rel="noopener"><i class="fas fa-download"></i> ダウンロードして開く</a></div>`;
-  }
+  pmOpenExt.href = '#';
+  pmOpenExt.removeAttribute('download');
+  pmBody.innerHTML = '<p style="padding:20px;">認証済みファイルを読み込んでいます…</p>';
   pmModal.classList.add('open');
   document.body.style.overflow = 'hidden';
+
+  try {
+    const response = await documentFetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const objectUrl = URL.createObjectURL(await response.blob());
+    if (requestId !== previewRequestId) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = objectUrl;
+    pmOpenExt.href = objectUrl;
+    if (f.type === 'word' || f.type === 'excel' || f.type === 'other') pmOpenExt.download = getFilename(f);
+    else pmOpenExt.removeAttribute('download');
+    pmBody.innerHTML = '';
+
+    if (f.type === 'image') {
+      const img = new Image();
+      img.alt = f.title;
+      img.src = objectUrl;
+      pmBody.appendChild(img);
+
+    } else if (f.type === 'pdf') {
+      const directTab = createTab('認証済み表示', true, () => showPdfDirect(objectUrl));
+      pmTabs.appendChild(directTab);
+      showPdfDirect(objectUrl);
+
+    } else if (f.type === 'word' || f.type === 'excel') {
+      showOffice(objectUrl);
+
+    } else {
+      pmBody.innerHTML = '<div class="pm-alt">このファイル形式はブラウザでプレビューできません。上の「新しいタブで開く」を使用してください。</div>';
+    }
+  } catch (error) {
+    if (requestId === previewRequestId) {
+      TayunetDocumentAPI.showLoginNotice(pmBody, 'この資料を表示するには、Firebase承認とデータ利用ログインが必要です。');
+    }
+  }
 };
 
 const createTab = (label, active, fn) => {
@@ -655,8 +668,14 @@ const showOffice = url => {
 };
 
 const closePreview = () => {
+  previewRequestId += 1;
   pmModal.classList.remove('open');
   pmBody.innerHTML = '';
+  pmOpenExt.href = '#';
+  if (previewObjectUrl) {
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = null;
+  }
   document.body.style.overflow = '';
 };
 document.getElementById('pmClose').onclick = closePreview;
