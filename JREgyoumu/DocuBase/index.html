@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>文書共有システム</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs" type="module"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <style>
 :root {
   --primary:#006400; --primary-lt:#007C00; --accent:#FF6F00;
@@ -170,6 +173,28 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg
 #pmBody{width:100%;height:100%;max-width:1300px;display:flex;align-items:center;justify-content:center;}
 #pmBody img{max-width:100%;max-height:100%;border-radius:4px;display:block;margin:0 auto;object-fit:contain;}
 #pmBody iframe{width:100%;height:100%;border:none;display:block;background:#fff;}
+.pm-view-wrap{width:100%;height:100%;background:#fff;border-radius:8px;overflow:auto;}
+.pm-pdfjs-wrap{width:100%;height:100%;background:#f3f5f7;border-radius:8px;overflow:auto;display:flex;flex-direction:column;}
+.pm-pdfjs-toolbar{position:sticky;top:0;z-index:3;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;background:#1f2937;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+.pm-pdfjs-toolbar button{background:#fff;color:#1f2937;border:none;border-radius:18px;padding:7px 12px;font-size:.82em;cursor:pointer;}
+.pm-pdfjs-toolbar button:disabled{opacity:.45;cursor:not-allowed;}
+.pm-pdfjs-meta{font-size:.82em;opacity:.92;}
+.pm-pdfjs-pages{padding:12px;display:flex;flex-direction:column;gap:14px;align-items:center;}
+.pm-pdfjs-page{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.10);border-radius:4px;padding:8px;}
+.pm-pdfjs-page canvas{display:block;max-width:100%;height:auto;}
+.pm-html-view{width:min(100%,960px);margin:0 auto;padding:22px 18px 30px;color:#222;line-height:1.8;font-size:16px;background:#fff;}
+.pm-html-view h1,.pm-html-view h2,.pm-html-view h3,.pm-html-view h4{color:#114b2d;line-height:1.4;}
+.pm-html-view table{width:100%;border-collapse:collapse;margin:14px 0;background:#fff;}
+.pm-html-view th,.pm-html-view td{border:1px solid #cfd8d3;padding:8px 10px;vertical-align:top;word-break:break-word;}
+.pm-html-view th{background:#eef7ef;}
+.pm-html-view img{max-width:100%;height:auto;}
+.pm-sheet-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 10px 0;background:#fff;position:sticky;top:0;z-index:2;border-bottom:1px solid #e5e7eb;}
+.pm-sheet-tabs button{background:#f5f5f5;border:1px solid #ccc;border-radius:16px;padding:6px 12px;cursor:pointer;font-size:.82em;}
+.pm-sheet-tabs button.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pm-sheet-view{padding:12px;}
+.pm-fallback-links{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;}
+.pm-fallback-links a,.pm-fallback-links button{background:#fff;color:#114b2d;border:1px solid #b7c6bd;border-radius:20px;padding:8px 12px;font-size:.82em;text-decoration:none;cursor:pointer;}
+.pm-note{font-size:.84em;color:#5b6470;margin-top:10px;line-height:1.7;text-align:center;}
 .pm-cap{color:#ccc;padding:8px;font-size:.88em;text-align:center;flex-shrink:0;}
 .pm-alt{color:#fff;font-size:1.05em;line-height:2;text-align:center;padding:20px;}
 .pm-alt a{color:var(--accent);text-decoration:underline;}
@@ -594,6 +619,8 @@ const pmTabs    = document.getElementById('pmTabs');
 const pmOpenExt = document.getElementById('pmOpenExt');
 let previewObjectUrl = null;
 let previewRequestId = 0;
+let previewBlob = null;
+let pdfjsLibPromise = null;
 
 const openPreview = async f => {
   const requestId = ++previewRequestId;
@@ -610,12 +637,14 @@ const openPreview = async f => {
   try {
     const response = await documentFetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const objectUrl = URL.createObjectURL(await response.blob());
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
     if (requestId !== previewRequestId) {
       URL.revokeObjectURL(objectUrl);
       return;
     }
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewBlob = blob;
     previewObjectUrl = objectUrl;
     pmOpenExt.href = objectUrl;
     if (f.type === 'word' || f.type === 'excel' || f.type === 'other') pmOpenExt.download = getFilename(f);
@@ -629,15 +658,31 @@ const openPreview = async f => {
       pmBody.appendChild(img);
 
     } else if (f.type === 'pdf') {
-      const directTab = createTab('認証済み表示', true, () => showPdfDirect(objectUrl));
+      const pdfjsTab  = createTab('PDF.js表示', true, () => showPdfJs(blob, f));
+      const directTab = createTab('認証済み表示', false, () => showPdfDirect(objectUrl));
+      const embedTab  = createTab('簡易表示', false, () => showPdfEmbed(objectUrl));
+      pmTabs.appendChild(pdfjsTab);
       pmTabs.appendChild(directTab);
-      showPdfDirect(objectUrl);
+      pmTabs.appendChild(embedTab);
+      await showPdfJs(blob, f);
 
     } else if (f.type === 'word' || f.type === 'excel') {
-      showOffice(objectUrl);
+      if (f.type === 'word') {
+        const directTab = createTab('本文表示', true, () => showWordPreview(blob, f));
+        const rawTab    = createTab('ダウンロード用', false, () => showDownloadFallback(objectUrl, f, 'Wordファイルは本文抽出表示とダウンロードの両方を用意しています。'));
+        pmTabs.appendChild(directTab);
+        pmTabs.appendChild(rawTab);
+        await showWordPreview(blob, f);
+      } else {
+        const directTab = createTab('表として表示', true, () => showExcelPreview(blob, f));
+        const rawTab    = createTab('ダウンロード用', false, () => showDownloadFallback(objectUrl, f, 'Excelファイルはシート内容の簡易表示とダウンロードの両方を用意しています。'));
+        pmTabs.appendChild(directTab);
+        pmTabs.appendChild(rawTab);
+        showExcelPreview(blob, f);
+      }
 
     } else {
-      pmBody.innerHTML = '<div class="pm-alt">このファイル形式はブラウザでプレビューできません。上の「新しいタブで開く」を使用してください。</div>';
+      showDownloadFallback(objectUrl, f, 'このファイル形式はブラウザ内プレビューに対応していません。ダウンロードまたは新しいタブで確認してください。');
     }
   } catch (error) {
     if (requestId === previewRequestId) {
@@ -659,12 +704,155 @@ const createTab = (label, active, fn) => {
   return btn;
 };
 const showPdfDirect = url => { pmBody.innerHTML = `<iframe src="${url}"></iframe>`; };
-const showPdfGoogle = url => {
-  // 外部ビューアーへ保護URLを渡さず、認証Cookieが使える直接表示に統一する。
-  showPdfDirect(url);
+const showPdfEmbed = url => {
+  pmBody.innerHTML = `<div class="pm-view-wrap"><embed src="${url}" type="application/pdf" style="width:100%;height:100%;background:#fff;"></embed></div>`;
 };
-const showOffice = url => {
-  pmBody.innerHTML = '<p style="padding:20px;">保護されたOffice文書は埋め込み表示できません。「新しいタブで開く」またはダウンロードを使用してください。</p>';
+const loadPdfJs = async () => {
+  if (window.__tayunetPdfJsLib) return window.__tayunetPdfJsLib;
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs')
+      .then(lib => {
+        lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.mjs';
+        window.__tayunetPdfJsLib = lib;
+        return lib;
+      });
+  }
+  return pdfjsLibPromise;
+};
+const renderPdfJsPages = async (pdfDoc, scale) => {
+  const pagesWrap = document.getElementById('pmPdfPages');
+  if (!pagesWrap) return;
+  pagesWrap.innerHTML = '';
+  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const holder = document.createElement('div');
+    holder.className = 'pm-pdfjs-page';
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: false });
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    holder.appendChild(canvas);
+    pagesWrap.appendChild(holder);
+    await page.render({ canvasContext: context, viewport }).promise;
+  }
+};
+const showPdfJs = async (blob, f) => {
+  pmBody.innerHTML = '<div class="pm-alt">PDF.js で文書を読み込んでいます…</div>';
+  try {
+    const pdfjsLib = await loadPdfJs();
+    const buffer = await blob.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
+    pmBody.innerHTML = `
+      <div class="pm-pdfjs-wrap">
+        <div class="pm-pdfjs-toolbar">
+          <div class="pm-pdfjs-meta">${escapeHtmlText(f.title || getFilename(f))}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" id="pmPdfZoomOut"><i class="fas fa-magnifying-glass-minus"></i> 縮小</button>
+            <button type="button" id="pmPdfZoomIn"><i class="fas fa-magnifying-glass-plus"></i> 拡大</button>
+            <span id="pmPdfZoomLabel" class="pm-pdfjs-meta">100%</span>
+            <span class="pm-pdfjs-meta">${pdfDoc.numPages}ページ</span>
+          </div>
+        </div>
+        <div id="pmPdfPages" class="pm-pdfjs-pages"></div>
+      </div>`;
+    let scale = 1.15;
+    const zoomLabel = document.getElementById('pmPdfZoomLabel');
+    const refresh = async () => {
+      zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+      await renderPdfJsPages(pdfDoc, scale);
+    };
+    document.getElementById('pmPdfZoomOut').onclick = async () => {
+      scale = Math.max(0.6, +(scale - 0.15).toFixed(2));
+      await refresh();
+    };
+    document.getElementById('pmPdfZoomIn').onclick = async () => {
+      scale = Math.min(2.2, +(scale + 0.15).toFixed(2));
+      await refresh();
+    };
+    await refresh();
+  } catch (_error) {
+    showDownloadFallback(pmOpenExt.href, f, 'PDF.js 表示に失敗したため、別の表示方法またはダウンロードを使用してください。');
+  }
+};
+const escapeHtmlText = s => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const showDownloadFallback = (url, f, message) => {
+  const name = escHtml(getFilename(f));
+  pmBody.innerHTML = `
+    <div class="pm-alt">
+      <div>${escapeHtmlText(message)}</div>
+      <div class="pm-fallback-links">
+        <a href="${url}" target="_blank" rel="noopener" download="${name}"><i class="fas fa-download"></i> ダウンロード</a>
+        <a href="${url}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> 新しいタブで開く</a>
+      </div>
+      <div class="pm-note">iPad などで表示しづらい場合は、ダウンロード後に端末の標準ビューアーや他アプリで開いてください。</div>
+    </div>`;
+};
+const showWordPreview = async (blob, f) => {
+  if (!window.mammoth) {
+    showDownloadFallback(pmOpenExt.href, f, 'Wordビューアーを読み込めなかったため、本文表示は使えません。');
+    return;
+  }
+  pmBody.innerHTML = '<div class="pm-alt">Word本文を読み込んでいます…</div>';
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const result = await window.mammoth.convertToHtml({ arrayBuffer });
+    const warnings = (result.messages || []).map(m => escapeHtmlText(m.message)).join('<br>');
+    pmBody.innerHTML = `
+      <div class="pm-view-wrap">
+        <div class="pm-html-view">
+          ${result.value || '<p>本文を抽出できませんでした。</p>'}
+          ${warnings ? `<div class="pm-note">変換メモ:<br>${warnings}</div>` : ''}
+        </div>
+      </div>`;
+  } catch (_error) {
+    showDownloadFallback(pmOpenExt.href, f, 'Word本文の抽出表示に失敗しました。');
+  }
+};
+const sheetToHtml = (workbook, sheetName) => {
+  const sheet = workbook.Sheets[sheetName];
+  return window.XLSX.utils.sheet_to_html(sheet, { editable:false });
+};
+const showExcelPreview = async (blob, f) => {
+  if (!window.XLSX) {
+    showDownloadFallback(pmOpenExt.href, f, 'Excelビューアーを読み込めなかったため、表表示は使えません。');
+    return;
+  }
+  pmBody.innerHTML = '<div class="pm-alt">Excelシートを読み込んでいます…</div>';
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = window.XLSX.read(arrayBuffer, { type:'array' });
+    const sheetNames = workbook.SheetNames || [];
+    if (!sheetNames.length) {
+      showDownloadFallback(pmOpenExt.href, f, 'Excelファイルに表示できるシートが見つかりませんでした。');
+      return;
+    }
+    pmBody.innerHTML = `
+      <div class="pm-view-wrap">
+        <div class="pm-sheet-tabs" id="pmSheetTabs"></div>
+        <div class="pm-sheet-view">
+          <div class="pm-html-view" id="pmSheetBody"></div>
+        </div>
+      </div>`;
+    const tabs = document.getElementById('pmSheetTabs');
+    const body = document.getElementById('pmSheetBody');
+    const renderSheet = (sheetName, btn) => {
+      tabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      body.innerHTML = sheetToHtml(workbook, sheetName);
+    };
+    sheetNames.forEach((sheetName, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = sheetName;
+      if (idx === 0) btn.classList.add('active');
+      btn.onclick = () => renderSheet(sheetName, btn);
+      tabs.appendChild(btn);
+    });
+    renderSheet(sheetNames[0], tabs.querySelector('button'));
+  } catch (_error) {
+    showDownloadFallback(pmOpenExt.href, f, 'Excelシートの簡易表示に失敗しました。');
+  }
 };
 
 const closePreview = () => {
@@ -672,6 +860,7 @@ const closePreview = () => {
   pmModal.classList.remove('open');
   pmBody.innerHTML = '';
   pmOpenExt.href = '#';
+  previewBlob = null;
   if (previewObjectUrl) {
     URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = null;
