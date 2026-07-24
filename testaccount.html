@@ -80,6 +80,33 @@
     .badge { min-width: 18px; padding: 2px 7px; background-color: var(--red); color: #fff; font-size: 0.66rem; font-weight: 800; text-align: center; }
     .badge.gray { background-color: var(--gray2); }
 
+    /* ===== 認証ローディングオーバーレイ ===== */
+    #auth-loading {
+        position: fixed; inset: 0;
+        background: var(--bg);
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 14px;
+        z-index: 9999;
+    }
+    #auth-loading.hidden { display: none; }
+    #auth-loading .al-spinner {
+        width: 36px; height: 36px;
+        border: 3px solid var(--border2);
+        border-top-color: var(--green);
+        border-radius: 50%;
+        animation: al-spin 0.75s linear infinite;
+    }
+    #auth-loading .al-msg { font-size: 0.85rem; color: var(--text3); }
+    @keyframes al-spin { to { transform: rotate(360deg); } }
+
+    #auth-error-banner {
+        display: none;
+        background: #fff3cd; border: 1px solid #ffc107;
+        color: #7d4e00; padding: 10px 16px;
+        font-size: 0.82rem; margin-bottom: 12px;
+        border-left: 4px solid #ffc107;
+    }
+
     /* ===== コンテンツ ===== */
     .content { flex: 1; padding: 22px 26px 40px; overflow-y: auto; display: none; }
     .content-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
@@ -286,6 +313,12 @@
 </head>
 
 <body>
+<!-- 認証確認中オーバーレイ -->
+<div id="auth-loading">
+    <div class="al-spinner"></div>
+    <div class="al-msg">認証確認中...</div>
+</div>
+
 <div class="layout">
 
     <!-- ===== サイドバー ===== -->
@@ -409,6 +442,7 @@
 
     <!-- ===== コンテンツエリア ===== -->
     <div class="content">
+        <div id="auth-error-banner"></div>
 
         <div class="content-top">
             <div class="content-title">管理者パネル</div>
@@ -842,6 +876,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -971,75 +1006,99 @@ function confirmDeleteFin(msg, fn) {
 /* ═══════════════════════════════════
    認証
 ═══════════════════════════════════ */
-/* ═══════════════════════════════════
-   認証チェック（修整版）
-═══════════════════════════════════ */
-auth.onAuthStateChanged(async (user) => {
-    // 1. ログインしていない場合はログイン画面へリダイレクト
-    if (!user) {
-        console.warn("ログイン情報がありません。index.htmlへ戻ります。");
+function hideAuthLoading() {
+    const el = document.getElementById("auth-loading");
+    if (el) el.classList.add("hidden");
+}
+
+function showAuthError(msg) {
+    const b = document.getElementById("auth-error-banner");
+    if (!b) return;
+    b.textContent = msg;
+    b.style.display = "block";
+}
+
+// onAuthStateChanged は非同期でセッションを復元するため、
+// 最初の呼び出しまでローディング画面を表示し続ける。
+// catch ブロックでは signOut() を呼ばない（Firestore エラーでログアウトしてしまうのを防ぐ）。
+let _authHandled = false;
+
+auth.onAuthStateChanged(async user => {
+    // 二重発火ガード（signOut後の再発火は正常なリダイレクト処理で扱う）
+    if (_authHandled && !user) {
+        hideAuthLoading();
         window.location.href = "index.html";
         return;
     }
 
-    // 2. ログイン情報が取得できた場合
-    console.log("✅ ログイン確認成功 UID:", user.uid);
+    if (!user) {
+        hideAuthLoading();
+        window.location.href = "index.html";
+        return;
+    }
+
+    _authHandled = true;
     CURRENT_USER_UID = user.uid;
 
     try {
-        // Firestoreからユーザー情報を取得
-        const userDoc = await db.collection("users").doc(user.uid).get();
+        // Firestore からユーザー情報を取得（最大3回リトライ）
+        let userDoc = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                userDoc = await db.collection("users").doc(user.uid).get();
+                break;
+            } catch (fetchErr) {
+                if (attempt === 2) throw fetchErr;
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
+        }
 
         if (!userDoc.exists) {
-            alert("ユーザーデータが存在しません。");
+            hideAuthLoading();
+            alert("ユーザーデータが存在しません。管理者に連絡してください。");
             await auth.signOut();
-            window.location.href = "index.html";
             return;
         }
 
         const data = userDoc.data();
+
         if (data.status !== "active") {
-            alert("アクセス権限がありません。（status: " + data.status + "）");
+            hideAuthLoading();
+            alert("アクセス権限がありません。（ステータス: " + (data.status || "不明") + "）");
             await auth.signOut();
-            window.location.href = "index.html";
             return;
         }
 
-        // 画面表示処理
         document.getElementById("user-info").textContent = `${user.email} でログイン中`;
         const contentArea = document.querySelector(".content");
-        if (contentArea) contentArea.style.display = "block";
+        contentArea.style.display = "block";
+        hideAuthLoading();
 
         if (data.isAdmin === true) {
-            if (typeof loadAllUsers === "function") loadAllUsers();
-            const finMenu = document.getElementById("fin-menu-group");
-            if (finMenu) finMenu.style.display = "block";
+            loadAllUsers();
+            document.getElementById("fin-menu-group").style.display = "block";
             await initFinance();
         } else {
-            ["pending", "users", "disabled-users"].forEach(id => {
+            ["pending","users","disabled-users"].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = "none";
             });
         }
 
     } catch (e) {
-        console.error("🔥 Firestore読み取りエラー:", e);
-        
-        // 「Missing or insufficient permissions」が出た場合の個別案内
-        if (e.code === 'permission-denied' || e.message.includes('permissions')) {
-            alert("Firestoreのアクセス権限エラー（セキュリティルールを確認してください）");
-        } else {
-            alert("エラーが発生しました: " + e.message);
-        }
-        
-        await auth.signOut();
-        window.location.href = "index.html";
+        // ネットワーク障害・Firestore 権限エラー → サインアウトせず画面を表示してエラー通知
+        console.error("Firestore 接続エラー:", e);
+        hideAuthLoading();
+        const contentArea = document.querySelector(".content");
+        contentArea.style.display = "block";
+        document.getElementById("user-info").textContent = `${user.email}（接続エラー）`;
+        showAuthError(
+            "データの読み込みに失敗しました。ネットワークを確認し、ページを再読み込みしてください。" +
+            "（エラー: " + (e.code || e.message || "不明") + "）"
+        );
     }
 });
 
-
-
-    
 /* ═══════════════════════════════════
    財務 初期化
 ═══════════════════════════════════ */
@@ -2207,3 +2266,4 @@ document.getElementById("change-password-button").addEventListener("click",()=>{
 </script>
 </body>
 </html>
+　
