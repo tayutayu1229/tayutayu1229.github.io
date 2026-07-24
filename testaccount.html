@@ -1062,9 +1062,17 @@ auth.onAuthStateChanged(async user => {
 
         const data = userDoc.data();
 
+        // Firestoreルールの isAdministrator() と同じ条件で確認
+        // status:"active" かつ approved:true の両方が必要
         if (data.status !== "active") {
             hideAuthLoading();
             alert("アクセス権限がありません。（ステータス: " + (data.status || "不明") + "）");
+            await auth.signOut();
+            return;
+        }
+        if (data.approved !== true) {
+            hideAuthLoading();
+            alert("アカウントがまだ承認されていません。管理者の承認をお待ちください。");
             await auth.signOut();
             return;
         }
@@ -1547,7 +1555,11 @@ function renderFeeTable() {
         const badge = status==="paid"?'<span class="badge-paid">支払済</span>':status==="exempt"?'<span class="badge-exempt">免除</span>':'<span class="badge-unpaid">未払</span>';
         return `<tr class="fin-row">
             <td class="chk-col"><input type="checkbox" class="fee-chk" data-id="${m.id}"></td>
-            <td>${esc(m.name||"")}</td>
+            <td>
+                <span style="font-weight:600">${esc(m.name||"")}</span>
+                ${m.nickname?`<span style="font-size:0.72rem;color:var(--text3);display:block">「${esc(m.nickname)}」</span>`:''}
+                ${m.linkedUid?`<span style="font-size:0.66rem;color:var(--fin);display:block">🔗 アカウント連携済</span>`:''}
+            </td>
             <td style="font-size:0.78rem;color:var(--text3)">${esc(m.role||"")}</td>
             <td class="amt">${fmt(m.feeAmount||0)}</td>
             <td>${m.feeExempt?'<span class="badge-exempt">免除</span>':''}</td>
@@ -1572,14 +1584,40 @@ function renderFeeTable() {
     </table></div>`;
 }
 
-window.openMemberModal = function(id) {
+window.openMemberModal = async function(id) {
     const m = id ? membersCache.find(x=>x.id===id) : null;
+
+    // アクティブユーザー一覧をFirestoreから取得してドロップダウン用に整形
+    let userOptions = '<option value="">── 連携しない ──</option>';
+    try {
+        const usSnap = await db.collection("users").where("status","==","active").get();
+        const uList = usSnap.docs
+            .map(d => ({uid: d.id, ...d.data()}))
+            .sort((a,b) => (a.email||"").localeCompare(b.email||""));
+        userOptions += uList.map(u =>
+            `<option value="${esc(u.uid)}" ${m?.linkedUid===u.uid?'selected':''}>` +
+            `${esc(u.email)}${u.displayName?' ('+esc(u.displayName)+')':''}</option>`
+        ).join("");
+    } catch(e) {
+        userOptions += '<option value="" disabled>ユーザー取得失敗</option>';
+    }
+
     openModal(id?"メンバー 編集":"メンバー 追加", `
         <div class="form-row cols2">
             <div><label>メンバー名 <span style="color:var(--red)">*</span></label>
                 <input type="text" id="m-mname" value="${esc(m?.name||"")}" placeholder="氏名"></div>
+            <div><label>ニックネーム</label>
+                <input type="text" id="m-mnick" value="${esc(m?.nickname||"")}" placeholder="任意・呼び名など"></div>
+        </div>
+        <div class="form-row cols2">
             <div><label>役職</label>
                 <input type="text" id="m-mrole" value="${esc(m?.role||"")}" placeholder="代表、副代表 等"></div>
+            <div>
+                <label>Firebaseアカウント連携
+                    <span style="font-size:0.7rem;color:var(--text4);font-weight:400">（任意）</span>
+                </label>
+                <select id="m-muid" style="width:100%;border:1px solid var(--border3);padding:6px 8px;font-family:inherit;font-size:0.82rem;background:#fff">${userOptions}</select>
+            </div>
         </div>
         <label>会費額（円）</label>
         <input type="number" id="m-mfee" value="${m?.feeAmount||""}" min="0" step="1" placeholder="0">
@@ -1597,17 +1635,19 @@ window.openMemberModal = function(id) {
 
 window.saveMember = async function(id) {
     if (savingFin) return;
-    const name    = document.getElementById("m-mname").value.trim();
-    const role    = document.getElementById("m-mrole").value.trim();
-    const feeAmt  = parseFloat(document.getElementById("m-mfee").value)||0;
-    const exempt  = document.getElementById("m-mexempt").checked;
-    const note    = document.getElementById("m-mnote").value.trim();
-    const err     = document.getElementById("m-merr");
+    const name      = document.getElementById("m-mname").value.trim();
+    const nickname  = document.getElementById("m-mnick").value.trim();
+    const role      = document.getElementById("m-mrole").value.trim();
+    const linkedUid = document.getElementById("m-muid").value || null;
+    const feeAmt    = parseFloat(document.getElementById("m-mfee").value)||0;
+    const exempt    = document.getElementById("m-mexempt").checked;
+    const note      = document.getElementById("m-mnote").value.trim();
+    const err       = document.getElementById("m-merr");
     if (!name) { err.textContent="メンバー名を入力してください"; err.style.display="block"; return; }
     savingFin = true;
     document.getElementById("m-msave").disabled = true;
     try {
-        const data = { name, role, feeAmount:feeAmt, feeExempt:exempt, note, updatedAt:FS.serverTimestamp() };
+        const data = { name, nickname, role, linkedUid, feeAmount:feeAmt, feeExempt:exempt, note, updatedAt:FS.serverTimestamp() };
         if (id) { await db.collection("members").doc(id).update(data); showToast("メンバーを更新しました","fin"); }
         else     { await db.collection("members").add({...data,createdAt:FS.serverTimestamp()}); showToast("メンバーを追加しました","fin"); }
         closeModal(); await loadFees();
