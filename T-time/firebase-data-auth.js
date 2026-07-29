@@ -11,7 +11,7 @@
 
   const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-  async function firebaseAuth(timeoutMilliseconds = 10000) {
+  async function firebaseAuth(timeoutMilliseconds = 20000) {
     const deadline = Date.now() + timeoutMilliseconds;
     while (Date.now() < deadline) {
       if (global.firebase?.apps?.length && typeof global.firebase.auth === "function") {
@@ -44,15 +44,15 @@
     });
   }
 
-  async function getIdToken() {
+  async function getIdToken(forceRefresh = false) {
     const user = await currentUser();
-    return user.getIdToken(false);
+    return user.getIdToken(forceRefresh);
   }
 
-  async function authorizedOptions(options) {
+  async function authorizedOptions(options, forceRefresh = false) {
     const settings = Object.assign({}, options || {});
     const headers = new Headers(settings.headers || {});
-    headers.set("Authorization", `Bearer ${await getIdToken()}`);
+    headers.set("Authorization", `Bearer ${await getIdToken(forceRefresh)}`);
     settings.headers = headers;
     return settings;
   }
