@@ -95,10 +95,14 @@ function setView(name){
   $('mainContent').scrollTop=0;
 }
 
-function buildIndexes(){
+async function buildIndexes(){
   const grouped=new Map();for(const stop of Object.values(state.db.stops)){const [code,name,lat,lon]=stop;if(!grouped.has(code))grouped.set(code,{code,name,lat,lon,type:/オフレール/.test(name)?'ORS':/営業所/.test(name)?'営業所':'貨物駅'});}
   state.stations=[...grouped.values()].sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-  for(const trip of state.db.trips){const info=tripInfo(trip);for(const stop of info.timeline){const list=state.stationTrips.get(stop.code)||[];list.push(info);state.stationTrips.set(stop.code,list);}}
+  const total=state.db.trips.length;
+  for(let index=0;index<total;index++){
+    const info=tripInfo(state.db.trips[index]);for(const stop of info.timeline){const list=state.stationTrips.get(stop.code)||[];list.push(info);state.stationTrips.set(stop.code,list);}
+    if(index>0&&index%250===0){$('dataVersion').textContent=`輸送計画を準備中… ${Math.round(index/total*100)}%`;await new Promise(resolve=>setTimeout(resolve,0));}
+  }
 }
 function uniqueInfos(){return [...state.infos.values()];}
 
@@ -184,8 +188,8 @@ function bindEvents(){
 }
 
 async function init(){
-  loadPrefs();bindEvents();clock();setInterval(clock,1000);$('dateInput').value=localDate();$('tokenInput').value=ODPT_CONNECTION_LABEL;logEvent('info','Cargo Scopeを起動しました',`ブラウザ ${navigator.userAgent}`);fetchFreightStatus();
-  try{logEvent('info','ローカルGTFSを読み込んでいます','./data/core.json');const response=await fetch('./data/core.json',{cache:'no-store'});if(!response.ok)throw Error('GTFS変換データが見つかりません');state.db=await response.json();for(const trip of state.db.trips)tripInfo(trip);buildIndexes();const options=Object.entries(state.db.routes).map(([id,r])=>`<option value="${id}">${esc(r.name)}</option>`).join('');$('routeSelect').insertAdjacentHTML('beforeend',options);$('mapRoute').insertAdjacentHTML('beforeend',options);$('navTripCount').textContent=state.db.trips.length.toLocaleString();$('favoriteCount').textContent=state.favorites.size;$('dataVersion').textContent=`GTFS ${state.db.meta.version}｜${parseDate(state.db.meta.start)}〜${parseDate(state.db.meta.end)}`;$('mapHint').innerHTML=`<b>全国${state.stations.length.toLocaleString()}地点</b><span>貨物地点をクリックすると関連する輸送計画を確認できます</span>`;$('dateInput').min=parseDate(state.db.meta.start);$('dateInput').max=parseDate(state.db.meta.end);checkDate();renderStations();logEvent('success','ローカルGTFSを読み込みました',`${state.db.trips.length.toLocaleString()}計画・${state.stations.length}地点・版${state.db.meta.version}`);}
+  loadPrefs();bindEvents();clock();setInterval(clock,1000);$('dateInput').value=localDate();$('tokenInput').value=ODPT_CONNECTION_LABEL;$('dashboardSubtitle').textContent='輸送計画データを読み込んでいます。初回表示には少し時間がかかります。';logEvent('info','Cargo Scopeを起動しました',`ブラウザ ${navigator.userAgent}`);fetchFreightStatus();
+  try{logEvent('info','ローカルGTFSを読み込んでいます','./data/core.json');const response=await fetch('./data/core.json',{cache:'no-store'});if(!response.ok)throw Error('GTFS変換データが見つかりません');state.db=await response.json();await buildIndexes();const options=Object.entries(state.db.routes).map(([id,r])=>`<option value="${id}">${esc(r.name)}</option>`).join('');$('routeSelect').insertAdjacentHTML('beforeend',options);$('mapRoute').insertAdjacentHTML('beforeend',options);$('navTripCount').textContent=state.db.trips.length.toLocaleString();$('favoriteCount').textContent=state.favorites.size;$('dataVersion').textContent=`GTFS ${state.db.meta.version}｜${parseDate(state.db.meta.start)}〜${parseDate(state.db.meta.end)}`;$('mapHint').innerHTML=`<b>全国${state.stations.length.toLocaleString()}地点</b><span>貨物地点をクリックすると関連する輸送計画を確認できます</span>`;$('dateInput').min=parseDate(state.db.meta.start);$('dateInput').max=parseDate(state.db.meta.end);checkDate();renderStations();logEvent('success','ローカルGTFSを読み込みました',`${state.db.trips.length.toLocaleString()}計画・${state.stations.length}地点・版${state.db.meta.version}`);}
   catch(error){logEvent('error','GTFSの読込に失敗しました',error.message);$('dashboardView').innerHTML=`<div class="empty-state"><span class="large-icon">!</span><h2>データを読み込めませんでした</h2><p>${esc(error.message)}</p></div>`;toast('GTFSの読込に失敗しました');}
 }
 window.addEventListener('error',event=>logEvent('error','ブラウザ実行エラー',`${event.message} (${event.filename}:${event.lineno})`));
