@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth(); 
         const db = firebase.firestore(); 
+        auth.languageCode = 'ja';
 
         console.log("DEBUG: Firebase SDK 初期化成功 (login.js)");
 
@@ -25,9 +26,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const loginButton = document.getElementById('login-button');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password'); 
-        const inputs = loginForm.querySelectorAll('input[type="text"], input[type="password"]');
+        const inputs = loginForm.querySelectorAll('input[type="email"], input[type="password"]');
         const resetPasswordLink = document.getElementById('reset-password-link');
         const showPassword = document.getElementById('show-password');
+        let resetInProgress = false;
 
         // エラーメッセージの表示 (成功メッセージも兼用)
         function showError(message, isSuccess = false, persistent = false) {
@@ -127,8 +129,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // パスワード再設定メール送信処理 (ロジックは変更なし)
+        // パスワード再設定メール送信処理
         async function resetPassword() {
+            if (resetInProgress) return;
+
             const email = emailInput.value.trim();
             console.log(`DEBUG: パスワードリセット試行 - Email: ${email}`);
 
@@ -137,16 +141,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            if (!emailInput.checkValidity()) {
+                showError('メールアドレスの形式を確認してください。');
+                emailInput.focus();
+                return;
+            }
+
             if (!confirm(`「${email}」宛にパスワード再設定メールを送信しますか？`)) {
                 return;
             }
 
+            resetInProgress = true;
+            loadingIndicator.textContent = '再設定メールを申請中';
             loadingIndicator.style.display = 'block';
+            resetPasswordLink.setAttribute('aria-disabled', 'true');
+            resetPasswordLink.style.pointerEvents = 'none';
             
             try {
                 await auth.sendPasswordResetEmail(email);
-                console.log("DEBUG: パスワードリセットメール送信成功");
-                showError(`パスワード再設定用のメールを ${email} に送信しました。確認してください。`, true);
+                console.log("DEBUG: パスワードリセット申請受付");
+                showError(
+                    `再設定の申請を受け付けました。${email} が登録メールと一致する場合にメールが届きます。5分待っても届かない場合は、迷惑メールを確認し、登録時と同じアドレスか管理者へ確認してください。`,
+                    true,
+                    true
+                );
             } catch (error) {
                 let displayMessage = 'パスワード再設定メールの送信に失敗しました。';
                 
@@ -154,11 +172,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (error.code === 'auth/user-not-found') {
                     displayMessage = 'そのメールアドレスのアカウントは見つかりませんでした。';
+                } else if (error.code === 'auth/invalid-email') {
+                    displayMessage = 'メールアドレスの形式を確認してください。';
+                } else if (error.code === 'auth/too-many-requests') {
+                    displayMessage = '再設定を連続で試行しすぎました。しばらく時間をおいてからお試しください。';
+                } else if (error.code === 'auth/network-request-failed') {
+                    displayMessage = '認証サーバーへ接続できません。通信状態を確認して再度お試しください。';
                 }
                 
                 showError(displayMessage);
             } finally {
+                resetInProgress = false;
                 loadingIndicator.style.display = 'none';
+                loadingIndicator.textContent = 'ログイン中';
+                resetPasswordLink.removeAttribute('aria-disabled');
+                resetPasswordLink.style.pointerEvents = '';
                 console.log("DEBUG: パスワードリセット処理終了");
             }
         }
