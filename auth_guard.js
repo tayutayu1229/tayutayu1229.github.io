@@ -1,99 +1,120 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // --------------------------------------------------------------------------
-    // 🚨 【重要】ご自身の Firebase 設定に置き換えてください
-    // --------------------------------------------------------------------------
+(function (global) {
+    'use strict';
+
     const firebaseConfig = {
         apiKey: "AIzaSyAjMS_UwsMRm3XkXBqRnt4mgugR1LhWz4I",
-  authDomain: "tokyo-pass.firebaseapp.com",
-  projectId: "tokyo-pass",
-  storageBucket: "tokyo-pass.firebasestorage.app",
-  messagingSenderId: "950120670058",
-  appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
-  measurementId: "G-DSQQ31EZE9"
+        authDomain: "tokyo-pass.firebaseapp.com",
+        projectId: "tokyo-pass",
+        storageBucket: "tokyo-pass.firebasestorage.app",
+        messagingSenderId: "950120670058",
+        appId: "1:950120670058:web:3cd13fca317d87baeb7b13",
+        measurementId: "G-DSQQ31EZE9"
     };
 
-    try {
-        // Firebaseがまだ初期化されていない場合は初期化
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        
-        const auth = firebase.auth(); 
-        const db = firebase.firestore(); 
-        // HTML側で設定したIDを取得
-        const mainContent = document.getElementById('main-content');
-        const userInfo = document.getElementById('user-info');
-        const logoutButton = document.getElementById('firebase-logout-button');
+    const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    const currentReturnPath = () => `${location.pathname}${location.search}${location.hash}`;
+    const loginUrl = reason => `/index.html?return=${encodeURIComponent(currentReturnPath())}&reason=${encodeURIComponent(reason || 'login_required')}`;
 
-        // 認証状態の変化を監視し、アクセスを制限する
-        auth.onAuthStateChanged(async (user) => { 
-            if (user) {
-                // 認証済みの処理: Firestoreで承認状態と停止状態をチェック
-                try {
-                    const userDoc = await db.collection("users").doc(user.uid).get();
-                
-                    // 1. ユーザーデータ存在および承認チェック
-                    if (!userDoc.exists || userDoc.data().approved !== true || userDoc.data().status !== "active") {
-                        console.warn("GUARD: ユーザーは未承認またはデータ不完全。アクセス拒否。");
-                        await auth.signOut();
-                        alert("アクセス権限がありません。管理者による承認を確認してください。");
-                        window.location.href = 'https://tayunet-traininfo.com/index.html';
-                        return;
-                    }
-                    
-                    // 2. アクセス停止(disabled)フラグのチェック
-                    if (userDoc.data().disabled) {
-                        console.warn("GUARD: ユーザーは管理者によりアクセス停止されています。アクセス拒否。");
-                        await auth.signOut();
-                        alert("このアカウントは管理者によりアクセスが停止されています。");
-                        window.location.href = 'https://tayunet-traininfo.com/index.html';
-                        return;
-                    }
-                    
-                    // 承認済みかつ有効: ページコンテンツを表示
-                    console.log("GUARD: 認証・承認済み。アクセス許可。");
-                    if (mainContent) {
-                        mainContent.style.display = 'block'; // コンテンツを表示
-                    }
-                    if (userInfo) {
-                        userInfo.textContent = `(${user.email})でログイン中`; // ユーザー情報を表示
-                    }
-                } catch (error) {
-                    console.error("ERROR: Firestoreアクセスエラー (認証ガード)", error);
+    function goToLogin(reason) {
+        location.replace(loginUrl(reason));
+    }
+
+    function showConnectionProblem(error) {
+        console.error('ERROR: Firebaseの利用者情報を確認できませんでした。', error);
+        const panel = document.createElement('div');
+        panel.setAttribute('role', 'alert');
+        panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#f4f6f5;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif';
+        panel.innerHTML = `
+            <div style="max-width:520px;background:#fff;border:1px solid #ccd8d2;border-radius:12px;padding:24px;box-shadow:0 8px 28px rgba(0,0,0,.12);text-align:center">
+                <h2 style="margin:0 0 12px;color:#075f49">認証サーバーへ接続できません</h2>
+                <p style="line-height:1.7;color:#333">ログイン状態は維持されています。通信状態を確認して、もう一度お試しください。</p>
+                <button type="button" id="tayunetAuthRetry" style="border:0;border-radius:7px;background:#087f5b;color:#fff;padding:11px 18px;font-weight:700;cursor:pointer">もう一度確認</button>
+                <a href="${loginUrl('auth_error')}" style="display:inline-block;margin-left:10px;color:#075f49">ログイン画面へ</a>
+            </div>`;
+        document.body.appendChild(panel);
+        panel.querySelector('#tayunetAuthRetry').addEventListener('click', () => location.reload());
+    }
+
+    async function getProfile(db, uid) {
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                return await db.collection('users').doc(uid).get();
+            } catch (error) {
+                lastError = error;
+                if (attempt < 2) await wait(500 * (attempt + 1));
+            }
+        }
+        throw lastError;
+    }
+
+    let resolveReady;
+    global.TayunetAuthReady = new Promise(resolve => { resolveReady = resolve; });
+
+    try {
+        if (!global.firebase || typeof global.firebase.initializeApp !== 'function') {
+            throw new Error('Firebase SDKが読み込まれていません。');
+        }
+        if (!global.firebase.apps.length) global.firebase.initializeApp(firebaseConfig);
+
+        const auth = global.firebase.auth();
+        const db = global.firebase.firestore();
+        global.TayunetAuth = Object.freeze({ auth, db, loginUrl });
+
+        auth.setPersistence(global.firebase.auth.Auth.Persistence.LOCAL).catch(error => {
+            console.warn('Firebaseログイン状態の保存設定に失敗しました。', error);
+        });
+
+        auth.onAuthStateChanged(async user => {
+            if (!user) {
+                resolveReady({ ok: false, reason: 'login_required' });
+                goToLogin('login_required');
+                return;
+            }
+
+            try {
+                const userDoc = await getProfile(db, user.uid);
+                if (!userDoc.exists || userDoc.data().approved !== true || userDoc.data().status !== 'active') {
+                    resolveReady({ ok: false, reason: 'approval_required' });
                     await auth.signOut();
-                    alert("認証システムエラーが発生しました。");
-                    window.location.href = 'https://tayunet-traininfo.com/index.html';
+                    goToLogin('approval_required');
+                    return;
+                }
+                if (userDoc.data().disabled === true) {
+                    resolveReady({ ok: false, reason: 'disabled' });
+                    await auth.signOut();
+                    goToLogin('disabled');
+                    return;
                 }
 
-            } else {
-                // 未認証の処理: ログインページへリダイレクト
-                console.log("GUARD: 未認証ユーザー。ログインページへリダイレクト。");
-                window.location.href = 'https://tayunet-traininfo.com/index.html';
-
+                const mainContent = document.getElementById('main-content');
+                const userInfo = document.getElementById('user-info');
+                if (mainContent) mainContent.style.display = 'block';
+                if (userInfo) userInfo.textContent = `(${user.email || '利用者'})でログイン中`;
+                resolveReady({ ok: true, user, profile: userDoc.data() });
+            } catch (error) {
+                resolveReady({ ok: false, reason: 'auth_error', error });
+                showConnectionProblem(error);
             }
+        }, error => {
+            resolveReady({ ok: false, reason: 'auth_error', error });
+            showConnectionProblem(error);
         });
-        
-        // ログアウト処理の追加 (全ページ共通)
+
+        const logoutButton = document.getElementById('firebase-logout-button');
         if (logoutButton) {
             logoutButton.addEventListener('click', async () => {
-                const confirmed = confirm("本当にログアウトしますか？");
-                if (confirmed) {
-                    try {
-                        await auth.signOut();
-                        // ログアウト後のリダイレクトは onAuthStateChanged が処理します
-                    } catch (error) {
-                        console.error('ERROR: ログアウト失敗:', error);
-                        alert('ログアウトに失敗しました。');
-                    }
+                if (!confirm('本当にログアウトしますか？')) return;
+                try {
+                    await auth.signOut();
+                } catch (error) {
+                    console.error('ログアウトに失敗しました。', error);
+                    alert('ログアウトに失敗しました。通信状態を確認してください。');
                 }
             });
         }
-
-
-    } catch (e) {
-        console.error("FATAL ERROR: Firebase SDK 初期化失敗 (認証ガード)", e);
-        alert('システムエラー: 認証システムの初期化に失敗しました。');
-        // 致命的なエラー時は安全のためログインページへ強制リダイレクト
-        window.location.href = 'https://tayunet-traininfo.com/index.html';
+    } catch (error) {
+        resolveReady({ ok: false, reason: 'firebase_unavailable', error });
+        showConnectionProblem(error);
     }
-});
+})(window);

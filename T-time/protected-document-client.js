@@ -26,11 +26,21 @@
       cache: "no-store",
     }, options || {});
     const authHelper = await loadAuthHelper();
-    return fetch(url, await authHelper.authorizedOptions(settings));
+    let response = await fetch(url, await authHelper.authorizedOptions(settings));
+    // 期限切れ直後のIDトークンだった場合だけ、更新して1回再試行する。
+    if (response.status === 401) {
+      response = await fetch(url, await authHelper.authorizedOptions(settings, true));
+    }
+    return response;
   }
 
   function request(path, options) {
     return requestUrl(`${origin}${path}`, options);
+  }
+
+  function loginUrl() {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return `/index.html?return=${encodeURIComponent(returnTo)}&reason=login_required`;
   }
 
   function loginNotice(message) {
@@ -40,21 +50,19 @@
     wrapper.style.cssText = "margin:12px 0;padding:14px;border:1px solid #d4a72c;border-radius:8px;background:#fff8dc;color:#3b2f00;line-height:1.6";
 
     const text = document.createElement("span");
-    text.textContent = message || "運転関係書類を表示するにはデータ利用ログインが必要です。";
+    text.textContent = message || "このデータを表示するには通常のTAYUNETログインが必要です。";
     wrapper.appendChild(text);
     wrapper.appendChild(document.createElement("br"));
 
     const login = document.createElement("a");
-    login.href = `${origin}/api/files`;
-    login.target = "_blank";
-    login.rel = "noopener noreferrer";
-    login.textContent = "データ利用ログインを開く";
+    login.href = loginUrl();
+    login.textContent = "ログインしてこの画面へ戻る";
     login.style.cssText = "font-weight:700;margin-right:14px";
     wrapper.appendChild(login);
 
     const reload = document.createElement("button");
     reload.type = "button";
-    reload.textContent = "ログイン後に再読み込み";
+    reload.textContent = "ログイン済みなら再読み込み";
     reload.addEventListener("click", () => location.reload());
     wrapper.appendChild(reload);
     return wrapper;

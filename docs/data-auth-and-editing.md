@@ -2,11 +2,11 @@
 
 ## 利用者が最初に行うこと
 
-1. `https://tayunet-traininfo.com/index.html` からFirebaseへログインする。
+1. `https://tayunet-traininfo.com/index.html` からメールアドレスとパスワードでログインする。
 2. 未承認の場合は管理者へ承認を依頼する。
 3. 管理者は `account_management.html` の「承認」を押す。
 4. 時刻表・DocuBase・D-TACを開く。
-5. 「データ用ログイン」が表示された場合だけボタンを押し、Cloudflare Accessへログインして元の画面を再読み込みする。
+5. 時刻表・DocuBase・D-TACでも同じログイン状態が自動で使われる。別の「データ用ログイン」は不要。
 
 Firebaseでログインした利用者のIDトークンは、画面からUbuntuの保護APIへ自動送信されます。
 パスワードをAPIへ送ることはありません。
@@ -19,7 +19,8 @@ Firebaseでログインした利用者のIDトークンは、画面からUbuntu�
 - Firestore `users/{uid}` の `approved` が `true`
 - `status` が `active`
 - `disabled` が `true` ではない
-- Cloudflare Accessのログインも有効
+
+Cloudflareは保護APIへの経路として使用しますが、利用者がCloudflareへ別途ログインする必要はありません。
 
 利用停止または承認解除は最大約1分で保護APIにも反映されます。
 
@@ -36,7 +37,7 @@ Firebaseでログインした利用者のIDトークンは、画面からUbuntu�
 
 ### `timeedit.html`を使う場合
 
-1. Firebaseとデータ用ログインを済ませる。
+1. TAYUNETへ通常ログインし、管理者の利用承認が済んでいることを確認する。
 2. `https://tayunet-traininfo.com/timeedit.html` を開く。
 3. 列車を作成し「全件JSONを保存」を押す。
 4. 保存された `timetables.json` を非公開リポジトリの `data/timetables.json` へ、新しいブランチとしてアップロードする。
