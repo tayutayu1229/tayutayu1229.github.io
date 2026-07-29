@@ -104,8 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 await auth.signOut();
                 
                 showMessage(
-                    'アカウントの申請が完了しました。\n' +
-                    '🚨 **管理者による承認が完了するまでログインできません**。承認をお待ちください。', 
+                    'アカウントの申請が完了しました。確認メールの操作はありません。管理者による利用承認が完了するまでお待ちください。',
                     true
                 );
                 

@@ -2,7 +2,8 @@
   "use strict";
 
   const API_ORIGIN = "https://secure.tayunet-traininfo.com";
-  const LOGIN_URL = `${API_ORIGIN}/healthz`;
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const LOGIN_URL = `/index.html?return=${encodeURIComponent(returnTo)}&reason=login_required`;
   const AUTH_HELPER_URL = "/T-time/firebase-data-auth.js";
   let authHelperPromise;
 
@@ -36,13 +37,11 @@
     notice.setAttribute("role", "alert");
     notice.style.cssText = "position:fixed;z-index:2147483647;left:16px;right:16px;bottom:16px;padding:14px 16px;background:#fff;border:2px solid #087f5b;border-radius:8px;box-shadow:0 6px 24px #0004;color:#17352c;font:14px/1.5 sans-serif;display:flex;gap:12px;align-items:center;flex-wrap:wrap";
     const message = document.createElement("span");
-    message.textContent = messageText || "時刻表データの認証が必要です。Firebaseへのログインとデータ用ログインを確認してください。";
+    message.textContent = messageText || "時刻表データを表示するには通常のTAYUNETログインが必要です。";
     message.style.flex = "1 1 320px";
     const login = document.createElement("a");
     login.href = LOGIN_URL;
-    login.target = "_blank";
-    login.rel = "noopener noreferrer";
-    login.textContent = "データ用ログインを開く";
+    login.textContent = "ログインして元の画面へ戻る";
     login.style.cssText = "display:inline-block;padding:8px 12px;border-radius:5px;background:#087f5b;color:#fff;text-decoration:none;font-weight:700";
     const reload = document.createElement("button");
     reload.type = "button";
@@ -71,10 +70,19 @@
         cache: "no-store",
         headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
       });
+      if (response.status === 401) {
+        const refreshedToken = await authHelper.getIdToken(true);
+        response = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          headers: { Accept: "application/json", Authorization: `Bearer ${refreshedToken}` }
+        });
+      }
     } catch (error) {
       const firebaseMessage = error?.code === "firebase_login_required"
         ? "システムへFirebaseログインしてから、画面を再読み込みしてください。"
-        : "保護データへ接続できません。Firebaseログインとデータ用ログインを確認してください。";
+        : "保護データへ接続できません。通信状態を確認して通常のTAYUNETログインをやり直してください。";
       showLoginNotice(firebaseMessage);
       throw new PrivateDataError(
         firebaseMessage,
@@ -91,7 +99,7 @@
       } catch (_error) { /* use the status-derived error */ }
       const message = errorCode === "firebase_not_approved"
         ? "このFirebaseアカウントはデータ利用が未承認、停止中、または無効です。管理者へ確認してください。"
-        : "保護データの認証が必要です。Firebaseログインとデータ用ログインを確認してください。";
+        : "保護データの認証を確認できません。通常のTAYUNETログインをやり直してください。";
       showLoginNotice(message);
       throw new PrivateDataError(
         message,
@@ -115,7 +123,7 @@
   }
 
   function openLogin() {
-    window.open(LOGIN_URL, "tayunet-private-data-login", "noopener,noreferrer");
+    window.location.href = LOGIN_URL;
   }
 
   window.TayunetPrivateData = Object.freeze({

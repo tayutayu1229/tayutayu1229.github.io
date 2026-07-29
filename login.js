@@ -27,17 +27,43 @@ document.addEventListener('DOMContentLoaded', function() {
         const passwordInput = document.getElementById('password'); 
         const inputs = loginForm.querySelectorAll('input[type="text"], input[type="password"]');
         const resetPasswordLink = document.getElementById('reset-password-link');
+        const showPassword = document.getElementById('show-password');
 
         // エラーメッセージの表示 (成功メッセージも兼用)
-        function showError(message, isSuccess = false) {
+        function showError(message, isSuccess = false, persistent = false) {
             errorMessage.textContent = message;
             errorMessage.style.display = 'block';
             errorMessage.classList.toggle('success', isSuccess);
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-                errorMessage.classList.remove('success');
-            }, isSuccess ? 8000 : 5000); 
+            if (!persistent) {
+                setTimeout(() => {
+                    errorMessage.style.display = 'none';
+                    errorMessage.classList.remove('success');
+                }, isSuccess ? 10000 : 8000);
+            }
         }
+
+        function returnTarget() {
+            const requested = new URLSearchParams(location.search).get('return');
+            if (!requested) return '/toppage.html';
+            try {
+                const target = new URL(requested, location.origin);
+                if (target.origin !== location.origin || /\/(?:index|register)\.html$/.test(target.pathname)) {
+                    return '/toppage.html';
+                }
+                return `${target.pathname}${target.search}${target.hash}`;
+            } catch (_error) {
+                return '/toppage.html';
+            }
+        }
+
+        const reasonMessages = {
+            login_required: 'この機能を使うにはログインが必要です。ログイン後、自動で元の画面に戻ります。',
+            approval_required: 'メールアドレスとパスワードは確認できましたが、管理者の利用承認がまだ完了していません。管理者へ承認を依頼してください。',
+            disabled: 'このアカウントは利用停止中です。管理者へお問い合わせください。',
+            auth_error: '認証サーバーへの接続を確認できませんでした。通信状態を確認して、もう一度ログインしてください。'
+        };
+        const reason = new URLSearchParams(location.search).get('reason');
+        if (reasonMessages[reason]) showError(reasonMessages[reason], false, true);
 
         // ログイン処理
         async function login(email, password) {
@@ -46,6 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log(`DEBUG: ログイン試行 - Email: ${email}`);
 
             try {
+                await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
                 // 1. Firebase Authentication 認証
                 const userCredential = await auth.signInWithEmailAndPassword(email, password);
                 const user = userCredential.user;
@@ -73,19 +100,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 console.log("DEBUG: 認証・承認ステップ全てクリア。リダイレクトします。");
                 // 認証・承認成功: トップページへリダイレクト
-                window.location.href = 'toppage.html';
+                window.location.href = returnTarget();
 
             } catch (error) {
                 let displayMessage = 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
                 
                 console.error('ERROR: Firebase 認証エラー', error.code, error.message);
                 
-                if (error.code === 'auth/invalid-email' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                if (error.code === 'auth/invalid-email' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                     displayMessage = 'メールアドレスまたはパスワードが正しくありません。';
                 } else if (error.code === 'auth/user-disabled') {
                     displayMessage = 'このアカウントは無効化されています。管理者にお問い合わせください。';
                 } else if (error.code === 'auth/too-many-requests') {
                     displayMessage = '連続で試行しすぎました。しばらく時間をおいてから再度お試しください。';
+                } else if (error.code === 'auth/network-request-failed') {
+                    displayMessage = '認証サーバーへ接続できません。通信状態を確認して再度お試しください。';
                 }
 
                 showError(displayMessage);
@@ -151,6 +180,11 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             resetPassword();
         });
+        if (showPassword) {
+            showPassword.addEventListener('change', () => {
+                passwordInput.type = showPassword.checked ? 'text' : 'password';
+            });
+        }
         
         // 入力フィールドのエラークリア
         inputs.forEach(input => {
