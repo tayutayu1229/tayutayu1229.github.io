@@ -64,6 +64,9 @@
     .menu-item svg { flex-shrink: 0; }
     .menu-item:hover { background-color: var(--green-lt); color: var(--green-dark); }
     .menu-item.active { border-left-color: var(--green); background-color: var(--green-lt); color: var(--green-dark); font-weight: 800; }
+    .menu-item.locked { color: var(--text4); background: #f7f7f7; cursor: not-allowed; opacity: .72; }
+    .menu-item.locked:hover { color: var(--text4); background: #f7f7f7; }
+    .menu-item.locked::after { content: "権限なし"; font-size: .65rem; border: 1px solid var(--border2); padding: 1px 5px; }
     .menu-spacer { margin-top: auto; }
     .badge { min-width: 18px; padding: 2px 7px; background-color: var(--red); color: #fff; font-size: 0.66rem; font-weight: 800; text-align: center; }
     .badge.gray { background-color: var(--gray2); }
@@ -185,6 +188,11 @@
     .btn-cancel:hover { background: var(--bg); }
     .btn-confirm { background: var(--green); color: #fff; }
     .btn-confirm.danger { background: var(--red); }
+    .account-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+    .account-card { border: 1px solid var(--border); background: #fff; padding: 13px; }
+    .account-card .label { color: var(--text3); font-size: .72rem; font-weight: 700; }
+    .account-card .value { margin-top: 3px; font-weight: 800; overflow-wrap: anywhere; }
+    .account-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 
     /* ===== トースト ===== */
     #toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
@@ -195,19 +203,24 @@
     @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
     @media (max-width: 720px) {
         .layout { flex-direction: column; height: auto; }
-        .sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
+        .sidebar { position: sticky; top: 0; z-index: 100; width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border2); }
         .sidebar-header { display: none; }
         .menu-group { flex-direction: row; }
         .menu-group + .menu-group { border-top: none; border-left: 1px solid var(--border); }
         .menu-spacer { margin-top: 0; }
-        .content { padding: 16px; }
+        .menu-item { min-width: max-content; border-left: 0; border-bottom: 3px solid transparent; padding: 10px; }
+        .menu-item.active { border-left-color: transparent; border-bottom-color: var(--green); }
+        .menu-item.locked::after { display: none; }
+        .content { padding: 12px; }
+        .content-top { align-items: stretch; }
+        #user-info { width: 100%; overflow-wrap: anywhere; }
+        .section-body { padding: 12px; overflow-x: auto; }
+        .toolbar-row > * { width: 100%; }
+        .search-box { min-width: 100%; }
+        .account-grid { grid-template-columns: 1fr; }
         table { font-size: 0.78rem; }
         th, td { padding: 6px 8px; }
     }
-    .accounting-section { overflow: hidden; }
-    .accounting-frame { display: block; width: 100%; height: calc(100vh - 150px); min-height: 720px; border: 0; background: var(--bg); }
-    .accounting-section .section-head { margin: 0; }
-    @media (max-width: 720px) { .accounting-frame { height: 1100px; min-height: 1100px; } }
 </style>
 </head>
 
@@ -234,33 +247,33 @@
         </div>
 
         <div class="menu-group">
-            <div class="menu-item" data-target="dashboard">
+            <div class="menu-item active" data-target="dashboard" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="7" height="6" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="7" height="10" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="11" width="7" height="6" stroke="currentColor" stroke-width="1.5"/></svg>
                     ダッシュボード
                 </span>
             </div>
-            <div class="menu-item" data-target="pending">
+            <div class="menu-item" data-target="pending" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                     承認待ち
                 </span>
                 <span id="pending-badge" class="badge" style="display:none;">0</span>
             </div>
-            <div class="menu-item active" data-target="users">
+            <div class="menu-item" data-target="users" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c0.8-3.2 3-4.5 6-4.5s5.2 1.3 6 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                     ユーザー管理
                 </span>
             </div>
-            <div class="menu-item" data-target="disabled-users">
+            <div class="menu-item" data-target="disabled-users" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                     無効化ユーザー
                 </span>
                 <span id="disabled-badge" class="badge gray" style="display:none;">0</span>
             </div>
-            <div class="menu-item" data-target="accounting">
+            <div class="menu-item" id="menu-accounting" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="14" stroke="currentColor" stroke-width="1.5"/><path d="M2 7h16M6 11h3M6 14h6" stroke="currentColor" stroke-width="1.5"/></svg>
                     会計管理
@@ -299,7 +312,7 @@
             <div class="stat-card admin clickable" data-open-section="users"><div class="stat-num" id="stat-admin">-</div><div class="stat-label">管理者数</div></div>
         </div>
 
-        <div id="dashboard" class="section" style="display:none;">
+        <div id="dashboard" class="section" style="display:block;">
             <div class="section-head"><h3>運用ダッシュボード</h3><span id="dashboard-updated" class="muted">更新待ち</span></div>
             <div class="section-body">
                 <div class="dashboard-grid">
@@ -352,7 +365,7 @@
         </div>
 
         <!-- アクティブユーザー -->
-        <div id="users" class="section" style="display:block;">
+        <div id="users" class="section" style="display:none;">
             <div class="section-head">
                 <h3>ユーザー管理</h3>
                 <div class="section-head-actions">
@@ -393,26 +406,23 @@
         </div>
 
         <!-- アカウント設定 -->
-        <div id="accounting" class="section accounting-section" style="display:none;">
-            <div class="section-head">
-                <h3>予算・入出金管理</h3>
-                <span class="muted">年度別会計・年会費・帳票</span>
-            </div>
-            <iframe
-                id="accounting-frame"
-                class="accounting-frame"
-                src="budget_management.html?embed=1"
-                title="予算・入出金管理"
-                loading="lazy"
-            ></iframe>
-        </div>
-
-        <!-- アカウント設定 -->
         <div id="account" class="section" style="display:none;">
             <div class="section-head"><h3>アカウント設定</h3></div>
             <div class="section-body">
-                <button id="change-email-button">メールアドレス変更</button>
-                <button id="change-password-button">パスワード変更</button>
+                <div class="account-grid">
+                    <div class="account-card"><div class="label">メールアドレス</div><div class="value" id="account-current-email">-</div></div>
+                    <div class="account-card"><div class="label">メール確認</div><div class="value" id="account-email-status">-</div></div>
+                    <div class="account-card"><div class="label">ユーザーID</div><div class="value" id="account-current-uid">-</div></div>
+                    <div class="account-card"><div class="label">最終ログイン</div><div class="value" id="account-last-login">-</div></div>
+                </div>
+                <div class="account-actions">
+                    <button id="change-email-button">メールアドレス変更</button>
+                    <button id="change-password-button">パスワード変更</button>
+                    <button id="send-verification-button">確認メールを送信</button>
+                    <button id="send-password-reset-button">再設定メールを送信</button>
+                    <button id="copy-uid-button">ユーザーIDをコピー</button>
+                    <button id="refresh-account-button">アカウント情報を更新</button>
+                </div>
             </div>
         </div>
 
@@ -457,6 +467,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const auth = firebase.auth();
     const db = firebase.firestore();
     let CURRENT_USER_UID = null;
+    let CURRENT_USER_IS_ADMIN = false;
 
     /* ============================
        状態（テーブルデータ・並び替え）
@@ -520,6 +531,19 @@ document.addEventListener("DOMContentLoaded", function () {
         return '<span class="status-badge status-active">利用可能</span>';
     }
 
+    async function refreshAccountInfo(reloadUser) {
+        const user = auth.currentUser;
+        if (!user) return;
+        if (reloadUser) await user.reload();
+        const current = auth.currentUser;
+        document.getElementById("account-current-email").textContent = current.email || "未設定";
+        document.getElementById("account-email-status").textContent = current.emailVerified ? "確認済み" : "未確認";
+        document.getElementById("account-current-uid").textContent = current.uid;
+        const lastLogin = current.metadata && current.metadata.lastSignInTime ? new Date(current.metadata.lastSignInTime) : null;
+        document.getElementById("account-last-login").textContent = formatDate(lastLogin);
+        document.getElementById("send-verification-button").disabled = !!current.emailVerified;
+    }
+
     /* ============================
        汎用モーダル
     ============================ */
@@ -578,13 +602,21 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             userInfo.textContent = `${user.email} でログイン中`;
+            CURRENT_USER_IS_ADMIN = data.isAdmin === true;
+            await refreshAccountInfo(false);
 
-            if (data.isAdmin === true) {
-                loadAllUsers();
+            if (CURRENT_USER_IS_ADMIN) {
+                await loadAllUsers();
+                const requested = window.location.hash.replace("#", "");
+                openSection(["dashboard", "pending", "users", "disabled-users", "account"].includes(requested) ? requested : "dashboard");
             } else {
-                document.getElementById("pending").style.display = "none";
-                document.getElementById("users").style.display = "none";
-                document.getElementById("disabled-users").style.display = "none";
+                document.querySelectorAll('[data-admin-only="true"]').forEach(item => {
+                    item.classList.add("locked");
+                    item.setAttribute("aria-disabled", "true");
+                    item.title = "この機能には管理者権限が必要です";
+                });
+                openSection("account");
+                showToast("一般ユーザーとしてログイン中です。管理機能は利用できません。", "error");
             }
             contentArea.style.display = "block";
         } catch (e) {
@@ -1102,19 +1134,31 @@ document.addEventListener("DOMContentLoaded", function () {
     ============================ */
     function openSection(target) {
         if (!document.getElementById(target)) return;
+        const targetMenu = document.querySelector(`.menu-item[data-target="${target}"]`);
+        if (targetMenu && targetMenu.dataset.adminOnly === "true" && !CURRENT_USER_IS_ADMIN) {
+            showToast("この機能には管理者権限が必要です。", "error");
+            return;
+        }
         document.querySelectorAll(".menu-item").forEach(i => i.classList.toggle("active", i.dataset.target === target));
         document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
         document.getElementById(target).style.display = "block";
         const statRow = document.querySelector(".stat-row");
-        if (statRow) statRow.style.display = target === "accounting" ? "none" : "grid";
+        if (statRow) statRow.style.display = target === "dashboard" && CURRENT_USER_IS_ADMIN ? "grid" : "none";
         const title = document.querySelector(".content-title");
-        if (title) title.textContent = target === "accounting" ? "会計管理" : "管理者パネル";
+        const titles = { dashboard: "管理ダッシュボード", pending: "承認待ち", users: "ユーザー管理", "disabled-users": "無効化ユーザー", account: "アカウント設定" };
+        if (title) title.textContent = titles[target] || "管理メニュー";
+        if (history.replaceState) history.replaceState(null, "", `#${target}`);
     }
 
     document.querySelectorAll(".menu-item").forEach(item => {
         item.addEventListener("click", () => {
             if (item.id === "menu-back-main") { window.location.href = "toppage.html"; return; }
             if (item.id === "logout-button") return;
+            if (item.dataset.adminOnly === "true" && !CURRENT_USER_IS_ADMIN) {
+                showToast("この機能には管理者権限が必要です。", "error");
+                return;
+            }
+            if (item.id === "menu-accounting") { window.location.href = "budget_management.html"; return; }
             const target = item.dataset.target;
             if (!target) return;
             openSection(target);
@@ -1171,6 +1215,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(user.uid).update({ email: newEmail });
 
                 userInfo.textContent = `${newEmail} でログイン中`;
+                await refreshAccountInfo(true);
                 showToast("メールアドレスを変更しました。");
                 closeModal();
             } catch (e) {
@@ -1233,6 +1278,40 @@ document.addEventListener("DOMContentLoaded", function () {
                 errorBox.style.display = "block";
                 btn.disabled = false; btn.textContent = "変更する";
             }
+        });
+    });
+
+    document.getElementById("copy-uid-button").addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(auth.currentUser.uid);
+            showToast("ユーザーIDをコピーしました。");
+        } catch (_) { showToast("コピーに失敗しました。", "error"); }
+    });
+
+    document.getElementById("refresh-account-button").addEventListener("click", async () => {
+        try {
+            await refreshAccountInfo(true);
+            showToast("アカウント情報を更新しました。");
+        } catch (e) { console.error(e); showToast("更新に失敗しました。", "error"); }
+    });
+
+    document.getElementById("send-verification-button").addEventListener("click", async () => {
+        const user = auth.currentUser;
+        if (!user || user.emailVerified) return;
+        try {
+            await user.sendEmailVerification();
+            showToast("確認メールを送信しました。");
+        } catch (e) { console.error(e); showToast("確認メールの送信に失敗しました。", "error"); }
+    });
+
+    document.getElementById("send-password-reset-button").addEventListener("click", () => {
+        const user = auth.currentUser;
+        if (!user || !user.email) return;
+        confirmModal(`${user.email} にパスワード再設定メールを送信します。`, "送信する", false, async () => {
+            try {
+                await auth.sendPasswordResetEmail(user.email);
+                showToast("パスワード再設定メールを送信しました。");
+            } catch (e) { console.error(e); showToast("再設定メールの送信に失敗しました。", "error"); }
         });
     });
 
