@@ -11,7 +11,13 @@ service cloud.firestore {
     function isAdministrator() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active"
+        && (
+          !("disabled" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled == false
+        );
     }
 
     match /users/{userId} {
