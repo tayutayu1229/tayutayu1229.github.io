@@ -362,7 +362,7 @@ async function loadAttachments(force=false) {
     attachmentsLoaded = true;
     renderAttachments();
   } catch (error) {
-    TayunetDocumentAPI.showLoginNotice(list, '運転関係書類を表示するにはデータ利用ログインが必要です。');
+    TayunetDocumentAPI.showLoginNotice(list, '運転関係書類を表示するには、管理者承認済みの通常のTAYUNETログインが必要です。追加のデータ用ログインはありません。');
   }
 }
 
@@ -412,7 +412,7 @@ async function openDocument(file) {
     }
   } catch (error) {
     if (requestId === documentRequestId) {
-      TayunetDocumentAPI.showLoginNotice(body, 'この資料を表示するには、Firebase承認とデータ利用ログインが必要です。');
+      TayunetDocumentAPI.showLoginNotice(body, 'この資料を表示するには、管理者承認済みの通常のTAYUNETログインが必要です。追加のデータ用ログインはありません。');
     }
   }
 }
