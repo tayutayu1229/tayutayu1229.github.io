@@ -93,10 +93,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 const profile = userDoc.data();
-                if (profile.approved !== true || profile.status !== 'active' || profile.disabled === true) {
-                    console.warn("DEBUG: ユーザーは未承認。ログアウト処理中...");
+                if (profile.disabled === true || profile.status === 'disabled') {
+                    console.warn("DEBUG: ユーザーは利用停止中。ログアウト処理中...");
                     await auth.signOut();
-                    showError('ログインできません。このアカウントは未承認または利用停止中です。');
+                    showError('このアカウントは利用停止中です。管理者へお問い合わせください。');
+                    return;
+                }
+                if (profile.approved !== true || profile.status !== 'active') {
+                    console.warn("DEBUG: ユーザーは承認待ち。ログアウト処理中...");
+                    await auth.signOut();
+                    showError('登録申請は承認待ちです。管理者による利用承認が完了するまでお待ちください。');
                     return;
                 }
                 
@@ -108,6 +114,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 let displayMessage = 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
                 
                 console.error('ERROR: Firebase 認証エラー', error.code, error.message);
+                // Authenticationだけ成功して利用者情報の確認に失敗した場合も、
+                // 中途半端なログイン状態をブラウザへ残さない。
+                if (auth.currentUser) {
+                    try {
+                        await auth.signOut();
+                    } catch (signOutError) {
+                        console.warn('WARN: エラー後のログアウトに失敗しました。', signOutError);
+                    }
+                }
                 
                 if (error.code === 'auth/invalid-email' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                     displayMessage = 'メールアドレスまたはパスワードが正しくありません。';

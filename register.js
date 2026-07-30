@@ -72,61 +72,129 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
 
-        // 新規登録処理（メール確認をスキップ）
+        function pendingProfile(email) {
+            return {
+                email,
+                approved: false,
+                disabled: false,
+                isAdmin: false,
+                status: "pending",
+                registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+        }
+
+        async function writePendingProfile(user, email) {
+            await db.collection("users").doc(user.uid).set(pendingProfile(email));
+        }
+
+        // 新規登録処理。Authだけ作成されてFirestore登録に失敗した場合は、
+        // Authを取り消すか、同じ認証情報で次回の登録時に承認待ち情報を復旧する。
         async function registerUser(email, password) {
             registerButton.disabled = true;
             loadingIndicator.style.display = 'block';
             console.log(`DEBUG: ユーザー登録試行 - Email: ${email}`);
 
+            let user = null;
+            let createdNow = false;
+
             try {
-                // 1. Firebase Authentication にユーザーを作成
-                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                const user = userCredential.user;
-                console.log(`DEBUG: Auth登録成功 - UID: ${user.uid}`);
+                try {
+                    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                    user = userCredential.user;
+                    createdNow = true;
+                    console.log(`DEBUG: Auth登録成功 - UID: ${user.uid}`);
+                } catch (createError) {
+                    if (createError.code !== 'auth/email-already-in-use') throw createError;
 
-                // 🚨 【削除】メール確認リンク送信処理を削除
-                // await user.sendEmailVerification(); 
-                // console.log("DEBUG: メール確認リンク送信成功 (スキップ)");
-                
-                // 2. Firestoreに承認待ちレコードを登録
-                const docRef = db.collection("users").doc(user.uid);
-                await docRef.set({
-                    email: email,
-                    approved: false, // 承認フラグを false に設定
-                    disabled: false,
-                    isAdmin: false,
-                    status: "pending", 
-                    registeredAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                    // 過去にAuthだけ作成された半端なアカウントを、本人の
+                    // メールアドレスとパスワードで安全に復旧する。
+                    try {
+                        const existingCredential = await auth.signInWithEmailAndPassword(email, password);
+                        user = existingCredential.user;
+                    } catch (signInError) {
+                        const accountExistsError = new Error('既存アカウントの認証情報と一致しません。');
+                        accountExistsError.code = 'registration/account-exists';
+                        throw accountExistsError;
+                    }
+
+                    const existingDoc = await db.collection("users").doc(user.uid).get();
+                    if (existingDoc.exists) {
+                        const profile = existingDoc.data();
+                        await auth.signOut();
+                        if (profile.disabled === true || profile.status === 'disabled') {
+                            showMessage('このアカウントは利用停止中です。管理者へお問い合わせください。');
+                        } else if (profile.approved === true && profile.status === 'active') {
+                            showMessage('このアカウントは登録済みです。ログイン画面からログインしてください。', true);
+                        } else {
+                            showMessage('このメールアドレスの登録申請は承認待ちです。管理者の承認をお待ちください。', true);
+                        }
+                        return;
+                    }
+                    console.warn('WARN: Authだけ存在するアカウントを復旧します。');
+                }
+
+                try {
+                    await writePendingProfile(user, email);
+                } catch (profileError) {
+                    if (createdNow && user) {
+                        try {
+                            await user.delete();
+                            const rolledBackError = new Error('利用者情報を保存できなかったためAuth登録を取り消しました。');
+                            rolledBackError.code = 'registration/rolled-back';
+                            throw rolledBackError;
+                        } catch (cleanupError) {
+                            if (cleanupError.code === 'registration/rolled-back') throw cleanupError;
+                            console.error('ERROR: Auth登録の取り消しにも失敗しました。', cleanupError);
+                            const partialError = new Error('登録が途中で停止しました。');
+                            partialError.code = 'registration/partial-account';
+                            throw partialError;
+                        }
+                    }
+                    const recoveryError = new Error(profileError.message || '承認待ち情報を保存できませんでした。');
+                    recoveryError.code = 'registration/recovery-failed';
+                    throw recoveryError;
+                }
+
                 console.log("DEBUG: Firestoreに承認待ちレコード作成成功");
-
-                // 3. ユーザーをログアウトさせ、承認待ちを通知
                 await auth.signOut();
-                
+
                 showMessage(
                     'アカウントの申請が完了しました。確認メールの操作はありません。管理者による利用承認が完了するまでお待ちください。',
                     true
                 );
-                
+
                 setTimeout(() => {
                     window.location.href = 'index.html';
-                }, 8000); 
+                }, 8000);
 
             } catch (error) {
-                let displayMessage = '登録に失敗しました。';
-                
-                console.error('ERROR: Firebase 登録エラー', error.code, error.message);
+                let displayMessage = '登録に失敗しました。通信状態を確認して、もう一度お試しください。';
 
-                if (error.code === 'auth/email-already-in-use') {
-                    displayMessage = 'このメールアドレスは既に使用されています。';
+                console.error('ERROR: Firebase 登録エラー', error.code, error.message);
+                if (auth.currentUser) {
+                    try { await auth.signOut(); } catch (signOutError) {
+                        console.warn('WARN: 登録エラー後のログアウトに失敗しました。', signOutError);
+                    }
+                }
+
+                if (error.code === 'registration/account-exists') {
+                    displayMessage = 'このメールアドレスは登録済みです。ログインするか、パスワード再設定をお試しください。';
+                } else if (error.code === 'registration/rolled-back') {
+                    displayMessage = '利用者情報を保存できなかったため、アカウント作成を取り消しました。通信状態を確認して再度登録してください。';
+                } else if (error.code === 'registration/partial-account') {
+                    displayMessage = '登録が途中で停止しました。同じメールアドレスとパスワードでもう一度登録すると復旧を試みます。解決しない場合は管理者へ連絡してください。';
+                } else if (error.code === 'registration/recovery-failed') {
+                    displayMessage = '承認待ち情報を復旧できませんでした。通信状態を確認し、同じ内容でもう一度登録してください。';
                 } else if (error.code === 'auth/invalid-email') {
                     displayMessage = 'メールアドレスの形式が正しくありません。';
                 } else if (error.code === 'auth/weak-password') {
                     displayMessage = 'パスワードが弱すぎます（6文字以上）。';
+                } else if (error.code === 'auth/network-request-failed') {
+                    displayMessage = '認証サーバーへ接続できません。通信状態を確認して再度お試しください。';
                 }
 
                 showMessage(displayMessage);
-                
+
             } finally {
                 registerButton.disabled = false;
                 loadingIndicator.style.display = 'none';

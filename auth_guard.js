@@ -74,16 +74,23 @@
 
             try {
                 const userDoc = await getProfile(db, user.uid);
-                if (!userDoc.exists || userDoc.data().approved !== true || userDoc.data().status !== 'active') {
+                if (!userDoc.exists) {
                     resolveReady({ ok: false, reason: 'approval_required' });
                     await auth.signOut();
                     goToLogin('approval_required');
                     return;
                 }
-                if (userDoc.data().disabled === true) {
+                const profile = userDoc.data();
+                if (profile.disabled === true || profile.status === 'disabled') {
                     resolveReady({ ok: false, reason: 'disabled' });
                     await auth.signOut();
                     goToLogin('disabled');
+                    return;
+                }
+                if (profile.approved !== true || profile.status !== 'active') {
+                    resolveReady({ ok: false, reason: 'approval_required' });
+                    await auth.signOut();
+                    goToLogin('approval_required');
                     return;
                 }
 
@@ -91,7 +98,7 @@
                 const userInfo = document.getElementById('user-info');
                 if (mainContent) mainContent.style.display = 'block';
                 if (userInfo) userInfo.textContent = `(${user.email || '利用者'})でログイン中`;
-                resolveReady({ ok: true, user, profile: userDoc.data() });
+                resolveReady({ ok: true, user, profile });
             } catch (error) {
                 resolveReady({ ok: false, reason: 'auth_error', error });
                 showConnectionProblem(error);
