@@ -204,6 +204,10 @@
         table { font-size: 0.78rem; }
         th, td { padding: 6px 8px; }
     }
+    .accounting-section { overflow: hidden; }
+    .accounting-frame { display: block; width: 100%; height: calc(100vh - 150px); min-height: 720px; border: 0; background: var(--bg); }
+    .accounting-section .section-head { margin: 0; }
+    @media (max-width: 720px) { .accounting-frame { height: 1100px; min-height: 1100px; } }
 </style>
 </head>
 
@@ -255,6 +259,12 @@
                     無効化ユーザー
                 </span>
                 <span id="disabled-badge" class="badge gray" style="display:none;">0</span>
+            </div>
+            <div class="menu-item" data-target="accounting">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="14" stroke="currentColor" stroke-width="1.5"/><path d="M2 7h16M6 11h3M6 14h6" stroke="currentColor" stroke-width="1.5"/></svg>
+                    会計管理
+                </span>
             </div>
             <div class="menu-item" data-target="account">
                 <span class="mi-left">
@@ -380,6 +390,21 @@
                 </div>
                 <div id="disabled-users-list" class="loading-msg"><span class="h-spinner"></span>読み込み中...</div>
             </div>
+        </div>
+
+        <!-- アカウント設定 -->
+        <div id="accounting" class="section accounting-section" style="display:none;">
+            <div class="section-head">
+                <h3>予算・入出金管理</h3>
+                <span class="muted">年度別会計・年会費・帳票</span>
+            </div>
+            <iframe
+                id="accounting-frame"
+                class="accounting-frame"
+                src="budget_management.html?embed=1"
+                title="予算・入出金管理"
+                loading="lazy"
+            ></iframe>
         </div>
 
         <!-- アカウント設定 -->
@@ -1080,6 +1105,10 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".menu-item").forEach(i => i.classList.toggle("active", i.dataset.target === target));
         document.querySelectorAll(".section").forEach(sec => sec.style.display = "none");
         document.getElementById(target).style.display = "block";
+        const statRow = document.querySelector(".stat-row");
+        if (statRow) statRow.style.display = target === "accounting" ? "none" : "grid";
+        const title = document.querySelector(".content-title");
+        if (title) title.textContent = target === "accounting" ? "会計管理" : "管理者パネル";
     }
 
     document.querySelectorAll(".menu-item").forEach(item => {
