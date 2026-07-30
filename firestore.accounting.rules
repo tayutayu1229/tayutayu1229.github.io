@@ -1,0 +1,75 @@
+// 既存 firestore.rules の service cloud.firestore / match /databases/{database}/documents 内へ統合してください。
+// このファイル単独でのデプロイではなく、既存ルールとマージして使用します。
+function isAccountingAdmin() {
+  return request.auth != null
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active"
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+}
+
+function validYear(value) {
+  return value is int && value >= 2000 && value <= 2100;
+}
+
+function validAmount(value, allowZero) {
+  return value is int
+    && value >= (allowZero ? 0 : 1)
+    && value <= 999999999;
+}
+
+function validBudget(data) {
+  return data.keys().hasOnly([
+      "year", "category", "amount", "note", "createdAt", "updatedAt", "updatedBy"
+    ])
+    && validYear(data.year)
+    && data.category is string && data.category.size() > 0 && data.category.size() <= 80
+    && validAmount(data.amount, true)
+    && data.note is string && data.note.size() <= 500
+    && data.updatedBy == request.auth.uid;
+}
+
+function validTransaction(data) {
+  return data.keys().hasOnly([
+      "year", "date", "type", "category", "title", "amount", "note", "source",
+      "sourceId", "createdAt", "updatedAt", "updatedBy"
+    ])
+    && validYear(data.year)
+    && data.date is string && data.date.size() == 10
+    && data.type in ["income", "expense"]
+    && data.category is string && data.category.size() > 0 && data.category.size() <= 80
+    && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+    && validAmount(data.amount, false)
+    && data.note is string && data.note.size() <= 500
+    && data.updatedBy == request.auth.uid;
+}
+
+function validAnnualFee(data) {
+  return data.keys().hasOnly([
+      "year", "memberUid", "email", "memberName", "organizationName", "amount",
+      "paid", "exempt", "paidDate", "note", "receiptNumber", "createdAt", "updatedAt", "updatedBy"
+    ])
+    && validYear(data.year)
+    && data.memberUid is string && data.memberUid.size() > 0
+    && data.email is string && data.email.size() <= 254
+    && data.memberName is string && data.memberName.size() > 0 && data.memberName.size() <= 80
+    && data.organizationName is string && data.organizationName.size() <= 120
+    && validAmount(data.amount, true)
+    && data.paid is bool && data.exempt is bool && !(data.paid && data.exempt)
+    && data.paidDate is string && ((!data.paid && data.paidDate == "") || (data.paid && data.paidDate.size() == 10))
+    && data.note is string && data.note.size() <= 500
+    && data.updatedBy == request.auth.uid;
+}
+
+match /budgets/{documentId} {
+  allow read, delete: if isAccountingAdmin();
+  allow create, update: if isAccountingAdmin() && validBudget(request.resource.data);
+}
+
+match /transactions/{documentId} {
+  allow read, delete: if isAccountingAdmin();
+  allow create, update: if isAccountingAdmin() && validTransaction(request.resource.data);
+}
+
+match /annual_fees/{documentId} {
+  allow read, delete: if isAccountingAdmin();
+  allow create, update: if isAccountingAdmin() && validAnnualFee(request.resource.data);
+}
