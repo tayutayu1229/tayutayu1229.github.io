@@ -3,7 +3,12 @@
 function isAccountingAdmin() {
   return request.auth != null
     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active"
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+    && (
+      !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(["disabled"])
+      || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled == false
+    );
 }
 
 function validYear(value) {
