@@ -6,56 +6,73 @@
     <title>Mobile ATOS App</title>
     <style>
         :root {
-            --atos-font: "MS PGothic", "ＭＳ Ｐゴシック", sans-serif;
+            --atos-font: "MS Gothic", "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
             --atos-table-header: #1A968A; 
             --bg-white: #ffffff;
             --row-gray: #cfcfcf;
             --text-black: #222;
             --border-white: #ffffff;
-            --atos-row-height: 28px;
+            --atos-row-height: 26px;
         }
 
         body {
             font-family: var(--atos-font);
             background-color: var(--bg-white);
             margin: 0; padding: 0;
-            font-weight: bold; color: var(--text-black);
+            font-size: 15px; font-weight: bold; color: var(--text-black);
+            overflow-x: hidden;
         }
         
-        #appContainer { width: calc(100% - 20px); max-width: 1200px; margin: 0 auto; padding: 10px; }
+        #appContainer { max-width: 1000px; margin: 0 auto; padding: 0 5px; }
         
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
             padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #999; height: 32px;
+            border-bottom: 1px solid #999; height: 30px; color: #444;
         }
-        .header-title { font-size: 16px; flex-grow: 1; text-align: center; color: #444; }
-        .clock-area { font-size: 15px; min-width: 220px; text-align: right; }
+        .header-title { font-size: 16px; flex-grow: 1; text-align: center; }
+        .clock-area { font-size: 15px; min-width: 180px; width: 180px; padding: 2px 8px; text-align: right; }
+        .icon-menu { width: 20px; height: 16px; border-top: 3px solid #666; border-bottom: 3px solid #666; position: relative; flex-shrink: 0; }
+        .icon-menu::after { content: ""; position: absolute; top: 4px; width: 100%; height: 3px; background: #666; }
 
         .filter-bar {
-            background-color: #e0e0e0; padding: 12px; display: flex; align-items: center;
-            gap: 12px; border-bottom: 1px solid #999; border-radius: 4px;
+            background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
+            gap: 15px; border-bottom: 1px solid #999; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap;
         }
+        select, input { border: 1px solid #999; padding: 2px 4px; height: 24px; border-radius: 2px; font: inherit; font-size: 15px; font-weight: bold; }
+        input[type="date"] { width: 130px; text-align: center; }
+        .system-status { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 3px 8px; border-bottom: 1px solid #aaa; background: #eee; font-size: 13px; }
+        .status-dot { width: 9px; height: 9px; background: #777; }
+        .status-dot.ok { background: #17875f; }
+        .status-dot.loading { background: #d08a00; animation: pulse 1s infinite; }
+        .status-dot.error { background: #d00000; }
+        @keyframes pulse { 50% { opacity: .35; } }
+        .status-spacer { flex: 1; }
+        .small-button { appearance: none; border: 1px solid #888; border-radius: 0; background: #f8f8f8; padding: 2px 8px; font: inherit; font-size: 12px; font-weight: bold; cursor: pointer; }
+        .message-area { display: none; padding: 8px; border-bottom: 1px solid #aaa; background: #fff4d8; color: #7a4b00; font-size: 13px; }
+        .message-area.show { display: block; }
         
-        .monitor-table-container { width: 100%; overflow-x: auto; margin-top: 10px; }
-        table { border-collapse: collapse; table-layout: fixed; width: auto; min-width: 100%; }
+        .monitor-table-container { width: 100%; overflow-x: auto; }
+        table { border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 1040px; color: #000; }
         
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
-            padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap;
+            padding: 0 2px; font-size: 15px; height: var(--atos-row-height); white-space: nowrap; overflow: hidden;
         }
         
         td { 
             border: 1px solid var(--border-white); 
             background-color: var(--row-gray); 
             height: var(--atos-row-height); 
-            text-align: center; font-size: 16px; font-weight: bold; 
+            padding: 0 4px; text-align: center; font-size: 16px; font-weight: bold;
+            line-height: var(--atos-row-height); white-space: nowrap; overflow: hidden;
         }
 
         .td-line-side { background-color: var(--row-gray); border-right: 2px solid #888; vertical-align: middle; }
         .row-boundary td { border-top: 3px solid #333; }
         .col-time, .col-trk { text-align: right; padding-right: 6px; }
-        .link-text { color: blue; text-decoration: underline; cursor: pointer; }
+        .link-text { appearance: none; -webkit-appearance: none; display: inline; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #0000EE; text-decoration: underline; cursor: pointer; font: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; vertical-align: baseline; }
+        .link-text:focus-visible { outline: 1px dotted #0000EE; outline-offset: 1px; }
 
         #modalOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -63,7 +80,7 @@
         }
         .modal-content {
             background: var(--bg-white); width: 95%; max-width: 900px; max-height: 85vh;
-            overflow-y: auto; border: 3px solid #333; position: relative; padding: 5px;
+            overflow-y: auto; border: 3px solid #333; position: relative; padding: 0;
         }
         .modal-header {
             background: var(--atos-table-header); color: white; padding: 8px 12px;
@@ -73,12 +90,22 @@
         .close-btn { cursor: pointer; font-size: 24px; font-weight: bold; line-height: 1; }
         .modal-body { padding: 5px 0; }
         .modal-train-info { padding: 8px; font-size: 15px; border-bottom: 1px solid #999; background: #f9f9f9; margin-bottom: 5px; }
+        .modal-content table { min-width: 520px; }
+        .hidden { display: none !important; }
+        @media (max-width: 700px) {
+            .clock-area { display: none; }
+            .header-title { text-align: right; font-size: 14px; }
+            .filter-bar { gap: 10px; }
+            #appContainer { padding: 0; }
+            .system-status { font-size: 11px; }
+        }
     </style>
 </head>
 <body>
 
     <div class="system-header">
-        <div class="header-title">Mobile ATOS App Ver2.5.7</div>
+        <div class="icon-menu" aria-hidden="true"></div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.5.7</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -88,6 +115,15 @@
             <div>線区：<select id="lineSelect"><option value="">(選択)</option></select></div>
             <div>駅名：<select id="stationSelect"><option value="">(選択)</option></select></div>
         </div>
+
+        <div class="system-status" role="status" aria-live="polite">
+            <span class="status-dot loading" id="loadStatusDot"></span>
+            <span id="loadStatusText">時刻表データを読み込み中</span>
+            <span class="status-spacer"></span>
+            <span id="resultSummary">線区・駅を選択してください</span>
+            <button class="small-button" id="reloadButton" type="button">再読込</button>
+        </div>
+        <div class="message-area" id="messageArea" role="alert"></div>
 
         <div class="monitor-table-container">
             <table id="mainTable">
@@ -110,11 +146,11 @@
         </div>
     </div>
 
-    <div id="modalOverlay" onclick="closeModal()">
-        <div class="modal-content" onclick="event.stopPropagation()">
+    <div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
             <div class="modal-header">
                 <span id="modalTitle">全停車駅時刻表</span>
-                <span class="close-btn" onclick="closeModal()">×</span>
+                <button class="close-btn link-text" type="button" onclick="closeModal()" aria-label="閉じる" style="color:white;text-decoration:none;font-size:24px;">×</button>
             </div>
             <div class="modal-body">
                 <div class="modal-train-info" id="modalTrainInfo"></div>
@@ -126,14 +162,52 @@
     <script src="private-data-client.js"></script>
     <script>
         let rawTimetableData = [];
+        let holidayData = {};
+        let lastModalFocus = null;
+        const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
+        const PREF_KEY = 'ekibetuatos_filters_v1';
+
+        function setLoadState(state, text) {
+            document.getElementById('loadStatusDot').className = `status-dot ${state}`;
+            document.getElementById('loadStatusText').textContent = text;
+        }
+
+        function showMessage(text) {
+            const area = document.getElementById('messageArea');
+            area.textContent = text || '';
+            area.classList.toggle('show', Boolean(text));
+        }
+
+        function localInputDate(date = new Date()) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function isHoliday(date) {
+            const key = localInputDate(date);
+            return date.getDay() === 0 || date.getDay() === 6 || Boolean(holidayData[key]);
+        }
 
         async function loadData() {
+            setLoadState('loading', '時刻表データを読み込み中');
+            showMessage('');
+            document.getElementById('reloadButton').disabled = true;
             try {
+                const holidayResponse = await fetch(HOLIDAY_API_URL).catch(() => null);
+                if (holidayResponse?.ok) holidayData = await holidayResponse.json();
                 rawTimetableData = await TayunetPrivateData.fetchTimetables();
                 populateLines();
+                restoreSelection();
+                render();
+                setLoadState('ok', `時刻表データ読込完了（${rawTimetableData.length}列車）`);
             } catch (e) {
                 console.error(e);
-                alert(e.message);
+                setLoadState('error', 'データ読込エラー');
+                showMessage(`データを読み込めませんでした：${e.message}`);
+            } finally {
+                document.getElementById('reloadButton').disabled = false;
             }
         }
 
@@ -170,18 +244,56 @@
         }
 
         function populateLines() {
-            const lines = [...new Set(rawTimetableData.map(d => d.line))].sort();
+            const lines = [...new Set(rawTimetableData.map(d => safeVal(d.line)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
             const lineSelect = document.getElementById('lineSelect');
             lineSelect.replaceChildren(new Option('(選択)', ''), ...lines.map(l => new Option(l, l)));
-            lineSelect.onchange = () => {
-                const stations = new Set();
-                rawTimetableData.filter(d => d.line === lineSelect.value).forEach(d => d.stops.forEach(s => stations.add(s.station)));
-                document.getElementById('stationSelect').replaceChildren(
-                    new Option('(選択)', ''),
-                    ...[...stations].sort().map(s => new Option(s, s))
-                );
-                render();
-            };
+        }
+
+        function populateStations(preferredStation = '') {
+            const line = document.getElementById('lineSelect').value;
+            const stationSelect = document.getElementById('stationSelect');
+            if (!line) {
+                stationSelect.replaceChildren(new Option('(選択)', ''));
+                return;
+            }
+
+            const lineTrains = rawTimetableData.filter(train => train.line === line && Array.isArray(train.stops));
+            const base = [...lineTrains].sort((a, b) => b.stops.length - a.stops.length)[0];
+            const ordered = [];
+            const seen = new Set();
+            const add = value => { const station = safeVal(value); if (station && !seen.has(station)) { seen.add(station); ordered.push(station); } };
+            (base?.stops || []).forEach(stop => add(stop.station));
+            lineTrains.forEach(train => train.stops.forEach(stop => add(stop.station)));
+            stationSelect.replaceChildren(new Option('(選択)', ''), ...ordered.map(station => new Option(station, station)));
+            if (preferredStation && seen.has(preferredStation)) stationSelect.value = preferredStation;
+        }
+
+        function saveSelection() {
+            try {
+                localStorage.setItem(PREF_KEY, JSON.stringify({
+                    date: document.getElementById('dateInput').value,
+                    line: document.getElementById('lineSelect').value,
+                    station: document.getElementById('stationSelect').value
+                }));
+            } catch (error) {
+                console.warn('選択条件を保存できませんでした。', error);
+            }
+        }
+
+        function restoreSelection() {
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); } catch (error) { console.warn(error); }
+            const dateInput = document.getElementById('dateInput');
+            dateInput.value = saved.date || dateInput.value || localInputDate();
+            const lineSelect = document.getElementById('lineSelect');
+            if (saved.line && [...lineSelect.options].some(option => option.value === saved.line)) lineSelect.value = saved.line;
+            populateStations(saved.station || '');
+        }
+
+        function handleLineChange() {
+            populateStations();
+            saveSelection();
+            render();
         }
 
         function appendCell(row, value, className) {
@@ -189,6 +301,19 @@
             if (className) td.className = className;
             td.textContent = value == null ? '' : String(value);
             row.appendChild(td);
+            return td;
+        }
+
+        function appendLinkCell(row, value, onClick) {
+            const td = appendCell(row, '');
+            const text = safeVal(value);
+            if (!text) return td;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'link-text';
+            button.textContent = text;
+            button.addEventListener('click', onClick);
+            td.appendChild(button);
             return td;
         }
 
@@ -210,11 +335,16 @@
             const dateVal = document.getElementById('dateInput').value;
             const tbody = document.getElementById('timetableBody');
             tbody.innerHTML = '';
-            if (!line || !station || !dateVal) return;
+            showMessage('');
+            if (!line || !station || !dateVal) {
+                document.getElementById('resultSummary').textContent = '線区・駅を選択してください';
+                return;
+            }
 
-            const targetDate = new Date(dateVal);
+            saveSelection();
+            const targetDate = new Date(`${dateVal}T00:00:00`);
             const targetDateStr = dateVal.replace(/-/g, '/');
-            const targetDayType = (targetDate.getDay() === 0 || targetDate.getDay() === 6) ? "土休日" : "平日";
+            const targetDayType = isHoliday(targetDate) ? "土休日" : "平日";
 
             const candidates = rawTimetableData.filter(t => t.line === line && t.stops.some(s => s.station === station));
             const trainMap = new Map();
@@ -224,14 +354,14 @@
                 const versions = candidates.filter(v => v.trainNumber === tNo);
                 
                 // 1. 特定日優先 (日付一致かつdayType空)
-                let match = versions.find(v => v.startDate === targetDateStr && v.dayType === "");
+                let match = versions.find(v => v.startDate === targetDateStr && !safeVal(v.dayType));
                 
                 // 2. 所定ダイヤ検索
                 if (!match) {
                     const regulars = versions.filter(v => {
                         const vDate = new Date(v.startDate);
                         const isPastOrToday = vDate <= targetDate;
-                        const isDayMatch = (v.dayType === targetDayType || v.dayType === "");
+                        const isDayMatch = (safeVal(v.dayType) === targetDayType || !safeVal(v.dayType));
                         return isPastOrToday && isDayMatch;
                     });
                     if (regulars.length > 0) {
@@ -244,9 +374,16 @@
             });
 
             const finalData = Array.from(trainMap.values());
+            if (finalData.length === 0) {
+                document.getElementById('resultSummary').textContent = `${line}／${station}　0本`;
+                showMessage('選択した条件に該当する列車はありません。');
+                return;
+            }
             const grouped = {};
             finalData.forEach(t => {
-                const label = (parseInt(safeVal(t.trainNumber).match(/\d+/)) % 2 === 0) ? "上り" : "下り";
+                const direction = safeVal(t.direction || t.railDirection);
+                const numberMatch = safeVal(t.trainNumber).match(/\d+/);
+                const label = direction || ((parseInt(numberMatch?.[0] || '1', 10) % 2 === 0) ? "上り" : "下り");
                 if (!grouped[label]) grouped[label] = [];
                 grouped[label].push(t);
             });
@@ -275,8 +412,7 @@
                         tr.appendChild(tdLine);
                     }
 
-                    const trainCell = appendCell(tr, safeVal(train.trainNumber), 'link-text');
-                    trainCell.addEventListener('click', () => showOverlay(train.trainNumber, train.startDate));
+                    appendLinkCell(tr, train.trainNumber, () => showOverlay(train.trainNumber, train.startDate));
                     const typeCell = appendCell(tr, safeVal(train.type));
                     typeCell.style.textAlign = 'left';
                     typeCell.style.paddingLeft = '4px';
@@ -287,19 +423,38 @@
                     appendCell(tr, '');
                     appendCell(tr, safeVal(s.trackN), 'col-trk');
                     appendCell(tr, getUnyouStatus(train, isFirst, isLast));
-                    appendCell(tr, isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : ''), 'link-text');
+                    const connectedNumber = isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : '');
+                    appendLinkCell(tr, connectedNumber, () => showConnectedTrain(connectedNumber));
                     const destinationCell = appendCell(tr, safeVal(train.destination));
                     destinationCell.style.textAlign = 'left';
                     destinationCell.style.paddingLeft = '4px';
                     tbody.appendChild(tr);
                 });
             });
+            document.getElementById('resultSummary').textContent = `${line}／${station}　${finalData.length}本（${targetDayType}）`;
             updateClock(targetDateStr);
+        }
+
+        function showConnectedTrain(trainNumber) {
+            const number = safeVal(trainNumber);
+            if (!number) return;
+            const selectedDate = document.getElementById('dateInput').value.replace(/-/g, '/');
+            const candidates = rawTimetableData.filter(train => safeVal(train.trainNumber) === number);
+            let match = candidates.find(train => train.startDate === selectedDate);
+            if (!match) {
+                const target = new Date(`${selectedDate.replace(/\//g, '-')}T00:00:00`);
+                match = candidates.filter(train => new Date(train.startDate) <= target).sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0] || candidates[0];
+            }
+            if (match) showOverlay(match.trainNumber, match.startDate);
+            else showMessage(`接続列車 ${number} の時刻表が見つかりません。`);
         }
 
         function showOverlay(tNo, sDate) {
             const train = rawTimetableData.find(v => v.trainNumber === tNo && v.startDate === sDate);
             if (!train) return;
+
+            lastModalFocus = document.activeElement;
+            document.getElementById('modalTitle').textContent = `${safeVal(train.trainNumber)}　全停車駅時刻表`;
 
             document.getElementById('modalTrainInfo').textContent =
                 `列車番号: ${safeVal(train.trainNumber)} / 列車種別: ${safeVal(train.type)} / 運転区間: ${safeVal(train.origin)} ～ ${safeVal(train.destination)}`;
@@ -333,9 +488,13 @@
             table.appendChild(modalBody);
             document.getElementById('modalTableContainer').replaceChildren(table);
             document.getElementById('modalOverlay').style.display = 'flex';
+            document.querySelector('#modalOverlay .close-btn').focus();
         }
 
-        function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+        function closeModal() {
+            document.getElementById('modalOverlay').style.display = 'none';
+            if (lastModalFocus && typeof lastModalFocus.focus === 'function') lastModalFocus.focus();
+        }
 
         function updateClock(dateStr) {
             const d = new Date();
@@ -343,10 +502,28 @@
             document.getElementById('clockDisplay').innerText = `${dateStr} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
         }
 
-        document.getElementById('dateInput').onchange = render;
-        document.getElementById('stationSelect').onchange = render;
+        document.getElementById('lineSelect').addEventListener('change', handleLineChange);
+        document.getElementById('stationSelect').addEventListener('change', () => {
+            saveSelection();
+            render();
+        });
+        document.getElementById('dateInput').addEventListener('change', () => {
+            saveSelection();
+            render();
+        });
+        document.getElementById('reloadButton').addEventListener('click', loadData);
+        document.getElementById('modalOverlay').addEventListener('click', event => {
+            if (event.target.id === 'modalOverlay') closeModal();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && document.getElementById('modalOverlay').style.display === 'flex') closeModal();
+        });
+
         window.onload = () => {
-            document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('dateInput');
+            dateInput.value = localInputDate();
+            updateClock(dateInput.value.replace(/-/g, '/'));
+            setInterval(() => updateClock(dateInput.value.replace(/-/g, '/')), 1000);
             loadData();
         };
     </script>
