@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile ATOS App</title>
+    <title>モバイル ATOS アプリ Ver2.4.0</title>
     <style>
         :root {
             --atos-font: "MS Gothic", "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
@@ -23,7 +23,7 @@
             overflow-x: hidden;
         }
         
-        #appContainer { max-width: 1000px; margin: 0 auto; padding: 0 5px; }
+        #appContainer { width: 100%; max-width: none; margin: 0; padding: 0; box-sizing: border-box; }
         
         .system-header {
             background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
@@ -37,23 +37,15 @@
 
         .filter-bar {
             background-color: #e0e0e0; padding: 8px; display: flex; align-items: center;
-            gap: 15px; border-bottom: 1px solid #999; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap;
+            gap: 15px; border-bottom: 1px solid #999; flex-wrap: wrap; overflow: hidden; white-space: nowrap;
         }
         select, input { border: 1px solid #999; padding: 2px 4px; height: 24px; border-radius: 2px; font: inherit; font-size: 15px; font-weight: bold; }
         input[type="date"] { width: 130px; text-align: center; }
-        .system-status { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 3px 8px; border-bottom: 1px solid #aaa; background: #eee; font-size: 13px; }
-        .status-dot { width: 9px; height: 9px; background: #777; }
-        .status-dot.ok { background: #17875f; }
-        .status-dot.loading { background: #d08a00; animation: pulse 1s infinite; }
-        .status-dot.error { background: #d00000; }
-        @keyframes pulse { 50% { opacity: .35; } }
-        .status-spacer { flex: 1; }
-        .small-button { appearance: none; border: 1px solid #888; border-radius: 0; background: #f8f8f8; padding: 2px 8px; font: inherit; font-size: 12px; font-weight: bold; cursor: pointer; }
         .message-area { display: none; padding: 8px; border-bottom: 1px solid #aaa; background: #fff4d8; color: #7a4b00; font-size: 13px; }
         .message-area.show { display: block; }
         
-        .monitor-table-container { width: 100%; overflow-x: auto; }
-        table { border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 1040px; color: #000; }
+        .monitor-table-container { width: 100%; overflow-x: hidden; }
+        table { border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 0; color: #000; }
         
         th {
             background-color: var(--atos-table-header); color: white; border: 1px solid var(--border-white);
@@ -76,28 +68,41 @@
 
         #modalOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000;
+            background: var(--bg-white); display: none; z-index: 1000;
         }
         .modal-content {
-            background: var(--bg-white); width: 95%; max-width: 900px; max-height: 85vh;
-            overflow-y: auto; border: 3px solid #333; position: relative; padding: 0;
+            background: var(--bg-white); width: 100vw; height: 100vh; max-width: none; max-height: none;
+            overflow-y: auto; overflow-x: hidden; border: 0; position: relative; padding: 0;
         }
         .modal-header {
-            background: var(--atos-table-header); color: white; padding: 8px 12px;
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 16px; border-bottom: 2px solid #333;
+            background: linear-gradient(to bottom, #f0f0f0, #d0d0d0); color: #333; padding: 8px 10px;
+            display: grid; grid-template-columns: 70px 1fr 70px; align-items: center;
+            height: 30px; font-size: 16px; border-bottom: 1px solid #999;
         }
-        .close-btn { cursor: pointer; font-size: 24px; font-weight: bold; line-height: 1; }
-        .modal-body { padding: 5px 0; }
-        .modal-train-info { padding: 8px; font-size: 15px; border-bottom: 1px solid #999; background: #f9f9f9; margin-bottom: 5px; }
-        .modal-content table { min-width: 520px; }
+        .modal-title { text-align: center; }
+        .close-btn { appearance: none; justify-self: end; width: 60px; height: 22px; padding: 0; border: 1px solid #a66b00; border-radius: 2px; background: #e79418; color: #241600; cursor: pointer; font: inherit; font-size: 12px; font-weight: bold; line-height: 20px; }
+        .modal-clock-row { min-height: 30px; padding: 4px 12px; box-sizing: border-box; text-align: right; border-bottom: 1px solid #ddd; font-size: 15px; }
+        .modal-body { padding: 38px 5px 0; }
+        .modal-train-info { padding: 0 5px 7px; font-size: 15px; line-height: 1.5; background: #fff; }
+        .modal-content table { width: 100%; min-width: 0; }
+        .modal-content .footer-legend { padding: 10px 5px 80px; font-size: 15px; background: #fff; }
+        .detail-table th.cell-narrow { font-size: 12px; }
+        .detail-table td:nth-child(3) { text-align: left; padding-left: 10px; }
+        .detail-table td:nth-child(4), .detail-table td:nth-child(6), .detail-table td:nth-child(8) { text-align: right; padding-right: 5px; }
+        .detail-table td:nth-child(5), .detail-table td:nth-child(7) { padding: 0; font-size: 12px; }
         .hidden { display: none !important; }
+        @media (max-width: 1050px) {
+            #mainTable th, #mainTable td { padding-left: 1px; padding-right: 1px; font-size: clamp(9px, 1.45vw, 15px); }
+            #mainTable td { font-size: clamp(10px, 1.55vw, 16px); }
+        }
         @media (max-width: 700px) {
             .clock-area { display: none; }
             .header-title { text-align: right; font-size: 14px; }
             .filter-bar { gap: 10px; }
             #appContainer { padding: 0; }
-            .system-status { font-size: 11px; }
+            .modal-body { padding-top: 24px; }
+            .detail-table th, .detail-table td { padding-left: 1px; padding-right: 1px; font-size: clamp(9px, 2vw, 14px); }
+            .detail-table td { font-size: clamp(10px, 2.1vw, 15px); }
         }
     </style>
 </head>
@@ -105,7 +110,7 @@
 
     <div class="system-header">
         <div class="icon-menu" aria-hidden="true"></div>
-        <div class="header-title">モバイル ATOS アプリ Ver2.5.7</div>
+        <div class="header-title">モバイル ATOS アプリ Ver2.4.0</div>
         <div class="clock-area" id="clockDisplay">----/--/-- --:--:-- 現在</div>
     </div>
     
@@ -116,29 +121,27 @@
             <div>駅名：<select id="stationSelect"><option value="">(選択)</option></select></div>
         </div>
 
-        <div class="system-status" role="status" aria-live="polite">
-            <span class="status-dot loading" id="loadStatusDot"></span>
-            <span id="loadStatusText">時刻表データを読み込み中</span>
-            <span class="status-spacer"></span>
-            <span id="resultSummary">線区・駅を選択してください</span>
-            <button class="small-button" id="reloadButton" type="button">再読込</button>
-        </div>
         <div class="message-area" id="messageArea" role="alert"></div>
 
         <div class="monitor-table-container">
             <table id="mainTable">
+                <colgroup>
+                    <col style="width:7%"><col style="width:9%"><col style="width:11%"><col style="width:5%">
+                    <col style="width:9%"><col style="width:4%"><col style="width:9%"><col style="width:4%">
+                    <col style="width:6%"><col style="width:7%"><col style="width:9%"><col style="width:10%">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th style="width:70px;" rowspan="2">線別</th>
-                        <th style="width:95px;" rowspan="2">列車番号</th>
-                        <th style="width:110px;" rowspan="2">列車種別</th>
-                        <th style="width:55px;" rowspan="2">動力</th>
+                        <th rowspan="2">線別</th>
+                        <th rowspan="2">列車番号</th>
+                        <th rowspan="2">列車種別</th>
+                        <th rowspan="2">動力</th>
                         <th colspan="2">着時刻</th><th colspan="2">発時刻</th>
-                        <th style="width:65px;" rowspan="2">番線</th><th style="width:60px;" rowspan="2">運用<br>情報</th>
-                        <th style="width:95px;" rowspan="2">運用列番</th><th style="width:115px;" rowspan="2">行先</th>
+                        <th rowspan="2">番線</th><th rowspan="2">運用<br>情報</th>
+                        <th rowspan="2">運用列番</th><th rowspan="2">行先</th>
                     </tr>
                     <tr>
-                        <th style="width:90px;">計画</th><th style="width:45px;">到着</th><th style="width:90px;">計画</th><th style="width:45px;">発車</th>
+                        <th>計画</th><th>到着</th><th>計画</th><th>発車</th>
                     </tr>
                 </thead>
                 <tbody id="timetableBody"></tbody>
@@ -149,12 +152,15 @@
     <div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <span id="modalTitle">全停車駅時刻表</span>
-                <button class="close-btn link-text" type="button" onclick="closeModal()" aria-label="閉じる" style="color:white;text-decoration:none;font-size:24px;">×</button>
+                <span aria-hidden="true"></span>
+                <span class="modal-title" id="modalTitle">モバイル ATOS アプリ　Ver2.4.0</span>
+                <button class="close-btn" type="button" onclick="closeModal()">閉じる</button>
             </div>
+            <div class="modal-clock-row" id="modalClockDisplay">----/--/-- --:--:-- 現在</div>
             <div class="modal-body">
                 <div class="modal-train-info" id="modalTrainInfo"></div>
                 <div class="monitor-table-container" id="modalTableContainer"></div>
+                <div class="footer-legend">「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止</div>
             </div>
         </div>
     </div>
@@ -166,11 +172,6 @@
         let lastModalFocus = null;
         const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         const PREF_KEY = 'ekibetuatos_filters_v1';
-
-        function setLoadState(state, text) {
-            document.getElementById('loadStatusDot').className = `status-dot ${state}`;
-            document.getElementById('loadStatusText').textContent = text;
-        }
 
         function showMessage(text) {
             const area = document.getElementById('messageArea');
@@ -191,9 +192,7 @@
         }
 
         async function loadData() {
-            setLoadState('loading', '時刻表データを読み込み中');
             showMessage('');
-            document.getElementById('reloadButton').disabled = true;
             try {
                 const holidayResponse = await fetch(HOLIDAY_API_URL).catch(() => null);
                 if (holidayResponse?.ok) holidayData = await holidayResponse.json();
@@ -201,13 +200,9 @@
                 populateLines();
                 restoreSelection();
                 render();
-                setLoadState('ok', `時刻表データ読込完了（${rawTimetableData.length}列車）`);
             } catch (e) {
                 console.error(e);
-                setLoadState('error', 'データ読込エラー');
                 showMessage(`データを読み込めませんでした：${e.message}`);
-            } finally {
-                document.getElementById('reloadButton').disabled = false;
             }
         }
 
@@ -337,7 +332,6 @@
             tbody.innerHTML = '';
             showMessage('');
             if (!line || !station || !dateVal) {
-                document.getElementById('resultSummary').textContent = '線区・駅を選択してください';
                 return;
             }
 
@@ -375,7 +369,6 @@
 
             const finalData = Array.from(trainMap.values());
             if (finalData.length === 0) {
-                document.getElementById('resultSummary').textContent = `${line}／${station}　0本`;
                 showMessage('選択した条件に該当する列車はありません。');
                 return;
             }
@@ -431,7 +424,6 @@
                     tbody.appendChild(tr);
                 });
             });
-            document.getElementById('resultSummary').textContent = `${line}／${station}　${finalData.length}本（${targetDayType}）`;
             updateClock(targetDateStr);
         }
 
@@ -454,40 +446,60 @@
             if (!train) return;
 
             lastModalFocus = document.activeElement;
-            document.getElementById('modalTitle').textContent = `${safeVal(train.trainNumber)}　全停車駅時刻表`;
-
-            document.getElementById('modalTrainInfo').textContent =
-                `列車番号: ${safeVal(train.trainNumber)} / 列車種別: ${safeVal(train.type)} / 運転区間: ${safeVal(train.origin)} ～ ${safeVal(train.destination)}`;
+            const selectedDate = document.getElementById('dateInput').value.replace(/-/g, '/');
+            document.getElementById('modalTitle').textContent = 'モバイル ATOS アプリ　Ver2.4.0';
+            const summary = document.getElementById('modalTrainInfo');
+            summary.replaceChildren(
+                document.createTextNode(`■${safeVal(train.line)} 施行日:${selectedDate}`),
+                document.createElement('br'),
+                document.createTextNode(`運転区間:${safeVal(train.origin)}～${safeVal(train.destination)} 列車番号:${safeVal(train.trainNumber)}`)
+            );
 
             const table = document.createElement('table');
-            table.innerHTML = `<thead>
+            table.className = 'detail-table';
+            table.innerHTML = `<colgroup>
+                <col style="width:9%"><col style="width:4%"><col style="width:14%">
+                <col style="width:13%"><col style="width:4%"><col style="width:13%"><col style="width:4%">
+                <col style="width:10%"><col style="width:10%"><col style="width:9%">
+                </colgroup><thead>
                 <tr>
-                    <th rowspan="2" style="width:120px;">駅名</th>
+                    <th rowspan="2">列車種別</th>
+                    <th rowspan="2">抑止</th>
+                    <th rowspan="2">駅名</th>
                     <th colspan="2">着時刻</th>
                     <th colspan="2">発時刻</th>
-                    <th rowspan="2" style="width:50px;">番線</th>
+                    <th rowspan="2">番線</th>
+                    <th rowspan="2">運用<br>情報</th>
+                    <th rowspan="2">運用列番</th>
                 </tr>
                 <tr>
-                    <th style="width:90px;">計画</th><th style="width:45px;">到着</th>
-                    <th style="width:90px;">計画</th><th style="width:45px;">発車</th>
+                    <th>時間</th><th class="cell-narrow">到着</th>
+                    <th>時間</th><th class="cell-narrow">発車</th>
                 </tr>
                 </thead>`;
             const modalBody = document.createElement('tbody');
-            train.stops.forEach(s => {
+            train.stops.forEach((s, index) => {
                 const row = document.createElement('tr');
-                const stationCell = appendCell(row, safeVal(s.station));
-                stationCell.style.textAlign = 'left';
-                stationCell.style.paddingLeft = '10px';
+                const isFirst = index === 0;
+                const isLast = index === train.stops.length - 1;
+                const connectedNumber = isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : '');
+                appendCell(row, isFirst ? safeVal(train.type) : '');
+                appendCell(row, '');
+                appendCell(row, safeVal(s.station));
                 appendCell(row, formatDisplayTime(s.arrival), 'col-time');
                 appendCell(row, '');
-                appendCell(row, formatDisplayTime(s.departure), 'col-time');
+                appendCell(row, safeVal(s.departure) ? formatDisplayTime(s.departure) : '', 'col-time');
                 appendCell(row, '');
                 appendCell(row, safeVal(s.trackN), 'col-trk');
+                appendCell(row, getUnyouStatus(train, isFirst, isLast));
+                appendLinkCell(row, connectedNumber, () => showConnectedTrain(connectedNumber));
                 modalBody.appendChild(row);
             });
             table.appendChild(modalBody);
             document.getElementById('modalTableContainer').replaceChildren(table);
-            document.getElementById('modalOverlay').style.display = 'flex';
+            updateClock(selectedDate);
+            document.getElementById('modalOverlay').style.display = 'block';
+            document.querySelector('#modalOverlay .modal-content').scrollTop = 0;
             document.querySelector('#modalOverlay .close-btn').focus();
         }
 
@@ -499,7 +511,9 @@
         function updateClock(dateStr) {
             const d = new Date();
             const fmt = (n) => String(n).padStart(2, '0');
-            document.getElementById('clockDisplay').innerText = `${dateStr} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+            const display = `${dateStr} ${fmt(d.getHours())}:${fmt(d.getMinutes())}:${fmt(d.getSeconds())} 現在`;
+            document.getElementById('clockDisplay').innerText = display;
+            document.getElementById('modalClockDisplay').innerText = display;
         }
 
         document.getElementById('lineSelect').addEventListener('change', handleLineChange);
@@ -511,12 +525,11 @@
             saveSelection();
             render();
         });
-        document.getElementById('reloadButton').addEventListener('click', loadData);
         document.getElementById('modalOverlay').addEventListener('click', event => {
             if (event.target.id === 'modalOverlay') closeModal();
         });
         document.addEventListener('keydown', event => {
-            if (event.key === 'Escape' && document.getElementById('modalOverlay').style.display === 'flex') closeModal();
+            if (event.key === 'Escape' && document.getElementById('modalOverlay').style.display === 'block') closeModal();
         });
 
         window.onload = () => {
