@@ -3,50 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a3f30">
-  <meta name="description" content="JR東日本の列車番号、在線位置、行先、遅延を素早く検索・絞り込みできる列車在線データ">
-  <title>列車在線 DATA｜東京圏輸送情報システム</title>
+  <meta name="theme-color" content="#006149">
+  <title>列車在線情報 - 東京圏輸送情報システム</title>
   <link rel="stylesheet" href="train_dashboard.css">
 </head>
 <body>
   <a class="skip-link" href="#main">本文へ移動</a>
   <div id="main-content" style="display:none">
-    <header class="app-header">
-      <a class="brand" href="toppage.html" aria-label="東京圏輸送情報システム トップへ">
-        <span class="brand-mark">TT</span>
-        <span class="brand-copy"><strong>列車在線 DATA</strong><small>LIVE TRAIN EXPLORER</small></span>
-      </a>
-      <nav class="header-nav" aria-label="主要メニュー">
-        <a class="keep-mobile" href="train_grasp.html">運行把握</a>
-        <a href="atosweb.html">ATOS Web</a>
-        <a href="toppage.html">メニュー</a>
-      </nav>
-      <div class="header-clock"><span id="clock">--:--</span><small id="today">----/--/--</small></div>
+    <header class="system-header">
+      <div class="system-header-inner">
+        <div class="system-name">東京圏輸送情報システム</div>
+        <div class="system-sub">列車在線情報</div>
+        <nav class="system-nav" aria-label="主要メニュー">
+          <a class="mobile-keep" href="train_grasp.html">運行把握</a>
+          <a href="atosweb.html">ATOS Web</a>
+          <a href="toppage.html">メインメニュー</a>
+        </nav>
+        <div class="clock"><span id="clock">--:--:--</span><small id="date">----/--/--</small></div>
+      </div>
     </header>
 
-    <main class="shell" id="main">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">LIVE TRAIN DATA EXPLORER</p>
-          <h1>列車を、すぐ見つける。</h1>
-          <p>列車番号・路線・行先・在線位置を横断検索。運行全体ではなく、気になる一本を確認するための画面です。</p>
+    <main class="page" id="main">
+      <div class="title-row">
+        <h1>列車在線情報</h1>
+        <span class="description">列車番号・在線位置・遅延状況</span>
+        <div class="connection" role="status" aria-live="polite">
+          <i class="connection-dot loading" id="connectionDot"></i>
+          <span id="connectionText">データ取得中</span>
+          <span id="updatedAt"></span>
         </div>
-        <div class="hero-status" role="status" aria-live="polite">
-          <span class="pulse loading" id="connectionPulse"></span>
-          <span><strong id="connectionText">在線データを取得中</strong><small id="lastUpdated">初回読み込み中</small></span>
-        </div>
-      </section>
+      </div>
 
       <div class="notice" id="errorNotice" role="alert"></div>
 
-      <section class="toolbar" aria-label="列車の検索と絞り込み">
-        <div class="field" style="flex:2 1 280px">
-          <label for="searchInput">クイック検索</label>
-          <input id="searchInput" type="search" inputmode="search" placeholder="列車番号・行先・在線位置" autocomplete="off">
+      <div class="toolbar" aria-label="表示条件">
+        <div class="field grow">
+          <label for="searchInput">検索</label>
+          <input id="searchInput" type="search" placeholder="列車番号・駅名・行先" autocomplete="off">
         </div>
         <div class="field">
-          <label for="lineSelector">路線</label>
-          <select id="lineSelector"><option value="all">全路線</option></select>
+          <label for="lineSelector">線区</label>
+          <select id="lineSelector"><option value="all">全線区</option></select>
         </div>
         <div class="field">
           <label for="directionSelector">方面</label>
@@ -58,286 +55,179 @@
           </select>
         </div>
         <div class="field">
-          <label for="delaySelector">運行状態</label>
+          <label for="delaySelector">状態</label>
           <select id="delaySelector">
             <option value="all">すべて</option>
-            <option value="delay">遅延列車のみ</option>
-            <option value="major">10分以上のみ</option>
+            <option value="delay">遅延のみ</option>
+            <option value="major">10分以上</option>
             <option value="normal">定刻のみ</option>
           </select>
         </div>
-        <button class="button" id="refreshButton" type="button">↻ 更新</button>
-        <button class="button ghost" id="resetButton" type="button">条件クリア</button>
-      </section>
+        <button class="btn" id="refreshButton" type="button">更新</button>
+        <button class="btn secondary" id="resetButton" type="button">条件解除</button>
+      </div>
 
-      <section class="kpi-grid" aria-label="検索結果の概況">
-        <article class="kpi"><div class="kpi-label">取得列車</div><div class="kpi-value"><span id="totalCount">–</span><small>本</small></div></article>
-        <article class="kpi good"><div class="kpi-label">現在の表示</div><div class="kpi-value"><span id="visibleCount">–</span><small>本</small></div></article>
-        <article class="kpi warn"><div class="kpi-label">遅延列車</div><div class="kpi-value"><span id="delayedCount">–</span><small>本</small></div></article>
-        <article class="kpi bad"><div class="kpi-label">最大遅延</div><div class="kpi-value"><span id="maxDelay">–</span><small>分</small></div></article>
+      <section class="summary" aria-label="列車集計">
+        <div class="summary-item"><div class="summary-label">取得列車</div><div class="summary-value"><span id="totalCount">–</span><small>本</small></div></div>
+        <div class="summary-item"><div class="summary-label">表示列車</div><div class="summary-value"><span id="visibleCount">–</span><small>本</small></div></div>
+        <div class="summary-item"><div class="summary-label">遅延列車</div><div class="summary-value warning"><span id="delayedCount">–</span><small>本</small></div></div>
+        <div class="summary-item"><div class="summary-label">最大遅延</div><div class="summary-value danger"><span id="maxDelay">–</span><small>分</small></div></div>
       </section>
 
       <section class="panel">
-        <div class="panel-head">
-          <div><h2 class="panel-title">列車一覧</h2><p class="panel-subtitle" id="resultSummary">在線データを読み込んでいます</p></div>
+        <div class="panel-header">
+          <h2>列車一覧</h2>
+          <span class="panel-note" id="resultSummary">読み込み中</span>
           <div class="panel-actions">
-            <button class="button secondary compact" id="sortButton" type="button" aria-pressed="false">遅延順に並べる</button>
-            <a class="button secondary compact" href="train_grasp.html">路線全体を見る</a>
+            <button class="btn secondary" id="sortButton" type="button" aria-pressed="false">遅延順</button>
+            <a class="btn secondary" href="train_grasp.html">広域路線図</a>
           </div>
         </div>
-        <div class="data-table-wrap">
+        <div class="table-wrap">
           <table class="data-table">
-            <thead>
-              <tr>
-                <th scope="col">列車番号</th><th scope="col">種別</th><th scope="col">路線</th>
-                <th scope="col">方面</th><th scope="col">行先</th><th scope="col">在線位置</th>
-                <th scope="col">両数</th><th scope="col">状態</th>
-              </tr>
-            </thead>
+            <thead><tr><th>列車番号</th><th>種別</th><th>線区</th><th>方面</th><th>行先</th><th>在線位置</th><th>両数</th><th>状態</th></tr></thead>
             <tbody id="trainBody"></tbody>
           </table>
         </div>
-        <div class="mobile-trains" id="mobileTrains"></div>
+        <div class="mobile-list" id="mobileList"></div>
       </section>
-
-      <footer class="footer">
-        <span>表示はODPT等から取得した参考情報です。実際の運行判断には鉄道事業者の公式案内をご確認ください。</span>
-        <span><a href="train_grasp.html">路線単位の運行把握</a> ／ <a href="atosweb.html">時刻表・駅情報</a></span>
-      </footer>
+      <footer class="footer">本画面は在線状況の確認を補助する参考表示です。実際の列車位置・時刻とは差が生じる場合があります。</footer>
     </main>
 
-    <div class="drawer-backdrop" id="drawerBackdrop"></div>
-    <aside class="drawer" id="detailDrawer" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
-      <div class="drawer-head">
-        <div><h2 id="detailTitle">列車詳細</h2><p id="detailSubtitle">在線データ</p></div>
-        <button class="icon-button" id="closeDrawer" type="button" aria-label="閉じる">×</button>
-      </div>
-      <div class="drawer-body" id="detailBody"></div>
-    </aside>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <section class="detail-dialog" id="detailDialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="dialog-header"><h2 id="detailTitle">列車詳細</h2><button id="closeDialog" type="button">閉じる</button></div>
+      <div class="dialog-body" id="detailBody"></div>
+    </section>
   </div>
 
   <script>
   (() => {
     'use strict';
-    const API_URL = '/api/odpt/challenge/odpt:Train?odpt:operator=odpt.Operator:JR-East';
-    const LINES = {
+    const BASE='/api/odpt/challenge/';
+    const LINES={
       'JR-East.Yamanote':'山手線','JR-East.ChuoRapid':'中央線快速','JR-East.KeihinTohokuNegishi':'京浜東北・根岸線',
       'JR-East.ChuoSobuLocal':'中央・総武線各駅停車','JR-East.SobuRapid':'総武快速線','JR-East.Yokosuka':'横須賀線',
       'JR-East.Tokaido':'東海道線','JR-East.ShonanShinjuku':'湘南新宿ライン','JR-East.SotetsuDirect':'相鉄線直通',
       'JR-East.SaikyoKawagoe':'埼京・川越線','JR-East.Kawagoe':'川越線','JR-East.Utsunomiya':'宇都宮線',
       'JR-East.Takasaki':'高崎線','JR-East.JobanRapid':'常磐線快速','JR-East.JobanLocal':'常磐線各駅停車',
-      'JR-East.Joban':'常磐線','JR-East.Musashino':'武蔵野線','JR-East.Keiyo':'京葉線',
-      'JR-East.Yokohama':'横浜線','JR-East.Nambu':'南武線','JR-East.Sagami':'相模線',
-      'JR-East.Ome':'青梅線','JR-East.Itsukaichi':'五日市線','JR-East.Chuo':'中央本線',
-      'JR-East.Sotobo':'外房線','JR-East.Uchibo':'内房線','JR-East.Narita':'成田線',
+      'JR-East.Joban':'常磐線','JR-East.Musashino':'武蔵野線','JR-East.Keiyo':'京葉線','JR-East.Yokohama':'横浜線',
+      'JR-East.Nambu':'南武線','JR-East.Sagami':'相模線','JR-East.Ome':'青梅線','JR-East.Itsukaichi':'五日市線',
+      'JR-East.Chuo':'中央本線','JR-East.Sotobo':'外房線','JR-East.Uchibo':'内房線','JR-East.Narita':'成田線',
       'JR-East.Sobu':'総武本線','JR-East.Nikko':'日光線','JR-East.Hachiko':'八高線'
     };
-    const TRAIN_TYPES = {
-      'Local':'普通','Rapid':'快速','SpecialRapid':'特別快速','ChuoSpecialRapid':'中央特快',
-      'OmeSpecialRapid':'青梅特快','CommuterRapid':'通勤快速','CommuterSpecialRapid':'通勤特快',
-      'LimitedExpress':'特急','Express':'急行','HolidayRapid':'ホリデー快速'
+    const TYPES={Local:'普通',Rapid:'快速',SpecialRapid:'特別快速',ChuoSpecialRapid:'中央特快',OmeSpecialRapid:'青梅特快',CommuterRapid:'通勤快速',CommuterSpecialRapid:'通勤特快',LimitedExpress:'特急',Express:'急行',HolidayRapid:'ホリデー快速'};
+    const FALLBACK={Tokyo:'東京',Ueno:'上野',Shinjuku:'新宿',Shibuya:'渋谷',Ikebukuro:'池袋',Shinagawa:'品川',Omiya:'大宮',Yokohama:'横浜',Ofuna:'大船',Odawara:'小田原',Atami:'熱海',Takasaki:'高崎',Utsunomiya:'宇都宮',Chiba:'千葉',Soga:'蘇我',Narita:'成田',Kawasaki:'川崎',Tachikawa:'立川',Hachioji:'八王子',Takao:'高尾',Kofu:'甲府',Matsumoto:'松本',Toride:'取手',Tsuchiura:'土浦',Mito:'水戸',Iwaki:'いわき'};
+    const state={trains:[],visible:[],stationNames:new Map(),sortDelay:false,lastFocus:null};
+    const $=id=>document.getElementById(id);
+    const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const token=value=>String(value||'').split(':').pop().split('.').pop();
+    const railwayKey=value=>String(value||'').replace('odpt.Railway:','');
+    const stationName=value=>{
+      if(!value)return '—';
+      return state.stationNames.get(value)||FALLBACK[token(value)]||'駅名情報取得中';
     };
-    const STATIONS = {
-      Tokyo:'東京',Kanda:'神田',Akihabara:'秋葉原',Ueno:'上野',Nippori:'日暮里',Tabata:'田端',
-      Ikebukuro:'池袋',Shinjuku:'新宿',Shibuya:'渋谷',Osaki:'大崎',Shinagawa:'品川',Shimbashi:'新橋',
-      Omiya:'大宮',Urawa:'浦和',Akabane:'赤羽',Kawagoe:'川越',Takasaki:'高崎',Utsunomiya:'宇都宮',
-      Oyama:'小山',Kuroiso:'黒磯',Kumagaya:'熊谷',Kagohara:'籠原',Maebashi:'前橋',
-      Yokohama:'横浜',Ofuna:'大船',Fujisawa:'藤沢',Hiratsuka:'平塚',Odawara:'小田原',Atami:'熱海',
-      Totsuka:'戸塚',Zushi:'逗子',Yokosuka:'横須賀',Kurihama:'久里浜',Kawasaki:'川崎',
-      Chiba:'千葉',Funabashi:'船橋',Tsudanuma:'津田沼',Soga:'蘇我',Narita:'成田',
-      NaritaAirportTerminal1:'成田空港',NaritaAirportTerminal2and3:'空港第2ビル',Choshi:'銚子',
-      Hachioji:'八王子',Tachikawa:'立川',Mitaka:'三鷹',Nakano:'中野',Kunitachi:'国立',
-      Takao:'高尾',Otsuki:'大月',Kofu:'甲府',Matsumoto:'松本',Okutama:'奥多摩',
-      NishiFunabashi:'西船橋',MinamiUrawa:'南浦和',Fuchuhommachi:'府中本町',KaihinMakuhari:'海浜幕張',
-      Maihama:'舞浜',ShinKiba:'新木場',Hashimoto:'橋本',Machida:'町田',Sakuragicho:'桜木町',
-      Ebina:'海老名',Chigasaki:'茅ヶ崎',Toride:'取手',Tsuchiura:'土浦',Mito:'水戸',Iwaki:'いわき'
+    const lineName=value=>LINES[railwayKey(value)]||railwayKey(value).replace('JR-East.','');
+    const typeName=value=>TYPES[token(value)]||token(value)||'普通';
+    const directionName=value=>{
+      const key=token(value);
+      return {Inbound:'上り',Outbound:'下り',InnerLoop:'内回り',OuterLoop:'外回り',Northbound:'北行',Southbound:'南行',Eastbound:'東行',Westbound:'西行'}[key]||key||'—';
     };
-    const state = { trains: [], visible: [], sortDelay: false, lastFocus: null };
-    const $ = id => document.getElementById(id);
-    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    const token = value => String(value || '').split(':').pop().split('.').pop();
-    const railwayKey = value => String(value || '').replace('odpt.Railway:', '');
-    const stationName = value => {
-      if (!value) return '情報なし';
-      const key = token(value);
-      return STATIONS[key] || key.replace(/([a-z])([A-Z])/g, '$1 $2');
-    };
-    const lineName = value => LINES[railwayKey(value)] || railwayKey(value).replace('JR-East.','');
-    const typeName = value => TRAIN_TYPES[token(value)] || token(value) || '普通';
-    const delayMinutes = value => Math.max(0, Math.floor((Number(value) || 0) / 60));
-    const directionName = value => {
-      const key = token(value).toLowerCase();
-      if (/inbound|inner/.test(key)) return '上り・内回り';
-      if (/outbound|outer/.test(key)) return '下り・外回り';
-      if (/northbound/.test(key)) return '北行';
-      if (/southbound/.test(key)) return '南行';
-      if (/eastbound/.test(key)) return '東行';
-      if (/westbound/.test(key)) return '西行';
-      return token(value) || '—';
-    };
-    const directionGroup = value => /Inbound|Inner/.test(String(value)) ? 'inbound' : /Outbound|Outer/.test(String(value)) ? 'outbound' : 'cardinal';
+    const directionGroup=value=>/Inbound|Inner/.test(String(value))?'inbound':/Outbound|Outer/.test(String(value))?'outbound':'cardinal';
 
-    function normalizedTrain(raw, index) {
-      const from = stationName(raw['odpt:fromStation']);
-      const to = stationName(raw['odpt:toStation']);
-      const destinationRaw = Array.isArray(raw['odpt:destinationStation']) ? raw['odpt:destinationStation'][0] : raw['odpt:destinationStation'];
-      const destination = stationName(destinationRaw);
-      const delay = delayMinutes(raw['odpt:delay']);
-      const position = raw['odpt:toStation'] ? `${from} → ${to}` : from;
+    function normalize(raw,index){
+      const from=stationName(raw['odpt:fromStation']),to=stationName(raw['odpt:toStation']);
+      const destinationRaw=Array.isArray(raw['odpt:destinationStation'])?raw['odpt:destinationStation'][0]:raw['odpt:destinationStation'];
+      const destination=stationName(destinationRaw);
+      const delay=Math.max(0,Math.floor((Number(raw['odpt:delay'])||0)/60));
       return {
-        id: raw['owl:sameAs'] || `${raw['odpt:trainNumber'] || 'train'}-${index}`,
-        raw, number: raw['odpt:trainNumber'] || '番号なし', lineKey: railwayKey(raw['odpt:railway']),
-        line: lineName(raw['odpt:railway']), type: typeName(raw['odpt:trainType']),
-        direction: directionName(raw['odpt:railDirection']), directionGroup: directionGroup(raw['odpt:railDirection']),
-        destination, from, to, position, delay,
-        cars: raw['odpt:carComposition'] || '—',
-        search: [raw['odpt:trainNumber'], lineName(raw['odpt:railway']), destination, from, to, typeName(raw['odpt:trainType'])].join(' ').toLowerCase()
+        id:raw['owl:sameAs']||`${raw['odpt:trainNumber']||'train'}-${index}`,raw,
+        number:raw['odpt:trainNumber']||'番号なし',lineKey:railwayKey(raw['odpt:railway']),line:lineName(raw['odpt:railway']),
+        type:typeName(raw['odpt:trainType']),direction:directionName(raw['odpt:railDirection']),directionGroup:directionGroup(raw['odpt:railDirection']),
+        destination,from,to,position:raw['odpt:toStation']?`${from}－${to}`:from,delay,cars:raw['odpt:carComposition']||'—'
       };
     }
-
-    function tickClock() {
-      const now = new Date();
-      $('clock').textContent = now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-      $('today').textContent = now.toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'});
+    function setSearchValue(train){train.search=[train.number,train.line,train.type,train.direction,train.destination,train.from,train.to].join(' ').toLowerCase();return train;}
+    async function request(path){
+      const response=await fetch(BASE+path,{headers:{Accept:'application/json'},cache:'no-store'});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      return response.json();
     }
-
-    function populateLines() {
-      const selected = $('lineSelector').value;
-      const lines = [...new Map(state.trains.map(train => [train.lineKey, train.line])).entries()].sort((a,b) => a[1].localeCompare(b[1],'ja'));
-      $('lineSelector').innerHTML = '<option value="all">全路線</option>' + lines.map(([key,name]) => `<option value="${escapeHtml(key)}">${escapeHtml(name)}</option>`).join('');
-      if (lines.some(([key]) => key === selected)) $('lineSelector').value = selected;
+    function buildStationMap(stations){
+      state.stationNames.clear();
+      (Array.isArray(stations)?stations:[]).forEach(station=>{
+        const id=station['owl:sameAs'];const title=station['odpt:stationTitle'];
+        const ja=typeof title==='string'?title:title?.ja;
+        if(id&&ja)state.stationNames.set(id,ja);
+      });
     }
-
-    function applyFilters() {
-      const query = $('searchInput').value.trim().toLowerCase();
-      const line = $('lineSelector').value;
-      const direction = $('directionSelector').value;
-      const delay = $('delaySelector').value;
-      state.visible = state.trains.filter(train =>
-        (!query || train.search.includes(query)) &&
-        (line === 'all' || train.lineKey === line) &&
-        (direction === 'all' || train.directionGroup === direction) &&
-        (delay === 'all' || (delay === 'delay' && train.delay > 0) || (delay === 'major' && train.delay >= 10) || (delay === 'normal' && train.delay === 0))
+    async function hydrateMissingStations(rawTrains){
+      const ids=[...new Set((Array.isArray(rawTrains)?rawTrains:[]).flatMap(train=>[
+        train['odpt:fromStation'],train['odpt:toStation'],...(Array.isArray(train['odpt:destinationStation'])?train['odpt:destinationStation']:[train['odpt:destinationStation']])
+      ]).filter(id=>id&&!state.stationNames.has(id)&&!FALLBACK[token(id)]))].slice(0,60);
+      if(!ids.length)return;
+      const results=await Promise.all(ids.map(id=>request(`odpt:Station?owl:sameAs=${encodeURIComponent(id)}`).catch(()=>[])));
+      results.flat().forEach(station=>{
+        const id=station['owl:sameAs'];const title=station['odpt:stationTitle'];const ja=typeof title==='string'?title:title?.ja;
+        if(id&&ja)state.stationNames.set(id,ja);
+      });
+    }
+    function populateLines(){
+      const current=$('lineSelector').value;
+      const lines=[...new Map(state.trains.map(train=>[train.lineKey,train.line])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'ja'));
+      $('lineSelector').innerHTML='<option value="all">全線区</option>'+lines.map(([key,name])=>`<option value="${esc(key)}">${esc(name)}</option>`).join('');
+      if(lines.some(([key])=>key===current))$('lineSelector').value=current;
+    }
+    function status(train){return train.delay?`<span class="delay-text">${train.delay}分遅れ</span>`:'<span class="ontime-text">定刻</span>';}
+    function applyFilters(){
+      const query=$('searchInput').value.trim().toLowerCase(),line=$('lineSelector').value,direction=$('directionSelector').value,delay=$('delaySelector').value;
+      state.visible=state.trains.filter(train=>
+        (!query||train.search.includes(query))&&(line==='all'||train.lineKey===line)&&(direction==='all'||train.directionGroup===direction)&&
+        (delay==='all'||(delay==='delay'&&train.delay>0)||(delay==='major'&&train.delay>=10)||(delay==='normal'&&train.delay===0))
       );
-      if (state.sortDelay) state.visible.sort((a,b) => b.delay - a.delay || a.number.localeCompare(b.number,'ja',{numeric:true}));
+      if(state.sortDelay)state.visible.sort((a,b)=>b.delay-a.delay||a.number.localeCompare(b.number,'ja',{numeric:true}));
       render();
     }
-
-    function statusHtml(train) {
-      return train.delay > 0
-        ? `<span class="delay-text">${train.delay}分遅れ</span>`
-        : '<span class="ontime-text">定刻</span>';
+    function render(){
+      const rows=state.visible.slice(0,1000);
+      $('trainBody').innerHTML=rows.length?rows.map(train=>`<tr tabindex="0" data-train-id="${esc(train.id)}"><td class="train-number">${esc(train.number)}</td><td><span class="train-type ${train.type.includes('特急')?'express':''}">${esc(train.type)}</span></td><td>${esc(train.line)}</td><td>${esc(train.direction)}</td><td>${esc(train.destination)}</td><td>${esc(train.position)}</td><td>${esc(train.cars)}${train.cars==='—'?'':'両'}</td><td>${status(train)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">該当列車はありません。</td></tr>';
+      $('mobileList').innerHTML=rows.length?rows.map(train=>`<article class="train-card" tabindex="0" role="button" data-train-id="${esc(train.id)}"><div class="train-card-head"><strong>${esc(train.number)}　${esc(train.type)}</strong>${status(train)}</div><p>${esc(train.line)}　${esc(train.direction)}</p><dl><dt>行先</dt><dd>${esc(train.destination)}</dd><dt>在線</dt><dd>${esc(train.position)}</dd></dl></article>`).join(''):'<div class="empty">該当列車はありません。</div>';
+      $('totalCount').textContent=state.trains.length.toLocaleString('ja-JP');$('visibleCount').textContent=state.visible.length.toLocaleString('ja-JP');
+      $('delayedCount').textContent=state.trains.filter(train=>train.delay>0).length.toLocaleString('ja-JP');$('maxDelay').textContent=Math.max(0,...state.trains.map(train=>train.delay));
+      $('resultSummary').textContent=`${state.visible.length.toLocaleString('ja-JP')}本表示${state.visible.length>1000?'（先頭1,000本）':''}`;
     }
-
-    function render() {
-      const rows = state.visible.slice(0, 1000);
-      $('trainBody').innerHTML = rows.length ? rows.map(train => `<tr tabindex="0" data-id="${escapeHtml(train.id)}" aria-label="${escapeHtml(train.number)}列車の詳細を開く">
-        <td><span class="train-number">${escapeHtml(train.number)}</span></td>
-        <td><span class="type-tag ${train.type.includes('特急') ? 'express' : ''}">${escapeHtml(train.type)}</span></td>
-        <td>${escapeHtml(train.line)}</td><td>${escapeHtml(train.direction)}</td><td>${escapeHtml(train.destination)}</td>
-        <td class="position-cell"><strong>${escapeHtml(train.position)}</strong><small>${train.to === '情報なし' ? '駅停車中' : '駅間在線'}</small></td>
-        <td>${escapeHtml(train.cars)}${train.cars !== '—' ? '両' : ''}</td><td>${statusHtml(train)}</td>
-      </tr>`).join('') : '<tr><td colspan="8"><div class="empty"><span><strong>該当する列車がありません</strong>検索語または絞り込み条件を変更してください。</span></div></td></tr>';
-      $('mobileTrains').innerHTML = rows.length ? rows.map(train => `<article class="train-card" tabindex="0" role="button" data-id="${escapeHtml(train.id)}">
-        <div class="train-card-top"><div><h3>${escapeHtml(train.number)}</h3><span class="type-tag ${train.type.includes('特急') ? 'express' : ''}">${escapeHtml(train.type)}</span></div>${statusHtml(train)}</div>
-        <p><strong>${escapeHtml(train.line)}</strong>　${escapeHtml(train.direction)}</p>
-        <div class="train-card-grid"><div><small>行先</small><strong>${escapeHtml(train.destination)}</strong></div><div><small>在線位置</small><strong>${escapeHtml(train.position)}</strong></div></div>
-      </article>`).join('') : '<div class="empty"><span><strong>該当する列車がありません</strong>条件を変更してください。</span></div>';
-      $('totalCount').textContent = state.trains.length.toLocaleString('ja-JP');
-      $('visibleCount').textContent = state.visible.length.toLocaleString('ja-JP');
-      $('delayedCount').textContent = state.trains.filter(train => train.delay > 0).length.toLocaleString('ja-JP');
-      $('maxDelay').textContent = Math.max(0, ...state.trains.map(train => train.delay));
-      $('resultSummary').textContent = `${state.visible.length.toLocaleString('ja-JP')}本を表示${state.visible.length > 1000 ? '（先頭1,000本）' : ''}・行を選択すると詳細を確認できます`;
+    function openDetail(id,trigger){
+      const train=state.trains.find(item=>item.id===id);if(!train)return;state.lastFocus=trigger;
+      $('detailTitle').textContent=`${train.number} 列車詳細`;
+      $('detailBody').innerHTML=`<div class="detail-table"><div class="key">線区</div><div>${esc(train.line)}</div><div class="key">種別</div><div>${esc(train.type)}</div><div class="key">方面</div><div>${esc(train.direction)}</div><div class="key">行先</div><div>${esc(train.destination)}</div><div class="key">在線位置</div><div>${esc(train.position)}</div><div class="key">編成両数</div><div>${esc(train.cars)}${train.cars==='—'?'':'両'}</div><div class="key">運行状態</div><div>${train.delay?`${train.delay}分遅れ`:'定刻'}</div></div><div class="dialog-actions"><a class="btn" href="atosweb.html">ATOS Web</a><a class="btn secondary" href="train_grasp.html">広域路線図</a></div>`;
+      $('modalBackdrop').classList.add('open');$('detailDialog').classList.add('open');$('closeDialog').focus();
     }
-
-    function detailContent(train) {
-      return `<div class="detail-hero">
-        <span class="type-tag ${train.type.includes('特急') ? 'express' : ''}">${escapeHtml(train.type)}</span>
-        <div class="detail-route"><span>${escapeHtml(train.from)}</span><i></i><span>${escapeHtml(train.to === '情報なし' ? train.from : train.to)}</span></div>
-      </div>
-      <div class="detail-grid">
-        <div><small>路線</small><strong>${escapeHtml(train.line)}</strong></div>
-        <div><small>方面</small><strong>${escapeHtml(train.direction)}</strong></div>
-        <div><small>行先</small><strong>${escapeHtml(train.destination)}</strong></div>
-        <div><small>編成両数</small><strong>${escapeHtml(train.cars)}${train.cars !== '—' ? '両' : ''}</strong></div>
-        <div><small>在線位置</small><strong>${escapeHtml(train.position)}</strong></div>
-        <div><small>運行状態</small><strong>${train.delay ? `${train.delay}分遅れ` : '定刻'}</strong></div>
-      </div>
-      <div class="detail-note">在線位置は配信データ上の現在位置です。実際の位置・時刻とは差が生じる場合があります。</div>
-      <div class="detail-links">
-        <a class="button" href="atosweb.html">ATOS Webで深掘り</a>
-        <a class="button secondary" href="train_grasp.html">路線全体を見る</a>
-      </div>`;
+    function closeDetail(){$('modalBackdrop').classList.remove('open');$('detailDialog').classList.remove('open');state.lastFocus?.focus();}
+    async function refresh(){
+      $('refreshButton').disabled=true;$('connectionDot').className='connection-dot loading';$('connectionText').textContent='更新中';$('errorNotice').classList.remove('show');
+      try{
+        const [rawTrains,stations]=await Promise.all([
+          request('odpt:Train?odpt:operator=odpt.Operator:JR-East'),
+          request('odpt:Station?odpt:operator=odpt.Operator:JR-East').catch(()=>[])
+        ]);
+        buildStationMap(stations);await hydrateMissingStations(rawTrains);state.trains=(Array.isArray(rawTrains)?rawTrains:[]).map(normalize).map(setSearchValue);
+        populateLines();applyFilters();$('connectionDot').className='connection-dot';$('connectionText').textContent='接続中';$('updatedAt').textContent=new Date().toLocaleTimeString('ja-JP')+'更新';
+      }catch(error){
+        console.error(error);$('connectionDot').className='connection-dot error';$('connectionText').textContent='取得エラー';$('errorNotice').textContent='在線データを取得できませんでした。';$('errorNotice').classList.add('show');render();
+      }finally{$('refreshButton').disabled=false;}
     }
-
-    function openDetail(id, trigger) {
-      const train = state.trains.find(item => item.id === id);
-      if (!train) return;
-      state.lastFocus = trigger;
-      $('detailTitle').textContent = `${train.number} 列車`;
-      $('detailSubtitle').textContent = `${train.line} ／ ${train.type}`;
-      $('detailBody').innerHTML = detailContent(train);
-      $('drawerBackdrop').classList.add('open');
-      $('detailDrawer').classList.add('open');
-      document.body.style.overflow = 'hidden';
-      $('closeDrawer').focus();
-    }
-
-    function closeDetail() {
-      $('drawerBackdrop').classList.remove('open');
-      $('detailDrawer').classList.remove('open');
-      document.body.style.overflow = '';
-      if (state.lastFocus) state.lastFocus.focus();
-    }
-
-    async function refresh() {
-      $('refreshButton').disabled = true;
-      $('connectionPulse').className = 'pulse loading';
-      $('connectionText').textContent = '在線データを更新中';
-      $('errorNotice').classList.remove('show');
-      try {
-        const response = await fetch(API_URL, {headers:{'Accept':'application/json'}, cache:'no-store'});
-        if (!response.ok) throw new Error(`データ取得エラー (${response.status})`);
-        const data = await response.json();
-        state.trains = (Array.isArray(data) ? data : []).map(normalizedTrain);
-        populateLines(); applyFilters();
-        const now = new Date();
-        $('connectionPulse').className = 'pulse';
-        $('connectionText').textContent = 'データ接続中';
-        $('lastUpdated').textContent = `${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} 更新`;
-      } catch (error) {
-        console.error(error);
-        $('connectionPulse').className = 'pulse error';
-        $('connectionText').textContent = 'データを取得できません';
-        $('errorNotice').textContent = '在線データを取得できませんでした。通信状態を確認して、しばらくしてから更新してください。';
-        $('errorNotice').classList.add('show');
-        render();
-      } finally { $('refreshButton').disabled = false; }
-    }
-
-    let searchTimer;
-    $('searchInput').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 120); });
-    ['lineSelector','directionSelector','delaySelector'].forEach(id => $(id).addEventListener('change', applyFilters));
-    $('refreshButton').addEventListener('click', refresh);
-    $('resetButton').addEventListener('click', () => {
-      $('searchInput').value = ''; $('lineSelector').value = 'all'; $('directionSelector').value = 'all'; $('delaySelector').value = 'all'; applyFilters();
+    let timer;$('searchInput').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(applyFilters,120);});
+    ['lineSelector','directionSelector','delaySelector'].forEach(id=>$(id).addEventListener('change',applyFilters));
+    $('refreshButton').addEventListener('click',refresh);
+    $('resetButton').addEventListener('click',()=>{$('searchInput').value='';$('lineSelector').value='all';$('directionSelector').value='all';$('delaySelector').value='all';applyFilters();});
+    $('sortButton').addEventListener('click',e=>{state.sortDelay=!state.sortDelay;e.currentTarget.setAttribute('aria-pressed',String(state.sortDelay));e.currentTarget.textContent=state.sortDelay?'配信順':'遅延順';applyFilters();});
+    ['trainBody','mobileList'].forEach(id=>{
+      $(id).addEventListener('click',e=>{const row=e.target.closest('[data-train-id]');if(row)openDetail(row.dataset.trainId,row);});
+      $(id).addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const row=e.target.closest('[data-train-id]');if(row){e.preventDefault();openDetail(row.dataset.trainId,row);}}});
     });
-    $('sortButton').addEventListener('click', event => {
-      state.sortDelay = !state.sortDelay;
-      event.currentTarget.setAttribute('aria-pressed', String(state.sortDelay));
-      event.currentTarget.textContent = state.sortDelay ? '配信順に戻す' : '遅延順に並べる';
-      applyFilters();
-    });
-    ['trainBody','mobileTrains'].forEach(id => $(id).addEventListener('click', event => {
-      const target = event.target.closest('[data-id]'); if (target) openDetail(target.dataset.id, target);
-    }));
-    ['trainBody','mobileTrains'].forEach(id => $(id).addEventListener('keydown', event => {
-      if (event.key === 'Enter' || event.key === ' ') { const target = event.target.closest('[data-id]'); if (target) { event.preventDefault(); openDetail(target.dataset.id, target); } }
-    }));
-    $('closeDrawer').addEventListener('click', closeDetail);
-    $('drawerBackdrop').addEventListener('click', closeDetail);
-    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDetail(); });
-    tickClock(); setInterval(tickClock, 1000); refresh(); setInterval(refresh, 60000);
+    $('closeDialog').addEventListener('click',closeDetail);$('modalBackdrop').addEventListener('click',closeDetail);document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+    function tick(){const now=new Date();$('clock').textContent=now.toLocaleTimeString('ja-JP');$('date').textContent=now.toLocaleDateString('ja-JP');}
+    tick();setInterval(tick,1000);refresh();setInterval(refresh,60000);
   })();
   </script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
