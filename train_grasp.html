@@ -5,7 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#006149">
   <title>運行把握モニタ - 東京圏輸送情報システム</title>
-  <link rel="stylesheet" href="train_dashboard.css">
+  <style>
+    :root{--green:#007b5a;--green-dark:#006149;--border:#aeb9b4;--line:#d9dfdc;--bg:#eef1ef;--text:#17221e;--muted:#586660;--amber:#e5a11a;--red:#e0443e;font-family:"Noto Sans JP","Yu Gothic UI","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text);background:var(--bg)}
+    *{box-sizing:border-box}body{margin:0;min-width:320px;background:var(--bg);font-size:14px}button,select{font:inherit}a{color:inherit}.skip-link{position:fixed;top:-60px;left:8px;z-index:999;padding:8px;background:#fff}.skip-link:focus{top:8px}
+    .system-header{min-height:52px;color:#fff;background:var(--green-dark);border-bottom:3px solid #004b38}.system-header-inner{display:flex;align-items:center;width:min(1500px,100%);min-height:52px;margin:auto;padding:0 14px}.system-name{font-size:16px;font-weight:800}.system-sub{margin-left:14px;color:#cce0d9;font-size:11px}.system-nav{display:flex;align-self:stretch;margin-left:auto}.system-nav a{display:flex;align-items:center;padding:0 13px;border-left:1px solid rgba(255,255,255,.2);color:#fff;text-decoration:none}.system-nav a:hover{background:rgba(0,0,0,.16)}.clock{min-width:90px;padding-left:14px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}.clock small{display:block;color:#cce0d9;font-size:9px;font-weight:400}
+    .page{width:min(1500px,calc(100% - 20px));margin:10px auto 30px}.title-row{display:flex;align-items:center;gap:12px;margin-bottom:7px;padding:8px 10px;border:1px solid var(--border);border-left:5px solid var(--green);background:#fff}.title-row h1{margin:0;font-size:18px}.description{color:var(--muted);font-size:11px}.connection{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:10px}.connection-dot{width:8px;height:8px;border-radius:50%;background:#14a46a}.connection-dot.loading{background:var(--amber);animation:blink 1s infinite}.connection-dot.error{background:var(--red)}@keyframes blink{50%{opacity:.35}}
+    .toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:7px;margin-bottom:7px;padding:7px;border:1px solid var(--border);background:#fff}.field{min-width:165px}.field label{display:block;margin-bottom:3px;color:#46534e;font-size:9px;font-weight:700}.field select{width:100%;height:32px;padding:4px 7px;border:1px solid #94a29c;border-radius:0;background:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:4px 11px;border:1px solid var(--green-dark);border-radius:0;color:#fff;background:var(--green);font-weight:700;text-decoration:none;cursor:pointer}.btn.secondary{color:#17372d;background:#fff;border-color:#879a92}.btn:disabled{opacity:.55}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);margin-bottom:7px;border:1px solid var(--border);background:#fff}.summary-item{padding:7px 10px;border-right:1px solid var(--line)}.summary-item:last-child{border-right:0}.summary-label{color:var(--muted);font-size:9px}.summary-value{margin-top:1px;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}.summary-value small{margin-left:2px;font-size:9px;font-weight:400}.summary-value.warning{color:#956000}.summary-value.danger{color:#b72e2a}
+    .operations-grid{display:grid;grid-template-columns:minmax(700px,1fr) 360px;gap:7px;align-items:start}.panel{border:1px solid var(--border);background:#fff}.panel-header{display:flex;align-items:center;min-height:36px;padding:5px 9px;border-bottom:1px solid var(--border);background:#f3f5f4}.panel-header h2{margin:0;font-size:12px}.panel-note{margin-left:9px;color:var(--muted);font-size:9px}.legend{display:flex;gap:10px;margin-left:auto}.legend span{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:9px}.legend i{width:18px;height:5px;background:#fff;border:1px solid #7e8b86}.legend i.delay{background:var(--amber);border:0}.legend i.major{background:var(--red);border:0}
+    .map-scroll{overflow:auto;background:#17201d}.map-wrap{position:relative;min-width:930px;height:600px}#networkCanvas{display:block;width:100%;height:600px}.map-caption{position:absolute;right:7px;bottom:7px;padding:3px 6px;border:1px solid #5b6964;color:#c8d0cd;background:rgba(18,25,23,.9);font-size:8px}.side-stack{display:grid;gap:7px}.alert-list{max-height:370px;overflow:auto}.alert-row{padding:8px 9px;border-bottom:1px solid var(--line)}.alert-row-head{display:flex;align-items:center;gap:6px}.alert-row strong{font-size:11px}.alert-row time{margin-left:auto;color:var(--muted);font-size:8px}.info-status{padding:1px 4px;color:#8d2b27;background:#ffe4e1;font-size:8px;font-weight:700}.info-status.notice{color:#44524d;background:#e9eeec}.alert-meta{margin-top:4px;color:#47554f;font-size:9px}.alert-row p{margin:4px 0 0;font-size:10px;line-height:1.55}.empty{padding:22px 10px;color:var(--muted);text-align:center;font-size:10px}
+    .line-table{width:100%;border-collapse:collapse}.line-table th,.line-table td{padding:5px 6px;border-bottom:1px solid var(--line);font-size:9px;text-align:left}.line-table th{background:#f7f8f7}.status-label{display:inline-block;min-width:45px;padding:1px 3px;color:#166847;background:#e3f2eb;text-align:center;font-size:8px;font-weight:700}.status-label.delay{color:#855500;background:#fff0ce}.status-label.major{color:#942824;background:#ffe1de}.status-label.unknown{color:#596660;background:#e9edeb}.notice{display:none;margin-bottom:7px;padding:7px 9px;border:1px solid #d29490;color:#8c2925;background:#fff1f0;font-size:10px}.notice.show{display:block}.footer{margin-top:7px;padding:6px 2px;color:var(--muted);font-size:8px}
+    @media(max-width:1080px){.operations-grid{grid-template-columns:1fr}.side-stack{grid-template-columns:1fr 1fr}}@media(max-width:720px){.system-sub,.clock,.system-nav a:not(.mobile-keep){display:none}.system-name{font-size:13px}.system-nav a{padding:0 9px;font-size:10px}.page{width:calc(100% - 10px);margin-top:5px}.title-row{flex-wrap:wrap}.description{width:100%}.connection{margin-left:0}.field{flex:1}.summary{grid-template-columns:1fr 1fr}.summary-item:nth-child(2){border-right:0}.summary-item:nth-child(-n+2){border-bottom:1px solid var(--line)}.side-stack{grid-template-columns:1fr}.legend{width:100%;margin:3px 0 0}.panel-header{flex-wrap:wrap}}
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">本文へ移動</a>
@@ -147,14 +158,27 @@
       const text = infoText(item).replace(/\s/g,'');
       return Boolean(text && !/^(平常運転|通常運転|平常どおり)$/.test(text));
     };
+    const infoField = (item,key) => {
+      const value=item?.[key];
+      return typeof value==='string'?value:value?.ja||value?.en||'';
+    };
+    const infoLevel = item => {
+      if(!infoIsIssue(item))return 'normal';
+      const status=infoField(item,'odpt:trainInformationStatus');
+      const text=infoText(item);
+      if(/運転見合わせ|運転中止/.test(status)||/運転を見合わせ/.test(text))return 'major';
+      if(/遅延|運転変更|直通運転中止|一部運休/.test(status)||/遅れ|運休/.test(text))return 'delay';
+      return 'notice';
+    };
     const officialInfo = key => state.info.find(item => {
       const raw = item['odpt:railway'];
       return (Array.isArray(raw) ? raw : raw ? [raw] : []).some(value => railwayKey(value) === key);
     });
     const severity = route => {
       const stat = state.stats.get(route.key);
-      if (infoIsIssue(officialInfo(route.key)) || stat?.max >= 20) return 'major';
-      if (stat?.delayed > 0) return 'delay';
+      const official=infoLevel(officialInfo(route.key));
+      if (official==='major' || stat?.max >= 20) return 'major';
+      if (official==='delay' || stat?.max >= 3) return 'delay';
       return stat?.total ? 'normal' : 'unknown';
     };
     const severityLabel = value => value === 'major' ? '異常' : value === 'delay' ? '遅延' : value === 'normal' ? '平常' : '情報なし';
@@ -189,8 +213,8 @@
       canvas.width = width*dpr; canvas.height = height*dpr;
       canvas.style.width = width+'px'; canvas.style.height = height+'px';
       const ctx = canvas.getContext('2d'); ctx.scale(dpr,dpr);
-      ctx.fillStyle='#f8faf9'; ctx.fillRect(0,0,width,height);
-      ctx.strokeStyle='#e2e8e5'; ctx.lineWidth=1;
+      ctx.fillStyle='#17201d'; ctx.fillRect(0,0,width,height);
+      ctx.strokeStyle='#29332f'; ctx.lineWidth=1;
       for(let x=30;x<width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,height);ctx.stroke();}
       for(let y=30;y<height;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();}
       const px = p => [35 + p[0]*(width-70)/100, 18 + p[1]*(height-36)/100];
@@ -200,15 +224,15 @@
         ctx.beginPath();
         route.path.forEach((point,index)=>{const [x,y]=px(point);index?ctx.lineTo(x,y):ctx.moveTo(x,y);});
         ctx.lineJoin='round';ctx.lineCap='round';ctx.lineWidth=visible?7:3;
-        ctx.strokeStyle=!visible?'#d6ddda':sev==='major'?'#c9302c':sev==='delay'?'#d97706':route.color;
+        ctx.strokeStyle=!visible?'#48534f':sev==='major'?'#e0443e':sev==='delay'?'#e5a11a':sev==='unknown'?'#69736f':'#ffffff';
         ctx.globalAlpha=visible?1:.28;ctx.stroke();ctx.globalAlpha=1;
       });
       STATIONS.forEach(([name,xv,yv])=>{
         const [x,y]=px([xv,yv]);
-        ctx.fillStyle='#fff';ctx.strokeStyle='#44564f';ctx.lineWidth=1.5;
+        ctx.fillStyle='#17201d';ctx.strokeStyle='#f4f7f6';ctx.lineWidth=1.5;
         ctx.beginPath();ctx.arc(x,y,4.2,0,Math.PI*2);ctx.fill();ctx.stroke();
         ctx.font='600 11px "Noto Sans JP","Yu Gothic",sans-serif';
-        ctx.textAlign=xv>84?'right':'left';ctx.textBaseline='bottom';ctx.fillStyle='#18241f';
+        ctx.textAlign=xv>84?'right':'left';ctx.textBaseline='bottom';ctx.fillStyle='#f5f7f6';
         ctx.fillText(name,x+(xv>84?-7:7),y-5);
       });
     }
@@ -228,11 +252,12 @@
       const alerts=state.info.filter(infoIsIssue).map(item=>{
         const raw=item['odpt:railway'];const keys=(Array.isArray(raw)?raw:raw?[raw]:[]).map(railwayKey);
         const names=keys.map(key=>routeNames[key]).filter(Boolean);if(!names.length)return null;
-        return {name:names.join('・'),text:infoText(item),time:item['dc:date']};
+        return {name:names.join('・'),text:infoText(item),time:item['dc:date'],status:infoField(item,'odpt:trainInformationStatus')||'お知らせ',cause:infoField(item,'odpt:trainInformationCause'),range:infoField(item,'odpt:trainInformationRange'),direction:directionLabel(item['odpt:railDirection'])};
       }).filter(Boolean);
-      $('alertList').innerHTML=alerts.length?alerts.map(item=>`<div class="alert-row"><div class="alert-row-head"><strong>${esc(item.name)}</strong><time>${item.time?new Date(item.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}):''}</time></div><p>${esc(item.text)}</p></div>`).join(''):'<div class="empty">対象線区に異常情報はありません。</div>';
+      $('alertList').innerHTML=alerts.length?alerts.map(item=>`<div class="alert-row"><div class="alert-row-head"><strong>${esc(item.name)}</strong><span class="info-status ${item.status==='お知らせ'?'notice':''}">${esc(item.status)}</span><time>${item.time?new Date(item.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}):''}</time></div>${item.cause||item.range||item.direction?`<div class="alert-meta">${item.cause?`原因：${esc(item.cause)}　`:''}${item.range?`区間：${esc(item.range)}　`:''}${item.direction?`方向：${esc(item.direction)}`:''}</div>`:''}<p>${esc(item.text)}</p></div>`).join(''):'<div class="empty">対象線区に異常情報はありません。</div>';
       drawMap();
     }
+    function directionLabel(value){const key=String(value||'').split(':').pop();return {BothDirections:'上下線',Inbound:'上り',Outbound:'下り',InnerLoop:'内回り',OuterLoop:'外回り',Northbound:'北行',Southbound:'南行',Eastbound:'東行',Westbound:'西行'}[key]||'';}
 
     async function request(path) {
       const response=await fetch(API+path,{headers:{Accept:'application/json'},cache:'no-store'});
