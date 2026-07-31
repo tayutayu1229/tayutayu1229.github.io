@@ -1,358 +1,317 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>運行把握モニタ - 東京圏輸送情報システム</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 10px;
-            box-sizing: border-box;
-        }
-        h1 {
-            color: #01977a;
-            text-align: center;
-            font-size: clamp(1.2rem, 4vw, 2rem);
-            margin: 10px 0;
-        }
-        .button-container {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
-            flex-wrap: wrap;
-        }
-        .table-container {
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 10px 0;
-            background: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 600px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px 12px;
-            text-align: left;
-            white-space: nowrap;
-        }
-        th {
-            background-color: #01977a;
-            color: white;
-            position: sticky;
-            top: 0;
-        }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        button {
-            background-color: #01977a;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: clamp(0.875rem, 2vw, 1rem);
-            cursor: pointer;
-            border-radius: 5px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            outline: none;
-            flex: 1;
-            min-width: 200px;
-            max-width: 300px;
-        }
-
-        button:hover {
-            background-color: #017a64;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-
-        button:active {
-            background-color: #015a4a;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-
-        button:focus {
-            box-shadow: 0 0 0 3px rgba(1, 151, 122, 0.4);
-        }
-
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-        .status-delay {
-            background-color: #ffebee;
-            border-left: 5px solid #f44336;
-            box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
-        }
-
-        .status-delay h3 {
-            color: #d32f2f;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 5px;
-            }
-            th, td {
-                padding: 6px 8px;
-                font-size: 0.875rem;
-            }
-            .button-container {
-                flex-direction: column;
-            }
-            button {
-                max-width: none;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 3px;
-            }
-            th, td {
-                padding: 4px 6px;
-                font-size: 0.75rem;
-            }
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a3f30">
+  <meta name="description" content="JR東日本の路線単位の運行状況を、路線図と影響度で俯瞰する運行把握ダッシュボード">
+  <title>運行把握 BOARD｜東京圏輸送情報システム</title>
+  <link rel="stylesheet" href="train_dashboard.css">
 </head>
 <body>
-    <div id="main-content" style="display: none;"> 
-    <div class="container">
-        <h1>運行把握モニタ</h1>
-        
-        <div class="button-container">
-            <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-            <button onclick="window.location.href='zaisen-JRE.html'">駅列車在線モニタへ</button>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <div id="main-content" style="display:none">
+    <header class="app-header">
+      <a class="brand" href="toppage.html" aria-label="東京圏輸送情報システム トップへ">
+        <span class="brand-mark">TT</span>
+        <span class="brand-copy"><strong>運行把握 BOARD</strong><small>TOKYO TRANSPORT OVERVIEW</small></span>
+      </a>
+      <nav class="header-nav" aria-label="主要メニュー">
+        <a class="keep-mobile" href="train_zai-data.html">列車在線</a>
+        <a href="atosweb.html">ATOS Web</a>
+        <a href="toppage.html">メニュー</a>
+      </nav>
+      <div class="header-clock"><span id="clock">--:--</span><small id="today">----/--/--</small></div>
+    </header>
+
+    <main class="shell" id="main">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">NETWORK SITUATIONAL AWARENESS</p>
+          <h1>いま、どこが乱れているか。<br>路線でつかむ。</h1>
+          <p>列車を一件ずつ追う前に、首都圏ネットワーク全体の状態と影響の大きさを俯瞰する画面です。</p>
         </div>
-
-        <div class="table-container">
-            <table id="train-table">
-                <thead>
-                    <tr>
-                        <th>線区名</th>
-                        <th>最大遅延時分</th>
-                        <th>最大遅延列番</th>
-                        <th>遅延数/総本数</th>
-                        <th>03</th>
-                        <th>10</th>
-                        <th>20</th>
-                    </tr>
-                </thead>
-                <tbody id="train-data">
-                </tbody>
-            </table>
+        <div class="hero-status" role="status" aria-live="polite">
+          <span class="pulse loading" id="connectionPulse"></span>
+          <span><strong id="connectionText">運行データを取得中</strong><small id="lastUpdated">初回読み込み中</small></span>
         </div>
+      </section>
 
-        <div class="button-container">
-            <button onclick="window.location.href='toppage.html'">メインメニューに戻る</button>
-            <button onclick="window.location.href='zaisen-JRE.html'">駅列車在線モニタへ</button>
+      <div class="notice" id="errorNotice" role="alert"></div>
+
+      <section class="toolbar" aria-label="表示条件">
+        <div class="field">
+          <label for="areaFilter">エリア</label>
+          <select id="areaFilter">
+            <option value="tokyo">東京圏主要線区</option>
+            <option value="all">取得できた全線区</option>
+            <option value="north">北関東方面</option>
+            <option value="south">神奈川方面</option>
+            <option value="east">千葉方面</option>
+          </select>
         </div>
-    </div>
+        <div class="field">
+          <label for="statusFilter">運行状態</label>
+          <select id="statusFilter">
+            <option value="all">すべて</option>
+            <option value="issue">遅れ・運休のみ</option>
+            <option value="normal">平常運転のみ</option>
+          </select>
+        </div>
+        <button class="button secondary" id="densityButton" type="button" aria-pressed="false">主要線区だけ</button>
+        <button class="button" id="refreshButton" type="button">↻ 最新に更新</button>
+      </section>
 
-    
-    <script>
-    const API_URL = '/api/odpt/challenge/odpt:Train?odpt:operator=odpt.Operator:JR-East';
+      <section class="kpi-grid" aria-label="運行概況">
+        <article class="kpi good"><div class="kpi-label">平常運転</div><div class="kpi-value"><span id="normalCount">–</span><small>線区</small></div></article>
+        <article class="kpi warn"><div class="kpi-label">遅延あり</div><div class="kpi-value"><span id="delayCount">–</span><small>線区</small></div></article>
+        <article class="kpi bad"><div class="kpi-label">大幅な乱れ</div><div class="kpi-value"><span id="majorCount">–</span><small>線区</small></div></article>
+        <article class="kpi"><div class="kpi-label">最大遅延</div><div class="kpi-value"><span id="maxDelay">–</span><small>分</small></div></article>
+      </section>
 
-    const lineNameMap = {
-        "JR-East.Chuo": "中央本線",
-                "JR-East.Senzan": "仙山線",
-                "JR-East.Yonesaka": "米坂線",
-                "JR-East.Hanawa": "花輪線",
-                "JR-East.Tsugaru": "津軽線",
-                "JR-East.Ou": "奥羽本線",
-                "JR-East.OuYamagata": "奥羽本線（山形線）",
-                "JR-East.RikuEast": "陸羽東線",
-                "JR-East.Tohoku": "東北本線",
-                "JR-East.Uetsu ": "羽越線",
-                "JR-East.RikuWest": "陸羽西線",
-                "JR-East.Iiyama": "飯山線",
-                "JR-East.Yamanote": "山手線",
-                "JR-East.KeihinTohokuNegishi": "京浜東北根岸線",
-                "JR-East.ChuoRapid": "中央急行線",
-                "JR-East.ChuoTatsunoBranch": "中央本線（辰野方面）",
-                "JR-East.ChuoSobuLocal": "中央緩行線",
-                "JR-East.SobuRapid": "総武快速線",
-                "JR-East.Yokosuka": "横須賀線",
-                "JR-East.Tokaido": "東海道線",
-                "JR-East.ShonanShinjuku": "湘南新宿ライン",
-                "JR-East.SotetsuDirect": "相鉄直通線",
-                "JR-East.SaikyoKawagoe": "埼京川越線",
-                "JR-East.Kawagoe": "川越線",
-                "JR-East.Takasaki": "高崎線",
-                "JR-East.Utsunomiya": "宇都宮線",
-                "JR-East.Nikko": "日光線",
-                "JR-East.Karasuyama": "烏山線",
-                "JR-East.JobanRapid": "常磐快速線",
-                "JR-East.Joban": "常磐線",
-                "JR-East.JobanLocal": "常磐緩行線",
-                "JR-East.Musashino": "武蔵野線",
-                "JR-East.Sagami": "相模線",
-                "JR-East.Nambu": "南武線",
-                "JR-East.NambuBranch": "南武支線",
-                "JR-East.Tsurumi": "鶴見線",
-                "JR-East.TsurumiUmiShibauraBranch": "鶴見線（海芝浦方面）",
-                "JR-East.TsurumiOkawaBranch": "鶴見線（大川方面）",
-                "JR-East.Yokohama": "横浜線",
-                "JR-East.Ito": "伊東線",
-                "JR-East.Ome": "青梅線",
-                "JR-East.Itsukaichi": "五日市線",
-                "JR-East.Hachiko": "八高線",
-                "JR-East.Shinetsu": "信越線",
-                "JR-East.Joetsu": "上越線",
-                "JR-East.Agatsuma": "吾妻線",
-                "JR-East.Ryomo": "両毛線",
-                "JR-East.Mito": "水戸線",
-                "JR-East.Suigun": "水郡線",
-                "JR-East.SuigunBranch": "JR-East.SuigunBranch",
-                "JR-East.Sobu": "総武本線",
-                "JR-East.Narita": "成田線",
-                "JR-East.NaritaAbikoBranch": "成田線（我孫子支線）",
-                "JR-East.NaritaAirportBranch": "成田線（空港支線）",
-                "JR-East.Kashima": "鹿島線",
-                "JR-East.Keiyo": "京葉線",
-                "JR-East.Uchibo": "内房線",
-                "JR-East.Sotobo": "外房線",
-                "JR-East.Togane": "東金線",
-                "JR-East.Kururi": "久留里線",
-                "JR-East.Koumi": "小海線",
-                "JR-East.TohokuShinkansen": "東北新幹線",
-                "JR-East.JoetsuShinkansen": "",
-                "JR-East.HokurikuShinkansen": "",
-                "JR-East.YamagataShinkansen": "",
-                "JR-East.AkitaShinkansen": "",
-                "JR-East.BanetsuEast": "",
-                "JR-East.Senseki": "",
-                "JR-East.Ishinomaki": "",
-                "JR-East.Aterazawa": "",
-                "JR-East.Ofunato": "",
-                "JR-East.Kesennuma": "",
-                "JR-East.Kitakami": "",
-                "JR-East.Kamaishi": "",
-                "JR-East.Yamada": "",
-                "JR-East.Hachinohe": "",
-                "JR-East.Ominato": "",
-                "JR-East.Tazawako": "",
-                "JR-East.Oga ": "",
-                "JR-East.Gono": "",
-                "JR-East.Tadami ": "",
-                "JR-East.BanetsuWest": "",
-                "JR-East.SensekiTohoku ": "",
-                "JR-East.Echigo": "",
-                "JR-East.Hakushin": "",
-                "JR-East.Yahiko": "",
-                "JR-East.Shinonoi": "",
-                "JR-East.Oito ": "",
-                "": "",
-    };
+      <section class="dashboard-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <div><h2 class="panel-title">首都圏ラインボード</h2><p class="panel-subtitle">線路色と区間ハイライトで路線単位の状態を表示</p></div>
+            <div class="status-key" aria-label="凡例">
+              <span><i></i>平常</span><span><i class="warn"></i>遅延</span><span><i class="bad"></i>大幅遅延</span><span><i class="unknown"></i>情報なし</span>
+            </div>
+          </div>
+          <div class="network-board" id="networkBoard" aria-live="polite"></div>
+        </article>
 
-    async function fetchTrainData() {
-        try {
-            const response = await fetch(API_URL);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            processTrainData(data);
-            hideErrorMessage();
-        } catch (error) {
-            console.error('データの取得に失敗しました:', error);
-            showErrorMessage('データの取得に失敗しました。しばらくしてから再度お試しください。');
-        }
+        <aside class="stack">
+          <article class="panel">
+            <div class="panel-head"><div><h2 class="panel-title">運行情報</h2><p class="panel-subtitle">公式データの案内と在線から推定した状態</p></div></div>
+            <div class="alert-list" id="alertList"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h2 class="panel-title">影響度ランキング</h2><p class="panel-subtitle">遅延列車の比率 × 最大遅延</p></div></div>
+            <div class="impact-list" id="impactList"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h2 class="panel-title">次に見る画面</h2><p class="panel-subtitle">目的に合わせて詳細へ</p></div></div>
+            <div style="padding:16px;display:grid;gap:9px">
+              <a class="button" href="train_zai-data.html">列車番号・在線位置を調べる</a>
+              <a class="button secondary" href="atosweb.html">時刻表・駅・列車を深掘り</a>
+            </div>
+          </article>
+        </aside>
+      </section>
+
+      <footer class="footer">
+        <span>表示はODPT等から取得した参考情報です。実際の運行判断には鉄道事業者の公式案内をご確認ください。</span>
+        <span><a href="train_zai-data.html">列車在線</a> ／ <a href="atosweb.html">ATOS Web</a></span>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+    const API = '/api/odpt/challenge/';
+    const MAIN_LINES = [
+      ['JR-East.Yamanote','JY','山手線','#9acd32','環状運転','tokyo'],
+      ['JR-East.KeihinTohokuNegishi','JK','京浜東北・根岸線','#00a7c4','大宮 — 大船','tokyo'],
+      ['JR-East.ChuoRapid','JC','中央線快速','#f15a22','東京 — 高尾','tokyo'],
+      ['JR-East.ChuoSobuLocal','JB','中央・総武線各駅停車','#ffd400','三鷹 — 千葉','tokyo'],
+      ['JR-East.Tokaido','JT','東海道線','#f68b1e','東京 — 熱海','south'],
+      ['JR-East.Yokosuka','JO','横須賀線','#1069b0','東京 — 久里浜','south'],
+      ['JR-East.ShonanShinjuku','JS','湘南新宿ライン','#e21f26','大宮 — 大船','south'],
+      ['JR-East.SaikyoKawagoe','JA','埼京・川越線','#00ac9a','大崎 — 川越','north'],
+      ['JR-East.Utsunomiya','JU','宇都宮線','#f68b1e','上野 — 宇都宮','north'],
+      ['JR-East.Takasaki','JU','高崎線','#f68b1e','上野 — 高崎','north'],
+      ['JR-East.JobanRapid','JJ','常磐線快速','#00a663','品川 — 取手','north'],
+      ['JR-East.JobanLocal','JL','常磐線各駅停車','#9b7cb6','綾瀬 — 取手','east'],
+      ['JR-East.Keiyo','JE','京葉線','#c9252f','東京 — 蘇我','east'],
+      ['JR-East.Musashino','JM','武蔵野線','#f15a24','府中本町 — 西船橋','east'],
+      ['JR-East.SobuRapid','JO','総武快速線','#1069b0','東京 — 千葉','east'],
+      ['JR-East.Yokohama','JH','横浜線','#7fc342','東神奈川 — 八王子','south'],
+      ['JR-East.Nambu','JN','南武線','#ffd400','川崎 — 立川','south'],
+      ['JR-East.Ome','JC','青梅線','#f15a22','立川 — 奥多摩','tokyo']
+    ];
+    const nameMap = Object.fromEntries(MAIN_LINES.map(x => [x[0], x[2]]));
+    const lineMeta = Object.fromEntries(MAIN_LINES.map(x => [x[0], x]));
+    const state = { stats: new Map(), info: [], majorOnly: false, area: 'tokyo', status: 'all' };
+    const $ = id => document.getElementById(id);
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const railwayKey = value => String(value || '').replace('odpt.Railway:', '');
+    const delayMinutes = value => Math.max(0, Math.floor((Number(value) || 0) / 60));
+
+    function tickClock() {
+      const now = new Date();
+      $('clock').textContent = now.toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'});
+      $('today').textContent = now.toLocaleDateString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit'});
     }
 
-    function processTrainData(data) {
-    const lineStats = {};
+    async function request(path) {
+      const response = await fetch(API + path, {headers:{'Accept':'application/json'}, cache:'no-store'});
+      if (!response.ok) throw new Error(`データ取得エラー (${response.status})`);
+      return response.json();
+    }
 
-    data.forEach(train => {
-        const originalLineName = train['odpt:railway'].replace('odpt.Railway:', '');
-        const lineName = lineNameMap[originalLineName] || originalLineName;
-        const delay = train['odpt:delay'] || 0;
+    function aggregate(trains) {
+      const stats = new Map();
+      trains.forEach(train => {
+        const key = railwayKey(train['odpt:railway']);
+        if (!key) return;
+        if (!stats.has(key)) stats.set(key, {key, total:0, delayed:0, max:0, maxTrain:'', delaySum:0});
+        const item = stats.get(key);
+        const delay = delayMinutes(train['odpt:delay']);
+        item.total++;
+        item.delaySum += delay;
+        if (delay > 0) item.delayed++;
+        if (delay > item.max) { item.max = delay; item.maxTrain = train['odpt:trainNumber'] || '不明'; }
+      });
+      return stats;
+    }
 
-        if (!lineStats[lineName]) {
-            lineStats[lineName] = {
-                maxDelay: 0,
-                maxDelayTrain: '',
-                totalTrains: 0,
-                delayedTrains: 0,
-                delay03: 0,
-                delay10: 0,
-                delay20: 0
-            };
-        }
+    function severity(stat, hasInfo = false) {
+      if (hasInfo || (stat && stat.max >= 20)) return 'major';
+      if (stat && (stat.max >= 3 || stat.delayed > 0)) return 'delay';
+      if (stat && stat.total > 0) return 'normal';
+      return 'unknown';
+    }
 
-        lineStats[lineName].totalTrains++;
+    function officialInfoFor(key) {
+      return state.info.find(item => {
+        const raw = item['odpt:railway'];
+        const railways = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        return railways.some(value => railwayKey(value) === key);
+      });
+    }
 
-        if (delay > 0) {
-            lineStats[lineName].delayedTrains++;
+    function infoText(item) {
+      if (!item) return '';
+      const value = item['odpt:trainInformationText'];
+      if (typeof value === 'string') return value;
+      if (value && typeof value === 'object') return value.ja || value.en || Object.values(value)[0] || '';
+      return '';
+    }
 
-            if (delay > lineStats[lineName].maxDelay) {
-                lineStats[lineName].maxDelay = delay;
-                lineStats[lineName].maxDelayTrain = train['odpt:trainNumber'] || '不明';
-            }
+    function infoIsIssue(item) {
+      const text = infoText(item).replace(/\s/g, '');
+      return Boolean(text && !/^(平常運転|通常運転|平常どおり)$/.test(text));
+    }
 
-            if (delay >= 180 && delay < 600) lineStats[lineName].delay03++;
-            else if (delay >= 600 && delay < 1200) lineStats[lineName].delay10++;
-            else if (delay >= 1200) lineStats[lineName].delay20++;
-        }
+    function filteredLines() {
+      let lines = [...MAIN_LINES];
+      if (state.majorOnly) lines = lines.slice(0, 12);
+      if (state.area !== 'all' && state.area !== 'tokyo') lines = lines.filter(line => line[5] === state.area || line[5] === 'tokyo');
+      return lines.filter(line => {
+        const stat = state.stats.get(line[0]);
+        const sev = severity(stat, infoIsIssue(officialInfoFor(line[0])));
+        return state.status === 'all' || (state.status === 'issue' && ['delay','major'].includes(sev)) || (state.status === 'normal' && sev === 'normal');
+      });
+    }
+
+    function renderBoard() {
+      const lines = filteredLines();
+      $('networkBoard').innerHTML = lines.length ? lines.map(([key, code, name, color, section]) => {
+        const stat = state.stats.get(key);
+        const info = officialInfoFor(key);
+        const sev = severity(stat, infoIsIssue(info));
+        const label = sev === 'major' ? '大幅な乱れ' : sev === 'delay' ? '遅延あり' : sev === 'normal' ? '平常運転' : '情報なし';
+        const detail = stat ? `${stat.delayed}/${stat.total}本・最大${stat.max}分` : '在線データなし';
+        const dots = Array.from({length:7}, (_, i) => `<i class="station-dot ${i === 2 || i === 5 ? 'hub' : ''}"></i>`).join('');
+        return `<div class="line-strip" style="--route-color:${color}">
+          <div class="line-identity"><span class="line-badge">${code}</span><span class="line-name">${escapeHtml(name)}<small>${escapeHtml(section)}</small></span></div>
+          <div class="route-track ${sev}" aria-label="${escapeHtml(name)} ${label}">${dots}</div>
+          <div class="line-state"><span class="state-pill ${sev}">${label}</span><small>${detail}</small></div>
+        </div>`;
+      }).join('') : '<div class="empty"><span><strong>条件に合う線区はありません</strong>表示条件を変更してください。</span></div>';
+    }
+
+    function renderSummary() {
+      const all = MAIN_LINES.map(line => ({line, stat: state.stats.get(line[0]), info: officialInfoFor(line[0])}));
+      const groups = {normal:0, delay:0, major:0, unknown:0};
+      all.forEach(item => groups[severity(item.stat, infoIsIssue(item.info))]++);
+      $('normalCount').textContent = groups.normal;
+      $('delayCount').textContent = groups.delay;
+      $('majorCount').textContent = groups.major;
+      $('maxDelay').textContent = Math.max(0, ...all.map(item => item.stat?.max || 0));
+
+      const ranked = all.filter(x => x.stat && x.stat.total).map(x => ({
+        ...x, score: Math.min(100, Math.round((x.stat.delayed / x.stat.total) * 55 + Math.min(x.stat.max, 45)))
+      })).sort((a,b) => b.score - a.score).slice(0,5);
+      $('impactList').innerHTML = ranked.map(({line,stat,score}) => `<div class="impact-row">
+        <strong>${escapeHtml(line[2])}</strong><span>${stat.delayed}/${stat.total}本・最大${stat.max}分</span>
+        <div class="impact-bar"><i class="${score >= 65 ? 'high' : ''}" style="--impact:${score}%"></i></div>
+      </div>`).join('') || '<div class="empty">影響度を集計しています。</div>';
+    }
+
+    function renderAlerts() {
+      const alerts = [];
+      state.info.forEach(item => {
+        const text = infoText(item);
+        if (!text || !infoIsIssue(item)) return;
+        const raw = item['odpt:railway'];
+        const lineKeys = (Array.isArray(raw) ? raw : raw ? [raw] : []).map(railwayKey);
+        if (!lineKeys.some(key => nameMap[key])) return;
+        alerts.push({
+          line: lineKeys.map(key => nameMap[key] || key).join('・') || 'JR東日本',
+          text,
+          time: item['dc:date'] || item['dct:valid']
+        });
+      });
+      if (!alerts.length) {
+        MAIN_LINES.forEach(line => {
+          const stat = state.stats.get(line[0]);
+          if (stat && stat.max >= 3) alerts.push({
+            line: line[2],
+            text: `在線データ上、${stat.delayed}本に遅れが見られます。最大は${stat.max}分（${stat.maxTrain}列車）です。`,
+            time: ''
+          });
+        });
+      }
+      $('alertList').innerHTML = alerts.length ? alerts.slice(0,8).map(item => `<article class="alert-item">
+        <div class="alert-top"><span class="alert-line">${escapeHtml(item.line)}</span><time class="alert-time">${item.time ? escapeHtml(new Date(item.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})) : '在線集計'}</time></div>
+        <p>${escapeHtml(item.text)}</p>
+      </article>`).join('') : '<div class="empty"><span><strong>大きな乱れは見つかりません</strong>在線データの集計上、主要線区は概ね平常です。</span></div>';
+    }
+
+    async function refresh() {
+      const button = $('refreshButton');
+      button.disabled = true;
+      $('connectionPulse').className = 'pulse loading';
+      $('connectionText').textContent = '運行データを更新中';
+      $('errorNotice').classList.remove('show');
+      try {
+        const trainPromise = request('odpt:Train?odpt:operator=odpt.Operator:JR-East');
+        const infoPromise = request('odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is').catch(() => []);
+        const [trains, info] = await Promise.all([trainPromise, infoPromise]);
+        state.stats = aggregate(Array.isArray(trains) ? trains : []);
+        state.info = Array.isArray(info) ? info : [];
+        renderBoard(); renderSummary(); renderAlerts();
+        const now = new Date();
+        $('connectionPulse').className = 'pulse';
+        $('connectionText').textContent = 'データ接続中';
+        $('lastUpdated').textContent = `${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} 更新`;
+      } catch (error) {
+        console.error(error);
+        $('connectionPulse').className = 'pulse error';
+        $('connectionText').textContent = 'データを取得できません';
+        $('errorNotice').textContent = '運行データを取得できませんでした。通信状態を確認して、しばらくしてから更新してください。';
+        $('errorNotice').classList.add('show');
+        if (!state.stats.size) { renderBoard(); renderSummary(); renderAlerts(); }
+      } finally { button.disabled = false; }
+    }
+
+    $('areaFilter').addEventListener('change', event => { state.area = event.target.value; renderBoard(); });
+    $('statusFilter').addEventListener('change', event => { state.status = event.target.value; renderBoard(); });
+    $('densityButton').addEventListener('click', event => {
+      state.majorOnly = !state.majorOnly;
+      event.currentTarget.setAttribute('aria-pressed', String(state.majorOnly));
+      event.currentTarget.textContent = state.majorOnly ? '全線区を表示' : '主要線区だけ';
+      renderBoard();
     });
-
-    updateTable(lineStats);
-}
-
-
-    function updateTable(lineStats) {
-        const tableBody = document.getElementById('train-data');
-        tableBody.innerHTML = '';
-
-        for (const [lineName, stats] of Object.entries(lineStats)) {
-            const row = tableBody.insertRow();
-            row.insertCell(0).textContent = lineName;
-            row.insertCell(1).textContent = `${Math.floor(stats.maxDelay / 60)}分`;
-            row.insertCell(2).textContent = stats.maxDelayTrain;
-            row.insertCell(3).textContent = `${stats.delayedTrains}/${stats.totalTrains}`;
-            row.insertCell(4).textContent = stats.delay03;
-            row.insertCell(5).textContent = stats.delay10;
-            row.insertCell(6).textContent = stats.delay20;
-        }
-    }
-
-    function showErrorMessage(message) {
-        const errorDiv = document.getElementById('error-message');
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
-    }
-
-    function hideErrorMessage() {
-        const errorDiv = document.getElementById('error-message');
-        errorDiv.style.display = 'none';
-    }
-
-    // ページ読み込み時にデータを取得
-    fetchTrainData();
-
-    // 定期的にデータを更新（例: 1分ごと）
-    setInterval(fetchTrainData, 60000);
-</script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    
-    <script src="auth_guard.js"></script> 
-
+    $('refreshButton').addEventListener('click', refresh);
+    tickClock(); setInterval(tickClock, 1000); refresh(); setInterval(refresh, 60000);
+  })();
+  </script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="auth_guard.js"></script>
 </body>
 </html>
