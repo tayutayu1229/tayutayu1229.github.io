@@ -84,8 +84,6 @@
         .modal-clock-row { min-height: 30px; padding: 4px 12px; box-sizing: border-box; text-align: right; border-bottom: 1px solid #ddd; font-size: 15px; }
         .modal-body { padding: 38px 5px 0; }
         .modal-train-info { padding: 0 5px 7px; font-size: 15px; line-height: 1.5; background: #fff; }
-        .service-lines { margin-top: 5px; padding: 5px 8px; background: #eef7f3; border-left: 4px solid var(--atos-table-header); font-size: 13px; line-height: 1.5; }
-        .service-lines strong { color: #087568; }
         .modal-content table { width: 100%; min-width: 0; }
         .modal-content .footer-legend { padding: 10px 5px 80px; font-size: 15px; background: #fff; }
         .detail-table th.cell-narrow { font-size: 12px; }
@@ -495,78 +493,13 @@
             else showMessage(`接続列車 ${number} の時刻表が見つかりません。`);
         }
 
-        function getServiceSegments(train) {
-            if (!train) return [];
-            const sameService = rawTimetableData.filter(candidate =>
-                normalizeString(candidate.trainNumber) === normalizeString(train.trainNumber) &&
-                safeVal(candidate.startDate) === safeVal(train.startDate) &&
-                safeVal(candidate.dayType) === safeVal(train.dayType) &&
-                safeVal(candidate.origin) === safeVal(train.origin) &&
-                safeVal(candidate.destination) === safeVal(train.destination)
-            );
-            if (sameService.length <= 1) return [train];
-
-            const ordered = [train];
-            const unused = new Set(sameService.filter(candidate => candidate !== train));
-            while (unused.size) {
-                const first = ordered[0];
-                const previous = [...unused].find(candidate =>
-                    normalizeString(candidate.kid2 || '') &&
-                    normalizeString(candidate.kid2 || '') === normalizeString(first.kid1 || '')
-                ) || [...unused].find(candidate =>
-                    safeVal(candidate.stops?.[candidate.stops.length - 1]?.station) === safeVal(first.stops?.[0]?.station)
-                );
-                if (!previous) break;
-                ordered.unshift(previous);
-                unused.delete(previous);
-            }
-            while (unused.size) {
-                const last = ordered[ordered.length - 1];
-                const next = [...unused].find(candidate =>
-                    normalizeString(candidate.kid1 || '') &&
-                    normalizeString(candidate.kid1 || '') === normalizeString(last.kid2 || '')
-                ) || [...unused].find(candidate =>
-                    safeVal(candidate.stops?.[0]?.station) === safeVal(last.stops?.[last.stops.length - 1]?.station)
-                );
-                if (!next) break;
-                ordered.push(next);
-                unused.delete(next);
-            }
-            return ordered.concat([...unused]);
-        }
-
-        function combinedServiceStops(segments) {
-            const rows = [];
-            segments.forEach(segment => {
-                (segment.stops || []).forEach(stop => {
-                    const previous = rows[rows.length - 1];
-                    if (previous && safeVal(previous.stop.station) === safeVal(stop.station)) {
-                        previous.stop = {
-                            ...previous.stop,
-                            arrival: previous.stop.arrival || stop.arrival,
-                            departure: stop.departure || previous.stop.departure,
-                            trackN: stop.trackN || previous.stop.trackN
-                        };
-                        previous.lines.push(segment.line);
-                    } else {
-                        rows.push({ stop: { ...stop }, lines: [segment.line] });
-                    }
-                });
-            });
-            return rows;
-        }
-
         function showOverlay(trainOrNumber, sDate) {
             const train = typeof trainOrNumber === 'object' && trainOrNumber
                 ? trainOrNumber
                 : rawTimetableData.find(v => v.trainNumber === trainOrNumber && v.startDate === sDate);
             if (!train) return;
 
-            const segments = getServiceSegments(train);
-            const serviceLines = [...new Set(segments.map(segment => safeVal(segment.line)).filter(Boolean))];
-            const serviceRows = combinedServiceStops(segments);
-            const firstSegment = segments[0] || train;
-            const lastSegment = segments[segments.length - 1] || train;
+            const serviceRows = (train.stops || []).map(stop => ({ stop }));
 
             lastModalFocus = document.activeElement;
             const selectedDate = document.getElementById('dateInput').value.replace(/-/g, '/');
@@ -575,15 +508,7 @@
             summary.replaceChildren(
                 document.createTextNode(`■${safeVal(train.line)} 施行日:${selectedDate}`),
                 document.createElement('br'),
-                document.createTextNode(`運転区間:${safeVal(train.origin)}～${safeVal(train.destination)} 列車番号:${safeVal(train.trainNumber)}`),
-                (() => {
-                    const lines = document.createElement('div');
-                    lines.className = 'service-lines';
-                    const label = document.createElement('strong');
-                    label.textContent = '走行線区：';
-                    lines.append(label, document.createTextNode(serviceLines.join(' → ') || safeVal(train.line)));
-                    return lines;
-                })()
+                document.createTextNode(`運転区間:${safeVal(train.origin)}～${safeVal(train.destination)} 列車番号:${safeVal(train.trainNumber)}`)
             );
 
             const table = document.createElement('table');
@@ -614,9 +539,8 @@
                 const row = document.createElement('tr');
                 const isFirst = index === 0;
                 const isLast = index === serviceRows.length - 1;
-                const sourceSegment = isFirst ? firstSegment : lastSegment;
-                const connectedNumber = isFirst ? safeVal(firstSegment.tr1) : (isLast ? safeVal(lastSegment.tr2) : '');
-                appendCell(row, isFirst ? safeVal(firstSegment.type || train.type) : '');
+                const connectedNumber = isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : '');
+                appendCell(row, isFirst ? safeVal(train.type) : '');
                 appendCell(row, '');
                 appendCell(row, safeVal(s.station));
                 appendCell(row, formatDisplayTime(s.arrival), 'col-time');
@@ -624,8 +548,8 @@
                 appendCell(row, safeVal(s.departure) ? formatDisplayTime(s.departure) : '', 'col-time');
                 appendCell(row, '');
                 appendCell(row, safeVal(s.trackN), 'col-trk');
-                appendCell(row, getUnyouStatus(sourceSegment, isFirst, isLast));
-                appendLinkCell(row, connectedNumber, () => showConnectedTrain(connectedNumber, sourceSegment, isFirst ? 'prev' : 'next'));
+                appendCell(row, getUnyouStatus(train, isFirst, isLast));
+                appendLinkCell(row, connectedNumber, () => showConnectedTrain(connectedNumber, train, isFirst ? 'prev' : 'next'));
                 modalBody.appendChild(row);
             });
             table.appendChild(modalBody);
