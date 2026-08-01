@@ -33,6 +33,7 @@
   }
 
   function replaceLegacyMark(host) {
+    host.classList.add('site-brand-host');
     host.querySelectorAll(LEGACY_MARK_SELECTOR).forEach((legacyMark) => {
       legacyMark.remove();
     });
