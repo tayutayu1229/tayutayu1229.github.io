@@ -417,6 +417,7 @@
       font-family: "Segoe UI", "Yu Gothic UI", "Noto Sans JP", sans-serif;
     }
     button, select { font: inherit; }
+    button, select, a { touch-action: manipulation; }
     button:focus-visible, select:focus-visible, [tabindex]:focus-visible {
       outline: 3px solid #ffb000; outline-offset: 2px;
     }
@@ -525,7 +526,7 @@
       width: min(1100px,100%); max-width: 1100px; max-height: calc(100vh - 36px); overflow: auto;
       margin: 0 auto; padding: 0; border: 0; border-radius: 10px; background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.35);
     }
-    #trainTimetableModal .modal-content { max-width: 920px; }
+    #trainTimetableModal .modal-content { max-width: 1150px; }
     .timetable-header { position: sticky; top: 0; z-index: 5; margin: 0; padding: 13px 18px; color: #fff; background: linear-gradient(90deg,var(--atos-green-dark),var(--atos-green)); }
     .timetable-header h3 { font-size: 1rem; }
     .modal-close-btn { position: static; color: #fff; font-size: 28px; line-height: 1; }
@@ -542,8 +543,12 @@
     .mobile-atos-table td { padding: 7px 6px; border: 1px solid #bdc9c1; text-align: center; }
     .mobile-atos-table tbody tr:nth-child(even) { background: #f4f7f5; }
     .mobile-atos-table .current-row { background: #fff4d8 !important; box-shadow: inset 4px 0 #e0a000; }
+    .mobile-atos-table tr.current-train-stop td { background: #fff4bf; }
     .mobile-atos-table .time { font-family: monospace; font-size: .84rem; font-weight: 800; }
     .predicted { color: var(--atos-red); font-weight: 900; }
+    .delay-zero { color: #111; font-weight: 800; }
+    .delay-positive { color: var(--atos-red); font-weight: 900; }
+    .train-modal-note { margin-top: 8px; color: var(--atos-muted); font-size: .68rem; line-height: 1.55; }
     .station-hero { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; padding: 12px 14px; background: #f4f8f5; border-left: 5px solid var(--line-color,var(--atos-green)); }
     .station-symbol { min-width: 48px; height: 48px; display: grid; place-items: center; border: 3px solid var(--line-color,var(--atos-green)); border-radius: 50%; color: var(--line-color,var(--atos-green)); font-weight: 900; }
     .station-symbol.combined { min-width: 76px; padding: 0 7px; border-radius: 8px; box-shadow: inset 0 -5px 0 #0078bd; }
@@ -592,19 +597,42 @@
     .spinner { width: 28px; height: 28px; margin: 0 auto 8px; border: 3px solid #d5e0da; border-top-color: var(--atos-green); border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media(max-width: 760px) {
-      .page-header { height: 56px; padding: 0 12px; }
+      .page-header { height: 56px; padding: 0 9px; gap: 8px; }
+      .header-title { min-width: 0; gap: 5px; font-size: .88rem; }
+      .header-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .header-meta { flex: 0 0 auto; font-size: .64rem; }
       .header-meta .live-status { display: none; }
       .train-info-ticker { top: 56px; }
       .monitor-shell { padding: 10px 8px 70px; }
-      .monitor-toolbar { grid-template-columns: 1fr 1fr; }
-      .toolbar-field { grid-column: 1/-1; }
+      .monitor-toolbar {
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+        grid-template-areas: "line line" "menu update" "dark dark";
+        align-items: stretch; gap: 8px; padding: 10px;
+      }
+      .toolbar-field { grid-area: line; min-width: 0; }
+      .menu-btn { grid-area: menu; }
+      .update-btn { grid-area: update; }
+      .dark-mode-btn { grid-area: dark; }
+      .menu-btn, .update-btn, .dark-mode-btn, #lineSelect {
+        width: 100%; min-width: 0; min-height: 46px;
+      }
+      .menu-btn, .update-btn, .dark-mode-btn { padding: 8px 6px; font-size: .76rem; font-weight: 800; }
       .train-sheet-meta { grid-template-columns: 1fr 1fr; }
       .modal { padding: 6px; }
       .modal-content { max-height: calc(100vh - 12px); }
+      .timetable-header { padding: 10px 12px; }
+      .timetable-header h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .modal-close-btn { flex: 0 0 44px; width: 44px; height: 44px; margin: -8px -8px -8px 4px; }
       .board-row { grid-template-columns: 58px 62px 1fr 56px; }
       .board-platform, .board-number { display: none; }
-      .mobile-atos-table { min-width: 700px; }
-      .table-scroll { overflow-x: auto; }
+      .mobile-atos-table { min-width: 920px; }
+      .table-scroll { overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+      #trainTimetableContent, #stationTimetableContent { padding: 10px; }
+    }
+    @media(max-width: 420px) {
+      #dataTime { display: none; }
+      .header-title { font-size: .82rem; }
+      .train-sheet-meta { grid-template-columns: 1fr; }
     }
     .dark-mode .train { background: currentColor; }
     .dark-mode .train::before { background: #363b38; }
@@ -1222,13 +1250,50 @@
     let trainTimetable = trainTimetableData.find(tt => tt["odpt:trainNumber"] === train["odpt:trainNumber"] && tt["odpt:railway"] === train["odpt:railway"]);
     if(!trainTimetable){
       const modal=document.getElementById("trainTimetableModal");
-      document.getElementById("trainTimetableTitle").textContent=`${train["odpt:trainNumber"]||"不明"}列車　運転時刻表`;
+      document.getElementById("trainTimetableTitle").textContent=`列車別ダイヤモニタ　${train["odpt:trainNumber"]||"不明"}`;
       document.getElementById("trainTimetableContent").innerHTML='<div class="loading-state"><div class="spinner"></div>この路線の列車時刻表を取得中...</div>';
       modal.style.display="block"; modal.setAttribute("aria-hidden","false");
       await ensureTrainTimetablesForLines([train["odpt:railway"]]);
       trainTimetable=trainTimetableData.find(tt=>tt["odpt:trainNumber"]===train["odpt:trainNumber"]&&tt["odpt:railway"]===train["odpt:railway"]);
     }
     showTrainTimetableModal(trainTimetable, train);
+  }
+
+  function getTrainProgressMarkers(stops, liveTrain) {
+    const markers = stops.map(() => ({ arrival: false, departure: false, current: false }));
+    if (!liveTrain || !stops.length) return markers;
+
+    const stationId = stop => stop["odpt:station"] || stop["odpt:departureStation"] || stop["odpt:arrivalStation"];
+    const fromStation = liveTrain["odpt:fromStation"];
+    const toStation = liveTrain["odpt:toStation"];
+    const fromIndex = stops.findIndex(stop => stationId(stop) === fromStation);
+    const atStation = !toStation || toStation === fromStation;
+
+    // 在線APIが駅を示す間は時刻から発車を推測しない。現在駅は到着だけを表示する。
+    if (atStation && fromIndex >= 0) {
+      stops.forEach((stop, index) => {
+        if (index < fromIndex) {
+          markers[index].arrival = true;
+          markers[index].departure = true;
+        } else if (index === fromIndex) {
+          markers[index].arrival = true;
+          markers[index].current = true;
+        }
+      });
+      return markers;
+    }
+
+    // fromStation と toStation が異なる場合だけ駅間と判断する。
+    if (!atStation && fromIndex >= 0) {
+      stops.forEach((stop, index) => {
+        if (index <= fromIndex) {
+          markers[index].arrival = true;
+          markers[index].departure = true;
+        }
+        if (index === fromIndex) markers[index].current = true;
+      });
+    }
+    return markers;
   }
 
   function showTrainTimetableModal(timetable, liveTrain=null) {
@@ -1239,31 +1304,31 @@
     const railway = liveTrain?.["odpt:railway"] || timetable?.["odpt:railway"];
     const delay = liveTrain?.["odpt:delay"] ? Math.floor(liveTrain["odpt:delay"] / 60) : 0;
     const type = getTrainTypeName(liveTrain?.["odpt:trainType"] || timetable?.["odpt:trainType"]);
-    const destinationIds = liveTrain?.["odpt:destinationStation"] || timetable?.["odpt:destinationStation"] || [];
-    const destination = destinationIds.length ? getFullStationTitle(destinationIds[0]) : "不明";
-    title.textContent = `${number}列車　運転時刻表`;
+    const destinationIds = timetable?.["odpt:destinationStation"] || liveTrain?.["odpt:destinationStation"] || [];
+    const destination = destinationIds.length ? destinationIds.map(getFullStationTitle).join("・") : "—";
+    title.textContent = `列車別ダイヤモニタ　${number}`;
 
     const timetableCalendar=timetable?.["odpt:calendar"]||`odpt.Calendar:${currentCalendar}`;
-    let html = `<div class="calendar-notice">運転日区分：${calendarLabel(timetableCalendar)}（日本時間 ${localDateKey()}）</div><div class="train-sheet-meta">
+    let html = `<div class="calendar-notice">施行日：${calendarLabel(timetableCalendar)}（日本時間 ${localDateKey()}）</div><div class="train-sheet-meta">
+      <div class="meta-card"><div class="meta-label">線区</div><div class="meta-value">${getLineTitle(railway)}</div></div>
       <div class="meta-card"><div class="meta-label">列車番号</div><div class="meta-value">${number}</div></div>
       <div class="meta-card"><div class="meta-label">種別・行先</div><div class="meta-value">${type} ${destination}行</div></div>
-      <div class="meta-card"><div class="meta-label">方向・両数</div><div class="meta-value">${getDirectionText(liveTrain?.["odpt:railDirection"]||timetable?.["odpt:railDirection"],railway)} ・ ${liveTrain?.["odpt:carComposition"]||"—"}両</div></div>
-      <div class="meta-card"><div class="meta-label">現在の遅延</div><div class="meta-value${delay>0?' alert':''}">${delay>0?'＋'+delay+'分':'定刻'}</div></div>
+      <div class="meta-card"><div class="meta-label">運転日区分・遅延</div><div class="meta-value">${calendarLabel(timetableCalendar)}・<span class="${delay > 0 ? 'delay-positive' : 'delay-zero'}">${String(delay || 0).padStart(3,'0')}</span></div></div>
     </div>`;
     const stops = timetable?.["odpt:trainTimetableObject"] || [];
     if (!stops.length) {
       html += `<div class="empty-state">この列車の時刻表データはありません。<br>現在位置：${getFullStationTitle(liveTrain?.["odpt:fromStation"])}${liveTrain?.["odpt:toStation"]?' → '+getFullStationTitle(liveTrain["odpt:toStation"]):''}</div>`;
     } else {
-      html += `<div class="table-scroll"><table class="mobile-atos-table"><thead><tr><th>状態</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>番線</th><th>運用情報</th></tr></thead><tbody>`;
-      stops.forEach(item => {
+      const progress = getTrainProgressMarkers(stops, liveTrain);
+      html += `<div class="table-scroll"><table class="mobile-atos-table"><thead><tr><th>列車種別</th><th>抑止</th><th>駅名</th><th>着時刻<br>計画</th><th>着時刻<br>予測</th><th>到着</th><th>発時刻<br>計画</th><th>発時刻<br>予測</th><th>発車</th><th>番線</th><th>遅延(分)</th><th>運用情報</th></tr></thead><tbody>`;
+      stops.forEach((item, index) => {
         const stationId=item["odpt:station"]||item["odpt:departureStation"]||item["odpt:arrivalStation"];
         const arr=item["odpt:arrivalTime"]||"";
         const dep=item["odpt:departureTime"]||"";
-        const isCurrent=stationId===liveTrain?.["odpt:fromStation"]||stationId===liveTrain?.["odpt:toStation"];
-        const passed=stationId===liveTrain?.["odpt:fromStation"];
-        html += `<tr class="${isCurrent?'current-row':''}"><td>${passed?'発車':'・'}</td><td><strong>${getFullStationTitle(stationId)}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${item["odpt:platformNumber"]||'—'}</td><td>${isCurrent?'在線区間':delay?'遅延反映':'継送'}</td></tr>`;
+        const marker=progress[index];
+        html += `<tr${marker.current?' class="current-train-stop"':''}><td>${index===0?type:''}</td><td></td><td><strong>${getFullStationTitle(stationId)}</strong></td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?addMinutesToTime(arr,delay):''}</td><td>${marker.arrival?'＊':''}</td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?addMinutesToTime(dep,delay):''}</td><td>${marker.departure?'＊':''}</td><td>${item["odpt:platformNumber"]||'—'}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td><td>${marker.current?'在線':'継送'}</td></tr>`;
       });
-      html += `</tbody></table></div><div style="margin-top:8px;color:var(--atos-muted);font-size:.68rem;">予測時刻は公開されている遅延時間を計画時刻へ加算した参考値です。データ時刻 ${formatApiTime(liveTrain?.["dc:date"])}</div>`;
+      html += `</tbody></table></div><div class="train-modal-note">「＊」は在線APIに基づく到着・発車状態です。駅停車中は到着だけ、駅間では直前駅の発車まで表示します。予測時刻は公開遅延を計画時刻へ加算した参考値です。データ時刻 ${formatApiTime(liveTrain?.["dc:date"])}</div>`;
     }
     content.innerHTML = html;
     modal.setAttribute("aria-hidden","false");
