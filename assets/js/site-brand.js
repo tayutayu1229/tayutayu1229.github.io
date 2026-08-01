@@ -3,6 +3,16 @@
 
   const ICON_PATH = '/icon-192.png';
   const HOME_PATH = '/toppage.html';
+  const LEGACY_MARK_SELECTOR = [
+    '.sys-badge',
+    '.sys-mark',
+    '.header-mark',
+    '.sidebar-mark',
+    '.brand-mark',
+    '.brandmark',
+    '.logo-mark',
+    '[data-site-legacy-mark]'
+  ].join(',');
 
   function createBrandLink(extraClass = '') {
     const link = document.createElement('a');
@@ -22,12 +32,19 @@
     return link;
   }
 
+  function replaceLegacyMark(host) {
+    host.querySelectorAll(LEGACY_MARK_SELECTOR).forEach((legacyMark) => {
+      legacyMark.remove();
+    });
+    host.prepend(createBrandLink());
+  }
+
   function injectBrandIcon() {
     if (document.querySelector('[data-site-icon-instance]')) return;
 
     const explicitHost = document.querySelector('[data-site-brand-host]');
     if (explicitHost) {
-      explicitHost.prepend(createBrandLink());
+      replaceLegacyMark(explicitHost);
       return;
     }
 
@@ -41,12 +58,14 @@
       'aside .brand',
       '.side .brand',
       '.sidebar .brand',
+      '.sidebar .sidebar-header',
+      '.page-header .header-title',
       'body > header',
       'body > .header-bar'
     ].join(','));
 
     if (headerHost) {
-      headerHost.prepend(createBrandLink());
+      replaceLegacyMark(headerHost);
       return;
     }
 
