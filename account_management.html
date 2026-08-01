@@ -88,7 +88,7 @@
     .stat-card.clickable { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
     .stat-card.clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.09); }
 
-    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 14px; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .panel { border: 1px solid var(--border); background: #fff; }
     .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; background: var(--bg); border-bottom: 1px solid var(--border); }
     .panel-head h4 { margin: 0; font-size: .82rem; }
@@ -407,10 +407,16 @@
                         <div class="panel-body">
                             <ul class="health-list">
                                 <li><span>管理者セッション</span><span class="health-ok">確認済み</span></li>
+                                <li><span>24時間以内のログイン</span><span id="health-recent-login" class="health-ok">0人</span></li>
+                                <li><span>ログイン日時未記録</span><span id="health-login-missing" class="health-ok">0人</span></li>
                                 <li><span>承認待ちユーザー</span><span id="health-pending" class="health-ok">0件</span></li>
                                 <li><span>無効化ユーザー</span><span id="health-disabled" class="health-ok">0件</span></li>
                             </ul>
                         </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head"><h4>最近のログイン</h4><span>直近8件</span></div>
+                        <div class="panel-body" id="recent-logins-list"><div class="empty-msg">読み込み中...</div></div>
                     </div>
                     <div class="panel">
                         <div class="panel-head"><h4>クイック操作</h4><span>よく使う操作</span></div>
@@ -418,6 +424,8 @@
                             <button class="quick-action" data-open-section="pending"><b>承認待ちを確認</b><small>登録リクエストを処理</small></button>
                             <button class="quick-action" onclick="refreshUsers()"><b>データを更新</b><small>一覧を再読み込み</small></button>
                             <button class="quick-action" data-open-section="users"><b>利用者を管理</b><small>権限・利用停止を変更</small></button>
+                            <button class="quick-action" onclick="openUsersByLastLogin()"><b>最終ログイン順に表示</b><small>最近利用したユーザーを確認</small></button>
+                            <button class="quick-action" onclick="copyDashboardSummary()"><b>管理状況をコピー</b><small>件数をクリップボードへコピー</small></button>
                             <button class="quick-action" onclick="exportUsersCsv()"><b>CSVを出力</b><small>現在の一覧を保存</small></button>
                         </div>
                     </div>
@@ -820,17 +828,34 @@ document.addEventListener("DOMContentLoaded", function () {
     window.refreshUsers = loadAllUsers;
 
     function renderDashboard() {
-        const allUsers = [...pendingUsers, ...activeUsers, ...disabledUsers]
-            .sort((a, b) => (b.registeredAt || 0) - (a.registeredAt || 0))
-            .slice(0, 8);
+        const everyUser = [...pendingUsers, ...activeUsers, ...disabledUsers];
+        const allUsers = [...everyUser].sort((a, b) => (b.registeredAt || 0) - (a.registeredAt || 0)).slice(0, 8);
         const recent = document.getElementById("recent-users-list");
         if (recent) {
             recent.innerHTML = allUsers.length ? `<table class="recent-list"><tbody>${allUsers.map(u => `
                 <tr><td><b>${escapeHtml(u.email || "メール未設定")}</b><br><span class="muted">登録 ${formatDate(u.registeredAt)}<br>最終ログイン ${formatDate(u.lastLoginAt)}</span></td><td>${statusLabel(u.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>
             `).join("")}</tbody></table>` : '<div class="empty-msg">登録ユーザーはいません。</div>';
         }
+        const recentLogins = [...everyUser].filter(user => user.lastLoginAt)
+            .sort((a, b) => b.lastLoginAt - a.lastLoginAt).slice(0, 8);
+        const recentLoginsList = document.getElementById("recent-logins-list");
+        if (recentLoginsList) {
+            recentLoginsList.innerHTML = recentLogins.length ? `<table class="recent-list"><tbody>${recentLogins.map(user => `
+                <tr><td><b>${escapeHtml(user.email || "メール未設定")}</b><br><span class="muted">${formatDate(user.lastLoginAt)}</span></td><td>${statusLabel(user.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${user.uid}')">詳細</button></td></tr>
+            `).join("")}</tbody></table>` : '<div class="empty-msg">ログイン記録はまだありません。</div>';
+        }
         const pendingHealth = document.getElementById("health-pending");
         const disabledHealth = document.getElementById("health-disabled");
+        const recentLoginHealth = document.getElementById("health-recent-login");
+        const missingLoginHealth = document.getElementById("health-login-missing");
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const recentLoginCount = everyUser.filter(user => user.lastLoginAt && user.lastLoginAt.getTime() >= oneDayAgo).length;
+        const missingLoginCount = everyUser.filter(user => !user.lastLoginAt).length;
+        if (recentLoginHealth) recentLoginHealth.textContent = `${recentLoginCount}人`;
+        if (missingLoginHealth) {
+            missingLoginHealth.textContent = `${missingLoginCount}人`;
+            missingLoginHealth.className = missingLoginCount ? "health-warn" : "health-ok";
+        }
         if (pendingHealth) {
             pendingHealth.textContent = `${pendingUsers.length}件`;
             pendingHealth.className = pendingUsers.length ? "health-warn" : "health-ok";
@@ -842,6 +867,33 @@ document.addEventListener("DOMContentLoaded", function () {
         const updated = document.getElementById("dashboard-updated");
         if (updated) updated.textContent = `最終更新 ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`;
     }
+
+    window.openUsersByLastLogin = function () {
+        sortState.users = { key: 'lastLoginAt', dir: 'desc' };
+        renderUsers();
+        openSection('users');
+    };
+
+    window.copyDashboardSummary = async function () {
+        const everyUser = [...pendingUsers, ...activeUsers, ...disabledUsers];
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const recentLoginCount = everyUser.filter(user => user.lastLoginAt && user.lastLoginAt.getTime() >= oneDayAgo).length;
+        const summary = [
+            `管理状況（${new Date().toLocaleString("ja-JP")}）`,
+            `総ユーザー数: ${everyUser.length}人`,
+            `24時間以内のログイン: ${recentLoginCount}人`,
+            `承認待ち: ${pendingUsers.length}人`,
+            `無効化済み: ${disabledUsers.length}人`,
+            `ログイン日時未記録: ${everyUser.filter(user => !user.lastLoginAt).length}人`
+        ].join('\n');
+        try {
+            await navigator.clipboard.writeText(summary);
+            showToast("管理状況をコピーしました。");
+        } catch (error) {
+            console.error(error);
+            showToast("管理状況をコピーできませんでした。", "error");
+        }
+    };
 
     /* ============================
        並び替えユーティリティ
