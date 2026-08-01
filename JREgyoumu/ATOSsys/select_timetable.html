@@ -484,6 +484,7 @@ h2 {
             const outputLocationSelect = document.getElementById('output-location');
             const locationStatus = document.getElementById('location-status');
             const WORKBASE_URL = 'https://tayunet-traininfo.com/JREgyoumu/workdata/workbase.json';
+            const OUTPUT_LOCATION_KEY = 'atosSelectedOutputLocation';
             
             let cachedAllData = [];
 
@@ -504,11 +505,18 @@ h2 {
                         outputLocationSelect.appendChild(option);
                     });
 
-                    const previous = sessionStorage.getItem('selectedOutputLocation');
+                    let previous = '';
+                    try {
+                        previous = localStorage.getItem(OUTPUT_LOCATION_KEY) || sessionStorage.getItem('selectedOutputLocation') || '';
+                    } catch (storageError) {
+                        console.warn('前回の出力箇所を読み込めませんでした。', storageError);
+                    }
                     if (previous && locations.includes(previous)) {
                         outputLocationSelect.value = previous;
+                        locationStatus.textContent = `前回の出力箇所「${previous}」を復元しました。`;
+                    } else {
+                        locationStatus.textContent = '';
                     }
-                    locationStatus.textContent = '';
                 } catch (error) {
                     console.error('Error fetching output locations:', error);
                     outputLocationSelect.innerHTML = '<option value="東京総合指令室">東京総合指令室</option>';
@@ -627,6 +635,9 @@ h2 {
                         }
                         sessionStorage.setItem('selectedTrainData', JSON.stringify(group));
                         sessionStorage.setItem('selectedOutputLocation', outputLocationSelect.value);
+                        try { localStorage.setItem(OUTPUT_LOCATION_KEY, outputLocationSelect.value); } catch (storageError) {
+                            console.warn('出力箇所を保存できませんでした。', storageError);
+                        }
                         window.location.href = 'train_timetable.html';
                     });
                 });
@@ -679,6 +690,18 @@ h2 {
 
             //検索イベント？？？
             searchButton.addEventListener('click', applySearchFilter);
+
+            outputLocationSelect.addEventListener('change', () => {
+                if (!outputLocationSelect.value) return;
+                try {
+                    localStorage.setItem(OUTPUT_LOCATION_KEY, outputLocationSelect.value);
+                    sessionStorage.setItem('selectedOutputLocation', outputLocationSelect.value);
+                    locationStatus.textContent = `出力箇所「${outputLocationSelect.value}」を保存しました。`;
+                } catch (storageError) {
+                    console.warn('出力箇所を保存できませんでした。', storageError);
+                    locationStatus.textContent = 'この端末では出力箇所を保存できませんでした。';
+                }
+            });
 
             [searchDateInput, searchNumberInput, searchStationInput].forEach(input => {
 
