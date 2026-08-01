@@ -397,7 +397,10 @@
                 <div class="dashboard-grid">
                     <div class="panel">
                         <div class="panel-head"><h4>最近の登録</h4><span>直近8件</span></div>
-                        <div class="panel-body" id="recent-users-list"><div class="empty-msg">読み込み中...</div></div>
+                        <div class="panel-body">
+                            <div id="recent-users-list"><div class="empty-msg">読み込み中...</div></div>
+                            <div class="muted" style="margin-top:8px;font-size:.68rem;">最終ログインは、本機能公開後に各利用者がログインした時点から記録されます。</div>
+                        </div>
                     </div>
                     <div class="panel">
                         <div class="panel-head"><h4>システム状態</h4><span>ユーザー管理</span></div>
@@ -721,6 +724,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
             userInfo.textContent = `${user.email} でログイン中`;
             CURRENT_USER_IS_ADMIN = data.isAdmin === true;
+            const authLastLogin = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime) : null;
+            if (authLastLogin && !Number.isNaN(authLastLogin.getTime())) {
+                try {
+                    await db.collection("users").doc(user.uid).update({
+                        lastLoginAt: firebase.firestore.Timestamp.fromDate(authLastLogin)
+                    });
+                } catch (loginRecordError) {
+                    console.warn("最終ログイン日時を記録できませんでした。", loginRecordError);
+                }
+            }
             await refreshAccountInfo(false);
 
             if (CURRENT_USER_IS_ADMIN) {
@@ -771,6 +784,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     isAdmin: !!u.isAdmin,
                     status: u.status,
                     registeredAt: u.registeredAt ? u.registeredAt.toDate() : null,
+                    lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toDate() : null,
                     adminNote: adminData.note || "",
                     tags: Array.isArray(adminData.tags) ? adminData.tags.filter(tag => typeof tag === "string") : [],
                     lastManagedAt: u.lastManagedAt ? u.lastManagedAt.toDate() : null
@@ -812,7 +826,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const recent = document.getElementById("recent-users-list");
         if (recent) {
             recent.innerHTML = allUsers.length ? `<table class="recent-list"><tbody>${allUsers.map(u => `
-                <tr><td><b>${escapeHtml(u.email || "メール未設定")}</b><br><span class="muted">${formatDate(u.registeredAt)}</span></td><td>${statusLabel(u.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>
+                <tr><td><b>${escapeHtml(u.email || "メール未設定")}</b><br><span class="muted">登録 ${formatDate(u.registeredAt)}<br>最終ログイン ${formatDate(u.lastLoginAt)}</span></td><td>${statusLabel(u.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>
             `).join("")}</tbody></table>` : '<div class="empty-msg">登録ユーザーはいません。</div>';
         }
         const pendingHealth = document.getElementById("health-pending");
@@ -835,7 +849,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function sortRows(rows, key, dir) {
         const sorted = [...rows].sort((a, b) => {
             let av = a[key], bv = b[key];
-            if (key === 'registeredAt') { av = av ? av.getTime() : 0; bv = bv ? bv.getTime() : 0; }
+            if (key === 'registeredAt' || key === 'lastLoginAt') { av = av ? av.getTime() : 0; bv = bv ? bv.getTime() : 0; }
             else { av = (av || '').toString().toLowerCase(); bv = (bv || '').toString().toLowerCase(); }
             if (av < bv) return dir === 'asc' ? -1 : 1;
             if (av > bv) return dir === 'asc' ? 1 : -1;
@@ -915,6 +929,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         <th class="sortable" onclick="toggleSort('users','email')">メール <span class="sort-arrow">${sortArrow('users','email')}</span></th>
                         <th>状態</th>
                         <th class="sortable" onclick="toggleSort('users','isAdmin')">権限 <span class="sort-arrow">${sortArrow('users','isAdmin')}</span></th>
+                        <th class="sortable" onclick="toggleSort('users','lastLoginAt')">最終ログイン <span class="sort-arrow">${sortArrow('users','lastLoginAt')}</span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -939,6 +954,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     <td>${escapeHtml(u.email)}${tags}</td>
                     <td>${statusBadge}</td>
                     <td>${roleBadge}</td>
+                    <td>${formatDate(u.lastLoginAt)}</td>
                     <td>${buttons}</td>
                 </tr>
             `;
@@ -1120,6 +1136,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 <dt>状態</dt><dd>${statusLabel(user.status)}</dd>
                 <dt>権限</dt><dd>${user.isAdmin ? '<span class="status-badge status-admin">管理者</span>' : '一般ユーザー'}</dd>
                 <dt>登録日時</dt><dd>${formatDate(user.registeredAt)}</dd>
+                <dt>最終ログイン日時</dt><dd>${formatDate(user.lastLoginAt)}</dd>
                 <dt>最終管理日時</dt><dd>${formatDate(user.lastManagedAt)}</dd>
                 <dt>現在のタグ</dt><dd>${tagsHtml}</dd>
             </dl>
@@ -1165,10 +1182,10 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     window.exportUsersCsv = function () {
-        const rows = [["メールアドレス", "状態", "権限", "登録日時", "運用タグ", "管理メモ"]];
+        const rows = [["メールアドレス", "状態", "権限", "登録日時", "最終ログイン日時", "運用タグ", "管理メモ"]];
         [...pendingUsers, ...activeUsers, ...disabledUsers]
             .sort((a, b) => a.email.localeCompare(b.email, "ja"))
-            .forEach(u => rows.push([u.email, u.status || "active", u.isAdmin ? "admin" : "user", formatDate(u.registeredAt), u.tags.join(" | "), u.adminNote]));
+            .forEach(u => rows.push([u.email, u.status || "active", u.isAdmin ? "admin" : "user", formatDate(u.registeredAt), formatDate(u.lastLoginAt), u.tags.join(" | "), u.adminNote]));
         const csv = "\uFEFF" + rows.map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
         const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
         const link = document.createElement("a");

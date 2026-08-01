@@ -86,11 +86,16 @@ service cloud.firestore {
         && request.resource.data.isAdmin == false
         && request.resource.data.status == "pending";
 
-      // Non-admin users can only change their display email field.
+      // Non-admin users can change their display email and record their own
+      // server-generated login time. Arbitrary client timestamps are rejected.
       allow update: if isAdministrator() || (
         signedIn()
         && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["email"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["email", "lastLoginAt"])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastLoginAt"])
+          || request.resource.data.lastLoginAt == request.time
+        )
       );
       allow delete: if isAdministrator();
     }

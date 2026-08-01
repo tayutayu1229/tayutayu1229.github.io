@@ -105,6 +105,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     showError('登録申請は承認待ちです。管理者による利用承認が完了するまでお待ちください。');
                     return;
                 }
+
+                // 管理画面で利用者ごとの最終ログインを確認できるよう記録する。
+                // serverTimestamp は Firestore ルール側でも検証し、本人が任意時刻を設定できないようにする。
+                try {
+                    await userDoc.ref.update({
+                        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (loginRecordError) {
+                    console.warn('WARN: 最終ログイン日時を記録できませんでした。', loginRecordError);
+                }
                 
                 console.log("DEBUG: 認証・承認ステップ全てクリア。リダイレクトします。");
                 // 認証・承認成功: トップページへリダイレクト
