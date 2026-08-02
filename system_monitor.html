@@ -45,11 +45,11 @@
   const validate=(target,data)=>{const errors=[];if(target.array&&!Array.isArray(data))errors.push({path:'$',expected:'配列',actual:typeof data});if(!target.array&&(data===null||typeof data!=='object'||Array.isArray(data)))errors.push({path:'$',expected:'オブジェクト',actual:Array.isArray(data)?'配列':typeof data});const sample=Array.isArray(data)?data[0]:data;if(sample&&target.required)target.required.forEach(k=>{if(!(k in sample))errors.push({path:Array.isArray(data)?`$[0].${k}`:`$.${k}`,expected:'必須項目',actual:'未定義'});});return errors;};
   async function check(target){
     const previous=byId()[target.id]||{},started=performance.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
-    const success=(extra={})=>({id:target.id,name:target.name,kind:target.kind,url:target.url,status:'ok',responseMs:Math.round(performance.now()-started),lastSuccess:new Date().toISOString(),checkedAt:new Date().toISOString(),consecutiveFailures:0,itemCount:0,dataDate:null,ageMinutes:null,ageLabel:'取得日時なし',freshnessStatus:'ok',...extra});
+    const success=(extra={})=>({id:target.id,name:target.name,kind:target.kind,url:target.url,status:'ok',responseMs:Math.round(performance.now()-started),lastSuccess:new Date().toISOString(),checkedAt:new Date().toISOString(),consecutiveFailures:0,itemCount:0,dataDate:null,ageMinutes:null,ageLabel:'取得日時なし',freshnessStatus:'unknown',...extra});
     try {
       if(target.custom==='auth'){
         const current=firebase.auth().currentUser;if(!current)throw new Error('ログイン中の利用者がいません');await current.getIdToken(false);
-        return success({itemCount:1,dataDate:new Date().toISOString(),ageMinutes:0,ageLabel:'現在',detail:`認証トークン: 有効\n利用者: ${current.email||current.uid}`});
+        return success({itemCount:1,dataDate:new Date().toISOString(),ageMinutes:0,ageLabel:'現在',freshnessStatus:'ok',detail:`認証トークン: 有効\n利用者: ${current.email||current.uid}`});
       }
       if(target.custom==='timetables'){
         const token=await TayunetFirebaseDataAuth.getIdToken();
@@ -60,14 +60,14 @@
         const sample=payload.items[0];
         if(sample&&(!sample.trainNumber||!Array.isArray(sample.stops)))throw new Error('JSON形式不正: $.items[0] に trainNumber(string) と stops(array) が必要です');
         const dataDate=deepLatestDate(payload),ageMinutes=dataDate?Math.max(0,Math.round((Date.now()-dataDate.getTime())/60000)):null;
-        return success({itemCount:payload.items.length,dataDate:dataDate?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1440?`${Math.floor(ageMinutes/60)}時間前`:`${Math.floor(ageMinutes/1440)}日前`,freshnessStatus:ageMinutes!=null&&ageMinutes>target.maxAge?'warning':'ok',detail:`認証: Firebase IDトークン有効\n項目数: ${payload.items.length}\nJSON検証: $.items / trainNumber / stops 正常`});
+        return success({itemCount:payload.items.length,dataDate:dataDate?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1440?`${Math.floor(ageMinutes/60)}時間前`:`${Math.floor(ageMinutes/1440)}日前`,freshnessStatus:ageMinutes==null?'unknown':ageMinutes>target.maxAge?'warning':'ok',detail:`認証: Firebase IDトークン有効\n項目数: ${payload.items.length}\nJSON検証: $.items / trainNumber / stops 正常`});
       }
       const response=await fetch(`${target.url}${target.url.includes('?')?'&':'?'}ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
       if(!response.ok)throw new Error(`HTTP ${response.status} ${response.statusText}`);
       const text=await response.text();
       if(target.format==='html'){
         if(!/<html[\s>]/i.test(text)||!/<title[\s>]/i.test(text))throw new Error('HTML形式不正: html または title 要素がありません');
-        return success({itemCount:text.length,ageLabel:'公開中',detail:`HTTP ${response.status}\nContent-Type: ${response.headers.get('content-type')||'-'}\nHTMLサイズ: ${text.length.toLocaleString()}文字\n構造検証: 正常`});
+        return success({itemCount:text.length,ageLabel:'公開中',freshnessStatus:'ok',detail:`HTTP ${response.status}\nContent-Type: ${response.headers.get('content-type')||'-'}\nHTMLサイズ: ${text.length.toLocaleString()}文字\n構造検証: 正常`});
       }
       let data;try{data=JSON.parse(text);}catch(e){const pos=(e.message.match(/position\s+(\d+)/)||[])[1];throw new Error(`JSON解析エラー${pos?`（文字位置 ${pos}）`:''}: ${e.message}`);}
       const validation=validate(target,data);if(validation.length)throw new Error(`JSON形式不正: ${validation.map(e=>`${e.path} は${e.expected}（実際: ${e.actual}）`).join(' / ')}`);
@@ -76,7 +76,31 @@
     }catch(error){return{id:target.id,name:target.name,kind:target.kind,url:target.url,status:'error',responseMs:Math.round(performance.now()-started),lastSuccess:previous.lastSuccess||null,checkedAt:new Date().toISOString(),consecutiveFailures:(previous.consecutiveFailures||0)+1,itemCount:0,dataDate:null,ageMinutes:null,ageLabel:'取得不能',freshnessStatus:'error',detail:`${error.name==='AbortError'?'12秒でタイムアウト':error.message}\nURL: ${target.url}`};}finally{clearTimeout(timeout);}
   }
   const statusHtml=r=>`<span class="ops-status ${r?.status||'unknown'}"><span class="ops-dot"></span>${r?.status==='ok'?'正常':r?.status==='error'?'異常':'未診断'}</span>`;
-  function render(){const map=byId();Ops.$('monitor-body').innerHTML=TARGETS.map(t=>{const r=map[t.id];return`<tr><td>${statusHtml(r)}</td><td><b>${t.name}</b><br><span class="muted mono">${Ops.escapeHtml(t.url)}</span></td><td>${t.kind}</td><td>${r?`${r.responseMs}ms`:'-'}</td><td>${r?`<span class="ops-status ${r.freshnessStatus}">${r.ageLabel}</span>`:'-'}</td><td>${r?.lastSuccess?Ops.fmtDate(r.lastSuccess):'-'}</td><td>${r?.consecutiveFailures||0}回</td><td>${r?Ops.escapeHtml((r.detail||'').split('\n')[0]):'-'}</td><td><button class="ops-btn" onclick="checkOne('${t.id}')">診断</button>${r?` <button class="ops-btn" onclick="showMonitorDetail('${t.id}')">詳細</button>`:''}</td></tr>`}).join('');const ok=results.filter(r=>r.status==='ok').length,errors=results.filter(r=>r.status==='error').length,stale=results.filter(r=>['warning','error'].includes(r.freshnessStatus)&&r.status==='ok').length,avg=Math.round(results.filter(r=>r.status==='ok').reduce((s,r)=>s+r.responseMs,0)/(ok||1)),maxFail=Math.max(0,...results.map(r=>r.consecutiveFailures||0));Ops.$('m-ok').querySelector('.value').textContent=ok;Ops.$('m-error').querySelector('.value').textContent=errors;Ops.$('m-stale').querySelector('.value').textContent=stale;Ops.$('m-average').querySelector('.value').textContent=ok?`${avg}ms`:'-';Ops.$('m-fail').querySelector('.value').textContent=maxFail;const alerts=[];results.filter(r=>r.status==='error').forEach(r=>alerts.push(`<div class="ops-alert critical"><div><b>${r.name}：取得失敗</b><p>${Ops.escapeHtml((r.detail||'').split('\n')[0])}／連続${r.consecutiveFailures}回</p></div></div>`));results.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).forEach(r=>alerts.push(`<div class="ops-alert warning"><div><b>${r.name}：データが古い可能性</b><p>推定更新 ${r.ageLabel}／基準 ${TARGETS.find(t=>t.id===r.id)?.maxAge}分</p></div></div>`));Ops.$('monitor-alerts').innerHTML=alerts.join('')||`<div class="ops-alert ${results.length?'ok':'info'}"><div><b>${results.length?'全監視対象が正常です':'診断待ち'}</b><p>${results.length?'API応答・JSON形式・データ鮮度に重大な問題はありません。':'全項目を診断してください。'}</p></div></div>`;}
+  function render(){
+    const map=byId();
+    const current=TARGETS.map(t=>map[t.id]).filter(Boolean);
+    Ops.$('monitor-body').innerHTML=TARGETS.map(t=>{const r=map[t.id];return`<tr><td>${statusHtml(r)}</td><td><b>${t.name}</b><br><span class="muted mono">${Ops.escapeHtml(t.url)}</span></td><td>${t.kind}</td><td>${r?`${r.responseMs}ms`:'-'}</td><td>${r?`<span class="ops-status ${r.freshnessStatus}">${r.ageLabel}</span>`:'-'}</td><td>${r?.lastSuccess?Ops.fmtDate(r.lastSuccess):'-'}</td><td>${r?.consecutiveFailures||0}回</td><td>${r?Ops.escapeHtml((r.detail||'').split('\n')[0]):'-'}</td><td><button class="ops-btn" onclick="checkOne('${t.id}')">診断</button>${r?` <button class="ops-btn" onclick="showMonitorDetail('${t.id}')">詳細</button>`:''}</td></tr>`}).join('');
+    const ok=current.filter(r=>r.status==='ok').length;
+    const errors=current.filter(r=>r.status==='error').length;
+    const untested=TARGETS.length-current.length;
+    const stale=current.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).length;
+    const unknownFreshness=current.filter(r=>r.status==='ok'&&r.freshnessStatus==='unknown').length;
+    const avg=Math.round(current.filter(r=>r.status==='ok').reduce((s,r)=>s+r.responseMs,0)/(ok||1));
+    const maxFail=Math.max(0,...current.map(r=>r.consecutiveFailures||0));
+    Ops.$('m-ok').querySelector('.value').textContent=`${ok}/${TARGETS.length}`;
+    Ops.$('m-error').querySelector('.value').textContent=errors;
+    Ops.$('m-stale').querySelector('.value').textContent=stale;
+    Ops.$('m-average').querySelector('.value').textContent=ok?`${avg}ms`:'-';
+    Ops.$('m-fail').querySelector('.value').textContent=maxFail;
+    const alerts=[];
+    current.filter(r=>r.status==='error').forEach(r=>alerts.push(`<div class="ops-alert critical"><div><b>${r.name}：取得失敗</b><p>${Ops.escapeHtml((r.detail||'').split('\n')[0])}／連続${r.consecutiveFailures}回</p></div></div>`));
+    current.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).forEach(r=>alerts.push(`<div class="ops-alert warning"><div><b>${r.name}：データが古い可能性</b><p>推定更新 ${r.ageLabel}／基準 ${TARGETS.find(t=>t.id===r.id)?.maxAge}分</p></div></div>`));
+    if(untested) alerts.push(`<div class="ops-alert warning"><div><b>${untested}件が未診断です</b><p>全${TARGETS.length}件のうち${current.length}件だけ診断済みです。</p></div></div>`);
+    if(!untested&&unknownFreshness) alerts.push(`<div class="ops-alert info"><div><b>${unknownFreshness}件は鮮度を判定できません</b><p>応答と形式は正常ですが、データ内に更新日時がありません。</p></div></div>`);
+    if(!alerts.length&&current.length===TARGETS.length) alerts.push('<div class="ops-alert ok"><div><b>全監視対象が正常です</b><p>API応答・JSON形式・データ鮮度に重大な問題はありません。</p></div></div>');
+    if(!alerts.length) alerts.push('<div class="ops-alert info"><div><b>診断待ち</b><p>全項目を診断してください。</p></div></div>');
+    Ops.$('monitor-alerts').innerHTML=alerts.join('');
+  }
   async function saveResult(result){const map=byId();map[result.id]=result;results=Object.values(map);Ops.storageSet('monitorResults',results);try{await Ops.collection('system_monitor_results')?.doc(result.id).set({...result,updatedAt:Ops.serverTimestamp()},{merge:true});}catch(_){}render();}
   window.checkOne=async id=>{const target=TARGETS.find(t=>t.id===id);if(!target)return;Ops.$('monitor-progress').textContent=`${target.name}を診断中`;await saveResult(await check(target));Ops.$('monitor-progress').textContent='診断完了';};
   window.showMonitorDetail=id=>{const r=byId()[id];Ops.$('detail-title').textContent=`${r.name} 診断詳細`;Ops.$('detail-content').textContent=`対象: ${r.url}\n状態: ${r.status}\n応答時間: ${r.responseMs}ms\n確認日時: ${Ops.fmtDate(r.checkedAt)}\n最終成功: ${Ops.fmtDate(r.lastSuccess)}\n連続失敗: ${r.consecutiveFailures}回\nデータ鮮度: ${r.ageLabel}\n\n${r.detail}`;Ops.$('detail-modal').classList.add('open');};
