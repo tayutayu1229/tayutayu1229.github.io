@@ -31,6 +31,39 @@ document.addEventListener('DOMContentLoaded', function() {
         const showPassword = document.getElementById('show-password');
         let resetInProgress = false;
 
+        function rememberLoginAttempt(status, email, detail) {
+            const entry = {
+                status,
+                email: String(email || '').toLowerCase().slice(0, 254),
+                detail: String(detail || '').slice(0, 300),
+                at: new Date().toISOString(),
+                userAgent: navigator.userAgent.slice(0, 400)
+            };
+            try {
+                const history = JSON.parse(localStorage.getItem('tayunetOps:loginAttempts') || '[]');
+                history.push(entry);
+                localStorage.setItem('tayunetOps:loginAttempts', JSON.stringify(history.slice(-100)));
+            } catch (_) {}
+            return entry;
+        }
+
+        async function recordSuccessfulLogin(user) {
+            const entry = rememberLoginAttempt('success', user.email, '認証・利用承認成功');
+            try {
+                await db.collection('login_events').add({
+                    uid: user.uid,
+                    email: user.email || '',
+                    status: 'success',
+                    detail: entry.detail,
+                    userAgent: entry.userAgent,
+                    clientTime: entry.at,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (error) {
+                console.warn('ログイン履歴を記録できませんでした。', error);
+            }
+        }
+
         // エラーメッセージの表示 (成功メッセージも兼用)
         function showError(message, isSuccess = false, persistent = false) {
             errorMessage.textContent = message;
@@ -62,6 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
             login_required: 'この機能を使うにはログインが必要です。ログイン後、自動で元の画面に戻ります。',
             approval_required: 'メールアドレスとパスワードは確認できましたが、管理者の利用承認がまだ完了していません。管理者へ承認を依頼してください。',
             disabled: 'このアカウントは利用停止中です。管理者へお問い合わせください。',
+            session_revoked: '管理者によりこの端末のセッションが終了されました。もう一度ログインしてください。',
             auth_error: '認証サーバーへの接続を確認できませんでした。通信状態を確認して、もう一度ログインしてください。'
         };
         const reason = new URLSearchParams(location.search).get('reason');
@@ -115,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (loginRecordError) {
                     console.warn('WARN: 最終ログイン日時を記録できませんでした。', loginRecordError);
                 }
+                await recordSuccessfulLogin(user);
                 
                 console.log("DEBUG: 認証・承認ステップ全てクリア。リダイレクトします。");
                 // 認証・承認成功: トップページへリダイレクト
@@ -124,6 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 let displayMessage = 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
                 
                 console.error('ERROR: Firebase 認証エラー', error.code, error.message);
+                rememberLoginAttempt('failure', email, `${error.code || 'auth/error'}: ${error.message || ''}`);
                 // Authenticationだけ成功して利用者情報の確認に失敗した場合も、
                 // 中途半端なログイン状態をブラウザへ残さない。
                 if (auth.currentUser) {

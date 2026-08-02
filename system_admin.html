@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>システム運用管理ポータル</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/css/system-admin.css">
+</head>
+<body data-ops-page="home">
+<div class="ops-shell">
+  <header class="ops-header">
+    <div class="ops-brand"><img src="/icon-192.png" alt=""><div><h1>システム運用管理ポータル</h1><p>東京圏輸送情報システム　監視・保安・診断</p></div></div>
+    <div class="ops-header-actions"><span class="wide" data-admin-user>確認中</span><a href="/account_management.html">アカウント</a><a href="/toppage.html">トップ</a></div>
+  </header>
+  <nav class="ops-nav" aria-label="管理メニュー">
+    <a href="/system_admin.html" data-page="home">管理ホーム</a>
+    <a href="/system_monitor.html" data-page="monitor">監視・公開状態</a>
+    <a href="/system_security.html" data-page="security">利用・セキュリティ</a>
+    <a href="/system_diagnostics.html" data-page="diagnostics">診断・データ管理</a>
+  </nav>
+  <main class="ops-main" id="ops-content">
+    <div class="ops-page-head">
+      <div><h2>運用状況サマリー</h2><p>重要な障害、データ鮮度、利用者状態を優先度順に確認できます。</p></div>
+      <div class="ops-actions"><button class="ops-btn primary" id="refresh-dashboard">最新状態に更新</button><button class="ops-btn" id="copy-summary">状況をコピー</button></div>
+    </div>
+    <section class="ops-alerts" id="priority-alerts"><div class="ops-alert info"><div><b>状態を確認しています</b><p>監視記録と管理データを読み込んでいます。</p></div></div></section>
+    <section class="ops-kpis">
+      <div class="ops-kpi" id="kpi-api"><div class="label">正常な監視対象</div><div class="value">-</div><div class="sub">直近の診断結果</div></div>
+      <div class="ops-kpi red" id="kpi-critical"><div class="label">重大アラート</div><div class="value">-</div><div class="sub">未解消の障害</div></div>
+      <div class="ops-kpi amber" id="kpi-stale"><div class="label">鮮度警告</div><div class="value">-</div><div class="sub">更新停止・古いデータ</div></div>
+      <div class="ops-kpi blue" id="kpi-sessions"><div class="label">稼働中セッション</div><div class="value">-</div><div class="sub">5分以内に通信</div></div>
+      <div class="ops-kpi amber" id="kpi-pending"><div class="label">承認待ち</div><div class="value">-</div><div class="sub">利用申請</div></div>
+      <div class="ops-kpi red" id="kpi-errors"><div class="label">24時間のエラー</div><div class="value">-</div><div class="sub">ブラウザ・API</div></div>
+    </section>
+    <section class="ops-grid">
+      <article class="ops-card span-6"><div class="ops-card-head"><h3>機能別管理</h3><small>3つの専門画面</small></div><div class="ops-card-body">
+        <ul class="ops-list">
+          <li><div><b>監視・公開状態</b><small>ODPT・JSON応答、鮮度、定期診断、GitHub公開状況</small></div><a class="ops-btn" href="/system_monitor.html">開く</a></li>
+          <li><div><b>利用・セキュリティ</b><small>利用分析、ログイン履歴、不審アクセス、セッション、監査ログ</small></div><a class="ops-btn" href="/system_security.html">開く</a></li>
+          <li><div><b>診断・データ管理</b><small>エラーログ、JSON検証、キャッシュ、障害報告の出力</small></div><a class="ops-btn" href="/system_diagnostics.html">開く</a></li>
+        </ul>
+      </div></article>
+      <article class="ops-card span-6"><div class="ops-card-head"><h3>最新バージョン</h3><span class="ops-status ok"><span class="ops-dot"></span>公開中</span></div><div class="ops-card-body">
+        <p style="font-size:1.7rem;font-weight:900;margin:0 0 5px">Ver.<span data-version>-</span></p>
+        <p class="muted">公開日時 <span data-published-at>-</span></p>
+        <ul class="ops-list" id="version-changes"></ul>
+      </div></article>
+      <article class="ops-card span-8"><div class="ops-card-head"><h3>最近の重要イベント</h3><a href="/system_diagnostics.html">すべて表示</a></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>重要度</th><th>発生日時</th><th>画面</th><th>内容</th></tr></thead><tbody id="recent-events"><tr><td colspan="4">読み込み中...</td></tr></tbody></table></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>運用チェック</h3><small id="dashboard-updated">未更新</small></div><div class="ops-card-body"><ul class="ops-list" id="ops-checklist"></ul></div></article>
+    </section>
+    <footer class="ops-footer"><span>東京圏輸送情報システム　システム運用管理</span><span>Ver.<span data-version>-</span></span></footer>
+  </main>
+</div>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="/auth_guard.js"></script>
+<script src="/assets/js/system-telemetry.js"></script>
+<script src="/assets/js/system-admin-core.js"></script>
+<script>
+(() => {
+  const severityLabel = value => ({ critical:'重大', error:'エラー', warning:'警告', info:'情報' }[value] || '情報');
+  const severityStatus = value => value === 'critical' || value === 'error' ? 'error' : value === 'warning' ? 'warning' : 'unknown';
+  const setKpi = (id, value, sub) => { const node=Ops.$(id); node.querySelector('.value').textContent=value; if(sub) node.querySelector('.sub').textContent=sub; };
+  async function loadDashboard() {
+    const alerts = [], oneDayAgo = Date.now() - 86400000, fiveMinutesAgo = Date.now() - 300000;
+    let events=[], sessions=[], users=[];
+    try { [events, sessions, users] = await Promise.all([
+      Ops.getCollection('system_events',{orderBy:'createdAt',limit:100}),
+      Ops.getCollection('system_sessions',{orderBy:'lastSeenAt',limit:200}),
+      Ops.getCollection('users',{orderBy:'registeredAt',limit:500})
+    ]); } catch (error) { alerts.push({severity:'critical',title:'管理データを取得できません',detail:error.message}); }
+    const monitor = Ops.storageGet('monitorResults', []);
+    const activeSessions = sessions.filter(s => !s.revoked && s.active !== false && (s.lastSeenAt?.toDate?.().getTime() || new Date(s.clientTime || 0).getTime()) >= fiveMinutesAgo);
+    const recentErrors = events.filter(e => ['critical','error'].includes(e.severity) && (e.createdAt?.toDate?.().getTime() || new Date(e.clientTime || 0).getTime()) >= oneDayAgo);
+    const failed = monitor.filter(item => item.status === 'error');
+    const stale = monitor.filter(item => item.freshnessStatus === 'warning' || item.freshnessStatus === 'error');
+    if (failed.length) alerts.push({severity:'critical',title:`${failed.length}件の監視対象が停止`,detail:failed.map(x=>x.name).join('、')});
+    if (stale.length) alerts.push({severity:'warning',title:`${stale.length}件でデータ鮮度低下`,detail:stale.map(x=>`${x.name}（${x.ageLabel || '不明'}）`).join('、')});
+    if (recentErrors.length) alerts.push({severity:'warning',title:`24時間以内に${recentErrors.length}件のエラー`,detail:'診断・データ管理から発生画面と内容を確認してください。'});
+    const pending = users.filter(u => u.status === 'pending');
+    if (pending.length) alerts.push({severity:'info',title:`承認待ちが${pending.length}件あります`,detail:'アカウント管理から申請内容を確認してください。'});
+    if (!monitor.length) alerts.push({severity:'warning',title:'定期診断が未実施です',detail:'監視・公開状態を開き、「全項目を診断」を実行してください。'});
+    if (!alerts.length) alerts.push({severity:'ok',title:'重大な問題は検出されていません',detail:'直近の監視・利用・認証情報は正常です。'});
+    Ops.$('priority-alerts').innerHTML = alerts.slice(0,6).map(a=>`<div class="ops-alert ${a.severity}"><div><b>${Ops.escapeHtml(a.title)}</b><p>${Ops.escapeHtml(a.detail)}</p></div></div>`).join('');
+    setKpi('kpi-api', `${monitor.filter(x=>x.status==='ok').length}/${monitor.length || 0}`, monitor.length ? '直近の診断結果' : '診断未実施');
+    setKpi('kpi-critical', failed.length, failed.length ? '要確認' : '問題なし');
+    setKpi('kpi-stale', stale.length, stale.length ? '更新時刻を確認' : '問題なし');
+    setKpi('kpi-sessions', activeSessions.length);
+    setKpi('kpi-pending', pending.length);
+    setKpi('kpi-errors', recentErrors.length);
+    Ops.$('recent-events').innerHTML = events.slice(0,10).map(e=>`<tr><td><span class="ops-status ${severityStatus(e.severity)}">${severityLabel(e.severity)}</span></td><td>${Ops.fmtDate(e.createdAt || e.clientTime)}</td><td>${Ops.escapeHtml(e.page || '-')}</td><td>${Ops.escapeHtml(e.message || e.code || e.type)}</td></tr>`).join('') || '<tr><td colspan="4">記録されたエラーはありません。</td></tr>';
+    const checks = [
+      ['管理者認証', !!Ops.auth, '管理者セッションを確認'],
+      ['監視診断', monitor.length > 0, monitor.length ? `${monitor.length}対象` : '未実施'],
+      ['重大障害', failed.length === 0, failed.length ? `${failed.length}件` : 'なし'],
+      ['データ鮮度', stale.length === 0, stale.length ? `${stale.length}件要確認` : '正常'],
+      ['公開バージョン', Ops.version.version && Ops.version.version !== '取得失敗', `Ver.${Ops.version.version}`]
+    ];
+    Ops.$('ops-checklist').innerHTML = checks.map(([name,ok,detail])=>`<li><div><b>${name}</b><small>${detail}</small></div><span class="ops-status ${ok?'ok':'warning'}">${ok?'正常':'確認'}</span></li>`).join('');
+    Ops.$('dashboard-updated').textContent = `更新 ${new Date().toLocaleTimeString('ja-JP')}`;
+    Ops.$('version-changes').innerHTML = (Ops.version.changes || []).map(change=>`<li><div>${Ops.escapeHtml(change)}</div></li>`).join('') || '<li><div>更新情報はありません。</div></li>';
+    window.dashboardSummary = {alerts, monitor, activeSessions:activeSessions.length, pending:pending.length, errors:recentErrors.length, version:Ops.version};
+  }
+  Ops.$('refresh-dashboard').addEventListener('click', loadDashboard);
+  Ops.$('copy-summary').addEventListener('click', async()=>{
+    const d=window.dashboardSummary || {};
+    const text=[`システム運用状況 ${new Date().toLocaleString('ja-JP')}`,`バージョン: ${d.version?.version||'-'}`,`重大アラート: ${(d.monitor||[]).filter(x=>x.status==='error').length}件`,`稼働中セッション: ${d.activeSessions||0}件`,`承認待ち: ${d.pending||0}件`,`24時間のエラー: ${d.errors||0}件`,...(d.alerts||[]).map(a=>`[${a.severity}] ${a.title}: ${a.detail}`)].join('\n');
+    try { await navigator.clipboard.writeText(text); Ops.toast('運用状況をコピーしました。'); await Ops.audit('dashboard_summary_copied',{summary:'管理ダッシュボードの状況をコピー'}); } catch(e){ Ops.toast('コピーできませんでした。','error'); }
+  });
+  window.addEventListener('load',()=>setTimeout(loadDashboard,300));
+})();
+</script>
+</body>
+</html>
