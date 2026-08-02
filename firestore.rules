@@ -127,5 +127,53 @@ service cloud.firestore {
     match /admin_notes/{document=**} {
       allow read, write: if isAdministrator();
     }
+
+    // Browser-side operational telemetry. Users may only append their own
+    // records; all inspection and deletion remains administrator-only.
+    match /system_events/{eventId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.type is string
+        && request.resource.data.createdAt == request.time;
+      allow read, delete: if isAdministrator();
+      allow update: if false;
+    }
+
+    match /login_events/{eventId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "success"
+        && request.resource.data.createdAt == request.time;
+      allow read, delete: if isAdministrator();
+      allow update: if false;
+    }
+
+    match /system_sessions/{sessionId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.sessionId is string;
+      allow get: if signedIn() && (resource.data.uid == request.auth.uid || isAdministrator());
+      allow list: if isAdministrator();
+      allow update: if isAdministrator() || (
+        signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.sessionId == resource.data.sessionId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email", "active", "path", "title", "userAgent", "platform",
+          "language", "screen", "timezone", "lastSeenAt"
+        ])
+      );
+      allow delete: if isAdministrator();
+    }
+
+    match /system_audit/{auditId} {
+      allow read, create, delete: if isAdministrator();
+      allow update: if false;
+    }
+
+    match /system_monitor_results/{resultId} {
+      allow read, write: if isAdministrator();
+    }
   }
 }
