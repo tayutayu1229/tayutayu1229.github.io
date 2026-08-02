@@ -3,6 +3,7 @@
 
   const ICON_PATH = '/icon-192.png';
   const HOME_PATH = '/toppage.html';
+  const VERSION_PATH = '/system-version.json';
   const LEGACY_MARK_SELECTOR = [
     '.sys-badge',
     '.sys-mark',
@@ -73,9 +74,29 @@
     document.body.appendChild(createBrandLink('site-brand-corner'));
   }
 
+  async function injectVersion() {
+    if (document.querySelector('[data-site-version-chip]')) return;
+    let data;
+    try {
+      const response = await fetch(VERSION_PATH, { cache: 'no-store' });
+      if (!response.ok) return;
+      data = await response.json();
+    } catch (_) { return; }
+    const link = document.createElement('a');
+    link.className = 'site-version-chip';
+    link.dataset.siteVersionChip = 'true';
+    link.href = '/system_admin.html';
+    link.title = `${data.name || 'システム'} ${data.releaseName || ''}`.trim();
+    link.setAttribute('aria-label', `システムバージョン ${data.version}`);
+    link.textContent = `Ver.${data.version || '-'}`;
+    document.body.appendChild(link);
+  }
+
+  function boot() { injectBrandIcon(); injectVersion(); }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectBrandIcon, { once: true });
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
   } else {
-    injectBrandIcon();
+    boot();
   }
 })();
