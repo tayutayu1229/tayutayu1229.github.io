@@ -316,6 +316,12 @@
         </div>
 
         <div class="menu-group">
+            <div class="menu-item" id="menu-system-operations" data-admin-only="true">
+                <span class="mi-left">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M3 16V8m4 8V4m4 12v-6m4 6V6M2 18h16" stroke="currentColor" stroke-width="1.5"/></svg>
+                    システム運用管理
+                </span>
+            </div>
             <div class="menu-item active" data-target="dashboard" data-admin-only="true">
                 <span class="mi-left">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="7" height="6" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="7" height="10" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="11" width="7" height="6" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -426,6 +432,7 @@
                             <button class="quick-action" data-open-section="users"><b>利用者を管理</b><small>権限・利用停止を変更</small></button>
                             <button class="quick-action" onclick="openUsersByLastLogin()"><b>最終ログイン順に表示</b><small>最近利用したユーザーを確認</small></button>
                             <button class="quick-action" onclick="copyDashboardSummary()"><b>管理状況をコピー</b><small>件数をクリップボードへコピー</small></button>
+                            <button class="quick-action" onclick="location.href='/system_admin.html'"><b>システム運用管理</b><small>API監視・セキュリティ・診断</small></button>
                             <button class="quick-action" onclick="exportUsersCsv()"><b>CSVを出力</b><small>現在の一覧を保存</small></button>
                         </div>
                     </div>
@@ -575,6 +582,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="/assets/js/system-telemetry.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -642,6 +650,20 @@ document.addEventListener("DOMContentLoaded", function () {
             toast.style.transition = "opacity 0.3s";
             setTimeout(() => toast.remove(), 300);
         }, 2500);
+    }
+
+    async function writeAdminAudit(action, target, summary) {
+        if (!CURRENT_USER_IS_ADMIN || !CURRENT_USER_UID) return;
+        try {
+            await db.collection("system_audit").add({
+                uid: CURRENT_USER_UID,
+                email: auth.currentUser?.email || "",
+                action, target: target || "", summary: summary || "",
+                page: location.pathname,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                clientTime: new Date().toISOString()
+            });
+        } catch (error) { console.warn("監査ログを記録できませんでした。", error); }
     }
 
     function escapeHtml(value) {
@@ -732,6 +754,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             userInfo.textContent = `${user.email} でログイン中`;
             CURRENT_USER_IS_ADMIN = data.isAdmin === true;
+            if (window.TayunetTelemetry) window.TayunetTelemetry.start({ auth, db, user, profile: data });
             const authLastLogin = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime) : null;
             if (authLastLogin && !Number.isNaN(authLastLogin.getTime())) {
                 try {
@@ -1120,6 +1143,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件のユーザーを承認しました。`);
+                await writeAdminAudit("users_bulk_approved", uids.join(","), `${uids.length}件を一括承認`);
                 loadAllUsers();
             } catch (e) {
                 console.error(e);
@@ -1135,6 +1159,7 @@ document.addEventListener("DOMContentLoaded", function () {
             try {
                 await Promise.all(uids.map(uid => db.collection("users").doc(uid).delete()));
                 showToast(`${uids.length}件のユーザーを削除しました。`);
+                await writeAdminAudit("users_bulk_deleted", uids.join(","), `${uids.length}件を完全削除`);
                 loadAllUsers();
             } catch (e) {
                 console.error(e);
@@ -1153,6 +1178,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件を無効化しました。`);
+                await writeAdminAudit("users_bulk_disabled", uids.join(","), `${uids.length}件を一括無効化`);
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("一括無効化に失敗しました。", "error"); }
         });
@@ -1168,6 +1194,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID
                 })));
                 showToast(`${uids.length}件を再有効化しました。`);
+                await writeAdminAudit("users_bulk_enabled", uids.join(","), `${uids.length}件を一括再有効化`);
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("一括再有効化に失敗しました。", "error"); }
         });
@@ -1213,6 +1240,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: CURRENT_USER_UID
                 }, { merge: true });
                 showToast("ユーザー詳細を保存しました。");
+                await writeAdminAudit("user_note_updated", uid, "運用タグ・管理メモを更新");
                 closeModal();
                 loadAllUsers();
             } catch (e) {
@@ -1256,6 +1284,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(uid).update({ status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
             showToast("ユーザーを承認しました。");
+            await writeAdminAudit("user_approved", uid, "ユーザーを承認");
             loadAllUsers();
         } catch (e) { console.error(e); showToast("承認に失敗しました。", "error"); }
     };
@@ -1266,6 +1295,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(uid).update({ status: "disabled", approved: false, disabled: true,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
                 showToast("ユーザーを無効化しました。");
+                await writeAdminAudit("user_disabled", uid, "ユーザーを無効化");
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("無効化に失敗しました。", "error"); }
         });
@@ -1276,6 +1306,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(uid).update({ status: "active", approved: true, disabled: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
             showToast("ユーザーを再有効化しました。");
+            await writeAdminAudit("user_enabled", uid, "ユーザーを再有効化");
             loadAllUsers();
         } catch (e) { console.error(e); showToast("再有効化に失敗しました。", "error"); }
     };
@@ -1285,6 +1316,7 @@ document.addEventListener("DOMContentLoaded", function () {
             try {
                 await db.collection("users").doc(uid).delete();
                 showToast("ユーザーを削除しました。");
+                await writeAdminAudit("user_deleted", uid, "ユーザーを完全削除");
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("削除に失敗しました。", "error"); }
         });
@@ -1296,6 +1328,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(uid).update({ isAdmin: true,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
                 showToast("管理者権限を付与しました。");
+                await writeAdminAudit("admin_granted", uid, "管理者権限を付与");
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("権限付与に失敗しました。", "error"); }
         });
@@ -1312,6 +1345,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await db.collection("users").doc(uid).update({ isAdmin: false,
                     lastManagedAt: firebase.firestore.FieldValue.serverTimestamp(), lastManagedBy: CURRENT_USER_UID });
                 showToast("管理者権限を剥奪しました。");
+                await writeAdminAudit("admin_revoked", uid, "管理者権限を剥奪");
                 loadAllUsers();
             } catch (e) { console.error(e); showToast("権限剥奪に失敗しました。", "error"); }
         });
@@ -1348,6 +1382,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 showToast("この機能には管理者権限が必要です。", "error");
                 return;
             }
+            if (item.id === "menu-system-operations") { window.location.href = "/system_admin.html"; return; }
             const target = item.dataset.target;
             if (!target) return;
             openSection(target);

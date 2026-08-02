@@ -48,6 +48,35 @@
         throw lastError;
     }
 
+    function startTelemetry(context) {
+        const launch = () => global.TayunetTelemetry && global.TayunetTelemetry.start(context).catch(error => {
+            console.warn('運用計測を開始できませんでした。', error);
+        });
+        if (global.TayunetTelemetry) { launch(); return; }
+        if (document.querySelector('script[data-tayunet-telemetry]')) return;
+        const script = document.createElement('script');
+        script.src = '/assets/js/system-telemetry.js?v=2026.08.02.1';
+        script.defer = true;
+        script.dataset.tayunetTelemetry = 'true';
+        script.addEventListener('load', launch, { once: true });
+        document.head.appendChild(script);
+    }
+
+    function ensureBrandAndVersion() {
+        if (!document.querySelector('link[href*="site-brand.css"]')) {
+            const style = document.createElement('link');
+            style.rel = 'stylesheet';
+            style.href = '/assets/css/site-brand.css?v=2026.08.02.1';
+            document.head.appendChild(style);
+        }
+        if (!document.querySelector('script[src*="site-brand.js"]')) {
+            const script = document.createElement('script');
+            script.src = '/assets/js/site-brand.js?v=2026.08.02.1';
+            script.defer = true;
+            document.head.appendChild(script);
+        }
+    }
+
     let resolveReady;
     global.TayunetAuthReady = new Promise(resolve => { resolveReady = resolve; });
 
@@ -98,6 +127,8 @@
                 const userInfo = document.getElementById('user-info');
                 if (mainContent) mainContent.style.display = 'block';
                 if (userInfo) userInfo.textContent = `(${user.email || '利用者'})でログイン中`;
+                ensureBrandAndVersion();
+                startTelemetry({ auth, db, user, profile });
                 resolveReady({ ok: true, user, profile });
             } catch (error) {
                 resolveReady({ ok: false, reason: 'auth_error', error });
