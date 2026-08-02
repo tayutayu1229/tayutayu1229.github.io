@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ATOS情報配信システム</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -667,8 +667,18 @@ html, body {
   .info-grid { grid-template-columns: 1fr; }
   #content { padding: 10px; }
   .panel-body { padding: 10px; }
-  #header { height: 56px; padding: 0 14px; }
-  .sys-title { font-size: 0.88rem; }
+  #header { height: auto; min-height: 94px; padding: 7px 10px; flex-wrap: wrap; align-content: center; gap: 5px; }
+  .header-left { width: 100%; gap: 8px; }
+  .header-left > div:last-child { min-width: 0; }
+  .sys-title { font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sys-sub { font-size: 0.56rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-right { width: 100%; gap: 5px; justify-content: space-between; }
+  .share-btn,.home-btn,.settings-btn { min-height: 38px; padding: 5px 8px; font-size: 0.64rem; }
+  .live-pill { min-height: 38px; padding: 5px 8px; font-size: 0.6rem; }
+  #clock { min-width: 68px; font-size: 1rem; }
+  #clock-date { font-size: 0.5rem; }
+  #status-bar { padding: 7px 10px; scrollbar-width: thin; }
+  #nav-tabs { padding: 0 8px; scrollbar-width: thin; }
   .nav-tab { padding: 8px 14px; font-size: 0.75rem; }
 }
 </style>
@@ -705,7 +715,7 @@ html, body {
   <div class="stat-pill sp-total">  <span class="sp-label">総路線</span><span class="sp-val" id="sb-total">--</span></div>
   <div class="stat-pill sp-normal"> <span class="sp-label">平常</span><span class="sp-val" id="sb-normal">--</span></div>
   <div class="stat-pill sp-delay">  <span class="sp-label">遅延</span><span class="sp-val" id="sb-delay">--</span></div>
-  <div class="stat-pill sp-suspend"><span class="sp-label">障害</span><span class="sp-val" id="sb-suspend">--</span></div>
+  <div class="stat-pill sp-suspend"><span class="sp-label">見合わせ等</span><span class="sp-val" id="sb-suspend">--</span></div>
   <div class="stat-pill sp-trains"> <span class="sp-label">走行列車</span><span class="sp-val" id="sb-trains">--</span></div>
   <div class="stat-pill" style="margin-left:auto;">
     <span class="sp-label">次回更新</span>
@@ -1310,6 +1320,7 @@ const stationNameMap = {
 };
 const externalStationNameMap={
   ShinKiba:'新木場',Ebina:'海老名',Shonandai:'湘南台',ShinYokohama:'新横浜',WakoShi:'和光市',Wakoshi:'和光市',
+  Kara:'烏山',
   MotomachiChukagai:'元町・中華街',Hiyoshi:'日吉',MusashiKosugi:'武蔵小杉',Hanno:'飯能',Kotesashi:'小手指',
   Kawagoeshi:'川越市',ShinrinKoen:'森林公園',HonAtsugi:'本厚木',Isehara:'伊勢原',Odawara:'小田原',
   KataseEnoshima:'片瀬江ノ島',Karakida:'唐木田',Hashimoto:'橋本',ZushiHayama:'逗子・葉山',Misakiguchi:'三崎口',
@@ -1507,7 +1518,12 @@ function renderInfo(){
   const pri={'運転見合わせ':1,'一部運休':1,'運転再開見込':1,'遅延':2,'平常運転':3};
   const sorted=[...infoData].sort((a,b)=>(pri[a["odpt:trainInformationStatus"]?.ja]||4)-(pri[b["odpt:trainInformationStatus"]?.ja]||4));
   let normal=0,delay=0,suspend=0;
-  sorted.forEach(i=>{ const s=i["odpt:trainInformationStatus"]?.ja||"平常運転"; if(s==='平常運転') normal++; else if(s.includes('遅延')||s.includes('再開')) delay++; else suspend++; });
+  sorted.forEach(i=>{
+    const s=i["odpt:trainInformationStatus"]?.ja||"平常運転";
+    if(s==='平常運転') normal++;
+    else if(s.includes('遅延')||s.includes('再開')) delay++;
+    else if(/運転見合わせ|一部運休|運休|抑止/.test(s)) suspend++;
+  });
   document.getElementById('sb-total').textContent=sorted.length;
   document.getElementById('sb-normal').textContent=normal;
   document.getElementById('sb-delay').textContent=delay;

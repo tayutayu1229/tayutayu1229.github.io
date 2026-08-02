@@ -907,6 +907,7 @@
    "Numazu": "沼津",
    "Shinkiba": "新木場",
    "ShinKiba": "新木場",
+   "Kara": "烏山",
    "odpt.Station:TWR.Rinkai.ShinKiba": "新木場",
    "TokyoTeleport": "東京テレポート",
    "KokusaiTenjijo": "国際展示場",
@@ -948,6 +949,7 @@
   let passengerSurveyData = [];
   let allRailwayData = [];
   let supplementalPromise = null;
+  const destinationStationRequests = new Set();
   let autoUpdateInterval = null;
 
   let cachedStationTimetables = {};
@@ -1909,6 +1911,30 @@
     return supplementalPromise;
   }
 
+  async function hydrateDestinationStationTitles(){
+    const ids=[...new Set(trainData.flatMap(train=>train["odpt:destinationStation"]||[]).filter(Boolean))];
+    const missing=[];
+    ids.forEach(id=>{
+      const station=stationInfoData.find(item=>item["owl:sameAs"]===id);
+      const ja=station?.["odpt:stationTitle"]?.ja;
+      if(ja){ stationTitles[id]=shortenStationName(ja); return; }
+      const raw=id.split(".").pop();
+      if(stationNameMap[id]||stationNameMap[raw]){ stationTitles[id]=shortenStationName(stationNameMap[id]||stationNameMap[raw]); return; }
+      if(!destinationStationRequests.has(id)){ destinationStationRequests.add(id); missing.push(id); }
+    });
+    await Promise.all(missing.slice(0,50).map(async id=>{
+      try{
+        const response=await fetch(`${ODPT_CHALLENGE_API}/odpt:Station?owl:sameAs=${encodeURIComponent(id)}`);
+        if(!response.ok) return;
+        const station=(await response.json())[0];
+        if(station?.["odpt:stationTitle"]?.ja){
+          stationInfoData.push(station);
+          stationTitles[id]=shortenStationName(station["odpt:stationTitle"].ja);
+        }
+      }catch(error){ console.warn(`駅名を取得できませんでした: ${id}`,error); }
+    }));
+  }
+
   async function ensureTrainTimetablesForLines(lines,calendar=currentCalendar){
     const uniqueLines=[...new Set((lines||[]).filter(Boolean))];
     await Promise.all(uniqueLines.map(async lineId=>{
@@ -1978,6 +2004,8 @@
       document.getElementById("dataTime").textContent=`データ時刻 ${formatApiTime(newest)}`;
 
       buildStationTitleMap();
+      await fetchSupplementalData();
+      await hydrateDestinationStationTitles();
       populateLineSelect();
 
       if ([...select.options].some(opt => opt.value === previousSelectedLine)) {
