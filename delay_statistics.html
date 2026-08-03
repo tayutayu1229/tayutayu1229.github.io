@@ -60,7 +60,7 @@
   const stationName=id=>stationNames[id]||String(id||'').split('.').pop()||'不明';
   const esc=value=>Ops.escapeHtml(value);
   async function loadStationNames(){
-    try{const response=await fetch(`/api/odpt/challenge/odpt:Railway?odpt:operator=odpt.Operator:JR-East&stats=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const data=await response.json();data.forEach(line=>(line['odpt:stationOrder']||[]).forEach(item=>{if(item['odpt:station'])stationNames[item['odpt:station']]=item['odpt:stationTitle']?.ja||item['odpt:station'].split('.').pop();}));}catch(_){}
+    try{const response=await fetch('/api/odpt/challenge/odpt:Railway?odpt:operator=odpt.Operator:JR-East',{cache:'no-store'});if(!response.ok)return;const data=await response.json();data.forEach(line=>(line['odpt:stationOrder']||[]).forEach(item=>{if(item['odpt:station'])stationNames[item['odpt:station']]=item['odpt:stationTitle']?.ja||item['odpt:station'].split('.').pop();}));}catch(_){}
   }
   const barList=(rows,target)=>{const max=Math.max(1,...rows.map(row=>100-row.onTimeRate));document.getElementById(target).innerHTML=rows.map(row=>{const rate=Math.round(100-row.onTimeRate),width=Math.max(2,Math.round(rate/max*100));return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:.76rem"><b>${esc(row.name)}</b><span>遅延 ${rate}%／最大 ${seconds(row.maxDelaySeconds)}</span></div><div class="delay-bar-track"><div class="delay-bar-fill ${rate>=30?'bad':rate>=10?'warn':''}" style="width:${width}%"></div></div></div>`;}).join('')||'<div class="ops-empty">標本がありません。</div>';};
   function render(data){
