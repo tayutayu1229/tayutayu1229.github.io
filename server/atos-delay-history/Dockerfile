@@ -9,7 +9,8 @@ USER atos
 ENV ATOS_HISTORY_DB=/data/history.sqlite3 \
     ATOS_HISTORY_HOST=0.0.0.0 \
     ATOS_HISTORY_PORT=8787 \
-    ATOS_HISTORY_INTERVAL=20
+    ATOS_HISTORY_INTERVAL=20 \
+    ATOS_HISTORY_RETENTION_DAYS=30
 EXPOSE 8787
 VOLUME ["/data"]
 CMD ["python3", "/app/atos_delay_history.py"]
