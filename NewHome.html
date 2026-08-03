@@ -612,6 +612,7 @@ html, body {
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 </head>
 <body>
@@ -1337,12 +1338,8 @@ function populateAtosLineSelect(){
 async function fetchAtosData(){
   const btn=document.getElementById('btn-atos'); btn.disabled=true;
   try{
-    const today=new Date(), dow=today.getDay();
-    let cal='Weekday';
-    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json');
-      if(hr.ok){ const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday'; }
-    } catch(e){}
-    if(dow===0||dow===6) cal='SaturdayHoliday';
+    const today=new Date();
+    const cal=window.TayunetCalendar?.odptCalendar(today)||(today.getDay()===0||today.getDay()===6?'SaturdayHoliday':'Weekday');
     const [trainRes,railRes,ttRes]=await Promise.all([
       fetch(`${BASE}/odpt:Train?odpt:operator=odpt.Operator:JR-East&${K}`),
       fetch(`${BASE}/odpt:Railway?odpt:operator=odpt.Operator:JR-East&${K}`),
@@ -1586,10 +1583,8 @@ async function showAtosStationTT(stationId, lineId){
   document.getElementById('mstt-title').textContent=`${stnName}  TIME TABLE`;
   document.getElementById('mstt-body').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
   try{
-    const today=new Date(), dow=today.getDay();
-    let cal='Weekday';
-    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json'); if(hr.ok){const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday';} }catch(e){}
-    if(dow===0||dow===6) cal='SaturdayHoliday';
+    const today=new Date();
+    const cal=window.TayunetCalendar?.odptCalendar(today)||(today.getDay()===0||today.getDay()===6?'SaturdayHoliday':'Weekday');
     const cacheKey=`${stationId}-${lineId}-${cal}`;
     if(!cachedStationTT[cacheKey]){
       const res=await fetch(`${BASE}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationId}&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${cal}&${K}`);

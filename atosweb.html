@@ -688,6 +688,7 @@ html, body {
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 </head>
 <body>
@@ -1751,12 +1752,8 @@ function atosLineChanged(){ atosRender(); ensureAtosTimetablesForSelection(); sy
 async function fetchAtosData(){
   const btn=document.getElementById('btn-atos'); btn.disabled=true;
   try{
-    const today=new Date(), dow=today.getDay();
-    let cal='Weekday';
-    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json');
-      if(hr.ok){ const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday'; }
-    } catch(e){}
-    if(dow===0||dow===6) cal='SaturdayHoliday';
+    const today=new Date();
+    const cal=window.TayunetCalendar?.odptCalendar(today)||(today.getDay()===0||today.getDay()===6?'SaturdayHoliday':'Weekday');
     currentAtosCalendar=cal;
     const [trainRes,railRes,ttRes]=await Promise.all([
       fetch(`${BASE}/odpt:Train?odpt:operator=odpt.Operator:JR-East&${K}`),
@@ -1898,7 +1895,8 @@ function atosRender(){
     atosTrainData.forEach(train=>{
       if(!targetLines.includes(train["odpt:railway"])) return;
       const direction=train["odpt:railDirection"];
-      const tdir=getTrainDir(direction,train["odpt:railway"]);
+      // 共用線区の上下位置と方向絞り込みを、選択中の線区の向きへ統一する。
+      const tdir=getTrainDir(direction,primaryLineId);
       if(directionFilter!=='all'&&tdir!==directionFilter) return;
       const trainKey=`${train['odpt:railway']}|${train['odpt:trainNumber']||train['@id']||train['odpt:fromStation']}`;
       if(placedTrainKeys.has(trainKey)) return;
@@ -2103,10 +2101,8 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
   document.getElementById('mstt-title').textContent=`駅別ダイヤモニタ　${stnName}`;
   document.getElementById('mstt-body').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
   try{
-    const today=new Date(), dow=today.getDay();
-    let cal='Weekday';
-    try{ const hr=await fetch('https://holidays-jp.github.io/api/v1/date.json'); if(hr.ok){const hols=await hr.json(); if(hols[today.toISOString().slice(0,10)]) cal='SaturdayHoliday';} }catch(e){}
-    if(dow===0||dow===6) cal='SaturdayHoliday';
+    const today=new Date();
+    const cal=window.TayunetCalendar?.odptCalendar(today)||(today.getDay()===0||today.getDay()===6?'SaturdayHoliday':'Weekday');
     const stationName=getFullStationTitle(stationId);
     const lines=Array.isArray(combinedLines)&&combinedLines.length?combinedLines:[lineId];
     const contexts=lines.map(id=>{
@@ -2198,7 +2194,7 @@ async function openTrainByNumberFromStation(number,lineId){
 // =====================================================
 // ===== 時刻表タブ =====
 // =====================================================
-let externalTimetables=[], externalTimetablePromise=null, externalHolidayData={};
+let externalTimetables=[], externalTimetablePromise=null;
 function normalizeTrainKey(value){return String(value||'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,s=>String.fromCharCode(s.charCodeAt(0)-0xFEE0)).toUpperCase().replace(/\s/g,'').trim();}
 function localInputDate(date=new Date()){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const get=t=>parts.find(p=>p.type===t)?.value;return `${get('year')}-${get('month')}-${get('day')}`;}
 function switchTrainSearchSource(name,button){
@@ -2211,12 +2207,9 @@ function loadExternalTimetables(){
   if(externalTimetables.length) return Promise.resolve(externalTimetables);
   if(externalTimetablePromise) return externalTimetablePromise;
   const status=document.getElementById('json-tt-status');
-  externalTimetablePromise=Promise.all([
-    TayunetPrivateData.fetchTimetables(),
-    fetch('https://holidays-jp.github.io/api/v1/date.json').then(r=>r.ok?r.json():{}).catch(()=>({}))
-  ]).then(([data,holidays])=>{
+  externalTimetablePromise=TayunetPrivateData.fetchTimetables().then(data=>{
     if(!Array.isArray(data)) throw new Error('timetables.jsonのルートが配列ではありません');
-    externalTimetables=data;externalHolidayData=holidays||{};
+    externalTimetables=data;
     const lines=[...new Set(data.map(x=>x.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
     document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${line}">${line}</option>`).join('');
     status.textContent=`保護時刻表 ${data.length.toLocaleString('ja-JP')}列車・${lines.length}線区を読込済み`;
@@ -2225,7 +2218,7 @@ function loadExternalTimetables(){
   }).catch(error=>{status.textContent=`保護時刻表の読込失敗: ${error.message}`;status.style.color='var(--red2)';addDiagnostic('error','保護時刻表データ読込失敗',{message:error.message,stack:error.stack},'timetable-api');externalTimetablePromise=null;return [];});
   return externalTimetablePromise;
 }
-function externalDayType(dateValue){const d=new Date(`${dateValue}T12:00:00+09:00`),day=d.getDay();return day===0||day===6||Boolean(externalHolidayData[dateValue])?'土休日':'平日';}
+function externalDayType(dateValue){const d=new Date(`${dateValue}T12:00:00+09:00`);return window.TayunetCalendar?.dayType(d)||(d.getDay()===0||d.getDay()===6?'土休日':'平日');}
 async function searchJsonTrainTimetable(){
   await loadExternalTimetables();
   const line=document.getElementById('json-tt-line').value,dateValue=document.getElementById('json-tt-date').value;
