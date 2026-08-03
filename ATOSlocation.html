@@ -856,6 +856,17 @@
     }
   }
 
+  // 湘南新宿ラインへ重ねる横須賀線列車だけは、方向語ではなく共用区間の駅順でそろえる。
+  function getSharedVisualTrainDirection(primaryLineId, train, fromIndex, toIndex) {
+    if(primaryLineId==="odpt.Railway:JR-East.ShonanShinjuku"&&train?.["odpt:railway"]==="odpt.Railway:JR-East.Yokosuka"){
+      if(fromIndex>=0&&toIndex>=0&&fromIndex!==toIndex) return toIndex>fromIndex?"down":"up";
+      const raw=train["odpt:railDirection"];
+      if(raw==="odpt.RailDirection:Inbound"||raw==="odpt.RailDirection:Northbound") return "down";
+      if(raw==="odpt.RailDirection:Outbound"||raw==="odpt.RailDirection:Southbound") return "up";
+    }
+    return getTrainDirection(train?.["odpt:railDirection"],primaryLineId);
+  }
+
   function getFilterDirectionSide(railDirection,railwayId){
     switch(railDirection){
       case "odpt.RailDirection:Inbound":
@@ -1773,7 +1784,7 @@
           let trainPosition;
           let positionKey;
           // 共用線区の上下位置は、列車自身の線区ではなく現在表示中の線区基準へそろえる。
-          const trainDir = getTrainDirection(direction, primaryLineId);
+          const trainDir = getSharedVisualTrainDirection(primaryLineId, train, localFromIdx, localToIdx);
 
           if (to === null || to === undefined) {
             const fromName=getFullStationTitle(from);
