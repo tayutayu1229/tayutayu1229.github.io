@@ -114,6 +114,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 </head>
 <body>
@@ -178,9 +179,7 @@
     <script src="private-data-client.js"></script>
     <script>
         let rawTimetableData = [];
-        let holidayData = {};
         let lastModalFocus = null;
-        const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
         const PREF_KEY = 'ekibetuatos_filters_v1';
 
         function showMessage(text) {
@@ -197,15 +196,12 @@
         }
 
         function isHoliday(date) {
-            const key = localInputDate(date);
-            return date.getDay() === 0 || date.getDay() === 6 || Boolean(holidayData[key]);
+            return window.TayunetCalendar?.isHoliday(date) || date.getDay() === 0 || date.getDay() === 6;
         }
 
         async function loadData() {
             showMessage('');
             try {
-                const holidayResponse = await fetch(HOLIDAY_API_URL).catch(() => null);
-                if (holidayResponse?.ok) holidayData = await holidayResponse.json();
                 rawTimetableData = await TayunetPrivateData.fetchTimetables();
                 populateLines();
                 restoreSelection();

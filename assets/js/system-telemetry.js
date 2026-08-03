@@ -25,6 +25,19 @@
   let heartbeatTimer = null;
   let unsubscribeSession = null;
   let originalFetch = null;
+  const recentEventKeys = new Map();
+
+  function isDuplicateEvent(type, detail) {
+    if (type === 'page_view') return false;
+    const eventKey = `${type}|${detail.code || ''}|${detail.url || location.href}|${detail.message || ''}`;
+    const now = Date.now();
+    const previous = recentEventKeys.get(eventKey) || 0;
+    recentEventKeys.set(eventKey, now);
+    if (recentEventKeys.size > 250) {
+      for (const [key, timestamp] of recentEventKeys) if (now - timestamp > 300000) recentEventKeys.delete(key);
+    }
+    return now - previous < 60000;
+  }
 
   function appendLocal(key, item, limit = 200) {
     try {
@@ -59,6 +72,7 @@
   }
 
   function event(type, detail = {}) {
+    if (isDuplicateEvent(type, detail)) return Promise.resolve(null);
     return addDocument('system_events', {
       type: clampText(type, 60),
       severity: clampText(detail.severity || 'info', 20),
@@ -113,7 +127,8 @@
         }
         return response;
       } catch (error) {
-        event('fetch_error', { severity: 'critical', url: requestUrl, code: error.name, message: error.message });
+        // 単発の通信断はアプリ破損ではないため「重大」にはしない。連続記録も event() 側で抑止する。
+        event('fetch_error', { severity: navigator.onLine ? 'error' : 'warning', url: requestUrl, code: error.name, message: error.message });
         throw error;
       }
     };
@@ -133,8 +148,9 @@
       setTimeout(() => event('console_warning', { severity: 'warning', message }), 0);
     };
     addEventListener('error', (e) => {
+      const opaqueScriptError = e.message === 'Script error.' && !e.error;
       event('javascript_error', {
-        severity: 'critical',
+        severity: opaqueScriptError ? 'warning' : 'critical',
         message: e.message,
         code: `${e.filename || location.pathname}:${e.lineno || 0}:${e.colno || 0}`,
         meta: { stack: e.error?.stack ? clampText(e.error.stack, 3000) : '' }
