@@ -422,6 +422,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 </head>
 <body>
@@ -528,9 +529,6 @@
     <script src="private-data-client.js"></script>
     <script>
         let rawJsonData = [];
-        const HOLIDAY_API_URL = 'https://holidays-jp.github.io/api/v1/date.json';
-        
-        let holidayData = {}; 
 
         // 所定ダイヤの運行期間
         const PERIOD_START = new Date('2025/03/15');
@@ -571,13 +569,7 @@
         }
         
         function isHoliday(date) {
-            const dayOfWeek = date.getDay(); 
-            if (dayOfWeek === 0 || dayOfWeek === 6) {
-                return true; 
-            }
-            
-            const dateKey = formatDate(date); 
-            return holidayData.hasOwnProperty(dateKey); 
+            return window.TayunetCalendar?.isHoliday(date) || date.getDay() === 0 || date.getDay() === 6;
         }
 
         // ==========================================
@@ -585,13 +577,6 @@
         // ==========================================
         async function loadData() {
             try {
-                const holidayResponse = await fetch(HOLIDAY_API_URL);
-                if (holidayResponse.ok) {
-                    holidayData = await holidayResponse.json();
-                } else {
-                    console.warn(`Holiday API error! status: ${holidayResponse.status}. Proceeding without external holiday data.`);
-                }
-                
                 rawJsonData = await TayunetPrivateData.fetchTimetables();
                 
             } catch (error) {
