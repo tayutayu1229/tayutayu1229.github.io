@@ -2166,20 +2166,44 @@ function addAtosTimetables(items){
     if(!keys.has(key)){atosTimetableData.push(item);keys.add(key);}
   });
 }
+const ATOS_CONNECTED_TIMETABLE_RAILWAYS=[
+  ['ShonanShinjuku','Utsunomiya'],['ShonanShinjuku','Takasaki'],['ShonanShinjuku','Yokosuka'],['ShonanShinjuku','Tokaido'],
+  ['Yokosuka','SobuRapid'],['Utsunomiya','Tokaido'],['Takasaki','Tokaido'],
+  ['SotetsuDirect','SaikyoKawagoe'],['SaikyoKawagoe','Kawagoe'],['Chuo','ChuoRapid']
+];
+function atosRailwayCode(id){ return String(id||'').split('.').pop(); }
+function atosTimetableRailwaysMayConnect(left,right){
+  const a=atosRailwayCode(left),b=atosRailwayCode(right);
+  return a===b||ATOS_CONNECTED_TIMETABLE_RAILWAYS.some(pair=>pair.includes(a)&&pair.includes(b));
+}
+function atosTimetableSegmentsConnect(left,right){
+  if(!atosTimetableRailwaysMayConnect(left?.['odpt:railway'],right?.['odpt:railway'])) return false;
+  const leftStops=left?.['odpt:trainTimetableObject']||[],rightStops=right?.['odpt:trainTimetableObject']||[];
+  if(!leftStops.length||!rightStops.length) return false;
+  const leftByStation=new Map(leftStops.map(stop=>[physicalStationKey(timetableStopStation(stop)),timetableMinute(stop)]));
+  const rightEndpoints=new Set([physicalStationKey(timetableStopStation(rightStops[0])),physicalStationKey(timetableStopStation(rightStops[rightStops.length-1]))]);
+  const leftEndpoints=new Set([physicalStationKey(timetableStopStation(leftStops[0])),physicalStationKey(timetableStopStation(leftStops[leftStops.length-1]))]);
+  return rightStops.some(stop=>{
+    const key=physicalStationKey(timetableStopStation(stop)),leftMinute=leftByStation.get(key),rightMinute=timetableMinute(stop);
+    if(leftMinute===undefined||!Number.isFinite(leftMinute)||!Number.isFinite(rightMinute)) return false;
+    return Math.abs(leftMinute-rightMinute)<=10&&(leftEndpoints.has(key)||rightEndpoints.has(key));
+  });
+}
 function combineAtosTrainTimetables(train,candidates){
   if(!candidates.length) return null;
   const number=normalizeTrainKey(train?.['odpt:trainNumber']);
   const matching=candidates.filter(item=>normalizeTrainKey(item?.['odpt:trainNumber'])===number);
-  const seed=matching.find(item=>item['odpt:railway']===train?.['odpt:railway'])||matching[0];
+  // 同じ列車番号は別線区にも存在するため、基準線区の時刻表がない時に
+  // 無関係な線区を代用しない。対象外区間は当日の実績で補完する。
+  const seed=matching.find(item=>item['odpt:railway']===train?.['odpt:railway']);
   if(!seed) return null;
-  const connected=[seed],stationNames=new Set((seed['odpt:trainTimetableObject']||[]).map(stop=>physicalStationKey(timetableStopStation(stop))));
+  const connected=[seed];
   let changed=true;
   while(changed){
     changed=false;
     matching.forEach(item=>{
       if(connected.includes(item)) return;
-      const names=(item['odpt:trainTimetableObject']||[]).map(stop=>physicalStationKey(timetableStopStation(stop)));
-      if(names.some(name=>stationNames.has(name))){connected.push(item);names.forEach(name=>stationNames.add(name));changed=true;}
+      if(connected.some(segment=>atosTimetableSegmentsConnect(segment,item))){connected.push(item);changed=true;}
     });
   }
   const collected=[];
