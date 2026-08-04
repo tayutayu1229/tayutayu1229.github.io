@@ -270,19 +270,30 @@ def statistics(params: dict[str, list[str]]) -> dict:
             "SELECT COUNT(*) FROM observations WHERE service_date >= ?", (cutoff,)
         ).fetchone()[0]
 
-    station_stats: dict[str, dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "changeTotal": 0, "changes": 0, "increases": 0, "recoveries": 0})
+    station_stats: dict[tuple[str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "changeTotal": 0, "changes": 0, "increases": 0, "recoveries": 0})
     train_stats: dict[tuple[str, str], dict] = defaultdict(lambda: {"samples": 0, "delayed": 0, "delayTotal": 0, "maxDelay": 0, "days": set()})
     weekday_stats: dict[int, dict] = defaultdict(lambda: {"samples": 0, "delayed": 0, "maxDelay": 0})
     hour_stats: dict[int, dict] = defaultdict(lambda: {"samples": 0, "delayed": 0, "maxDelay": 0})
     daily_stats: dict[str, dict] = defaultdict(lambda: {"samples": 0, "onTime": 0, "maxDelay": 0})
     monthly_stats: dict[str, dict] = defaultdict(lambda: {"samples": 0, "onTime": 0, "maxDelay": 0})
     prediction_stats: dict[tuple[str, str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "days": set()})
+    delay_bands = {"定時（1分未満）": 0, "1～2分": 0, "3～5分": 0, "6～10分": 0, "11分以上": 0}
     previous_by_train: dict[tuple[str, str, str], sqlite3.Row] = {}
 
     for row in rows:
         delay = int(row["delay_seconds"])
         delayed = delay >= 60
-        station = station_stats[row["station_id"]]
+        if delay < 60:
+            delay_bands["定時（1分未満）"] += 1
+        elif delay < 180:
+            delay_bands["1～2分"] += 1
+        elif delay < 360:
+            delay_bands["3～5分"] += 1
+        elif delay < 660:
+            delay_bands["6～10分"] += 1
+        else:
+            delay_bands["11分以上"] += 1
+        station = station_stats[(row["railway"], row["station_id"])]
         station["samples"] += 1
         station["delayTotal"] += delay
         station["maxDelay"] = max(station["maxDelay"], delay)
@@ -337,8 +348,9 @@ def statistics(params: dict[str, list[str]]) -> dict:
         }
 
     heatmap = []
-    for station_id, value in station_stats.items():
+    for (railway, station_id), value in station_stats.items():
         heatmap.append({
+            "railway": railway,
             "stationId": station_id,
             "samples": value["samples"],
             "averageDelaySeconds": round(value["delayTotal"] / value["samples"]),
@@ -382,13 +394,14 @@ def statistics(params: dict[str, list[str]]) -> dict:
         "generatedAt": datetime.now(JST).isoformat(timespec="seconds"),
         "range": {"days": days, "from": cutoff, "to": service_date(), "retentionDays": RETENTION_DAYS},
         "health": {**STATE, "freshnessSeconds": freshness_seconds, "observationCount": total_observations},
-        "summary": {"stationSamples": len(rows), "rawObservations": total_observations, "trains": len(train_stats), "stations": len(station_stats)},
-        "stationHeatmap": heatmap[:300],
+        "summary": {"stationSamples": len(rows), "rawObservations": total_observations, "trains": len(train_stats), "stations": len({row["station_id"] for row in rows}), "stationLinePairs": len(station_stats)},
+        "stationHeatmap": heatmap[:600],
         "trainRanking": train_ranking[:200],
         "weekdayRanking": weekday_ranking,
         "hourRanking": hour_ranking,
         "daily": daily,
         "monthly": monthly,
+        "delayBands": [{"name": name, "samples": samples} for name, samples in delay_bands.items()],
         "predictions": predictions[:300],
     }
 
