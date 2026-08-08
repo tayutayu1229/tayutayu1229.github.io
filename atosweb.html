@@ -1674,6 +1674,7 @@ let trainModalScrollY=0;
 let activeAtosTrainModal=null;
 const ATOS_DELAY_HISTORY_KEY='tayunet_atos_delay_history_v1';
 const ATOS_DELAY_HISTORY_API='https://history.tayunet-traininfo.com/api/v1/train-history';
+const ATOS_DELAY_HISTORY_TIMEOUT_MS=6000;
 let atosDelayHistory=loadAtosDelayHistory();
 const atosRemoteDelayHistory=new Map();
 
@@ -1734,7 +1735,7 @@ async function loadRemoteAtosTrainDelayHistory(train,relatedRailways=null,dateVa
   const railway=train?.['odpt:railway'],trainNumber=train?.['odpt:trainNumber'];
   if(!railway||!trainNumber) return;
   const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),2500);
+  const timeout=setTimeout(()=>controller.abort(),ATOS_DELAY_HISTORY_TIMEOUT_MS);
   try{
     const query=new URLSearchParams({date:serviceDate,railway,trainNumber});
     [...new Set((relatedRailways||[railway]).filter(line=>line&&line!==railway))].forEach(line=>query.append('relatedRailway',line));
@@ -1742,7 +1743,9 @@ async function loadRemoteAtosTrainDelayHistory(train,relatedRailways=null,dateVa
     if(!response.ok) throw new Error(`HTTP ${response.status}`);
     const data=await response.json();
     if(data&&data.stations&&typeof data.stations==='object') atosRemoteDelayHistory.set(key,data);
-  }catch(error){ console.warn('Ubuntuの駅別遅延実績を取得できませんでした。端末内実績を使用します。',error); }
+  }catch(error){
+    if(error?.name!=='AbortError') console.warn('Ubuntuの駅別遅延実績を取得できませんでした。端末内実績を使用します。',error);
+  }
   finally{ clearTimeout(timeout); }
 }
 function getAtosTrainDelayHistory(train,relatedRailways=null,dateValue=''){
