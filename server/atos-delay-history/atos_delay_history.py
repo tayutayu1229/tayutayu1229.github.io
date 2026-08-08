@@ -25,8 +25,14 @@ ODPT_URL = os.environ.get(
 DB_PATH = Path(os.environ.get("ATOS_HISTORY_DB", "/var/lib/atos-delay-history/history.sqlite3"))
 HOST = os.environ.get("ATOS_HISTORY_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ATOS_HISTORY_PORT", "8787"))
-INTERVAL = max(5, int(os.environ.get("ATOS_HISTORY_INTERVAL", "10")))
+INTERVAL = max(1, int(os.environ.get("ATOS_HISTORY_INTERVAL", "3")))
 RETENTION_DAYS = max(1, min(366, int(os.environ.get("ATOS_HISTORY_RETENTION_DAYS", "30"))))
+MAX_STORAGE_GB = max(1, int(os.environ.get("ATOS_HISTORY_MAX_STORAGE_GB", "230")))
+MAX_STORAGE_BYTES = MAX_STORAGE_GB * 1024**3
+STORAGE_TRIGGER_RATIO = 0.95
+STORAGE_TARGET_RATIO = 0.90
+STORAGE_CHECK_SECONDS = 60
+STORAGE_DELETE_BATCH = 250_000
 ALLOWED_ORIGINS = {
     value.strip()
     for value in os.environ.get(
@@ -45,7 +51,11 @@ STATE = {
     "last_train_count": 0,
     "last_cleanup": None,
     "deleted_observations": 0,
+    "last_storage_check": None,
+    "last_storage_cleanup": None,
+    "storage_deleted_observations": 0,
 }
+LAST_STORAGE_CHECK_MONOTONIC = 0.0
 
 
 def service_date(now: datetime | None = None) -> str:
@@ -115,6 +125,88 @@ def cleanup_old_observations(force: bool = False) -> int:
     return deleted
 
 
+def storage_status(database: sqlite3.Connection | None = None) -> dict:
+    """Return physical folder usage and SQLite's reusable-page-aware usage."""
+    owns_connection = database is None
+    connection = database or connect()
+    try:
+        page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
+        page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
+        free_pages = int(connection.execute("PRAGMA freelist_count").fetchone()[0])
+    finally:
+        if owns_connection:
+            connection.close()
+
+    database_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+    folder_bytes = sum(
+        path.stat().st_size
+        for path in DB_PATH.parent.iterdir()
+        if path.is_file()
+    )
+    reusable_bytes = free_pages * page_size
+    effective_bytes = max(0, folder_bytes - min(database_bytes, reusable_bytes))
+    return {
+        "folderBytes": folder_bytes,
+        "databaseBytes": database_bytes,
+        "reusableBytes": reusable_bytes,
+        "effectiveBytes": effective_bytes,
+        "maxBytes": MAX_STORAGE_BYTES,
+        "maxGigabytes": MAX_STORAGE_GB,
+        "triggerBytes": int(MAX_STORAGE_BYTES * STORAGE_TRIGGER_RATIO),
+        "targetBytes": int(MAX_STORAGE_BYTES * STORAGE_TARGET_RATIO),
+        "usagePercent": round(folder_bytes / MAX_STORAGE_BYTES * 100, 2),
+        "effectiveUsagePercent": round(effective_bytes / MAX_STORAGE_BYTES * 100, 2),
+    }
+
+
+def cleanup_storage_limit(force: bool = False) -> int:
+    """Keep effective storage below the configured cap by pruning oldest rows."""
+    global LAST_STORAGE_CHECK_MONOTONIC
+    checked_at = time.monotonic()
+    if not force and checked_at - LAST_STORAGE_CHECK_MONOTONIC < STORAGE_CHECK_SECONDS:
+        return 0
+    LAST_STORAGE_CHECK_MONOTONIC = checked_at
+    STATE["last_storage_check"] = datetime.now(JST).isoformat(timespec="seconds")
+
+    current = storage_status()
+    if current["effectiveBytes"] < current["triggerBytes"]:
+        return 0
+
+    deleted = 0
+    with connect() as database:
+        while current["effectiveBytes"] > current["targetBytes"]:
+            before = database.total_changes
+            database.execute(
+                """
+                DELETE FROM observations
+                WHERE id IN (
+                    SELECT id FROM observations
+                    ORDER BY service_date ASC, id ASC
+                    LIMIT ?
+                )
+                """,
+                (STORAGE_DELETE_BATCH,),
+            )
+            batch_deleted = database.total_changes - before
+            database.commit()
+            if not batch_deleted:
+                break
+            deleted += batch_deleted
+            database.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            current = storage_status(database)
+
+    if deleted:
+        STATE["last_storage_cleanup"] = datetime.now(JST).isoformat(timespec="seconds")
+        STATE["storage_deleted_observations"] += deleted
+        LOG.warning(
+            "保存容量の上限に近づいたため古い実績 %d件を削除（上限 %dGB、実効使用率 %.2f%%）",
+            deleted,
+            MAX_STORAGE_GB,
+            current["effectiveUsagePercent"],
+        )
+    return deleted
+
+
 def fetch_trains() -> list[dict]:
     # 公開プロキシは呼出元のacl:consumerKeyを必ず破棄して正規の秘密鍵へ差し替える。
     # その性質を使い、収集間隔単位の無害な値でCloudflareキャッシュを分離する。
@@ -181,6 +273,7 @@ def store_snapshot(trains: list[dict]) -> int:
         )
         inserted = database.total_changes - before
     cleanup_old_observations()
+    cleanup_storage_limit()
     return inserted
 
 
@@ -513,7 +606,7 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as database:
                     count = database.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
                     dates = database.execute("SELECT MIN(service_date), MAX(service_date) FROM observations").fetchone()
-                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS})
+                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS, "interval_seconds": INTERVAL, "storage": storage_status()})
                 return
             if parsed.path == "/api/v1/train-history":
                 self._send_json(200, train_history(urllib.parse.parse_qs(parsed.query)))
@@ -550,6 +643,7 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("ATOS_HISTORY_LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     initialize_database()
     cleanup_old_observations(force=True)
+    cleanup_storage_limit(force=True)
     signal.signal(signal.SIGTERM, stop_service)
     signal.signal(signal.SIGINT, stop_service)
     collector = threading.Thread(target=collector_loop, name="odpt-collector", daemon=True)
