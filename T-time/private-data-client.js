@@ -5,6 +5,7 @@
   const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   const LOGIN_URL = `/index.html?return=${encodeURIComponent(returnTo)}&reason=login_required`;
   const AUTH_HELPER_URL = "/T-time/firebase-data-auth.js";
+  const TIMETABLE_MANIFEST_PATH = "/api/timetable-files";
   let authHelperPromise;
 
   class PrivateDataError extends Error {
@@ -100,7 +101,7 @@
       const message = errorCode === "firebase_not_approved"
         ? "このFirebaseアカウントはデータ利用が未承認、停止中、または無効です。管理者へ確認してください。"
         : "保護データの認証を確認できません。通常のTAYUNETログインをやり直してください。";
-      showLoginNotice(message);
+      if (errorCode !== "not_found") showLoginNotice(message);
       throw new PrivateDataError(
         message,
         errorCode
@@ -111,11 +112,28 @@
   }
 
   async function fetchTimetables(params) {
-    const payload = await fetchJson("/api/timetables", params);
-    if (!payload || !Array.isArray(payload.items)) {
-      throw new PrivateDataError("時刻表APIの応答形式が不正です。", "invalid_response");
+    let manifest;
+    try {
+      manifest = await fetchJson(TIMETABLE_MANIFEST_PATH);
+    } catch (error) {
+      if (error?.code !== "not_found") throw error;
+      const legacyPayload = await fetchJson("/api/timetables", params);
+      if (!legacyPayload || !Array.isArray(legacyPayload.items)) {
+        throw new PrivateDataError("時刻表APIの応答形式が不正です。", "invalid_response");
+      }
+      return legacyPayload.items;
     }
-    return payload.items;
+    if (!Array.isArray(manifest?.files) || manifest.files.length === 0) {
+      throw new PrivateDataError("時刻表ファイル一覧の応答形式が不正です。", "invalid_response");
+    }
+    const payloads = await Promise.all(manifest.files.map(async fileName => {
+      const payload = await fetchJson(`/api/timetables/${encodeURIComponent(fileName)}`, params);
+      if (!payload || !Array.isArray(payload.items)) {
+        throw new PrivateDataError(`${fileName} の応答形式が不正です。`, "invalid_response");
+      }
+      return payload.items;
+    }));
+    return payloads.flat();
   }
 
   async function fetchStations() {
@@ -130,6 +148,7 @@
     API_ORIGIN,
     LOGIN_URL,
     PrivateDataError,
+    TIMETABLE_MANIFEST_PATH,
     fetchTimetables,
     fetchStations,
     openLogin,

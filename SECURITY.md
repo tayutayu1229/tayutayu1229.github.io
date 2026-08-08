@@ -28,7 +28,7 @@ Supabase Authentication; do not store passwords in this repository.
 
 ## Public JSON classification
 
-- `T-time/timetables.json` and `T-time/station.json` are private and must never
+- `T-time/timetables*.json`, `T-time/timetables-manifest.json`, and `T-time/station.json` are private and must never
   be published again. CI rejects them.
 - `unnyou/data.json` and `JREgyoumu/workdata/workbase.json` remain public until
   their owners classify them; do not add personal data or credentials to them.
