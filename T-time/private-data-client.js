@@ -101,7 +101,7 @@
       const message = errorCode === "firebase_not_approved"
         ? "このFirebaseアカウントはデータ利用が未承認、停止中、または無効です。管理者へ確認してください。"
         : "保護データの認証を確認できません。通常のTAYUNETログインをやり直してください。";
-      showLoginNotice(message);
+      if (errorCode !== "not_found") showLoginNotice(message);
       throw new PrivateDataError(
         message,
         errorCode
@@ -112,7 +112,17 @@
   }
 
   async function fetchTimetables(params) {
-    const manifest = await fetchJson(TIMETABLE_MANIFEST_PATH);
+    let manifest;
+    try {
+      manifest = await fetchJson(TIMETABLE_MANIFEST_PATH);
+    } catch (error) {
+      if (error?.code !== "not_found") throw error;
+      const legacyPayload = await fetchJson("/api/timetables", params);
+      if (!legacyPayload || !Array.isArray(legacyPayload.items)) {
+        throw new PrivateDataError("時刻表APIの応答形式が不正です。", "invalid_response");
+      }
+      return legacyPayload.items;
+    }
     if (!Array.isArray(manifest?.files) || manifest.files.length === 0) {
       throw new PrivateDataError("時刻表ファイル一覧の応答形式が不正です。", "invalid_response");
     }
