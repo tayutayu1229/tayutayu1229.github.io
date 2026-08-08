@@ -7,15 +7,22 @@ ODPT在線データを20秒ごとに取得し、駅到着・駅発車時点の�
 - 既定DB: `/srv/atos-delay-history/history.sqlite3`
 - SQLite WALモード
 - 同一列車・駅・状態・遅延秒数の重複は保存しません
-- 30日を過ぎた実績は運転日単位で自動削除します（`ATOS_HISTORY_RETENTION_DAYS`で変更可能）
+- 既定で120日（約4か月）保存し、運転日単位で自動削除します
+- `ATOS_HISTORY_RETENTION_DAYS`で1～275日（約9か月）の範囲に変更できます
+- 列車ごとの初回・最終在線、実際の行先、線区跨ぎを別テーブルへ軽量保存します
 
 ## API
 
 - `GET /health`
 - `GET /api/v1/train-history?date=YYYY-MM-DD&railway=...&trainNumber=...`
-- `GET /api/v1/statistics?days=30`
+- `GET /api/v1/statistics?days=120`
 
 列車履歴APIは`railway`を基準線区として取得します。直通・線区跨ぎを統合する場合は、時刻表上で接続を確認した線区を`relatedRailway`として複数指定します。
+過去実績からの駅間遅延増減と、候補が一意に確定した継走列車も返します。候補が複数ある場合は誤表示防止のため返しません。
+
+## 既存環境を120日保持へ変更
+
+`/etc/atos-delay-history.env`の`ATOS_HISTORY_RETENTION_DAYS`を`120`へ変更してサービスを再起動してください。既に削除された過去データは復元されませんが、変更後のデータは120日間残ります。
 
 書き込みAPIは公開せず、Ubuntu自身の収集処理だけがDBを更新します。
 

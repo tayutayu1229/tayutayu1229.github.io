@@ -26,7 +26,7 @@ DB_PATH = Path(os.environ.get("ATOS_HISTORY_DB", "/var/lib/atos-delay-history/hi
 HOST = os.environ.get("ATOS_HISTORY_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ATOS_HISTORY_PORT", "8787"))
 INTERVAL = max(10, int(os.environ.get("ATOS_HISTORY_INTERVAL", "20")))
-RETENTION_DAYS = max(1, min(366, int(os.environ.get("ATOS_HISTORY_RETENTION_DAYS", "30"))))
+RETENTION_DAYS = max(1, min(275, int(os.environ.get("ATOS_HISTORY_RETENTION_DAYS", "120"))))
 ALLOWED_ORIGINS = {
     value.strip()
     for value in os.environ.get(
@@ -46,6 +46,7 @@ STATE = {
     "last_cleanup": None,
     "deleted_observations": 0,
 }
+STATISTICS_CACHE: dict[int, tuple[float, dict]] = {}
 
 
 def service_date(now: datetime | None = None) -> str:
@@ -90,12 +91,41 @@ def initialize_database() -> None:
                 ON observations(service_date, train_number, observed_at);
             CREATE INDEX IF NOT EXISTS idx_observations_date
                 ON observations(service_date);
+            CREATE TABLE IF NOT EXISTS train_states (
+                service_date TEXT NOT NULL,
+                railway TEXT NOT NULL,
+                train_number TEXT NOT NULL,
+                first_station TEXT,
+                last_station TEXT,
+                destination_station TEXT,
+                rail_direction TEXT,
+                car_composition INTEGER,
+                train_type TEXT,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                PRIMARY KEY (service_date, railway, train_number)
+            );
+            CREATE INDEX IF NOT EXISTS idx_train_states_date
+                ON train_states(service_date);
+            CREATE INDEX IF NOT EXISTS idx_train_states_number
+                ON train_states(service_date, train_number);
+            CREATE TABLE IF NOT EXISTS destination_events (
+                service_date TEXT NOT NULL,
+                railway TEXT NOT NULL,
+                train_number TEXT NOT NULL,
+                destination_station TEXT NOT NULL,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                PRIMARY KEY (service_date, railway, train_number, destination_station)
+            );
+            CREATE INDEX IF NOT EXISTS idx_destination_events_date
+                ON destination_events(service_date);
             """
         )
 
 
 def cleanup_old_observations(force: bool = False) -> int:
-    """30日分だけを残す。通常は運転日が変わった時に一度だけ実行する。"""
+    """設定された保持日数分だけを残す。通常は運転日が変わった時に一度だけ実行する。"""
     today = service_date()
     if not force and STATE["last_cleanup"] == today:
         return 0
@@ -103,6 +133,8 @@ def cleanup_old_observations(force: bool = False) -> int:
     with connect() as database:
         before = database.total_changes
         database.execute("DELETE FROM observations WHERE service_date < ?", (cutoff,))
+        database.execute("DELETE FROM train_states WHERE service_date < ?", (cutoff,))
+        database.execute("DELETE FROM destination_events WHERE service_date < ?", (cutoff,))
         deleted = database.total_changes - before
     STATE["last_cleanup"] = today
     STATE["deleted_observations"] = deleted
@@ -132,6 +164,7 @@ def store_snapshot(trains: list[dict]) -> int:
     observed_at = now.isoformat(timespec="seconds")
     operating_date = service_date(now)
     rows: list[tuple] = []
+    state_rows: list[tuple] = []
     for train in trains:
         railway = str(train.get("odpt:railway") or "")
         train_number = str(train.get("odpt:trainNumber") or "")
@@ -145,6 +178,21 @@ def store_snapshot(trains: list[dict]) -> int:
         except (TypeError, ValueError):
             delay_seconds = 0
         rows.append((operating_date, railway, train_number, from_station, phase, delay_seconds, from_station, to_station or None, observed_at))
+        destinations = train.get("odpt:destinationStation") or []
+        destination = str(destinations[0] if isinstance(destinations, list) and destinations else destinations or "")
+        state_rows.append((
+            operating_date,
+            railway,
+            train_number,
+            from_station,
+            from_station,
+            destination or None,
+            str(train.get("odpt:railDirection") or "") or None,
+            train.get("odpt:carComposition"),
+            str(train.get("odpt:trainType") or "") or None,
+            observed_at,
+            observed_at,
+        ))
 
     with connect() as database:
         before = database.total_changes
@@ -155,6 +203,32 @@ def store_snapshot(trains: list[dict]) -> int:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
+        )
+        database.executemany(
+            """
+            INSERT INTO train_states
+              (service_date, railway, train_number, first_station, last_station, destination_station,
+               rail_direction, car_composition, train_type, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(service_date, railway, train_number) DO UPDATE SET
+              last_station=excluded.last_station,
+              destination_station=COALESCE(excluded.destination_station, train_states.destination_station),
+              rail_direction=COALESCE(excluded.rail_direction, train_states.rail_direction),
+              car_composition=COALESCE(excluded.car_composition, train_states.car_composition),
+              train_type=COALESCE(excluded.train_type, train_states.train_type),
+              last_seen=excluded.last_seen
+            """,
+            state_rows,
+        )
+        database.executemany(
+            """
+            INSERT INTO destination_events
+              (service_date, railway, train_number, destination_station, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(service_date, railway, train_number, destination_station) DO UPDATE SET
+              last_seen=excluded.last_seen
+            """,
+            [(row[0], row[1], row[2], row[5], row[9], row[10]) for row in state_rows if row[5]],
         )
         inserted = database.total_changes - before
     cleanup_old_observations()
@@ -217,6 +291,36 @@ def train_history(params: dict[str, list[str]]) -> dict:
             """,
             prediction_values,
         ).fetchall()
+        historical_rows = database.execute(
+            f"""
+            WITH ranked AS (
+              SELECT service_date, station_id, delay_seconds, observed_at,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY service_date, station_id
+                       ORDER BY observed_at DESC, id DESC
+                     ) AS row_number
+              FROM observations
+              WHERE {prediction_where}
+            )
+            SELECT service_date, station_id, delay_seconds, observed_at
+            FROM ranked WHERE row_number = 1
+            ORDER BY service_date, observed_at
+            """,
+            prediction_values,
+        ).fetchall()
+        current_state = database.execute(
+            """
+            SELECT * FROM train_states
+            WHERE service_date = ? AND train_number = ?
+            ORDER BY CASE WHEN railway = ? THEN 0 ELSE 1 END, first_seen
+            LIMIT 1
+            """,
+            (operating_date, train_number, railway),
+        ).fetchone()
+        day_states = database.execute(
+            "SELECT * FROM train_states WHERE service_date = ? AND train_number <> ?",
+            (operating_date, train_number),
+        ).fetchall()
     stations: dict[str, dict] = {}
     railways: set[str] = set()
     for row in rows:
@@ -228,10 +332,58 @@ def train_history(params: dict[str, list[str]]) -> dict:
         current["phase"] = row["phase"]
         current["observedAt"] = row["observed_at"]
         current["railway"] = row["railway"]
-    predictions = {
-        row["station_id"]: {"expectedDelaySeconds": row["expected_delay"], "sampleDays": row["sample_days"]}
-        for row in prediction_rows
-    }
+    changes: dict[str, list[int]] = defaultdict(list)
+    previous_by_day: dict[str, sqlite3.Row] = {}
+    for row in historical_rows:
+        previous = previous_by_day.get(row["service_date"])
+        if previous and previous["station_id"] != row["station_id"]:
+            changes[row["station_id"]].append(int(row["delay_seconds"]) - int(previous["delay_seconds"]))
+        previous_by_day[row["service_date"]] = row
+    predictions = {}
+    for row in prediction_rows:
+        station_changes = changes.get(row["station_id"], [])
+        predictions[row["station_id"]] = {
+            "expectedDelaySeconds": row["expected_delay"],
+            "sampleDays": row["sample_days"],
+            "expectedChangeSeconds": round(sum(station_changes) / len(station_changes)) if station_changes else 0,
+            "recoveryRate": round(sum(1 for value in station_changes if value < 0) / len(station_changes) * 100, 1) if station_changes else 0,
+        }
+
+    def physical_station_key(value: str | None) -> str:
+        return str(value or "").split(".")[-1]
+
+    def inferred_connection(direction: str) -> dict | None:
+        if not current_state:
+            return None
+        if direction == "previous":
+            station = current_state["first_station"]
+            boundary = datetime.fromisoformat(current_state["first_seen"])
+            candidates = [
+                state for state in day_states
+                if physical_station_key(state["last_station"]) == physical_station_key(station)
+                and 0 <= (boundary - datetime.fromisoformat(state["last_seen"])).total_seconds() <= 480
+            ]
+            gap = lambda state: round((boundary - datetime.fromisoformat(state["last_seen"])).total_seconds())
+        else:
+            station = current_state["last_station"]
+            boundary = datetime.fromisoformat(current_state["last_seen"])
+            candidates = [
+                state for state in day_states
+                if physical_station_key(state["first_station"]) == physical_station_key(station)
+                and 0 <= (datetime.fromisoformat(state["first_seen"]) - boundary).total_seconds() <= 480
+            ]
+            gap = lambda state: round((datetime.fromisoformat(state["first_seen"]) - boundary).total_seconds())
+        # 同じ駅・時間帯に候補が複数ある場合は誤案内を避け、確定扱いにしない。
+        if len(candidates) != 1:
+            return None
+        match = candidates[0]
+        return {
+            "trainNumber": match["train_number"],
+            "railway": match["railway"],
+            "stationId": station,
+            "gapSeconds": gap(match),
+            "confidence": "confirmed",
+        }
     return {
         "serviceDate": operating_date,
         "railway": railway,
@@ -239,6 +391,10 @@ def train_history(params: dict[str, list[str]]) -> dict:
         "railways": sorted(railways),
         "stations": stations,
         "predictions": predictions,
+        "inferredConnections": {
+            "previous": inferred_connection("previous"),
+            "next": inferred_connection("next"),
+        },
         "count": len(rows),
     }
 
@@ -248,6 +404,9 @@ def statistics(params: dict[str, list[str]]) -> dict:
         days = max(1, min(RETENTION_DAYS, int((params.get("days") or [str(RETENTION_DAYS)])[0])))
     except ValueError as error:
         raise ValueError("days は整数で指定してください") from error
+    cached = STATISTICS_CACHE.get(days)
+    if cached and time.monotonic() - cached[0] < 900:
+        return cached[1]
     cutoff = (datetime.now(JST) - timedelta(days=days - 1)).strftime("%Y-%m-%d")
     with connect() as database:
         rows = database.execute(
@@ -269,6 +428,15 @@ def statistics(params: dict[str, list[str]]) -> dict:
         total_observations = database.execute(
             "SELECT COUNT(*) FROM observations WHERE service_date >= ?", (cutoff,)
         ).fetchone()[0]
+        destination_rows = database.execute(
+            """
+            SELECT service_date, railway, train_number, destination_station, first_seen, last_seen
+            FROM destination_events
+            WHERE service_date >= ? AND destination_station IS NOT NULL AND destination_station <> ''
+            ORDER BY service_date, train_number, first_seen
+            """,
+            (cutoff,),
+        ).fetchall()
 
     station_stats: dict[tuple[str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "changeTotal": 0, "changes": 0, "increases": 0, "recoveries": 0})
     train_stats: dict[tuple[str, str], dict] = defaultdict(lambda: {"samples": 0, "delayed": 0, "delayTotal": 0, "maxDelay": 0, "days": set()})
@@ -278,7 +446,7 @@ def statistics(params: dict[str, list[str]]) -> dict:
     monthly_stats: dict[str, dict] = defaultdict(lambda: {"samples": 0, "onTime": 0, "maxDelay": 0})
     prediction_stats: dict[tuple[str, str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "days": set()})
     delay_bands = {"定時（1分未満）": 0, "1～2分": 0, "3～5分": 0, "6～10分": 0, "11分以上": 0}
-    previous_by_train: dict[tuple[str, str, str], sqlite3.Row] = {}
+    previous_by_train: dict[tuple[str, str], sqlite3.Row] = {}
 
     for row in rows:
         delay = int(row["delay_seconds"])
@@ -326,9 +494,10 @@ def statistics(params: dict[str, list[str]]) -> dict:
         prediction["maxDelay"] = max(prediction["maxDelay"], delay)
         prediction["days"].add(row["service_date"])
 
-        train_key = (row["service_date"], row["railway"], row["train_number"])
+        train_key = (row["service_date"], row["train_number"])
         previous = previous_by_train.get(train_key)
-        if previous and previous["station_id"] != row["station_id"]:
+        previous_gap = (datetime.fromisoformat(row["observed_at"]) - datetime.fromisoformat(previous["observed_at"])).total_seconds() if previous else None
+        if previous and previous["station_id"] != row["station_id"] and 0 <= previous_gap <= 2700:
             change = delay - int(previous["delay_seconds"])
             station["changeTotal"] += change
             station["changes"] += 1
@@ -386,11 +555,61 @@ def statistics(params: dict[str, list[str]]) -> dict:
     ]
     predictions.sort(key=lambda item: (item["sampleDays"], item["expectedDelaySeconds"]), reverse=True)
 
+    live_destination_groups: dict[tuple[str, str, str], list] = defaultdict(list)
+    destination_groups: dict[tuple[str, str], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for row in destination_rows:
+        live_destination_groups[(row["service_date"], row["railway"], row["train_number"])].append(row)
+        destination_groups[(row["railway"], row["train_number"])][row["destination_station"]].add(row["service_date"])
+    live_destination_changes = []
+    for (date, railway, train_number), rows_for_train in live_destination_groups.items():
+        ordered = sorted(rows_for_train, key=lambda row: row["first_seen"] or "")
+        destinations = []
+        seen_destinations = set()
+        for row in ordered:
+            destination = row["destination_station"]
+            if destination in seen_destinations:
+                continue
+            seen_destinations.add(destination)
+            destinations.append(row)
+        if len(destinations) < 2:
+            continue
+        live_destination_changes.append({
+            "serviceDate": date,
+            "railway": railway,
+            "trainNumber": train_number,
+            "usualDestinationStation": destinations[0]["destination_station"],
+            "actualDestinationStation": destinations[-1]["destination_station"],
+            "detectedAt": destinations[-1]["last_seen"],
+            "confidence": 100.0,
+            "source": "same-day-destination-change",
+        })
+    live_destination_changes.sort(key=lambda item: item["detectedAt"], reverse=True)
+    destination_changes = []
+    for (railway, train_number), destinations in destination_groups.items():
+        counts = sorted(((len(days), destination, days) for destination, days in destinations.items()), reverse=True)
+        total_days = len(set().union(*(days for _, _, days in counts))) if counts else 0
+        if total_days < 5 or not counts or counts[0][0] / total_days < 0.8:
+            continue
+        usual_count, usual_destination, _ = counts[0]
+        for actual_count, actual_destination, dates in counts[1:]:
+            for date in sorted(dates, reverse=True):
+                destination_changes.append({
+                    "serviceDate": date,
+                    "railway": railway,
+                    "trainNumber": train_number,
+                    "usualDestinationStation": usual_destination,
+                    "actualDestinationStation": actual_destination,
+                    "usualSampleDays": usual_count,
+                    "totalSampleDays": total_days,
+                    "confidence": round(usual_count / total_days * 100, 1),
+                })
+    destination_changes.sort(key=lambda item: item["serviceDate"], reverse=True)
+
     last_success = STATE["last_success"]
     freshness_seconds = None
     if last_success:
         freshness_seconds = max(0, round((datetime.now(JST) - datetime.fromisoformat(last_success)).total_seconds()))
-    return {
+    result = {
         "generatedAt": datetime.now(JST).isoformat(timespec="seconds"),
         "range": {"days": days, "from": cutoff, "to": service_date(), "retentionDays": RETENTION_DAYS},
         "health": {**STATE, "freshnessSeconds": freshness_seconds, "observationCount": total_observations},
@@ -403,7 +622,11 @@ def statistics(params: dict[str, list[str]]) -> dict:
         "monthly": monthly,
         "delayBands": [{"name": name, "samples": samples} for name, samples in delay_bands.items()],
         "predictions": predictions[:300],
+        "destinationChanges": destination_changes[:200],
+        "liveDestinationChanges": live_destination_changes[:200],
     }
+    STATISTICS_CACHE[days] = (time.monotonic(), result)
+    return result
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -434,7 +657,8 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as database:
                     count = database.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
                     dates = database.execute("SELECT MIN(service_date), MAX(service_date) FROM observations").fetchone()
-                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS})
+                    database_bytes = database.execute("PRAGMA page_count").fetchone()[0] * database.execute("PRAGMA page_size").fetchone()[0]
+                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS, "database_bytes": database_bytes})
                 return
             if parsed.path == "/api/v1/train-history":
                 self._send_json(200, train_history(urllib.parse.parse_qs(parsed.query)))
