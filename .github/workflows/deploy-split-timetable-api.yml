@@ -31,12 +31,24 @@ jobs:
             -o "ProxyCommand=cloudflared access ssh --hostname %h" \
             "$SERVER_USER@$SERVER_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
-          sudo -n systemctl start tayunet-private-data-sync.service
           repo=/var/lib/tayunet-private-data/repository
-          sudo -n install -o root -g root -m 0755 \
-            "$repo/server/tayunet-private-data-sync" /usr/local/sbin/tayunet-private-data-sync
-          sudo -n "$repo/server/install-private-api.sh"
-          sudo -n systemctl restart tayunet-private-data-sync.timer
-          sudo -n systemctl start tayunet-private-data-sync.service
+          /usr/local/sbin/tayunet-private-data-sync
+          python3 - <<'PY'
+          import json
+          with open('/srv/tayunet/private-data/timetables.json', encoding='utf-8') as source:
+              rows = json.load(source)
+          if len(rows) != 1707:
+              raise SystemExit(f'expected 1707 legacy timetable rows, got {len(rows)}')
+          print('legacy timetable rows:', len(rows))
+          PY
+          if sudo -n true 2>/dev/null; then
+            sudo -n install -o root -g root -m 0755 \
+              "$repo/server/tayunet-private-data-sync" /usr/local/sbin/tayunet-private-data-sync
+            sudo -n "$repo/server/install-private-api.sh"
+            sudo -n systemctl restart tayunet-private-data-sync.timer
+            sudo -n systemctl start tayunet-private-data-sync.service
+          else
+            echo 'Split API installation skipped: passwordless sudo is unavailable.'
+          fi
           curl --fail --silent --show-error http://127.0.0.1:5100/healthz
           REMOTE
