@@ -16,6 +16,7 @@ class AtosDelayHistoryTest(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         history.DB_PATH = Path(self.temporary_directory.name) / "history.sqlite3"
         history.STATE.update(last_cleanup=None, deleted_observations=0)
+        history.LAST_STORAGE_CHECK_MONOTONIC = 0.0
         history.initialize_database()
 
     def tearDown(self):
@@ -81,6 +82,48 @@ class AtosDelayHistoryTest(unittest.TestCase):
         self.assertEqual(change["usualDestinationStation"], "Atami")
         self.assertEqual(change["actualDestinationStation"], "Odawara")
         self.assertEqual(change["confidence"], 100.0)
+
+    def test_storage_limit_deletes_oldest_observations(self):
+        today = datetime.now(history.JST).date()
+        old_date = (today - timedelta(days=2)).isoformat()
+        new_date = today.isoformat()
+        for index in range(600):
+            date = old_date if index < 500 else new_date
+            self.insert_observation(
+                date,
+                f"Station{index}",
+                index,
+                f"{date}T10:{index % 60:02d}:00+09:00",
+            )
+
+        initial = history.storage_status()
+        original_values = (
+            history.MAX_STORAGE_BYTES,
+            history.STORAGE_TRIGGER_RATIO,
+            history.STORAGE_TARGET_RATIO,
+            history.STORAGE_DELETE_BATCH,
+        )
+        try:
+            history.MAX_STORAGE_BYTES = initial["effectiveBytes"]
+            history.STORAGE_TRIGGER_RATIO = 0.99
+            history.STORAGE_TARGET_RATIO = 0.95
+            history.STORAGE_DELETE_BATCH = 100
+            deleted = history.cleanup_storage_limit(force=True)
+        finally:
+            (
+                history.MAX_STORAGE_BYTES,
+                history.STORAGE_TRIGGER_RATIO,
+                history.STORAGE_TARGET_RATIO,
+                history.STORAGE_DELETE_BATCH,
+            ) = original_values
+
+        self.assertGreater(deleted, 0)
+        with history.connect() as database:
+            oldest = database.execute("SELECT MIN(service_date) FROM observations").fetchone()[0]
+            remaining = database.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+        self.assertLess(remaining, 600)
+        self.assertGreaterEqual(oldest, old_date)
+        self.assertEqual(history.STATE["storage_deleted_observations"], deleted)
 
 
 if __name__ == "__main__":
