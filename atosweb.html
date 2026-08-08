@@ -1672,6 +1672,7 @@ let atosDeepLinkRestored=false;
 let stationModalBehindTrain=false;
 let trainModalScrollY=0;
 let activeAtosTrainModal=null;
+const reportedAtosDestinationChanges=new Set();
 const ATOS_DELAY_HISTORY_KEY='tayunet_atos_delay_history_v1';
 const ATOS_DELAY_HISTORY_API='https://history.tayunet-traininfo.com/api/v1/train-history';
 const ATOS_DELAY_HISTORY_TIMEOUT_MS=6000;
@@ -1709,13 +1710,15 @@ function saveAtosDelayHistory(){
 }
 function recordAtosDelayObservations(trains){
   let changed=false;
-  const observedAt=Date.now();
+  const receivedAt=Date.now();
   trains.forEach(train=>{
     const stationId=train?.['odpt:fromStation'];
     if(!stationId) return;
     const to=train['odpt:toStation'];
     const phase=!to||to===stationId?'arrival':'departure';
     const delaySeconds=Math.max(0,Number(train['odpt:delay'])||0);
+    const sourceAt=Date.parse(train?.['dc:date']||'');
+    const observedAt=Number.isFinite(sourceAt)&&Math.abs(receivedAt-sourceAt)<=10*60*1000?sourceAt:receivedAt;
     const key=atosTrainHistoryKey(train);
     const record=atosDelayHistory[key]||{serviceDate:atosServiceDate(),railway:train['odpt:railway'],trainNumber:train['odpt:trainNumber']||'',stations:{}};
     const previous=record.stations?.[stationId];
@@ -1765,7 +1768,13 @@ async function captureAtosDelaySnapshot(){
   atosDelayCaptureBusy=true;
   try{
     const response=await fetch(`${BASE}/odpt:Train?odpt:operator=odpt.Operator:JR-East&${K}`);
-    if(response.ok) recordAtosDelayObservations(await response.json());
+    if(response.ok){
+      const trains=await response.json();
+      recordAtosDelayObservations(trains);
+      atosTrainData=trains;
+      if(document.getElementById('tab-realtime')?.classList.contains('active')) atosRender();
+      await refreshOpenAtosTrainTimetable();
+    }
   }catch(error){ console.warn('駅別遅延実績の補助取得に失敗しました。',error); }
   finally{ atosDelayCaptureBusy=false; }
 }
@@ -2282,7 +2291,7 @@ function supplementTimetableWithHistory(tt,liveTrain,history){
     const arrival=record?.arrival,departure=record?.departure;
     const firstObserved=[arrival?.observedAt,departure?.observedAt,record?.observedAt].filter(Boolean).sort()[0]||'';
     const existing=stops.find(stop=>samePhysicalStation(timetableStopStation(stop),stationId));
-    const actualArrival=historyActualTime(arrival||(record?.phase==='arrival'?record:null));
+    const actualArrival=historyActualTime(arrival||(record?.phase==='arrival'?record:null)||((!existing||existing['odpt:arrivalTime'])?departure:null));
     const actualDeparture=historyActualTime(departure||(record?.phase==='departure'?record:null));
     if(existing){
       existing.__observedOrder=firstObserved;
@@ -2300,21 +2309,28 @@ function supplementTimetableWithHistory(tt,liveTrain,history){
       __observedOrder:firstObserved
     });
   });
-  const observedPlannedIndexes=stops.filter(stop=>Number.isInteger(stop.__plannedIndex)&&stop.__observedOrder).map(stop=>stop.__plannedIndex);
-  const furthestObservedIndex=observedPlannedIndexes.length?Math.max(...observedPlannedIndexes):-1;
-  stops.sort((left,right)=>{
-    const leftObserved=Boolean(left.__observedOrder),rightObserved=Boolean(right.__observedOrder);
-    if(leftObserved&&rightObserved) return String(left.__observedOrder).localeCompare(String(right.__observedOrder));
-    if(leftObserved!==rightObserved){
-      const planned=leftObserved?right:left;
-      const plannedIndex=Number.isInteger(planned.__plannedIndex)?planned.__plannedIndex:Number.MAX_SAFE_INTEGER;
-      const observedFirst=plannedIndex>furthestObservedIndex;
-      return leftObserved?(observedFirst?-1:1):(observedFirst?1:-1);
-    }
-    const leftIndex=Number.isInteger(left.__plannedIndex)?left.__plannedIndex:Number.MAX_SAFE_INTEGER;
-    const rightIndex=Number.isInteger(right.__plannedIndex)?right.__plannedIndex:Number.MAX_SAFE_INTEGER;
-    return leftIndex-rightIndex;
+  const plannedStops=stops.filter(stop=>Number.isInteger(stop.__plannedIndex)).sort((a,b)=>a.__plannedIndex-b.__plannedIndex);
+  const observedPlanned=plannedStops.filter(stop=>stop.__observedOrder).sort((a,b)=>String(a.__observedOrder).localeCompare(String(b.__observedOrder)));
+  const historyOnly=stops.filter(stop=>!Number.isInteger(stop.__plannedIndex)).sort((a,b)=>String(a.__observedOrder).localeCompare(String(b.__observedOrder)));
+  const insertionBuckets=new Map();
+  historyOnly.forEach(stop=>{
+    const observedAt=String(stop.__observedOrder||'');
+    const before=[...observedPlanned].reverse().find(item=>String(item.__observedOrder)<=observedAt);
+    const after=observedPlanned.find(item=>String(item.__observedOrder)>=observedAt&&item!==before);
+    const lower=before?.__plannedIndex??-1;
+    const upper=after?.__plannedIndex??Math.min(plannedStops.length,lower+1);
+    const key=`${lower}|${Math.max(lower+1,upper)}`;
+    if(!insertionBuckets.has(key)) insertionBuckets.set(key,[]);
+    insertionBuckets.get(key).push(stop);
   });
+  plannedStops.forEach(stop=>{stop.__sortPosition=stop.__plannedIndex;});
+  insertionBuckets.forEach((items,key)=>{
+    const [lowerValue,upperValue]=key.split('|').map(Number);
+    items.forEach((stop,index)=>{
+      stop.__sortPosition=lowerValue+(upperValue-lowerValue)*(index+1)/(items.length+1);
+    });
+  });
+  stops.sort((left,right)=>(left.__sortPosition??Number.MAX_SAFE_INTEGER)-(right.__sortPosition??Number.MAX_SAFE_INTEGER));
   if(!stops.length) return base;
   return {
     ...base,
@@ -2330,18 +2346,29 @@ function applyLiveDestinationChange(tt,liveTrain){
   const plannedDestinations=tt['odpt:destinationStation']||[];
   const actual=actualDestinations[0],planned=plannedDestinations[0];
   if(!actual||!planned||samePhysicalStation(actual,planned)) return tt;
-  const stops=tt['odpt:trainTimetableObject']||[];
-  const destinationIndex=stops.findIndex(stop=>samePhysicalStation(timetableStopStation(stop),actual));
+  const changeKey=[atosHistoryServiceDate(liveTrain),liveTrain['odpt:railway'],liveTrain['odpt:trainNumber'],planned,actual].join('|');
+  if(!reportedAtosDestinationChanges.has(changeKey)){
+    reportedAtosDestinationChanges.add(changeKey);
+    addDiagnostic('warn','計画と異なる行先を検知しました',{trainNumber:liveTrain['odpt:trainNumber'],railway:liveTrain['odpt:railway'],plannedDestination:planned,actualDestination:actual},'destination-change');
+  }
+  const stops=[...(tt['odpt:trainTimetableObject']||[])];
+  let destinationIndex=stops.findIndex(stop=>samePhysicalStation(timetableStopStation(stop),actual));
+  if(destinationIndex<0){
+    const currentStation=liveTrain['odpt:toStation']||liveTrain['odpt:fromStation'];
+    const currentIndex=stops.findIndex(stop=>samePhysicalStation(timetableStopStation(stop),currentStation));
+    destinationIndex=currentIndex>=0?currentIndex+1:stops.length;
+    stops.splice(destinationIndex,0,{'odpt:station':actual,__historyOnly:true,__destinationOnly:true});
+  }
   return {
     ...tt,
     'odpt:destinationStation':actualDestinations,
-    'odpt:trainTimetableObject':destinationIndex>=0?stops.slice(0,destinationIndex+1):stops,
+    'odpt:trainTimetableObject':stops.slice(0,destinationIndex+1),
     __destinationChanged:true,
     __plannedDestinationStation:plannedDestinations
   };
 }
 async function openAtosTrainTimetable(train){
-  activeAtosTrainModal={trainNumber:train?.['odpt:trainNumber']||'',railway:train?.['odpt:railway']||''};
+  activeAtosTrainModal={trainNumber:train?.['odpt:trainNumber']||'',railway:train?.['odpt:railway']||'',highlightUntil:Date.now()+2000};
   prepareTrainTimetableModal();
   document.getElementById('mtt-body').innerHTML='<div class="mobile-modal-loading" role="status" aria-live="polite"><div><span class="mobile-modal-spinner" aria-hidden="true"></span><span>列車時刻表・実績を読み込んでいます</span></div></div>';
   const remoteHistoryPromise=loadRemoteAtosTrainDelayHistory(train,[train?.['odpt:railway']]);
@@ -2463,7 +2490,12 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
   const history=getAtosTrainDelayHistory(liveTrain||tt,tt?.__railways||[railway],serviceDate);
   const progress=trainProgressMarkers(stops,liveTrain,history);
   const currentIndex=progress.findIndex(marker=>marker.current);
-  const operationSource=findExternalOperationSource(trainNo,railway,stops,serviceDate,history);
+  const flashCurrent=Boolean(activeAtosTrainModal?.highlightUntil>Date.now());
+  const operationStops=stops.filter(stop=>!stop.__historyOnly);
+  const operationSource=findExternalOperationSource(trainNo,railway,operationStops.length?operationStops:stops,serviceDate,history);
+  if(tt?.__destinationChanged){
+    operationSource.nextOperation='';operationSource.nextTrain='';operationSource.nextKid='';operationSource.nextStation='';
+  }
   const now=new Date();
   const clock=`${serviceDate.replaceAll('-','/')} ${now.toLocaleTimeString('ja-JP',{hour12:false})} 現在`;
   const routeLabel=(tt?.__railways||[railway]).map(getLineTitle).filter(Boolean).join('・');
@@ -2483,7 +2515,7 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     const delay=actualDelaySeconds===null?null:Math.floor(actualDelaySeconds/60);
     const arrival=stop['odpt:arrivalTime']||'';
     const departure=stop['odpt:departureTime']||'';
-    const actualArrival=stop.__actualArrivalTime||historyActualTime(observed?.arrival||(observed?.phase==='arrival'?observed:null));
+    const actualArrival=stop.__actualArrivalTime||historyActualTime(observed?.arrival||(observed?.phase==='arrival'?observed:null)||((arrival||stop.__historyOnly)?observed?.departure:null));
     const actualDeparture=stop.__actualDepartureTime||historyActualTime(observed?.departure||(observed?.phase==='departure'?observed:null));
     const historical=historyPredictionForStation(history,stationId);
     const arrivalForecastable=currentIndex<0?!marker.arrival:index>currentIndex;
@@ -2508,15 +2540,21 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
       return !completed&&eligible&&delaySeconds!==null&&delaySeconds>0&&value?offsetTimeSeconds(value,delaySeconds):'';
     };
     const delayText=delay===null?'---':String(delay).padStart(3,'0');
-    const first=index===0,last=index===stops.length-1;
-    const operation=first?operationSource.previousOperation:last?operationSource.nextOperation:'';
-    const operationTrain=first?operationSource.previousTrain:last?operationSource.nextTrain:'';
-    const connectionDirection=first?'previous':'next';
-    const operationTrainHtml=operationTrain?`<button class="train-link" onclick='openAtosOperationTrain(${JSON.stringify(operationTrain)},${JSON.stringify(stationId)},${JSON.stringify(connectionDirection)},${JSON.stringify(serviceDate)})'>${operationTrain}</button>`:'';
-    html+=`<tr${marker.current?' class="mobile-current"':''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${atosDisplayStationName(stationId)}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop['odpt:platformNumber']||'—'}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
+    const first=index===0;
+    const previousConnection=samePhysicalStation(stationId,operationSource.previousStation);
+    const nextConnection=samePhysicalStation(stationId,operationSource.nextStation);
+    const operation=previousConnection?operationSource.previousOperation:nextConnection?operationSource.nextOperation:'';
+    const operationTrain=previousConnection?operationSource.previousTrain:nextConnection?operationSource.nextTrain:'';
+    const operationKid=previousConnection?operationSource.previousKid:nextConnection?operationSource.nextKid:'';
+    const connectionDirection=previousConnection?'previous':'next';
+    const operationTrainHtml=operationTrain?`<button class="train-link" onclick='openAtosOperationTrain(${JSON.stringify(operationTrain)},${JSON.stringify(stationId)},${JSON.stringify(connectionDirection)},${JSON.stringify(serviceDate)},${JSON.stringify(operationKid)})'>${operationTrain}</button>`:'';
+    html+=`<tr${marker.current&&flashCurrent?' class="mobile-current"':''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${atosDisplayStationName(stationId)}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop['odpt:platformNumber']||'—'}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
   });
   html+=`</tbody></table></div><div class="mobile-atos-legend">「$」･･･運休　「*」･･･運済　「#」･･･変更　「¥」･･･運転禁止</div></div>`;
   output.innerHTML=html;
+  if(flashCurrent){
+    setTimeout(()=>output.querySelectorAll('tr.mobile-current').forEach(row=>row.classList.remove('mobile-current')),Math.max(0,activeAtosTrainModal.highlightUntil-Date.now()));
+  }
 }
 function showAtosTrainTT(tt,liveTrain=null,inline=false){
   if(!inline) prepareTrainTimetableModal();
@@ -2692,15 +2730,15 @@ function externalTrainVersionsForDate(candidates,dateValue){
   return regular.filter(train=>String(train.startDate||'')===newest);
 }
 function findExternalOperationSource(trainNumber,railway,stops=[],dateValue='',history=null){
-  const empty={previousOperation:'',previousTrain:'',nextOperation:'',nextTrain:''};
+  const empty={previousOperation:'',previousTrain:'',previousKid:'',previousStation:'',nextOperation:'',nextTrain:'',nextKid:'',nextStation:''};
   const firstStation=timetableStopStation(stops[0]),lastStation=timetableStopStation(stops[stops.length-1]);
   const fallback={...empty};
   const inferred=history?.inferredConnections||{};
   if(inferred.previous?.confidence==='confirmed'&&operationStationKey(inferred.previous.stationId)===operationStationKey(firstStation)){
-    fallback.previousOperation='継走';fallback.previousTrain=inferred.previous.trainNumber||'';
+    fallback.previousOperation='継走';fallback.previousTrain=inferred.previous.trainNumber||'';fallback.previousStation=firstStation;
   }
   if(inferred.next?.confidence==='confirmed'&&operationStationKey(inferred.next.stationId)===operationStationKey(lastStation)){
-    fallback.nextOperation='継走';fallback.nextTrain=inferred.next.trainNumber||'';
+    fallback.nextOperation='継走';fallback.nextTrain=inferred.next.trainNumber||'';fallback.nextStation=lastStation;
   }
   if(!Array.isArray(externalTimetables)||!externalTimetables.length) return fallback;
   const number=normalizeTrainKey(trainNumber);
@@ -2724,14 +2762,23 @@ function findExternalOperationSource(trainNumber,railway,stops=[],dateValue='',h
   return {
     previousOperation:previousConfirmed?operation(source.tt1):fallback.previousOperation,
     previousTrain:previousConfirmed?(source.tr1||''):fallback.previousTrain,
+    previousKid:previousConfirmed?(source.kid1||source.kid||''):'',
+    previousStation:previousConfirmed?firstStation:fallback.previousStation,
     nextOperation:nextConfirmed?operation(source.tt2):fallback.nextOperation,
-    nextTrain:nextConfirmed?(source.tr2||''):fallback.nextTrain
+    nextTrain:nextConfirmed?(source.tr2||''):fallback.nextTrain,
+    nextKid:nextConfirmed?(source.kid2||source.kid||''):'',
+    nextStation:nextConfirmed?lastStation:fallback.nextStation
   };
 }
-async function openAtosOperationTrain(number,connectionStation,direction,dateValue){
+async function openAtosOperationTrain(number,connectionStation,direction,dateValue,connectionKid=''){
   const key=normalizeTrainKey(number),stationKey=operationStationKey(connectionStation);
   let candidates=externalTimetables.filter(train=>normalizeTrainKey(train.trainNumber)===key);
   candidates=externalTrainVersionsForDate(candidates,dateValue).filter(train=>operationStationKey(externalTrainEndpoint(train,direction==='previous'?'next':'previous'))===stationKey);
+  if(connectionKid){
+    const kidKey=normalizeTrainKey(connectionKid);
+    const kidMatches=candidates.filter(train=>normalizeTrainKey(direction==='previous'?(train.kid2||train.kid):(train.kid1||train.kid))===kidKey);
+    if(kidMatches.length) candidates=kidMatches;
+  }
   const routeSignatures=new Set(candidates.map(train=>`${train.line||''}|${train.origin||''}|${train.destination||''}`));
   if(candidates.length&&routeSignatures.size===1){
     showExternalTrainTimetable(candidates[0],dateValue,false);

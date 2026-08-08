@@ -25,7 +25,7 @@ ODPT_URL = os.environ.get(
 DB_PATH = Path(os.environ.get("ATOS_HISTORY_DB", "/var/lib/atos-delay-history/history.sqlite3"))
 HOST = os.environ.get("ATOS_HISTORY_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ATOS_HISTORY_PORT", "8787"))
-INTERVAL = max(10, int(os.environ.get("ATOS_HISTORY_INTERVAL", "20")))
+INTERVAL = max(5, int(os.environ.get("ATOS_HISTORY_INTERVAL", "10")))
 RETENTION_DAYS = max(1, min(366, int(os.environ.get("ATOS_HISTORY_RETENTION_DAYS", "30"))))
 ALLOWED_ORIGINS = {
     value.strip()
@@ -79,6 +79,7 @@ def initialize_database() -> None:
                 delay_seconds INTEGER NOT NULL CHECK (delay_seconds >= 0),
                 from_station TEXT,
                 to_station TEXT,
+                destination_station TEXT,
                 observed_at TEXT NOT NULL,
                 UNIQUE(service_date, railway, train_number, station_id, phase, delay_seconds)
             );
@@ -92,6 +93,9 @@ def initialize_database() -> None:
                 ON observations(service_date);
             """
         )
+        columns = {row["name"] for row in database.execute("PRAGMA table_info(observations)")}
+        if "destination_station" not in columns:
+            database.execute("ALTER TABLE observations ADD COLUMN destination_station TEXT")
 
 
 def cleanup_old_observations(force: bool = False) -> int:
@@ -113,7 +117,7 @@ def cleanup_old_observations(force: bool = False) -> int:
 
 def fetch_trains() -> list[dict]:
     # 公開プロキシは呼出元のacl:consumerKeyを必ず破棄して正規の秘密鍵へ差し替える。
-    # その性質を使い、20秒単位の無害な値でCloudflareの60秒キャッシュだけを分離する。
+    # その性質を使い、収集間隔単位の無害な値でCloudflareキャッシュを分離する。
     separator = "&" if "?" in ODPT_URL else "?"
     bucket = int(time.time() // INTERVAL)
     request_url = f"{ODPT_URL}{separator}acl:consumerKey=history-{bucket}"
@@ -127,9 +131,21 @@ def fetch_trains() -> list[dict]:
     return data
 
 
+def source_observed_at(train: dict, fallback: datetime) -> str:
+    """Prefer the ODPT snapshot timestamp so collector/network latency is not shown as train delay."""
+    raw_value = str(train.get("dc:date") or "").strip()
+    if raw_value:
+        try:
+            parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00")).astimezone(JST)
+            if abs((fallback - parsed).total_seconds()) <= 10 * 60:
+                return parsed.isoformat(timespec="seconds")
+        except ValueError:
+            pass
+    return fallback.isoformat(timespec="seconds")
+
+
 def store_snapshot(trains: list[dict]) -> int:
     now = datetime.now(JST)
-    observed_at = now.isoformat(timespec="seconds")
     operating_date = service_date(now)
     rows: list[tuple] = []
     for train in trains:
@@ -137,6 +153,8 @@ def store_snapshot(trains: list[dict]) -> int:
         train_number = str(train.get("odpt:trainNumber") or "")
         from_station = str(train.get("odpt:fromStation") or "")
         to_station = str(train.get("odpt:toStation") or "")
+        destinations = train.get("odpt:destinationStation") or []
+        destination_station = str(destinations[0] if isinstance(destinations, list) and destinations else "")
         if not railway or not train_number or not from_station:
             continue
         phase = "arrival" if not to_station or to_station == from_station else "departure"
@@ -144,15 +162,20 @@ def store_snapshot(trains: list[dict]) -> int:
             delay_seconds = max(0, int(train.get("odpt:delay") or 0))
         except (TypeError, ValueError):
             delay_seconds = 0
-        rows.append((operating_date, railway, train_number, from_station, phase, delay_seconds, from_station, to_station or None, observed_at))
+        rows.append((operating_date, railway, train_number, from_station, phase, delay_seconds, from_station, to_station or None, destination_station or None, source_observed_at(train, now)))
 
     with connect() as database:
         before = database.total_changes
         database.executemany(
             """
             INSERT OR IGNORE INTO observations
-              (service_date, railway, train_number, station_id, phase, delay_seconds, from_station, to_station, observed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (service_date, railway, train_number, station_id, phase, delay_seconds, from_station, to_station, destination_station, observed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(service_date, railway, train_number, station_id, phase, delay_seconds)
+            DO UPDATE SET
+              from_station = excluded.from_station,
+              to_station = excluded.to_station,
+              destination_station = excluded.destination_station
             """,
             rows,
         )
@@ -209,11 +232,19 @@ def train_history(params: dict[str, list[str]]) -> dict:
             prediction_values.extend(requested_railways)
         prediction_rows = database.execute(
             f"""
-            SELECT station_id, CAST(ROUND(AVG(delay_seconds)) AS INTEGER) AS expected_delay,
-                   COUNT(DISTINCT service_date) AS sample_days
-            FROM observations
-            WHERE {prediction_where}
-            GROUP BY station_id
+            WITH ranked AS (
+              SELECT service_date, railway, station_id, delay_seconds, observed_at,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY service_date, railway, train_number, station_id
+                       ORDER BY observed_at DESC, id DESC
+                     ) AS row_number
+              FROM observations
+              WHERE {prediction_where}
+            )
+            SELECT service_date, railway, station_id, delay_seconds, observed_at
+            FROM ranked
+            WHERE row_number = 1
+            ORDER BY service_date, observed_at
             """,
             prediction_values,
         ).fetchall()
@@ -228,9 +259,29 @@ def train_history(params: dict[str, list[str]]) -> dict:
         current["phase"] = row["phase"]
         current["observedAt"] = row["observed_at"]
         current["railway"] = row["railway"]
+    prediction_totals: dict[str, dict] = defaultdict(
+        lambda: {"delayTotal": 0, "samples": 0, "days": set(), "changeTotal": 0, "changeSamples": 0}
+    )
+    previous_prediction: dict[tuple[str, str], sqlite3.Row] = {}
+    for row in prediction_rows:
+        bucket = prediction_totals[row["station_id"]]
+        bucket["delayTotal"] += int(row["delay_seconds"])
+        bucket["samples"] += 1
+        bucket["days"].add(row["service_date"])
+        previous_key = (row["service_date"], row["railway"])
+        previous = previous_prediction.get(previous_key)
+        if previous and previous["station_id"] != row["station_id"]:
+            bucket["changeTotal"] += int(row["delay_seconds"]) - int(previous["delay_seconds"])
+            bucket["changeSamples"] += 1
+        previous_prediction[previous_key] = row
     predictions = {
-        row["station_id"]: {"expectedDelaySeconds": row["expected_delay"], "sampleDays": row["sample_days"]}
-        for row in prediction_rows
+        station_id: {
+            "expectedDelaySeconds": round(value["delayTotal"] / value["samples"]),
+            "expectedChangeSeconds": round(value["changeTotal"] / value["changeSamples"]) if value["changeSamples"] else 0,
+            "sampleDays": len(value["days"]),
+            "changeSamples": value["changeSamples"],
+        }
+        for station_id, value in prediction_totals.items()
     }
     return {
         "serviceDate": operating_date,
@@ -253,14 +304,14 @@ def statistics(params: dict[str, list[str]]) -> dict:
         rows = database.execute(
             """
             WITH ranked AS (
-              SELECT service_date, railway, train_number, station_id, phase, delay_seconds, observed_at,
+              SELECT service_date, railway, train_number, station_id, phase, delay_seconds, destination_station, observed_at,
                      ROW_NUMBER() OVER (
                        PARTITION BY service_date, railway, train_number, station_id
                        ORDER BY observed_at DESC, id DESC
                      ) AS row_number
               FROM observations WHERE service_date >= ?
             )
-            SELECT service_date, railway, train_number, station_id, phase, delay_seconds, observed_at
+            SELECT service_date, railway, train_number, station_id, phase, delay_seconds, destination_station, observed_at
             FROM ranked WHERE row_number = 1
             ORDER BY service_date, train_number, observed_at
             """,
@@ -279,6 +330,7 @@ def statistics(params: dict[str, list[str]]) -> dict:
     prediction_stats: dict[tuple[str, str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "days": set()})
     delay_bands = {"定時（1分未満）": 0, "1～2分": 0, "3～5分": 0, "6～10分": 0, "11分以上": 0}
     previous_by_train: dict[tuple[str, str, str], sqlite3.Row] = {}
+    service_destinations: dict[tuple[str, str, str], str] = {}
 
     for row in rows:
         delay = int(row["delay_seconds"])
@@ -335,6 +387,8 @@ def statistics(params: dict[str, list[str]]) -> dict:
             station["increases"] += int(change > 0)
             station["recoveries"] += int(change < 0)
         previous_by_train[train_key] = row
+        if row["destination_station"]:
+            service_destinations[train_key] = row["destination_station"]
 
     def delay_bucket(name: str, value: dict) -> dict:
         samples = value["samples"]
@@ -386,6 +440,30 @@ def statistics(params: dict[str, list[str]]) -> dict:
     ]
     predictions.sort(key=lambda item: (item["sampleDays"], item["expectedDelaySeconds"]), reverse=True)
 
+    destination_changes = []
+    destination_history: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+    for (date, railway, train_number), destination in sorted(service_destinations.items()):
+        history_key = (railway, train_number)
+        previous = [item_destination for item_date, item_destination in destination_history[history_key] if item_date < date]
+        if previous:
+            counts: dict[str, int] = defaultdict(int)
+            for previous_destination in previous:
+                counts[previous_destination] += 1
+            usual, samples = max(counts.items(), key=lambda item: (item[1], item[0]))
+            confidence = round(samples / len(previous) * 100, 1)
+            if len(previous) >= 2 and destination != usual:
+                destination_changes.append({
+                    "serviceDate": date,
+                    "railway": railway,
+                    "trainNumber": train_number,
+                    "usualDestinationStation": usual,
+                    "actualDestinationStation": destination,
+                    "confidence": confidence,
+                    "sampleDays": len(previous),
+                })
+        destination_history[history_key].append((date, destination))
+    destination_changes.sort(key=lambda item: (item["serviceDate"], item["confidence"]), reverse=True)
+
     last_success = STATE["last_success"]
     freshness_seconds = None
     if last_success:
@@ -403,6 +481,7 @@ def statistics(params: dict[str, list[str]]) -> dict:
         "monthly": monthly,
         "delayBands": [{"name": name, "samples": samples} for name, samples in delay_bands.items()],
         "predictions": predictions[:300],
+        "destinationChanges": destination_changes[:300],
     }
 
 
