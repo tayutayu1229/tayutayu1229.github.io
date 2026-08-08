@@ -463,7 +463,7 @@
                     
                     if (data.tr1) {
                         const kidToPass = data.kid1 || currentKid; 
-                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev' };
+                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev', connectionStation: stop.station };
                     }
                 } else if (index === totalStops - 1) {
                     if (data.tt2 === "k") opInfo = "継送";
@@ -471,7 +471,7 @@
 
                     if (data.tr2) {
                         const kidToPass = data.kid2 || currentKid; 
-                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next' };
+                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next', connectionStation: stop.station };
                     }
                 }
 
@@ -491,7 +491,7 @@
                 if (opTrain) {
                     const link = document.createElement('button'); link.type = 'button';
                     link.className = 'link-text'; link.textContent = opTrain.number;
-                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction));
+                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction, opTrain.connectionStation));
                     opCell.appendChild(link);
                 }
 
@@ -499,7 +499,7 @@
             });
         }
 
-        function jumpToTrain(targetTrainNum, currentKid, direction) {
+        function jumpToTrain(targetTrainNum, currentKid, direction, connectionStation = '') {
             if (rawJsonData.length === 0) return;
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
             const currentKidNormalized = normalizeString(currentKid);
@@ -509,18 +509,29 @@
             const candidates = rawJsonData.filter(d => 
                 normalizeString(d.trainNumber) === targetTrainNumNormalized
             );
+            const stationKey = normalizeString(connectionStation).replace(/[\s　駅]/g, '');
+            const connectionCandidates = candidates.filter(d => {
+                const stops = d.stops || [];
+                const endpoint = direction === 'prev'
+                    ? (d.destination || stops[stops.length - 1]?.station)
+                    : (d.origin || stops[0]?.station);
+                return !stationKey || normalizeString(endpoint).replace(/[\s　駅]/g, '') === stationKey;
+            });
             
             if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
-                    match = candidates.find(d => normalizeString(d.kid2 || '') === currentKidNormalized);
+                    const matches = connectionCandidates.filter(d => normalizeString(d.kid2 || d.kid || '') === currentKidNormalized);
+                    if (matches.length === 1) match = matches[0];
                 } else if (direction === 'next') {
-                    match = candidates.find(d => normalizeString(d.kid1 || '') === currentKidNormalized);
+                    const matches = connectionCandidates.filter(d => normalizeString(d.kid1 || d.kid || '') === currentKidNormalized);
+                    if (matches.length === 1) match = matches[0];
                 }
             }
 
             if (!match) {
-                 match = candidates.find(d => d.startDate === selectedDateJSON);
-                 if (!match && candidates.length > 0) match = candidates[0];
+                 const dated = connectionCandidates.filter(d => d.startDate === selectedDateJSON);
+                 if (dated.length === 1) match = dated[0];
+                 else if (connectionCandidates.length === 1) match = connectionCandidates[0];
             }
 
             if (match) {
