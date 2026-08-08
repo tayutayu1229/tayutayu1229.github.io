@@ -127,8 +127,11 @@
         }
         return response;
       } catch (error) {
-        // 単発の通信断はアプリ破損ではないため「重大」にはしない。連続記録も event() 側で抑止する。
-        event('fetch_error', { severity: navigator.onLine ? 'error' : 'warning', url: requestUrl, code: error.name, message: error.message });
+        // 画面遷移や明示的なタイムアウトによる中断は障害ではないため記録しない。
+        if (error?.name !== 'AbortError') {
+          // 単発の通信断はアプリ破損ではないため「重大」にはしない。連続記録も event() 側で抑止する。
+          event('fetch_error', { severity: navigator.onLine ? 'error' : 'warning', url: requestUrl, code: error.name, message: error.message });
+        }
         throw error;
       }
     };
