@@ -71,6 +71,7 @@
       return null;
     }
     authContext = ready;
+    document.body.classList.add('ops-auth-authorized');
     if (window.TayunetTelemetry) await window.TayunetTelemetry.start({ ...ready, ...window.TayunetAuth });
     const userLabel = $('[data-admin-user]');
     if (userLabel) userLabel.textContent = ready.user.email || '管理者';
