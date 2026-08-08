@@ -1,0 +1,42 @@
+name: Deploy split timetable API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Cloudflare SSH client
+        run: |
+          curl --fail --location --output cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Update private data sync and API
+        env:
+          PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_IP }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh -i ~/.ssh/id_ed25519 \
+            -o StrictHostKeyChecking=accept-new \
+            -o "ProxyCommand=cloudflared access ssh --hostname %h" \
+            "$SERVER_USER@$SERVER_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          sudo -n systemctl start tayunet-private-data-sync.service
+          repo=/var/lib/tayunet-private-data/repository
+          sudo -n install -o root -g root -m 0755 \
+            "$repo/server/tayunet-private-data-sync" /usr/local/sbin/tayunet-private-data-sync
+          sudo -n "$repo/server/install-private-api.sh"
+          sudo -n systemctl restart tayunet-private-data-sync.timer
+          sudo -n systemctl start tayunet-private-data-sync.service
+          curl --fail --silent --show-error http://127.0.0.1:5100/healthz
+          REMOTE
