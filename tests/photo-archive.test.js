@@ -109,5 +109,7 @@ assert.match(css, /\.member-picker/);
 assert.match(css, /\.edit-section label/);
 assert.match(css, /\.notification-badge/);
 assert.match(css, /\.member-share-shortcut/);
+assert.match(css, /\.archive-header>\.site-brand-link\{grid-column:1/);
+assert.match(css, /grid-template-columns:auto minmax\(0,1fr\) auto/);
 
 console.log('photo archive audit: ok');
