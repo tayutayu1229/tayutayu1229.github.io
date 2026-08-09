@@ -12,6 +12,12 @@
   const visibility = value => ({ private: "自分のみ", users: "特定メンバー", link: "限定リンク", public: "全体公開" })[value] || value;
   const category = value => ({ train: "列車", freight: "貨物列車", landscape: "風景", other: "その他" })[value] || "その他";
 
+  function updateClock() {
+    const clock = $("#system-clock");
+    if (clock) clock.textContent = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date());
+  }
+  updateClock(); setInterval(updateClock, 1000);
+
   async function api(path, options = {}, retry = true) {
     const user = await window.TayunetFirebaseDataAuth.currentUser();
     const headers = new Headers(options.headers || {});
@@ -192,7 +198,7 @@
   window.TayunetAuthReady.then(async ready => {
     if (!ready.ok) return;
     $("#auth-cover").remove(); $("#main-content").hidden=false;
-    try { const health=await (await fetch(`${API}/health`,{cache:"no-store"})).json();$("#storage-count").textContent=bytes(health.storage.usedBytes);$("#trash-days").textContent=`${health.trashDays}日`;$("#photo-count").textContent=health.photos; } catch(_){$("#storage-count").textContent="接続確認中";}
+    try { const response=await fetch(`${API}/health`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const health=await response.json();$("#storage-count").textContent=bytes(health.storage.usedBytes);$("#trash-days").textContent=`${health.trashDays}日`;$("#photo-count").textContent=health.photos;$("#api-status").className="state-lamp online";$("#api-status").innerHTML="<i></i>写真API 正常"; } catch(_){$("#storage-count").textContent="確認不可";$("#api-status").className="state-lamp error";$("#api-status").innerHTML="<i></i>写真API 未接続";}
     await renderAlbums(); await loadPhotos();
   });
 })();
