@@ -179,6 +179,7 @@
     state.access={...state.access,...access};
     const manager=state.access.canManage;
     $("#upload-button").hidden=!state.access.canUpload;
+    $("#mobile-upload-button").hidden=!state.access.canUpload;
     $("#access-mode").textContent=manager?"管理モード（登録不可）":"個人アーカイブ";
     const mineTab=$("[data-scope='mine']");if(manager){mineTab.textContent="管理一覧";labels.mine="管理一覧";$("#list-title").textContent="管理一覧";}
     document.body.classList.toggle("manager-mode",manager);
@@ -190,6 +191,14 @@
     $("#filter-toggle").setAttribute("aria-expanded", String(enabled));
     $("#filter-backdrop").tabIndex = enabled ? 0 : -1;
     if (enabled) setTimeout(() => $("#search-q").focus(), 180);
+  }
+
+  function setMobileMenuOpen(open) {
+    const enabled = open && window.matchMedia("(max-width: 900px)").matches;
+    const menu = $("#mobile-action-menu"), button = $("#mobile-menu-button");
+    menu.hidden = !enabled;
+    button.setAttribute("aria-expanded", String(enabled));
+    button.setAttribute("aria-label", enabled ? "アカウントメニューを閉じる" : "アカウントメニューを開く");
   }
 
   function dataRows(photo) {
@@ -273,6 +282,11 @@
   }
 
   document.addEventListener("click", async event => {
+    const mobileMenuButton=event.target.closest("#mobile-menu-button");if(mobileMenuButton){setMobileMenuOpen($("#mobile-action-menu").hidden);return;}
+    const mobileFriend=event.target.closest("#mobile-friend-button");if(mobileFriend){setMobileMenuOpen(false);return showPeople();}
+    const mobileUpload=event.target.closest("#mobile-upload-button");if(mobileUpload){setMobileMenuOpen(false);if(!state.access.canUpload)return notify("このアカウントは閲覧・管理専用です。",true);$("#upload-dialog").showModal();return;}
+    const mobileLogout=event.target.closest("#mobile-logout-button");if(mobileLogout){setMobileMenuOpen(false);$("#firebase-logout-button").click();return;}
+    if(!$("#mobile-action-menu").hidden&&!event.target.closest("#mobile-action-menu"))setMobileMenuOpen(false);
     const close = event.target.closest("[data-close]"); if (close) return $(`#${close.dataset.close}`).close();
     const removeFile = event.target.closest("[data-remove-file]"); if (removeFile) { const index=state.files.findIndex(entry=>entry.id===removeFile.dataset.removeFile);if(index>=0){releaseFile(state.files[index]);state.files.splice(index,1);renderQueue()}return; }
     const cardButton = event.target.closest(".open-card,.calendar-photo"); if (cardButton) return openDetail(cardButton.closest("[data-id]").dataset.id);
@@ -310,12 +324,13 @@
   $("#apply-filters").addEventListener("click", async () => { await loadPhotos(); setFiltersOpen(false); });
   $("#search-q").addEventListener("keydown", async event=>{if(event.key==="Enter"){await loadPhotos();setFiltersOpen(false)}});
   $("#clear-filters").addEventListener("click",async()=>{$$("#filters input,#filters select").forEach(input=>input.value="");await loadPhotos();setFiltersOpen(false)});
-  document.addEventListener("keydown", event => { if (event.key === "Escape" && document.body.classList.contains("filters-open")) setFiltersOpen(false); });
-  window.addEventListener("resize", () => { if (!window.matchMedia("(max-width: 1180px)").matches) setFiltersOpen(false); });
+  document.addEventListener("keydown", event => { if(event.key!=="Escape")return;if(document.body.classList.contains("filters-open"))setFiltersOpen(false);if(!$("#mobile-action-menu").hidden)setMobileMenuOpen(false); });
+  window.addEventListener("resize", () => { if (!window.matchMedia("(max-width: 1180px)").matches) setFiltersOpen(false);if(!window.matchMedia("(max-width: 900px)").matches)setMobileMenuOpen(false); });
 
   window.TayunetAuthReady.then(async ready => {
     if (!ready.ok) return;
     const firebaseUser=await window.TayunetFirebaseDataAuth.currentUser();state.currentUser={uid:firebaseUser.uid,email:firebaseUser.email||""};
+    $("#mobile-user-info").textContent=state.currentUser.email?`${state.currentUser.email} でログイン中`:"ログイン中";
     const localManager=["admin@tayunet-traininfo.com","systemadmin@tayunet-traininfo.com"].includes(state.currentUser.email.toLowerCase());
     applyAccess({canUpload:!localManager,canManage:localManager,role:localManager?"manager":"contributor"});
     $("#auth-cover").remove(); $("#main-content").hidden=false;
