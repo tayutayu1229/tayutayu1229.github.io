@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 from PIL import ExifTags, Image, ImageOps
+from operation_dispatch import register_operation_dispatch
 
 ROOT = Path(os.getenv("PHOTO_ARCHIVE_ROOT", "/data")).resolve()
 DB_PATH = Path(os.getenv("PHOTO_ARCHIVE_DB", str(ROOT / "archive.sqlite3"))).resolve()
@@ -63,7 +64,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.5")
+app = FastAPI(title="TAYUNET Photo Archive / Operation Dispatch", version="2026.08.10.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -245,6 +246,9 @@ def require_contributor(user: dict[str, Any] = Depends(verify_user)) -> dict[str
     return user
 
 
+OPERATION_DISPATCH = register_operation_dispatch(app, verify_user, ROOT / "operation-dispatch.sqlite3")
+
+
 def can_manage(row: sqlite3.Row, user: dict[str, Any]) -> bool:
     return is_manager(user) or row["owner_uid"] == user["uid"]
 
@@ -406,7 +410,11 @@ def health() -> dict[str, Any]:
     with connect() as db:
         photos = db.execute("SELECT COUNT(*) FROM photos WHERE deleted_at IS NULL").fetchone()[0]
         trash = db.execute("SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL").fetchone()[0]
+    with OPERATION_DISPATCH.connect() as db:
+        dispatches = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
+        active_dispatches = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
     return {"ok": True, "version": app.version, "photos": photos, "trash": trash, "trashDays": TRASH_DAYS,
+            "operationDispatch": {"records": dispatches, "active": active_dispatches},
             "storage": {"totalBytes": usage.total, "usedBytes": usage.used, "freeBytes": usage.free}}
 
 
