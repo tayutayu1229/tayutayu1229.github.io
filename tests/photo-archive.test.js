@@ -29,6 +29,7 @@ assert.match(html, /id="mobile-friend-button"/);
 assert.match(html, /id="mobile-logout-button"/);
 assert.match(html, /id="content-loading"/);
 assert.match(html, /id="upload-submit"/);
+assert.match(html, /viewport-fit=cover/);
 assert.doesNotMatch(html, /unpkg\.com\/leaflet/i);
 assert.match(html, /file[^>]+multiple/);
 assert.match(client, /XMLHttpRequest/);
@@ -76,5 +77,12 @@ assert.match(server, /@app\.delete\("\/v1\/friends/);
 assert.doesNotMatch(server, /firebase.*password/i);
 assert.match(docker, /python3 -m unittest/);
 assert.match(monitor, /photo-api\.tayunet-traininfo\.com\/health/);
+
+const css = fs.readFileSync('assets/css/photo-archive.css', 'utf8');
+assert.match(css, /iPad \/ tablet modal viewport containment/);
+assert.match(css, /\.archive-dialog\[open\][^{]*\{[^}]*100dvh/);
+assert.match(css, /min-width:601px\) and \(max-width:900px/);
+assert.match(css, /\.detail-dialog \.detail-data\{[^}]*overflow-y:auto/);
+assert.match(css, /\.upload-dialog \.dialog-actions\{[^}]*position:sticky/);
 
 console.log('photo archive audit: ok');
