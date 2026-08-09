@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+IMAGE="tayunet/photo-archive:2026.08.09.1"
+NAME="tayunet-photo-archive"
+DATA_DIR="/mnt/hdd/tayunet-photo-archive"
+SOURCE_DIR="${PHOTO_ARCHIVE_SOURCE_DIR:-/opt/tayunet/photo-archive}"
+
+case "${1:-start}" in
+  start)
+    install -d -o 1000 -g 1000 -m 0750 "$DATA_DIR" "$DATA_DIR/originals" "$DATA_DIR/thumbnails" "$DATA_DIR/exports"
+    docker build -t "$IMAGE" "$SOURCE_DIR"
+    docker rm -f "$NAME" >/dev/null 2>&1 || true
+    docker run -d --name "$NAME" --restart unless-stopped \
+      -p 127.0.0.1:8790:8790 \
+      -v "$DATA_DIR:/data" \
+      -e PHOTO_ARCHIVE_FIREBASE_PROJECT=tokyo-pass \
+      -e PHOTO_ARCHIVE_ALLOWED_ORIGINS=https://tayunet-traininfo.com,https://www.tayunet-traininfo.com \
+      "$IMAGE"
+    ;;
+  stop) docker stop "$NAME" >/dev/null 2>&1 || true ;;
+  status) docker ps -a --filter "name=^/${NAME}$" ;;
+  *) echo "usage: $0 {start|stop|status}" >&2; exit 2 ;;
+esac

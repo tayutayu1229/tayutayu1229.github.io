@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="写真と撮影情報を安全に保存・検索・共有する撮影記録アーカイブ">
+  <title>撮影記録アーカイブ｜東京圏輸送情報システム</title>
+  <link rel="stylesheet" href="/assets/css/photo-archive.css?v=2026.08.09.1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynHOKjmjMZcWg6wldZ3MpMbM3MNM=" crossorigin="">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+  <div class="auth-cover" id="auth-cover"><div class="spinner"></div><p>利用者情報を確認しています</p></div>
+  <header class="archive-header">
+    <a class="brand" href="/toppage.html" aria-label="システム一覧へ戻る"><span class="brand-mark">写</span><span><b>撮影記録アーカイブ</b><small>TAYUNET PHOTO ARCHIVE</small></span></a>
+    <div class="header-actions"><span id="user-info">認証確認中</span><button class="ghost" id="friend-button">共有メンバー</button><button class="primary" id="upload-button">＋ 写真を追加</button><button class="ghost" id="firebase-logout-button">ログアウト</button></div>
+  </header>
+
+  <main id="main-content" hidden>
+    <section class="hero">
+      <div><p class="eyebrow">YOUR PHOTOGRAPHIC LOGBOOK</p><h1>撮った一枚を、あとから探せる記録へ。</h1><p>原本はUbuntu HDDへ保存。撮影情報、列車情報、場所、タグをまとめて整理できます。</p></div>
+      <div class="hero-stats"><div><strong id="photo-count">—</strong><span>写真</span></div><div><strong id="storage-count">—</strong><span>HDD使用量</span></div><div><strong id="trash-days">30日</strong><span>ゴミ箱保管</span></div></div>
+    </section>
+
+    <nav class="scope-tabs" aria-label="写真一覧">
+      <button class="active" data-scope="mine">個人一覧</button><button data-scope="shared">共有一覧</button><button data-scope="public">全体公開</button><button data-scope="albums">アルバム</button><button data-scope="map">マップ</button><button data-scope="calendar">カレンダー</button><button data-scope="trash">ゴミ箱</button>
+    </nav>
+
+    <section class="workspace">
+      <aside class="filters" id="filters">
+        <div class="filter-title"><b>絞り込み</b><button id="clear-filters">クリア</button></div>
+        <label>キーワード<input id="search-q" type="search" placeholder="列車番号、場所、メモ…"></label>
+        <div class="two"><label>撮影日（開始）<input id="date-from" type="date"></label><label>撮影日（終了）<input id="date-to" type="date"></label></div>
+        <label>種類<select id="category-filter"><option value="">すべて</option><option value="train">列車</option><option value="freight">貨物列車</option><option value="landscape">風景</option><option value="other">その他</option></select></label>
+        <label>列車番号<input id="train-filter" placeholder="例：8765"></label>
+        <label>カメラ<input id="camera-filter" list="camera-list" placeholder="機種名"></label><datalist id="camera-list"></datalist>
+        <label>レンズ<input id="lens-filter" list="lens-list" placeholder="レンズ名"></label><datalist id="lens-list"></datalist>
+        <label>タグ<input id="tag-filter" list="tag-list" placeholder="タグ"></label><datalist id="tag-list"></datalist>
+        <div class="two"><label>焦点距離 min<input id="focal-min" type="number" min="0" placeholder="mm"></label><label>max<input id="focal-max" type="number" min="0" placeholder="mm"></label></div>
+        <button class="primary wide" id="apply-filters">検索する</button>
+        <details class="export-box"><summary>バックアップ／出力</summary><button data-export="json">メタデータ JSON</button><button data-export="csv">メタデータ CSV</button><button data-export="zip">原本画像 ZIP</button></details>
+      </aside>
+
+      <section class="content">
+        <div class="content-toolbar"><div><h2 id="list-title">個人一覧</h2><span id="result-count">読み込み中</span></div><div class="view-buttons" role="group"><button class="active" data-view="grid" title="グリッド">▦</button><button data-view="timeline" title="タイムライン">☷</button><button data-view="calendar" title="カレンダー">日</button><button data-view="map" title="マップ">⌖</button></div></div>
+        <div class="notice" id="notice" hidden></div>
+        <div class="photo-grid" id="photo-list" aria-live="polite"></div>
+        <div class="calendar-view" id="calendar-view" hidden></div>
+        <div class="map-view" id="map-view" hidden></div>
+        <div class="album-view" id="album-view" hidden></div>
+        <div class="empty" id="empty-state" hidden><span>▧</span><h3>該当する写真がありません</h3><p>写真を追加するか、絞り込み条件を変えてみてください。</p></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="upload-dialog" class="archive-dialog upload-dialog">
+    <form method="dialog" class="dialog-head"><div><small>UPLOAD</small><h2>写真を追加</h2></div><button value="cancel" aria-label="閉じる">×</button></form>
+    <div class="dialog-body">
+      <div class="drop-zone" id="drop-zone" tabindex="0"><b>写真をここへドロップ</b><span>またはクリックして選択（1回100枚まで）</span><input id="file-input" type="file" accept="image/*" multiple hidden></div>
+      <div class="file-queue" id="file-queue"></div>
+      <div class="progress" id="upload-progress" hidden><span></span></div><p id="upload-status"></p>
+      <form id="upload-form" class="metadata-form">
+        <h3>共通の撮影情報 <small>EXIFにある項目は自動入力されます</small></h3>
+        <div class="form-grid">
+          <label>写真の種類<select name="category"><option value="other">その他</option><option value="train">列車</option><option value="freight">貨物列車</option><option value="landscape">風景</option></select></label>
+          <label>撮影日時<input name="capturedAt" type="datetime-local"></label>
+          <label class="span2">撮影場所<input name="location" placeholder="例：新鶴見信号場付近"></label>
+          <label>駅<input name="station" placeholder="例：新川崎駅"></label><label>タグ<input name="tags" placeholder="カンマ区切り"></label>
+          <label>列車番号<input name="trainNumber"></label><label>列車種別<input name="trainType"></label>
+          <label>始発駅<input name="origin"></label><label>終着駅<input name="destination"></label>
+          <label>始発駅日付<input name="serviceDate" type="date"></label><label>変更事項<input name="changes"></label>
+          <label class="span2">貨物輸送経路<input name="transportRoute" placeholder="例：東京貨物ターミナル〜新鶴見〜…"></label>
+          <label class="span2">記事・備考<input name="article"></label>
+          <label>緯度<input name="latitude" type="number" step="any"></label><label>経度<input name="longitude" type="number" step="any"></label>
+          <label>公開範囲<select name="visibility"><option value="private">自分のみ</option><option value="users">特定ユーザー／グループ</option><option value="link">限定リンクのみ</option><option value="public">全体公開</option></select></label>
+          <label>アルバム<select name="albumIds" id="upload-album"><option value="">なし</option></select></label>
+          <label class="span2">フリーメモ<textarea name="notes" rows="4"></textarea></label>
+        </div>
+        <div class="dialog-actions"><button type="button" class="ghost" data-close="upload-dialog">キャンセル</button><button type="submit" class="primary">アップロード開始</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="detail-dialog" class="archive-dialog detail-dialog"><div id="detail-content"></div></dialog>
+  <dialog id="people-dialog" class="archive-dialog people-dialog"><div id="people-content"></div></dialog>
+  <dialog id="share-dialog" class="archive-dialog share-dialog"><div id="share-content"></div></dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="/auth_guard.js?v=2026.08.08.2"></script>
+  <script src="/T-time/firebase-data-auth.js?v=2026.08.09.1"></script>
+  <script src="/assets/js/photo-archive.js?v=2026.08.09.1"></script>
+</body>
+</html>

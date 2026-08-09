@@ -1,0 +1,39 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+const html = fs.readFileSync('photo-archive.html', 'utf8');
+const publicHtml = fs.readFileSync('photo-share.html', 'utf8');
+const client = fs.readFileSync('assets/js/photo-archive.js', 'utf8');
+const publicClient = fs.readFileSync('assets/js/photo-share.js', 'utf8');
+const server = fs.readFileSync('server/photo-archive/photo_archive.py', 'utf8');
+const docker = fs.readFileSync('server/photo-archive/Dockerfile', 'utf8');
+const top = fs.readFileSync('toppage.html', 'utf8');
+const monitor = fs.readFileSync('system_monitor.html', 'utf8');
+
+assert.match(top, /撮影記録アーカイブ/);
+assert.match(html, /auth_guard\.js/);
+assert.match(html, /firebase-data-auth\.js/);
+assert.match(html, /個人一覧/);
+assert.match(html, /共有一覧/);
+assert.match(html, /マップ/);
+assert.match(html, /カレンダー/);
+assert.match(html, /ゴミ箱/);
+assert.match(html, /file[^>]+multiple/);
+assert.match(client, /XMLHttpRequest/);
+assert.match(client, /xhr\.upload\.onprogress/);
+assert.match(client, /\/v1\/export\/originals\.zip/);
+assert.match(client, /allowedGroupIds/);
+assert.match(publicHtml, /share-password/);
+assert.match(publicClient, /X-Share-Password/);
+assert.match(server, /ImageOps\.exif_transpose/);
+assert.match(server, /GPSLatitude/);
+assert.match(server, /hashlib\.scrypt/);
+assert.match(server, /deleted_at/);
+assert.match(server, /TRASH_DAYS/);
+assert.match(server, /verify_user/);
+assert.match(server, /allowed_group_ids_json/);
+assert.doesNotMatch(server, /firebase.*password/i);
+assert.match(docker, /python3 -m unittest/);
+assert.match(monitor, /photo-api\.tayunet-traininfo\.com\/health/);
+
+console.log('photo archive audit: ok');
