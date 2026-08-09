@@ -31,7 +31,14 @@ const context = {
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('T-time/private-data-client.js', 'utf8'), context);
 
-context.window.TayunetPrivateData.fetchTimetables().then(items => {
+context.window.TayunetPrivateData.fetchTimetableBundle().then(bundle => {
+  const items = bundle.items;
+  assert.deepEqual(Array.from(bundle.files, file => `${file.name}:${file.items.length}`), [
+    'timetables.json:1',
+    'timetables-2.json:1',
+    'timetables-3.json:1',
+  ]);
+  assert.equal(bundle.count, 3);
   assert.deepEqual(Array.from(items, item => item.trainNumber), ['1M', '2M', '3M']);
   assert.deepEqual(requested, [
     '/api/timetable-files',
@@ -39,7 +46,10 @@ context.window.TayunetPrivateData.fetchTimetables().then(items => {
     '/api/timetables/timetables-2.json',
     '/api/timetables/timetables-3.json',
   ]);
-  console.log('private data multi-file test: ok');
+  return context.window.TayunetPrivateData.fetchTimetables();
+}).then(items => {
+  assert.deepEqual(Array.from(items, item => item.trainNumber), ['1M', '2M', '3M']);
+  console.log('private data multi-file bundle test: ok');
 }).catch(error => {
   console.error(error);
   process.exitCode = 1;

@@ -39,8 +39,8 @@ Cloudflareは保護APIへの経路として使用しますが、利用者がClou
 
 1. TAYUNETへ通常ログインし、管理者の利用承認が済んでいることを確認する。
 2. `https://tayunet-traininfo.com/timeedit.html` を開く。
-3. 列車を作成し「全件JSONを保存」を押す。
-4. 保存された全件JSONから対象列車を、非公開リポジトリで一覧末尾の `data/timetables*.json` へ追加し、新しいブランチとして保存する。
+3. 新規列車の場合は「新規列車の保存先」で一覧末尾のJSONを選び、列車を作成して「対象JSONを保存」を押す。既存列車の場合は、その列車が入っているJSONが自動選択される。
+4. 保存された対象JSONを、非公開リポジトリの同名 `data/timetables*.json` と置き換え、新しいブランチとして保存する。ほかの分割JSONは変更しない。
 5. Pull Request、検証、確認、マージを行う。
 
 `timeedit.html` からUbuntuへ直接保存しないのは、誤操作時にGitHubの履歴から戻せるようにするためです。
@@ -49,6 +49,7 @@ Cloudflareは保護APIへの経路として使用しますが、利用者がClou
 
 - 公開リポジトリへ `timetables*.json`、`timetables-manifest.json` や `station.json` を置かない。
 - 分割ファイルを追加するときは、次の連番 `timetables-N.json` を作り、`data/timetables-manifest.json` の配列末尾へファイル名を追加する。
+- `timeedit.html`はマニフェストにある全JSONを検索用に読み込みますが、保存時は対象の1ファイルだけを書き出す。全件を`timetables.json`へ戻さない。
 - 列車を別ファイルへ移した場合は移動元から削除し、Pull Requestの検証と移動前後の総件数を確認する。
 - JSONを公開Issue、チャット、公開ストレージへ貼らない。
 - `main` を直接編集せずPull Requestを使う。
