@@ -24,12 +24,13 @@
     {id:'page-top',name:'トップページ',kind:'画面',url:'/toppage.html',format:'html',maxAge:1440},
     {id:'page-atos',name:'ATOS情報配信システム',kind:'画面',url:'/atosweb.html',format:'html',maxAge:1440},
     {id:'page-photo-archive',name:'撮影記録アーカイブ',kind:'画面',url:'/photo-archive.html',format:'html',maxAge:1440},
+    {id:'page-operation-dispatch',name:'運転情報打電・状況報告',kind:'画面',url:'/operation-dispatch.html',format:'html',maxAge:1440},
     {id:'page-admin',name:'アカウント管理',kind:'画面',url:'/account_management.html',format:'html',maxAge:1440},
     {id:'odpt-train',name:'ODPT 列車在線',kind:'API',url:'/api/odpt/challenge/odpt:Train?odpt:operator=odpt.Operator:JR-East',array:true,maxAge:5,required:['odpt:trainNumber','odpt:railway']},
     {id:'odpt-info',name:'ODPT 運行情報',kind:'API',url:'/api/odpt/challenge/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is',array:true,maxAge:20,required:['odpt:railway','odpt:trainInformationText']},
     {id:'odpt-railway',name:'ODPT 路線情報',kind:'API',url:'/api/odpt/challenge/odpt:Railway?odpt:operator=odpt.Operator:JR-East',array:true,maxAge:1440,required:['owl:sameAs']},
     {id:'delay-history',name:'遅延実績収集API',kind:'履歴API',url:'https://history.tayunet-traininfo.com/health',custom:'delayHistory',array:false,maxAge:2,required:['ok','last_success','retention_days','interval_seconds','storage']},
-    {id:'photo-archive-api',name:'撮影記録アーカイブAPI',kind:'写真API',url:'https://photo-api.tayunet-traininfo.com/health',array:false,maxAge:1440,required:['ok','version','photos','storage']},
+    {id:'photo-archive-api',name:'撮影・運転情報統合API',kind:'業務API',url:'https://photo-api.tayunet-traininfo.com/health',custom:'photoArchive',array:false,maxAge:1440,required:['ok','version','photos','storage','operationDispatch']},
     {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetable-files',custom:'timetables',maxAge:10080},
     {id:'workbase',name:'ATOS出力箇所',kind:'JSON',url:'/JREgyoumu/workdata/workbase.json',array:true,maxAge:10080},
     {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,maxAge:1440,required:['ok']},
@@ -62,6 +63,14 @@
         const lastSuccess=payload.last_success?new Date(payload.last_success):null,ageMinutes=lastSuccess&&!isNaN(lastSuccess)?Math.max(0,Math.round((Date.now()-lastSuccess.getTime())/60000)):null;
         const storage=payload.storage||{},folderGb=Number(storage.folderBytes||0)/1024/1024/1024,maxGb=Number(storage.maxGigabytes||0),usage=Number(storage.usagePercent||0);
         return success({itemCount:Number(payload.observation_count||0),dataDate:lastSuccess?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1?'1分未満':`${ageMinutes}分前`,freshnessStatus:payload.ok&&ageMinutes!==null&&ageMinutes<=target.maxAge?'ok':'warning',detail:`収集状態: ${payload.ok?'正常':'要確認'}\n取得間隔: ${payload.interval_seconds}秒\n保存実績: ${Number(payload.observation_count||0).toLocaleString('ja-JP')}件\n保存期間: ${payload.retention_days}日\n容量: ${folderGb.toFixed(2)}GB / ${maxGb}GB（${usage.toFixed(2)}%）\n容量整理: ${Number(payload.storage_deleted_observations||0).toLocaleString('ja-JP')}件削除`});
+      }
+      if(target.custom==='photoArchive'){
+        const response=await fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error(`業務API HTTP ${response.status}`);
+        const payload=await response.json(),validation=validate(target,payload);
+        if(validation.length)throw new Error(`JSON形式不正: ${validation.map(error=>error.path).join(' / ')}`);
+        const storage=payload.storage||{},operation=payload.operationDispatch||{},usedGb=Number(storage.usedBytes||0)/1024/1024/1024,freeGb=Number(storage.freeBytes||0)/1024/1024/1024;
+        return success({itemCount:Number(payload.photos||0)+Number(operation.records||0),ageLabel:'現在稼働中',freshnessStatus:payload.ok?'ok':'warning',detail:`稼働状態: ${payload.ok?'正常':'要確認'}\nAPI版: ${payload.version||'-'}\n写真: ${Number(payload.photos||0).toLocaleString('ja-JP')}件（ゴミ箱 ${Number(payload.trash||0).toLocaleString('ja-JP')}件）\n運転情報打電: ${Number(operation.records||0).toLocaleString('ja-JP')}件（対応中 ${Number(operation.active||0).toLocaleString('ja-JP')}件）\nHDD使用量: ${usedGb.toFixed(1)}GB\nHDD空き: ${freeGb.toFixed(1)}GB`});
       }
       if(target.custom==='timetables'){
         const bundle=await TayunetPrivateData.fetchTimetableBundle();
