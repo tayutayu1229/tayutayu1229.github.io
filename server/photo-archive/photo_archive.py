@@ -63,7 +63,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.2")
+app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.3")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -181,6 +181,25 @@ def is_manager(user: dict[str, Any]) -> bool:
     return str(user.get("email") or "").casefold() in MANAGER_EMAILS
 
 
+async def active_firestore_profile(uid: str, token: str) -> dict[str, Any]:
+    """Load one approved Firebase profile using the caller's ID token."""
+    url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/users/{uid}"
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    except Exception as error:
+        raise HTTPException(503, "利用者情報を確認できません") from error
+    if response.status_code == 404:
+        raise HTTPException(404, "Firebaseに利用者が見つかりません")
+    if response.status_code != 200:
+        raise HTTPException(503, "Firebaseの利用者情報を確認できません")
+    profile = response.json()
+    active = field(profile, "approved") is True and field(profile, "status") == "active" and field(profile, "disabled") is not True
+    if not active:
+        raise HTTPException(403, "利用承認済みのアカウントが必要です")
+    return profile
+
+
 async def verify_user(authorization: Annotated[str | None, Header()] = None) -> dict[str, Any]:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Firebaseログインが必要です")
@@ -194,24 +213,13 @@ async def verify_user(authorization: Annotated[str | None, Header()] = None) -> 
     email = str(claims.get("email") or "")
     if not uid:
         raise HTTPException(401, "Firebase UIDがありません")
-    try:
-        url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/users/{uid}"
-        async with httpx.AsyncClient(timeout=8) as client:
-            response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
-        profile = response.json() if response.status_code == 200 else {}
-        active = field(profile, "approved") is True and field(profile, "status") == "active" and field(profile, "disabled") is not True
-        if not active:
-            raise HTTPException(403, "利用承認済みのアカウントが必要です")
-    except HTTPException:
-        raise
-    except Exception as error:
-        raise HTTPException(503, "利用者情報を確認できません") from error
+    profile = await active_firestore_profile(uid, token)
     display_name = str(field(profile, "displayName") or claims.get("name") or email.split("@")[0]).strip()[:200]
     with connect() as db:
         db.execute("""INSERT INTO users(uid,email,display_name,last_seen_at) VALUES(?,?,?,?)
           ON CONFLICT(uid) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,last_seen_at=excluded.last_seen_at""", (uid, email, display_name, now_iso()))
     role = "manager" if email.casefold() in MANAGER_EMAILS else "contributor"
-    return {"uid": uid, "email": email, "role": role, "canUpload": role == "contributor", "canManage": role == "manager"}
+    return {"uid": uid, "email": email, "role": role, "canUpload": role == "contributor", "canManage": role == "manager", "_token": token}
 
 
 def require_contributor(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -707,11 +715,21 @@ def friends(user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
 
 
 @app.post("/v1/friends/{target_uid}")
-def request_friend(target_uid: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
+async def request_friend(target_uid: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     if target_uid == user["uid"]: raise HTTPException(400, "自分自身は追加できません")
+    token = str(user.get("_token") or "")
+    if not token:
+        raise HTTPException(401, "Firebaseログインをもう一度確認してください")
+    profile = await active_firestore_profile(target_uid, token)
+    target_email = str(field(profile, "email") or "").strip().casefold()
+    if not target_email or target_email in MANAGER_EMAILS:
+        raise HTTPException(404, "共有できる利用者が見つかりません")
+    target_name = str(field(profile, "displayName") or target_email.split("@")[0]).strip()[:200]
     low, high = sorted((user["uid"], target_uid)); timestamp = now_iso()
     with connect() as db:
-        if not db.execute("SELECT 1 FROM users WHERE uid=?", (target_uid,)).fetchone(): raise HTTPException(404, "利用者が見つかりません")
+        db.execute("""INSERT INTO users(uid,email,display_name,last_seen_at) VALUES(?,?,?,?)
+          ON CONFLICT(uid) DO UPDATE SET email=excluded.email,display_name=excluded.display_name""",
+          (target_uid, target_email, target_name, timestamp))
         existing = db.execute("SELECT * FROM friends WHERE low_uid=? AND high_uid=?", (low, high)).fetchone()
         status = "accepted" if existing and (existing["status"] == "accepted" or (existing["status"] == "pending" and existing["requested_by"] != user["uid"])) else "pending"
         db.execute("""INSERT INTO friends VALUES(?,?,?,?,?,?) ON CONFLICT(low_uid,high_uid)
