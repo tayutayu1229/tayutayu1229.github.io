@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
+from PIL.TiffImagePlugin import IFDRational
 
 import photo_archive as archive
 
@@ -47,10 +48,20 @@ class PhotoArchiveTest(unittest.TestCase):
             exif[271] = "Canon"
             exif[272] = "EOS 70D"
             exif[36867] = "2026:07:01 13:32:45"
+            exif[42036] = "EF 70-200mm F2.8L"
+            exif[33434] = IFDRational(1, 400)
+            exif[33437] = IFDRational(56, 10)
+            exif[34855] = 320
+            exif[37386] = IFDRational(85, 1)
             Image.new("RGB", (1200, 800), "white").save(source, exif=exif)
             metadata = archive.image_metadata(source)
             self.assertEqual(metadata["camera"], "Canon EOS 70D")
             self.assertEqual(metadata["capturedAt"], "2026-07-01 13:32:45")
+            self.assertEqual(metadata["lens"], "EF 70-200mm F2.8L")
+            self.assertEqual(metadata["shutterSpeed"], "1/400")
+            self.assertEqual(metadata["aperture"], "5.6")
+            self.assertEqual(metadata["iso"], "320")
+            self.assertEqual(metadata["focalLength"], "85")
 
     def test_database_schema_is_initialized(self):
         with archive.connect() as db:
@@ -150,6 +161,32 @@ class PhotoArchiveTest(unittest.TestCase):
                 public = client.get(f"/public/{token}", headers={"X-Share-Password": "test-pass"})
                 self.assertEqual(public.status_code, 200, public.text)
                 self.assertEqual(public.json()["item"]["title"], "編集済み運用確認写真")
+        finally:
+            archive.app.dependency_overrides.clear()
+
+    def test_album_can_be_shared_with_a_specific_member(self):
+        owner = {"uid": "album-owner", "email": "owner@example.com"}
+        archive.app.dependency_overrides[archive.require_contributor] = lambda: owner
+        archive.app.dependency_overrides[archive.verify_user] = lambda: owner
+        try:
+            with TestClient(archive.app) as client:
+                created = client.post("/v1/albums", json={"title": "共有アルバム"})
+                self.assertEqual(created.status_code, 200, created.text)
+                album_id = created.json()["id"]
+                shared = client.patch(f"/v1/albums/{album_id}", json={
+                    "visibility": "users", "allowedUids": ["album-viewer"], "allowedGroupIds": [],
+                })
+                self.assertEqual(shared.status_code, 200, shared.text)
+                self.assertEqual(shared.json()["visibility"], "users")
+                self.assertEqual(shared.json()["allowedUids"], ["album-viewer"])
+
+                archive.app.dependency_overrides[archive.verify_user] = lambda: {"uid": "album-viewer", "email": "viewer@example.com"}
+                visible_albums = client.get("/v1/albums")
+                self.assertEqual(visible_albums.status_code, 200, visible_albums.text)
+                self.assertIn(album_id, {item["id"] for item in visible_albums.json()["items"]})
+                viewed = client.get(f"/v1/albums/{album_id}/photos")
+                self.assertEqual(viewed.status_code, 200, viewed.text)
+                self.assertEqual(viewed.json()["album"]["title"], "共有アルバム")
         finally:
             archive.app.dependency_overrides.clear()
 
