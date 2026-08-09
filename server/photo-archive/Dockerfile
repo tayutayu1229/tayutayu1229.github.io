@@ -5,11 +5,13 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY photo_archive.py /app/photo_archive.py
+COPY operation_dispatch.py /app/operation_dispatch.py
 COPY test_photo_archive.py /app/test_photo_archive.py
+COPY test_operation_dispatch.py /app/test_operation_dispatch.py
 RUN PHOTO_ARCHIVE_ROOT=/tmp/photo-archive-test \
     PHOTO_ARCHIVE_DB=/tmp/photo-archive-test/archive.sqlite3 \
-    python3 -m unittest -v /app/test_photo_archive.py && rm -rf /tmp/photo-archive-test
-RUN chmod 0555 /app/photo_archive.py
+    python3 -m unittest discover -v -s /app -p 'test_*.py' && rm -rf /tmp/photo-archive-test
+RUN chmod 0555 /app/photo_archive.py /app/operation_dispatch.py
 USER archive
 
 ENV PHOTO_ARCHIVE_ROOT=/data \

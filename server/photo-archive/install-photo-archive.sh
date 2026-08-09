@@ -11,7 +11,9 @@ install -d -o root -g root -m 0755 /opt/tayunet/photo-archive
 install -o root -g root -m 0644 "$HERE/requirements.txt" /opt/tayunet/photo-archive/requirements.txt
 install -o root -g root -m 0644 "$HERE/Dockerfile" /opt/tayunet/photo-archive/Dockerfile
 install -o root -g root -m 0555 "$HERE/photo_archive.py" /opt/tayunet/photo-archive/photo_archive.py
+install -o root -g root -m 0555 "$HERE/operation_dispatch.py" /opt/tayunet/photo-archive/operation_dispatch.py
 install -o root -g root -m 0444 "$HERE/test_photo_archive.py" /opt/tayunet/photo-archive/test_photo_archive.py
+install -o root -g root -m 0444 "$HERE/test_operation_dispatch.py" /opt/tayunet/photo-archive/test_operation_dispatch.py
 install -o root -g root -m 0755 "$HERE/tayunet-photo-archive" /usr/local/sbin/tayunet-photo-archive
 install -o root -g root -m 0644 "$HERE/photo-archive.service" /etc/systemd/system/tayunet-photo-archive.service
 systemctl daemon-reload
