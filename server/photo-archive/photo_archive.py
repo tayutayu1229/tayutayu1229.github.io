@@ -63,7 +63,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.4")
+app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.5")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -256,6 +256,8 @@ def rational_text(value: Any) -> str:
         if not denominator:
             return ""
         decimal = numerator / denominator
+        if 0 < decimal < 0.01 and numerator.is_integer() and denominator.is_integer():
+            return f"{int(numerator)}/{int(denominator)}"
         return str(int(decimal)) if decimal.is_integer() else f"{decimal:.2f}".rstrip("0").rstrip(".")
     except (AttributeError, TypeError, ValueError, ZeroDivisionError):
         return str(value or "")
@@ -611,7 +613,9 @@ def album_output(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
 @app.get("/v1/albums")
 def list_albums(user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
-        rows = db.execute("SELECT * FROM albums WHERE deleted_at IS NULL ORDER BY updated_at DESC").fetchall() if is_manager(user) else db.execute("SELECT * FROM albums WHERE owner_uid=? AND deleted_at IS NULL ORDER BY updated_at DESC", (user["uid"],)).fetchall()
+        rows = db.execute("SELECT * FROM albums WHERE deleted_at IS NULL ORDER BY updated_at DESC").fetchall()
+        if not is_manager(user):
+            rows = [row for row in rows if can_view(db, row, user["uid"])]
         return {"items": [album_output(db, row) for row in rows]}
 
 
@@ -626,15 +630,34 @@ async def create_album(request: Request, user: dict[str, Any] = Depends(require_
         return album_output(db, db.execute("SELECT * FROM albums WHERE id=?", (album_id,)).fetchone())
 
 
+@app.patch("/v1/albums/{album_id}")
+async def update_album(album_id: str, request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    data = await request.json()
+    visibility = data.get("visibility") if data.get("visibility") in VISIBILITIES else "private"
+    allowed_uids = json_list(data.get("allowedUids"))
+    allowed_group_ids = json_list(data.get("allowedGroupIds"))
+    if visibility == "users" and not allowed_uids and not allowed_group_ids:
+        raise HTTPException(400, "共有するユーザーまたはグループを選んでください")
+    with connect() as db:
+        album = db.execute("SELECT * FROM albums WHERE id=? AND deleted_at IS NULL", (album_id,)).fetchone()
+        if not album:
+            raise HTTPException(404, "アルバムが見つかりません")
+        if not can_manage(album, user):
+            raise HTTPException(403, "所有者または管理者だけが共有設定を変更できます")
+        db.execute("UPDATE albums SET visibility=?,allowed_uids_json=?,allowed_group_ids_json=?,updated_at=? WHERE id=?",
+          (visibility, json.dumps(allowed_uids), json.dumps(allowed_group_ids), now_iso(), album_id))
+        return album_output(db, db.execute("SELECT * FROM albums WHERE id=?", (album_id,)).fetchone())
+
+
 @app.get("/v1/albums/{album_id}/photos")
 def album_photos(album_id: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
         album = db.execute("SELECT * FROM albums WHERE id=? AND deleted_at IS NULL", (album_id,)).fetchone()
         if not album: raise HTTPException(404, "アルバムが見つかりません")
-        if not is_manager(user) and album["owner_uid"] != user["uid"] and album["visibility"] != "public" and user["uid"] not in parse_json_list(album["allowed_uids_json"]):
+        if not is_manager(user) and not can_view(db, album, user["uid"]):
             raise HTTPException(403, "閲覧権限がありません")
         rows = db.execute("SELECT p.* FROM photos p JOIN album_photos ap ON ap.photo_id=p.id WHERE ap.album_id=? AND p.deleted_at IS NULL ORDER BY ap.position,p.captured_at", (album_id,)).fetchall()
-        return {"album": album_output(db, album), "items": [row_photo(row) for row in rows if is_manager(user) or can_view(db, row, user["uid"])]}
+        return {"album": album_output(db, album), "items": [row_photo(row) for row in rows]}
 
 
 def password_digest(password: str, salt: bytes) -> str:

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="写真と撮影情報を安全に保存・検索・共有する撮影記録アーカイブ">
   <title>撮影記録アーカイブ｜東京圏輸送情報システム</title>
-  <link rel="stylesheet" href="/assets/css/photo-archive.css?v=2026.08.09.12">
+  <link rel="stylesheet" href="/assets/css/photo-archive.css?v=2026.08.09.15">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -14,9 +14,10 @@
   <div class="auth-cover" id="auth-cover"><div class="spinner"></div><p>利用者情報を確認しています</p></div>
   <header class="archive-header">
     <a class="brand" href="/toppage.html" aria-label="システム一覧へ戻る"><span class="brand-mark">東</span><span><small>東京圏輸送情報システム</small><b>撮影記録アーカイブ</b></span></a>
-    <div class="header-actions"><span id="user-info">認証確認中</span><button class="ghost notification-button" id="friend-button">共有メンバー<span class="notification-badge" id="friend-notification" aria-label="あなたへのフレンド申請" hidden>0</span></button><button class="primary" id="upload-button">＋ 写真を追加</button><button class="ghost" id="firebase-logout-button">ログアウト</button><button class="ghost mobile-menu-button" id="mobile-menu-button" type="button" aria-label="アカウントメニューを開く" aria-controls="mobile-action-menu" aria-expanded="false"><span aria-hidden="true">☰</span><span class="mobile-menu-label">メニュー</span><span class="notification-badge" id="menu-notification" aria-label="あなたへのフレンド申請" hidden>0</span></button></div>
+    <div class="header-actions"><span id="user-info">認証確認中</span><button class="ghost" id="help-button">使い方</button><button class="ghost notification-button" id="friend-button">共有メンバー<span class="notification-badge" id="friend-notification" aria-label="あなたへのフレンド申請" hidden>0</span></button><button class="primary" id="upload-button">＋ 写真を追加</button><button class="ghost" id="firebase-logout-button">ログアウト</button><button class="ghost mobile-menu-button" id="mobile-menu-button" type="button" aria-label="アカウントメニューを開く" aria-controls="mobile-action-menu" aria-expanded="false"><span aria-hidden="true">☰</span><span class="mobile-menu-label">メニュー</span><span class="notification-badge" id="menu-notification" aria-label="あなたへのフレンド申請" hidden>0</span></button></div>
     <div class="mobile-action-menu" id="mobile-action-menu" hidden>
       <div class="mobile-user-info" id="mobile-user-info">認証確認中</div>
+      <button type="button" id="mobile-help-button"><span aria-hidden="true">?</span><span><b>使い方・機能概要</b><small>対応ファイルと登録方法を確認</small></span></button>
       <button type="button" id="mobile-friend-button"><span aria-hidden="true">♟</span><span><b>共有メンバー <em class="menu-request-count" id="mobile-friend-notification" hidden>申請 0件</em></b><small>フレンド・グループを管理</small></span></button>
       <button type="button" id="mobile-upload-button"><span aria-hidden="true">＋</span><span><b>写真を追加</b><small>写真を選択して登録</small></span></button>
       <button type="button" id="mobile-logout-button"><span aria-hidden="true">↪</span><span><b>ログアウト</b><small>この端末での利用を終了</small></span></button>
@@ -42,7 +43,7 @@
         <div class="filter-title"><div><small>SEARCH CONDITION</small><b>検索条件</b></div><div class="filter-title-actions"><button id="clear-filters">条件クリア</button><button class="filter-close" id="filter-close" aria-label="検索条件を閉じる">×</button></div></div>
         <label>キーワード<input id="search-q" type="search" placeholder="列車番号、場所、メモ…"></label>
         <div class="two"><label>撮影日（開始）<input id="date-from" type="date"></label><label>撮影日（終了）<input id="date-to" type="date"></label></div>
-        <label>種類<select id="category-filter"><option value="">すべて</option><option value="train">列車</option><option value="freight">貨物列車</option><option value="landscape">風景</option><option value="other">その他</option></select></label>
+        <label>種類<select id="category-filter"></select></label>
         <label>列車番号<input id="train-filter" placeholder="例：8765"></label>
         <label>カメラ<input id="camera-filter" list="camera-list" placeholder="機種名"></label><datalist id="camera-list"></datalist>
         <label>レンズ<input id="lens-filter" list="lens-list" placeholder="レンズ名"></label><datalist id="lens-list"></datalist>
@@ -76,7 +77,7 @@
       <form id="upload-form" class="metadata-form">
         <h3>全写真へ一括適用する情報 <small>空欄はEXIFまたは写真ごとの設定を使います</small></h3>
         <div class="form-grid">
-          <label>写真の種類<select name="category"><option value="other">その他</option><option value="train">列車</option><option value="freight">貨物列車</option><option value="landscape">風景</option></select></label>
+          <label>写真の種類<select name="category" id="upload-category"></select></label>
           <label>撮影日時<input name="capturedAt" type="datetime-local"></label>
           <label class="span2">撮影場所<input name="location" placeholder="例：新鶴見信号場付近"></label>
           <label>駅<input name="station" placeholder="例：新川崎駅"></label><label>タグ<input name="tags" placeholder="カンマ区切り"></label>
@@ -85,6 +86,7 @@
           <label>始発駅日付<input name="serviceDate" type="date"></label><label>変更事項<input name="changes"></label>
           <label class="span2">貨物輸送経路<input name="transportRoute" placeholder="例：東京貨物ターミナル〜新鶴見〜…"></label>
           <label class="span2">記事・備考<input name="article"></label>
+          <fieldset class="span2 upload-equipment"><legend>カメラ・撮影設定</legend><p>EXIFがある項目はアップロード時に自動取得します。EXIFがない場合や補正したい場合だけ入力してください。入力値を優先します。</p><div class="form-grid"><label>カメラ<input name="camera" placeholder="例：Canon EOS 70D"></label><label>レンズ<input name="lens" placeholder="例：EF 70-200mm"></label><label>シャッタースピード<input name="shutterSpeed" placeholder="例：1/1000"></label><label>F値<input name="aperture" placeholder="例：5.6"></label><label>ISO感度<input name="iso" inputmode="numeric" placeholder="例：400"></label><label>焦点距離<input name="focalLength" placeholder="例：200mm"></label></div></fieldset>
           <label>緯度<input name="latitude" type="number" step="any"></label><label>経度<input name="longitude" type="number" step="any"></label>
           <label>公開範囲<select name="visibility"><option value="private">自分のみ</option><option value="users">特定ユーザー／グループ</option><option value="link">限定リンクのみ</option><option value="public">全体公開</option></select></label>
           <label>アルバム<select name="albumIds" id="upload-album"><option value="">なし</option></select></label>
@@ -105,9 +107,23 @@
   <dialog id="detail-dialog" class="archive-dialog detail-dialog"><div id="detail-content"></div></dialog>
   <dialog id="people-dialog" class="archive-dialog people-dialog"><div id="people-content"></div></dialog>
   <dialog id="share-dialog" class="archive-dialog share-dialog"><div id="share-content"></div></dialog>
+  <dialog id="help-dialog" class="archive-dialog help-dialog">
+    <div class="help-panel">
+      <header><div><small>OPERATION GUIDE</small><h2>使い方・機能概要</h2></div><button type="button" data-close="help-dialog" aria-label="使い方を閉じる">×</button></header>
+      <div class="help-body">
+        <section><h3>写真を登録する</h3><ol><li>「写真を追加」を押し、画像をドラッグ＆ドロップまたは選択します。</li><li>複数枚の場合は各写真のタイトル・種類・撮影情報を個別に変更できます。</li><li>公開範囲を確認してアップロードします。原本とサムネイルはUbuntu HDDへ保存されます。</li></ol></section>
+        <section><h3>EXIFの自動取得</h3><p>撮影日時、カメラ、レンズ、シャッタースピード、F値、ISO感度、焦点距離、GPSを画像から自動取得します。EXIFがない項目は登録画面で手入力でき、登録後も「撮影情報を編集」から修正できます。手入力値はEXIFより優先されます。</p></section>
+        <section><h3>対応ファイル</h3><p><b>JPEG（JPG）・PNG・WebP・TIFF</b>。1枚100MBまで、1回100枚までです。HEIC/HEIF・RAW・特殊な画像は端末や形式により読めないため、JPEGまたはTIFFへ変換してください。</p></section>
+        <section><h3>探す・整理する</h3><p>キーワード、期間、種類、列車番号、カメラ、レンズ、タグ、焦点距離で絞り込めます。グリッド・一覧・カレンダー・マップ表示、アルバム、JSON/CSV/ZIP出力にも対応します。</p></section>
+        <section><h3>共有する</h3><p>写真・アルバムは「特定メンバー」「限定リンク」「全体公開」から選べます。限定リンクにはパスワードと有効期限を設定できます。削除した写真は30日間ゴミ箱から復元できます。</p></section>
+        <section class="operator-note"><h3>写真の種類を追加・変更する方法</h3><p>運用担当者は <code>assets/js/photo-archive.js</code> 冒頭の <code>PHOTO_CATEGORIES</code> だけを編集します。<code>value</code> は保存後に変えず、表示名だけ変える場合は <code>label</code> を変更します。追加後はこのHTMLのJS版番号を更新して公開します。</p></section>
+      </div>
+      <footer><button type="button" class="primary" data-close="help-dialog">閉じる</button></footer>
+    </div>
+  </dialog>
 
   <script src="/auth_guard.js?v=2026.08.08.2"></script>
   <script src="/T-time/firebase-data-auth.js?v=2026.08.09.1"></script>
-  <script src="/assets/js/photo-archive.js?v=2026.08.09.14"></script>
+  <script src="/assets/js/photo-archive.js?v=2026.08.09.15"></script>
 </body>
 </html>
