@@ -66,6 +66,9 @@ assert.match(client, /function prepareUploadSharing/);
 assert.match(client, /function exifSummary/);
 assert.match(client, /function updateFriendNotification/);
 assert.match(client, /function refreshFriendNotifications/);
+assert.match(client, /function currentAccountSearch/);
+assert.match(client, /現在ログイン中のアカウントです/);
+assert.match(client, /相手のアカウントで一度「撮影記録アーカイブ」へログイン/);
 assert.match(client, /あなたへの申請/);
 assert.match(client, /あなたが送った申請/);
 assert.match(client, /name="albumIds"/);
@@ -109,6 +112,8 @@ assert.match(css, /\.member-picker/);
 assert.match(css, /\.edit-section label/);
 assert.match(css, /\.notification-badge/);
 assert.match(css, /\.member-share-shortcut/);
+assert.match(css, /\.self-search-result/);
+assert.match(css, /\.current-account-note/);
 assert.match(css, /\.archive-header>\.site-brand-link\{grid-column:1/);
 assert.match(css, /grid-template-columns:auto minmax\(0,1fr\) auto/);
 
