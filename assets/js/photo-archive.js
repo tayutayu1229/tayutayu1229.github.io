@@ -3,7 +3,7 @@
   const API = "https://photo-api.tayunet-traininfo.com";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null };
+  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null, mapLayer: null, mapRenderer: null, leafletPromise: null, mapRenderId: 0 };
   const labels = { mine: "個人一覧", shared: "共有一覧", public: "全体公開", albums: "アルバム", map: "マップ", calendar: "カレンダー", trash: "ゴミ箱" };
 
   const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
@@ -67,6 +67,7 @@
   }
 
   function renderGrid() {
+    state.mapRenderId += 1;
     $("#calendar-view").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = true;
     const list = $("#photo-list"); list.hidden = false; list.className = `photo-grid${state.view === "timeline" ? " timeline" : ""}`;
     list.innerHTML = state.photos.map(card).join("");
@@ -82,22 +83,74 @@
   }
 
   function renderCalendar() {
+    state.mapRenderId += 1;
     $("#photo-list").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = true; $("#calendar-view").hidden = false; $("#empty-state").hidden = state.photos.length > 0; monthDays();
+  }
+
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (state.leafletPromise) return state.leafletPromise;
+    state.leafletPromise = new Promise((resolve, reject) => {
+      if (!document.querySelector("link[data-photo-map]")) {
+        const stylesheet = document.createElement("link");
+        stylesheet.rel = "stylesheet";
+        stylesheet.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        stylesheet.dataset.photoMap = "leaflet";
+        document.head.append(stylesheet);
+      }
+      const existing = document.querySelector("script[data-photo-map]");
+      const script = existing || document.createElement("script");
+      const loaded = () => window.L ? resolve(window.L) : reject(new Error("地図ライブラリの初期化に失敗しました。"));
+      script.addEventListener("load", loaded, { once: true });
+      script.addEventListener("error", () => reject(new Error("地図ライブラリを読み込めませんでした。")), { once: true });
+      if (!existing) {
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.async = true;
+        script.dataset.photoMap = "leaflet";
+        document.head.append(script);
+      }
+    }).catch(error => { state.leafletPromise = null; throw error; });
+    return state.leafletPromise;
   }
 
   async function renderMap() {
     $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#album-view").hidden = true; $("#map-view").hidden = false;
+    const renderId = ++state.mapRenderId;
     const located = state.photos.filter(photo => Number.isFinite(photo.latitude) && Number.isFinite(photo.longitude));
-    if (!window.L) { notify("地図ライブラリを読み込めませんでした。", true); return; }
-    if (state.map) { state.map.remove(); state.map = null; }
-    state.map = L.map("map-view").setView(located.length ? [located[0].latitude, located[0].longitude] : [36.2, 138.2], located.length ? 9 : 5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(state.map);
-    located.forEach(photo => { const marker = L.marker([photo.latitude, photo.longitude]).addTo(state.map); marker.bindPopup(`<b>${escapeHtml(photo.title || photo.trainNumber || photo.filename)}</b><br>${escapeHtml(photo.location || "")}`); marker.on("click", () => setTimeout(() => openDetail(photo.id), 50)); });
-    if (located.length > 1) state.map.fitBounds(located.map(photo => [photo.latitude, photo.longitude]), { padding: [30, 30] });
-    $("#result-count").textContent = `位置情報あり ${located.length}件`;
+    const mapView = $("#map-view");
+    $("#result-count").textContent = "地図を準備中";
+    mapView.classList.add("map-loading");
+    try {
+      const Leaflet = await loadLeaflet();
+      if (renderId !== state.mapRenderId || mapView.hidden) return;
+      if (!state.map) {
+        state.map = Leaflet.map("map-view", { preferCanvas: true }).setView([36.2, 138.2], 5);
+        Leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors", updateWhenIdle: true, keepBuffer: 2 }).addTo(state.map);
+        state.mapLayer = Leaflet.layerGroup().addTo(state.map);
+        state.mapRenderer = Leaflet.canvas({ padding: 0.35 });
+      } else {
+        state.mapLayer.clearLayers();
+      }
+      located.forEach(photo => {
+        const marker = Leaflet.circleMarker([photo.latitude, photo.longitude], { renderer: state.mapRenderer, radius: 6, weight: 2, color: "#ffffff", fillColor: "#075b45", fillOpacity: 0.92 });
+        marker.bindTooltip(escapeHtml(photo.title || photo.trainNumber || photo.filename), { direction: "top" });
+        marker.on("click", () => openDetail(photo.id));
+        state.mapLayer.addLayer(marker);
+      });
+      if (located.length > 1) state.map.fitBounds(located.map(photo => [photo.latitude, photo.longitude]), { padding: [28, 28], maxZoom: 15 });
+      else if (located.length === 1) state.map.setView([located[0].latitude, located[0].longitude], 13);
+      else state.map.setView([36.2, 138.2], 5);
+      requestAnimationFrame(() => state.map.invalidateSize({ pan: false }));
+      $("#result-count").textContent = `位置情報あり ${located.length}件`;
+    } catch (error) {
+      if (renderId === state.mapRenderId) { notify(error.message, true); $("#result-count").textContent = "地図取得失敗"; }
+    } finally {
+      if (renderId === state.mapRenderId) mapView.classList.remove("map-loading");
+    }
   }
 
   async function renderAlbums() {
+    state.mapRenderId += 1;
     $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = false; $("#empty-state").hidden = true;
     const response = await api("/v1/albums"); state.albums = (await response.json()).items;
     $("#upload-album").innerHTML = `<option value="">なし</option>${state.albums.map(album => `<option value="${album.id}">${escapeHtml(album.title)}</option>`).join("")}`;
@@ -118,6 +171,14 @@
     $("#result-count").textContent = "読み込み中";
     try { const response = await api(`/v1/photos?${params}`); state.photos = (await response.json()).items; fillSuggestions(); if (requestedView === "map") await renderMap(); else if (requestedView === "calendar") renderCalendar(); else renderGrid(); }
     catch (error) { notify(error.message, true); $("#result-count").textContent = "取得失敗"; }
+  }
+
+  function setFiltersOpen(open) {
+    const enabled = open && window.matchMedia("(max-width: 1180px)").matches;
+    document.body.classList.toggle("filters-open", enabled);
+    $("#filter-toggle").setAttribute("aria-expanded", String(enabled));
+    $("#filter-backdrop").tabIndex = enabled ? 0 : -1;
+    if (enabled) setTimeout(() => $("#search-q").focus(), 180);
   }
 
   function dataRows(photo) {
@@ -192,8 +253,15 @@
   ["dragenter","dragover"].forEach(type=>$("#drop-zone").addEventListener(type,event=>{event.preventDefault();event.currentTarget.classList.add("drag")}));
   ["dragleave","drop"].forEach(type=>$("#drop-zone").addEventListener(type,event=>{event.preventDefault();event.currentTarget.classList.remove("drag")}));
   $("#drop-zone").addEventListener("drop",event=>{state.files=[...event.dataTransfer.files].filter(file=>file.type.startsWith("image/"));renderQueue()});
-  $("#upload-form").addEventListener("submit",event=>{event.preventDefault();upload()}); $("#apply-filters").addEventListener("click",loadPhotos);
-  $("#search-q").addEventListener("keydown",event=>{if(event.key==="Enter")loadPhotos()}); $("#clear-filters").addEventListener("click",()=>{$$("#filters input,#filters select").forEach(input=>input.value="");loadPhotos()});
+  $("#upload-form").addEventListener("submit",event=>{event.preventDefault();upload()});
+  $("#filter-toggle").addEventListener("click", () => setFiltersOpen(true));
+  $("#filter-close").addEventListener("click", () => setFiltersOpen(false));
+  $("#filter-backdrop").addEventListener("click", () => setFiltersOpen(false));
+  $("#apply-filters").addEventListener("click", async () => { await loadPhotos(); setFiltersOpen(false); });
+  $("#search-q").addEventListener("keydown", async event=>{if(event.key==="Enter"){await loadPhotos();setFiltersOpen(false)}});
+  $("#clear-filters").addEventListener("click",async()=>{$$("#filters input,#filters select").forEach(input=>input.value="");await loadPhotos();setFiltersOpen(false)});
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && document.body.classList.contains("filters-open")) setFiltersOpen(false); });
+  window.addEventListener("resize", () => { if (!window.matchMedia("(max-width: 1180px)").matches) setFiltersOpen(false); });
 
   window.TayunetAuthReady.then(async ready => {
     if (!ready.ok) return;
