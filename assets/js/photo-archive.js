@@ -12,6 +12,23 @@
   const visibility = value => ({ private: "自分のみ", users: "特定メンバー", link: "限定リンク", public: "全体公開" })[value] || value;
   const category = value => ({ train: "列車", freight: "貨物列車", landscape: "風景", other: "その他" })[value] || "その他";
 
+  const statusMessage = (status, detail = "") => detail || ({
+    400: "入力内容を確認してください。",
+    401: "ログインの有効期限が切れました。いったんログアウトして、もう一度ログインしてください。",
+    403: "この操作を行う権限がありません。",
+    404: "対象の写真または情報が見つかりません。再読み込みしてください。",
+    409: "同じ内容が既に登録されています。",
+    413: "ファイルが大きすぎます。写真の容量を小さくしてから再度お試しください。",
+    415: "この画像形式は利用できません。JPEG・PNG・WebPなど、一般的な画像形式へ変換してからお試しください。",
+    429: "操作が集中しています。少し待ってから再度お試しください。",
+  })[status] || (status >= 500 ? "写真サーバーで一時的な問題が発生しました。しばらく待ってから再度お試しください。" : "処理に失敗しました。もう一度お試しください。");
+
+  function friendlyError(error, fallback = "処理に失敗しました。") {
+    if (!error) return fallback;
+    if (error.name === "AbortError") return "通信が時間内に完了しませんでした。通信状態を確認して再度お試しください。";
+    return error.userMessage || error.message || fallback;
+  }
+
   function updateClock() {
     const clock = $("#system-clock");
     if (clock) clock.textContent = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date());
@@ -19,27 +36,48 @@
   updateClock(); setInterval(updateClock, 1000);
 
   async function api(path, options = {}, retry = true) {
-    const user = await window.TayunetFirebaseDataAuth.currentUser();
+    const { timeoutMs = 30000, ...requestOptions } = options;
+    let user;
+    try { user = await window.TayunetFirebaseDataAuth.currentUser(); }
+    catch (error) { const wrapped = new Error("ログイン情報を確認できません。再ログインしてください。"); wrapped.cause = error; throw wrapped; }
     const headers = new Headers(options.headers || {});
-    headers.set("Authorization", `Bearer ${await user.getIdToken(!retry)}`);
+    try { headers.set("Authorization", `Bearer ${await user.getIdToken(!retry)}`); }
+    catch (error) { const wrapped=new Error("ログインの確認に失敗しました。いったんログアウトして、もう一度ログインしてください。");wrapped.cause=error;throw wrapped; }
     if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
-    try { response = await fetch(`${API}${path}`, { ...options, headers, mode: "cors", cache: "no-store" }); }
-    catch (_) { throw new Error("写真APIに接続できません。通信またはDNSの状態を確認してください。"); }
+    try { response = await fetch(`${API}${path}`, { ...requestOptions, headers, signal: controller.signal, mode: "cors", cache: "no-store" }); }
+    catch (error) { if(error.name==="AbortError")throw error;const wrapped=new Error("写真APIに接続できません。通信状態を確認し、少し待ってから再度お試しください。");wrapped.cause=error;throw wrapped; }
+    finally { clearTimeout(timeout); }
     if (response.status === 401 && retry) return api(path, options, false);
     if (!response.ok) {
-      let detail = "処理に失敗しました";
-      try { detail = (await response.json()).detail || detail; } catch (_) {}
-      throw new Error(detail);
+      let detail = "";
+      try { detail = (await response.json()).detail || ""; } catch (_) {}
+      const error = new Error(statusMessage(response.status, detail)); error.status = response.status; error.userMessage = error.message; throw error;
     }
     return response;
   }
 
-  function notify(message, error = false) {
-    const element = $("#notice"); element.textContent = message; element.hidden = false;
-    element.style.borderColor = error ? "#d98085" : "#e8c36b";
-    element.style.background = error ? "#fff0f1" : "#fff8df";
-    clearTimeout(notify.timer); notify.timer = setTimeout(() => { element.hidden = true; }, 7000);
+  function notify(message, error = false, persistent = false) {
+    const element = $("#notice"); element.textContent = message; element.className = `notice ${error ? "error" : "success"}`; element.hidden = false;
+    clearTimeout(notify.timer); if(!persistent)notify.timer = setTimeout(() => { element.hidden = true; }, error ? 10000 : 7000);
+  }
+
+  function setContentLoading(active, message = "写真を読み込んでいます…") {
+    const content = $(".content"), loading = $("#content-loading");
+    content.classList.toggle("is-loading", active); content.setAttribute("aria-busy", String(active));
+    loading.hidden = !active; $("#content-loading-text").textContent = message;
+  }
+
+  function setButtonBusy(button, busy, label = "処理中") {
+    if(!button)return;
+    if(busy){button.dataset.idleLabel=button.textContent;button.textContent=label;button.disabled=true;button.setAttribute("aria-busy","true");}
+    else{button.textContent=button.dataset.idleLabel||button.textContent;delete button.dataset.idleLabel;button.disabled=false;button.removeAttribute("aria-busy");}
+  }
+
+  function setFormStatus(element, message = "", type = "") {
+    if(!element)return;element.textContent=message;element.className=`form-status${type?` ${type}`:""}`;element.hidden=!message;
   }
 
   async function imageUrl(photo, variant = "thumbnail") {
@@ -58,7 +96,8 @@
   async function hydrateImages(root = document) {
     await Promise.all($$(".photo-card", root).map(async element => {
       const photo = state.photos.find(item => item.id === element.dataset.id); if (!photo) return;
-      try { const img = $("img", element); img.src = await imageUrl(photo); img.onload = () => $(".photo-image", element).classList.remove("loading-card"); } catch (_) {}
+      try { const img = $("img", element); img.src = await imageUrl(photo); img.onload = () => $(".photo-image", element).classList.remove("loading-card"); }
+      catch (error) { const frame=$(".photo-image",element);frame.classList.remove("loading-card");frame.classList.add("image-error");frame.innerHTML=`<span>画像を表示できません<br><small>${escapeHtml(friendlyError(error))}</small></span>`; }
     }));
   }
 
@@ -81,7 +120,7 @@
     const byDay = new Map(); state.photos.forEach(photo => { const day = (photo.capturedAt || photo.createdAt || "").slice(0, 10); if (day) byDay.set(day, [...(byDay.get(day) || []), photo]); });
     const days = [...byDay.keys()].sort().reverse();
     const calendar = $("#calendar-view"); calendar.innerHTML = days.map(day => `<div class="calendar-day"><time>${escapeHtml(day)}</time><div class="calendar-thumbs">${byDay.get(day).slice(0,9).map(photo => `<button class="calendar-photo" data-id="${photo.id}"><img alt="${escapeHtml(photo.title || photo.filename)}"></button>`).join("")}</div><small>${byDay.get(day).length}枚</small></div>`).join("");
-    $$(`.calendar-photo`, calendar).forEach(async button => { const photo = state.photos.find(item => item.id === button.dataset.id); try { $("img", button).src = await imageUrl(photo); } catch (_) {} });
+    $$(`.calendar-photo`, calendar).forEach(async button => { const photo = state.photos.find(item => item.id === button.dataset.id); try { $("img", button).src = await imageUrl(photo); } catch (error) { button.classList.add("image-error");button.title=friendlyError(error);button.innerHTML="画像取得失敗"; } });
   }
 
   function renderCalendar() {
@@ -145,7 +184,7 @@
       requestAnimationFrame(() => state.map.invalidateSize({ pan: false }));
       $("#result-count").textContent = `位置情報あり ${located.length}件`;
     } catch (error) {
-      if (renderId === state.mapRenderId) { notify(error.message, true); $("#result-count").textContent = "地図取得失敗"; }
+      if (renderId === state.mapRenderId) { notify(friendlyError(error,"地図を表示できませんでした。"), true); $("#result-count").textContent = "地図取得失敗"; }
     } finally {
       if (renderId === state.mapRenderId) mapView.classList.remove("map-loading");
     }
@@ -166,13 +205,13 @@
   }
 
   async function loadPhotos() {
-    if (state.scope === "albums") return renderAlbums();
     const requestedView = state.scope === "map" ? "map" : state.scope === "calendar" ? "calendar" : state.view;
     const scope = ["map", "calendar"].includes(state.scope) ? "mine" : state.scope;
     const params = queryString(); params.set("scope", scope);
-    $("#result-count").textContent = "読み込み中";
-    try { const response = await api(`/v1/photos?${params}`); state.photos = (await response.json()).items; fillSuggestions(); if (requestedView === "map") await renderMap(); else if (requestedView === "calendar") renderCalendar(); else renderGrid(); }
-    catch (error) { state.photos=[];renderGrid();notify(error.message, true); $("#result-count").textContent = "取得失敗"; }
+    $("#result-count").textContent = "読み込み中"; setContentLoading(true,state.scope==="albums"?"アルバムを読み込んでいます…":"写真を読み込んでいます…");
+    try { if(state.scope==="albums"){await renderAlbums();return;}const response = await api(`/v1/photos?${params}`); state.photos = (await response.json()).items; fillSuggestions(); if (requestedView === "map") await renderMap(); else if (requestedView === "calendar") renderCalendar(); else renderGrid(); }
+    catch (error) { state.photos=[];renderGrid();notify(`${friendlyError(error)}\n通信が戻ったら、一覧を選び直すか検索を再実行してください。`, true, true); $("#result-count").textContent = "取得失敗"; }
+    finally { setContentLoading(false); }
   }
 
   function applyAccess(access) {
@@ -214,17 +253,30 @@
     const photo = state.photos.find(item => item.id === id); if (!photo) return;
     const dialog = $("#detail-dialog"); dialog.dataset.photoId = photo.id;
     const manageable = state.access.canManage || photo.ownerUid === (await window.TayunetFirebaseDataAuth.currentUser()).uid;
-    dialog.innerHTML = `<div class="detail-shell"><div class="detail-top"><h2>${escapeHtml(photo.trainNumber ? `第 ${photo.trainNumber} 列車` : (photo.title || photo.filename))}</h2><button data-close="detail-dialog">×</button></div><div class="detail-layout"><div class="detail-photo"><div class="spinner"></div></div><dl class="detail-data">${dataRows(photo)}</dl></div><div class="detail-actions">${manageable ? `<button data-action="edit">編集</button><button data-action="share">限定リンク</button><button data-action="download">原本</button>${photo.deletedAt ? `<button data-action="restore">復元</button>` : `<button class="danger" data-action="delete">ゴミ箱へ</button>`}` : `<button data-action="download">原本</button>`}</div></div>`;
+    dialog.innerHTML = `<div class="detail-shell"><div class="detail-top"><h2>${escapeHtml(photo.trainNumber ? `第 ${photo.trainNumber} 列車` : (photo.title || photo.filename))}</h2><button data-close="detail-dialog" aria-label="詳細を閉じる">×</button></div><div class="detail-layout"><div class="detail-photo"><div class="dialog-loading"><div class="spinner"></div><p>原本画像を読み込んでいます…</p></div></div><dl class="detail-data">${dataRows(photo)}</dl></div><div class="detail-actions">${manageable ? `<button data-action="edit">撮影情報を編集</button><button data-action="share">限定リンク</button><button data-action="download">原本を保存</button>${photo.deletedAt ? `<button data-action="restore">ゴミ箱から復元</button>` : `<button class="danger" data-action="delete">ゴミ箱へ</button>`}` : `<button data-action="download">原本を保存</button>`}</div></div>`;
     dialog.showModal();
-    try { const url = await imageUrl(photo, "original"); $(".detail-photo", dialog).innerHTML = `<img src="${url}" alt="${escapeHtml(photo.title || photo.filename)}">`; } catch (error) { $(".detail-photo", dialog).textContent = error.message; }
+    try { const url = await imageUrl(photo, "original"); $(".detail-photo", dialog).innerHTML = `<img src="${url}" alt="${escapeHtml(photo.title || photo.filename)}">`; } catch (error) { $(".detail-photo", dialog).innerHTML=`<div class="dialog-error"><h2>画像を表示できません</h2><p>${escapeHtml(friendlyError(error))}</p></div>`; }
   }
 
-  function input(name, label, photo, extra = "") { const value=name==="capturedAt"?String(photo[name]||"").slice(0,16):(photo[name]||"");return `<label>${label}<input name="${name}" value="${escapeHtml(value)}" ${extra}></label>`; }
+  function input(name, label, photo, options = {}) { const value=name==="capturedAt"?String(photo[name]||"").slice(0,16):(photo[name]??"");const attributes=[options.type&&`type="${options.type}"`,options.step&&`step="${options.step}"`,options.min!==undefined&&`min="${options.min}"`,options.max!==undefined&&`max="${options.max}"`,options.placeholder&&`placeholder="${escapeHtml(options.placeholder)}"`,options.required&&"required",options.maxlength&&`maxlength="${options.maxlength}"`].filter(Boolean).join(" ");return `<label class="${options.span2?"span2":""}">${label}<input name="${name}" value="${escapeHtml(value)}" ${attributes}></label>`; }
+  function textarea(name,label,photo,options={}){return `<label class="${options.span2?"span2":""}">${label}<textarea name="${name}" rows="${options.rows||3}" maxlength="${options.maxlength||10000}" placeholder="${escapeHtml(options.placeholder||"")}">${escapeHtml(photo[name]||"")}</textarea></label>`;}
   async function editDetail(photo) {
-    const [friendsResponse,groupsResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups")]);
-    const friends=(await friendsResponse.json()).items.filter(item=>item.status==="accepted"),groups=(await groupsResponse.json()).items;
-    $("#detail-dialog").innerHTML = `<form class="panel-pad" id="edit-form"><h2>撮影情報を編集</h2><div class="form-grid">${input("title","タイトル",photo)}<label>種類<select name="category">${["train","freight","landscape","other"].map(v=>`<option value="${v}" ${photo.category===v?"selected":""}>${category(v)}</option>`).join("")}</select></label>${input("capturedAt","撮影日時",photo,"type=datetime-local")}${input("location","撮影場所",photo)}${input("station","駅",photo)}${input("trainNumber","列車番号",photo)}${input("origin","始発駅",photo)}${input("destination","終着駅",photo)}${input("trainType","列車種別",photo)}${input("serviceDate","始発駅日付",photo,"type=date")}${input("changes","変更事項",photo)}${input("transportRoute","貨物輸送経路",photo)}${input("article","記事・備考",photo)}${input("camera","カメラ",photo)}${input("lens","レンズ",photo)}${input("shutterSpeed","シャッター",photo)}${input("aperture","F値",photo)}${input("iso","ISO",photo)}${input("focalLength","焦点距離",photo)}${input("latitude","緯度",photo,"type=number step=any")}${input("longitude","経度",photo,"type=number step=any")}<label>タグ<input name="tags" value="${escapeHtml(photo.tags.join(", "))}"></label><label>公開範囲<select name="visibility">${["private","users","link","public"].map(v=>`<option value="${v}" ${photo.visibility===v?"selected":""}>${visibility(v)}</option>`).join("")}</select></label><label>共有するユーザー<select name="allowedUids" multiple size="4">${friends.map(v=>`<option value="${v.uid}" ${photo.allowedUids.includes(v.uid)?"selected":""}>${escapeHtml(v.email)}</option>`).join("")}</select></label><label>共有するグループ<select name="allowedGroupIds" multiple size="4">${groups.map(v=>`<option value="${v.id}" ${photo.allowedGroupIds.includes(v.id)?"selected":""}>${escapeHtml(v.name)}</option>`).join("")}</select></label><label class="span2">フリーメモ<textarea name="notes" rows="5">${escapeHtml(photo.notes)}</textarea></label></div><div class="dialog-actions"><button type="button" class="ghost" data-close="detail-dialog">キャンセル</button><button class="primary">保存</button></div></form>`;
-    $("#edit-form").addEventListener("submit", async event => { event.preventDefault(); const form=event.currentTarget,raw=Object.fromEntries(new FormData(form)); raw.tags = raw.tags.split(",").map(v=>v.trim()).filter(Boolean); raw.allowedUids=[...form.elements.allowedUids.selectedOptions].map(v=>v.value);raw.allowedGroupIds=[...form.elements.allowedGroupIds.selectedOptions].map(v=>v.value); try { const response = await api(`/v1/photos/${photo.id}`, { method:"PATCH", body:JSON.stringify(raw) }); Object.assign(photo, await response.json()); $("#detail-dialog").close(); await loadPhotos(); notify("撮影情報を保存しました。"); } catch(error){ notify(error.message,true); } });
+    const dialog=$("#detail-dialog");dialog.innerHTML=`<div class="dialog-loading"><div class="spinner"></div><p>編集に必要な共有先情報を読み込んでいます…</p></div>`;if(!dialog.open)dialog.showModal();
+    try {
+      const [friendsResponse,groupsResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups")]);
+      const friends=(await friendsResponse.json()).items.filter(item=>item.status==="accepted"),groups=(await groupsResponse.json()).items;
+      const selectedUsers=photo.allowedUids||[],selectedGroups=photo.allowedGroupIds||[];
+      const friendChoices=friends.length?friends.map(v=>`<label class="share-choice"><input type="checkbox" name="allowedUids" value="${v.uid}" ${selectedUsers.includes(v.uid)?"checked":""}><span>${escapeHtml(personName(v))}<small>${escapeHtml(v.email)}</small></span></label>`).join(""):`<p class="field-hint">共有できるフレンドがいません。先に「共有メンバー」から追加してください。</p>`;
+      const groupChoices=groups.length?groups.map(v=>`<label class="share-choice"><input type="checkbox" name="allowedGroupIds" value="${v.id}" ${selectedGroups.includes(v.id)?"checked":""}><span>${escapeHtml(v.name)}<small>${v.members.length}人</small></span></label>`).join(""):`<p class="field-hint">グループはまだありません。</p>`;
+      dialog.innerHTML=`<form class="edit-shell" id="edit-form"><div class="edit-head"><div><small>PHOTO METADATA EDITOR</small><h2>撮影情報を編集</h2></div><button type="button" data-close="detail-dialog" aria-label="編集を閉じる">×</button></div><div class="edit-body"><p class="edit-intro">写真そのものは変更せず、検索・表示に使う撮影情報だけを編集します。</p><div class="edit-sections">
+        <fieldset class="edit-section basic"><legend>基本情報</legend><div class="form-grid">${input("title","タイトル（必須）",photo,{required:true,maxlength:1000})}<label>写真の種類<select name="category">${["train","freight","landscape","other"].map(v=>`<option value="${v}" ${photo.category===v?"selected":""}>${category(v)}</option>`).join("")}</select></label>${input("capturedAt","撮影日時",photo,{type:"datetime-local"})}${input("location","撮影場所",photo,{placeholder:"地名・撮影ポイント"})}${input("station","最寄り駅・撮影駅",photo)}<label>タグ（カンマ区切り）<input name="tags" value="${escapeHtml((photo.tags||[]).join(", "))}" placeholder="貨物, 夜景, EF210"></label></div></fieldset>
+        <fieldset class="edit-section train"><legend>列車・貨物情報</legend><div class="form-grid">${input("trainNumber","列車番号",photo)}${input("trainType","列車種別",photo)}${input("origin","始発駅",photo)}${input("destination","終着駅",photo)}${input("serviceDate","始発駅日付",photo,{type:"date"})}${input("changes","変更事項",photo)}${input("transportRoute","貨物輸送経路",photo,{span2:true,placeholder:"経由地を含む輸送経路"})}${textarea("article","記事・備考",photo,{span2:true,rows:3})}</div></fieldset>
+        <fieldset class="edit-section equipment"><legend>カメラ・撮影設定</legend><p class="field-hint">EXIFから自動取得した内容も必要に応じて補正できます。</p><div class="form-grid">${input("camera","カメラ",photo)}${input("lens","レンズ",photo)}${input("shutterSpeed","シャッタースピード",photo)}${input("aperture","F値",photo)}${input("iso","ISO感度",photo)}${input("focalLength","焦点距離",photo)}</div></fieldset>
+        <fieldset class="edit-section sharing"><legend>位置情報・公開範囲</legend><div class="form-grid">${input("latitude","緯度",photo,{type:"number",step:"any",min:-90,max:90})}${input("longitude","経度",photo,{type:"number",step:"any",min:-180,max:180})}<label class="span2">公開範囲<select name="visibility">${["private","users","link","public"].map(v=>`<option value="${v}" ${photo.visibility===v?"selected":""}>${visibility(v)}</option>`).join("")}</select></label></div><p class="field-hint">「特定メンバー」を選んだ場合だけ、次の共有先が利用されます。</p><div class="share-choice-grid">${friendChoices}${groupChoices}</div></fieldset>
+        <fieldset class="edit-section notes"><legend>フリーメモ</legend>${textarea("notes","撮影時の状況・機材メモ・補足",photo,{span2:true,rows:5,placeholder:"撮影時の状況や設定の意図など"})}</fieldset>
+      </div><div class="edit-footer"><p class="form-status" id="edit-status" role="status" aria-live="polite" hidden></p><div class="dialog-actions"><button type="button" class="ghost" data-close="detail-dialog">キャンセル</button><button class="primary" id="edit-save-button">変更を保存</button></div></div></div></form>`;
+      $("#edit-form").addEventListener("submit", async event => { event.preventDefault(); const form=event.currentTarget,button=$("#edit-save-button"),status=$("#edit-status");if(!form.reportValidity())return;const raw=Object.fromEntries(new FormData(form));raw.tags=String(raw.tags||"").split(",").map(v=>v.trim()).filter(Boolean);raw.allowedUids=$$('input[name="allowedUids"]:checked',form).map(v=>v.value);raw.allowedGroupIds=$$('input[name="allowedGroupIds"]:checked',form).map(v=>v.value);if((raw.latitude&&!raw.longitude)||(!raw.latitude&&raw.longitude)){setFormStatus(status,"位置情報は緯度と経度を両方入力してください。","error");return;}if(raw.visibility==="users"&&!raw.allowedUids.length&&!raw.allowedGroupIds.length){setFormStatus(status,"公開範囲が「特定メンバー」の場合は、共有するユーザーまたはグループを選んでください。","error");return;}setButtonBusy(button,true,"保存中");setFormStatus(status,"撮影情報を保存しています…","loading");try{const response=await api(`/v1/photos/${photo.id}`,{method:"PATCH",body:JSON.stringify(raw)});Object.assign(photo,await response.json());setFormStatus(status,"保存しました。","success");await loadPhotos();setTimeout(()=>{if(dialog.open)dialog.close();notify("撮影情報を保存しました。");},500);}catch(error){setFormStatus(status,friendlyError(error),"error");}finally{setButtonBusy(button,false);}});
+    } catch(error) { dialog.innerHTML=`<div class="dialog-error"><h2>編集画面を準備できません</h2><p>${escapeHtml(friendlyError(error))}</p><div class="dialog-actions"><button class="ghost" data-close="detail-dialog">閉じる</button><button class="primary" data-retry-edit="${photo.id}">再試行</button></div></div>`; }
   }
 
   function uploadMetadata() { const raw = Object.fromEntries(new FormData($("#upload-form"))); raw.tags = raw.tags.split(",").map(value => value.trim()).filter(Boolean); raw.albumIds = raw.albumIds ? [raw.albumIds] : []; raw.allowedUids = []; raw.allowedGroupIds = []; return raw; }
@@ -233,19 +285,26 @@
   function makeFileEntry(file) { return { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, file, preview: URL.createObjectURL(file), title: file.name.replace(/\.[^.]+$/, ""), category: "", capturedAt: "", location: "", station: "", trainNumber: "", tags: "" }; }
   function selectFiles(files) {
     const existing = new Set(state.files.map(entry => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`));
-    [...files].filter(file => file.type.startsWith("image/")).forEach(file => { const key = `${file.name}:${file.size}:${file.lastModified}`; if (!existing.has(key) && state.files.length < 100) { state.files.push(makeFileEntry(file)); existing.add(key); } });
+    const selected=[...files],images=selected.filter(file => file.type.startsWith("image/"));let duplicates=0,overflow=0;
+    images.forEach(file => { const key = `${file.name}:${file.size}:${file.lastModified}`; if(existing.has(key)){duplicates+=1;return;}if(state.files.length>=100){overflow+=1;return;}state.files.push(makeFileEntry(file));existing.add(key); });
     renderQueue();
+    if(selected.length!==images.length)notify(`${selected.length-images.length}件は画像ファイルではないため追加しませんでした。`,true);
+    else if(overflow)notify(`一度に登録できるのは100枚までです。${overflow}件は次回に分けてください。`,true);
+    else if(duplicates)notify(`同じ写真${duplicates}件は重複を避けるため追加しませんでした。`,false);
   }
+  function setUploadStatus(message,type=""){const status=$("#upload-status");status.textContent=message;status.className=`form-status${type?` ${type}`:""}`;status.hidden=!message;}
   async function upload() {
     if (!state.access.canUpload) return notify("管理用アカウントから写真は登録できません。", true);
     if (!state.files.length) return notify("写真を選択してください。", true);
-    const form = new FormData(); state.files.forEach(entry => form.append("files", entry.file)); form.append("metadata", JSON.stringify(uploadMetadata())); form.append("fileMetadata", JSON.stringify(individualMetadata()));
-    const user = await window.TayunetFirebaseDataAuth.currentUser(); const token = await user.getIdToken();
-    $("#upload-progress").hidden = false; $("#upload-status").textContent = "Ubuntu HDDへ保存しています…";
-    const xhr = new XMLHttpRequest(); xhr.open("POST", `${API}/v1/photos`); xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.upload.onprogress = event => { if (event.lengthComputable) $("#upload-progress span").style.width = `${event.loaded / event.total * 100}%`; };
-    xhr.onload = async () => { if (xhr.status >= 200 && xhr.status < 300) { $("#upload-status").textContent = `${state.files.length}枚を保存しました。`; state.files.forEach(releaseFile); state.files=[]; renderQueue(); setTimeout(()=>$("#upload-dialog").close(),700); await loadPhotos(); notify("写真ごとの情報、EXIF、サムネイルを保存しました。"); } else { let message="アップロードに失敗しました"; try{message=JSON.parse(xhr.responseText).detail||message}catch(_){} $("#upload-status").textContent=message; } };
-    xhr.onerror = () => { $("#upload-status").textContent = "写真APIへ接続できません。"; }; xhr.send(form);
+    const button=$("#upload-submit"),progress=$("#upload-progress"),bar=$("#upload-progress span");setButtonBusy(button,true,"保存中");progress.hidden=false;bar.style.width="0%";setUploadStatus("ログイン情報を確認しています…","loading");
+    try {
+      const form = new FormData(); state.files.forEach(entry => form.append("files", entry.file)); form.append("metadata", JSON.stringify(uploadMetadata())); form.append("fileMetadata", JSON.stringify(individualMetadata()));
+      let user,token;try{user=await window.TayunetFirebaseDataAuth.currentUser();token=await user.getIdToken();}catch(error){throw new Error("ログインの確認に失敗しました。いったんログアウトして、もう一度ログインしてください。");}
+      setUploadStatus("Ubuntu HDDへ送信しています…","loading");
+      await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",`${API}/v1/photos`);xhr.timeout=10*60*1000;xhr.setRequestHeader("Authorization",`Bearer ${token}`);xhr.upload.onprogress=event=>{if(event.lengthComputable){const percent=Math.round(event.loaded/event.total*100);bar.style.width=`${percent}%`;setUploadStatus(`${state.files.length}枚を送信しています… ${percent}%`,"loading");}};xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)return resolve();let detail="";try{detail=JSON.parse(xhr.responseText).detail||""}catch(_){}reject(new Error(statusMessage(xhr.status,detail)));};xhr.onerror=()=>reject(new Error("写真APIへ接続できません。通信状態を確認して再度お試しください。"));xhr.ontimeout=()=>reject(new Error("アップロードが時間内に完了しませんでした。通信状態を確認して再度お試しください。"));xhr.onabort=()=>reject(new Error("アップロードを中断しました。"));xhr.send(form);});
+      const savedCount=state.files.length;bar.style.width="100%";setUploadStatus(`${savedCount}枚を保存しました。EXIFとサムネイルを反映しています…`,"success");state.files.forEach(releaseFile);state.files=[];renderQueue();await loadPhotos();notify(`${savedCount}枚の写真、撮影情報、EXIF、サムネイルを保存しました。`);setTimeout(()=>{if($("#upload-dialog").open)$("#upload-dialog").close();},700);
+    } catch(error) { setUploadStatus(friendlyError(error,"アップロードに失敗しました。"),"error"); }
+    finally { setButtonBusy(button,false); }
   }
 
   function renderQueue() {
@@ -253,10 +312,13 @@
     $("#file-queue").innerHTML = state.files.map((entry, index) => `<article class="file-editor" data-file-id="${entry.id}"><div class="file-editor-head"><img src="${entry.preview}" alt=""><div><b>${index + 1}. ${escapeHtml(entry.file.name)}</b><small>${bytes(entry.file.size)}</small></div><button type="button" data-remove-file="${entry.id}" aria-label="${escapeHtml(entry.file.name)}を外す">×</button></div><label>タイトル<input data-file-field="title" value="${escapeHtml(entry.title)}" maxlength="1000"></label><details><summary>この写真だけの情報を編集</summary><div class="file-editor-grid"><label>種類<select data-file-field="category"><option value="">共通設定を使用</option>${["train","freight","landscape","other"].map(value=>`<option value="${value}" ${entry.category===value?"selected":""}>${category(value)}</option>`).join("")}</select></label><label>撮影日時<input data-file-field="capturedAt" type="datetime-local" value="${escapeHtml(entry.capturedAt)}"></label><label>撮影場所<input data-file-field="location" value="${escapeHtml(entry.location)}"></label><label>駅<input data-file-field="station" value="${escapeHtml(entry.station)}"></label><label>列車番号<input data-file-field="trainNumber" value="${escapeHtml(entry.trainNumber)}"></label><label>タグ<input data-file-field="tags" value="${escapeHtml(entry.tags)}" placeholder="カンマ区切り"></label></div></details></article>`).join("");
   }
   async function shareTarget(targetType,targetId,label) {
-    const dialog=$("#share-dialog"); dialog.innerHTML=`<form class="panel-pad" id="share-form"><h2>限定リンクを作成</h2><p>${escapeHtml(label)}</p><label>パスワード（任意）<input name="password" type="password"></label><label>有効期限（任意）<input name="expiresAt" type="datetime-local"></label><div class="dialog-actions"><button type="button" class="ghost" data-close="share-dialog">キャンセル</button><button class="primary">リンクを作る</button></div></form>`; dialog.showModal(); $("#share-form").addEventListener("submit",async event=>{event.preventDefault();const raw=Object.fromEntries(new FormData(event.currentTarget));raw.targetType=targetType;raw.targetId=targetId;try{const response=await api("/v1/shares",{method:"POST",body:JSON.stringify(raw)});const result=await response.json();dialog.innerHTML=`<div class="panel-pad"><h2>共有リンクを作成しました</h2><p>${result.passwordRequired?"設定したパスワードを別の方法で相手へ伝えてください。":"リンクを知っている人が閲覧できます。"}</p><input class="share-url" value="${escapeHtml(result.url)}" readonly><div class="dialog-actions"><button class="ghost" data-copy="${escapeHtml(result.url)}">コピー</button><button class="primary" data-close="share-dialog">閉じる</button></div></div>`;}catch(error){notify(error.message,true)}});
+    const dialog=$("#share-dialog"),tomorrow=new Date(Date.now()+24*60*60*1000),defaultExpiry=new Date(tomorrow.getTime()-tomorrow.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    dialog.innerHTML=`<form class="share-panel" id="share-form"><h2>限定リンクを作成</h2><p><b>${escapeHtml(label)}</b> を、ログインしていない相手にも共有できます。</p><div class="share-options"><label>パスワード（任意）<input name="password" type="password" autocomplete="new-password" minlength="4" placeholder="4文字以上を推奨"><small>設定した場合はリンクとは別の方法で伝えてください。</small></label><label>有効期限（任意）<input name="expiresAt" type="datetime-local" min="${escapeHtml(new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16))}" value="${defaultExpiry}"><small>空欄にすると無期限です。</small></label></div><p class="form-status" id="share-status" role="status" aria-live="polite" hidden></p><div class="dialog-actions"><button type="button" class="ghost" data-close="share-dialog">キャンセル</button><button class="primary" id="share-submit">安全なリンクを作る</button></div></form>`;
+    dialog.showModal();
+    $("#share-form").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,button=$("#share-submit"),status=$("#share-status"),raw=Object.fromEntries(new FormData(form));if(raw.password&&raw.password.length<4){setFormStatus(status,"パスワードは4文字以上にしてください。","error");return;}if(raw.expiresAt&&new Date(raw.expiresAt).getTime()<=Date.now()){setFormStatus(status,"有効期限は現在より後の日時を指定してください。","error");return;}raw.targetType=targetType;raw.targetId=targetId;setButtonBusy(button,true,"作成中");setFormStatus(status,"共有リンクを安全に作成しています…","loading");try{const response=await api("/v1/shares",{method:"POST",body:JSON.stringify(raw)});const result=await response.json();dialog.innerHTML=`<div class="share-result"><h2>共有リンクを作成しました</h2><p class="share-result-note">${result.passwordRequired?"パスワード保護あり。パスワードはリンクとは別の方法で相手へ伝えてください。":"リンクを知っている人が閲覧できます。"}${result.expiresAt?`<br>有効期限：${escapeHtml(dateText(result.expiresAt))}`:"<br>有効期限：無期限"}</p><label>公開リンク<input class="share-url" value="${escapeHtml(result.url)}" readonly></label><p class="form-status success" role="status">リンク先を開いて写真が表示されることを確認してから相手へ送ってください。</p><div class="dialog-actions"><button class="ghost" data-copy="${escapeHtml(result.url)}">URLをコピー</button><a class="primary button-link" href="${escapeHtml(result.url)}" target="_blank" rel="noopener">リンクを確認</a><button class="primary" data-close="share-dialog">閉じる</button></div></div>`;}catch(error){setFormStatus(status,friendlyError(error,"共有リンクを作成できませんでした。"),"error");}finally{setButtonBusy(button,false);}});
   }
 
-  async function download(path, filename) { const response = await api(path); const url = URL.createObjectURL(await response.blob()); const link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000); }
+  async function download(path, filename) { const response = await api(path,{timeoutMs:120000}); const url = URL.createObjectURL(await response.blob()); const link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000); }
 
   function personName(person) { return person.displayName || person.email.split("@")[0]; }
   function directoryRow(person) {
@@ -264,21 +326,22 @@
     return `<div class="person-row"><span class="person-identity"><b>${escapeHtml(personName(person))}</b><small>${escapeHtml(person.email)}</small></span>${action}</div>`;
   }
   async function searchPeople() {
-    const query = $("#people-query")?.value || "";
-    const target = $("#directory-results"); if (!target) return;
+    const query = $("#people-query")?.value.trim() || "",button=$("#people-search");
+    const target = $("#directory-results"); if (!target) return;if(query&&query.length<2){target.innerHTML=`<p class="error-text">名前またはメールアドレスを2文字以上入力してください。</p>`;return;}
+    setButtonBusy(button,true,"検索中");
     target.innerHTML = `<p class="muted">利用者を探しています…</p>`;
     try { const response=await api(`/v1/directory?q=${encodeURIComponent(query)}`);const people=(await response.json()).items;target.innerHTML=people.map(directoryRow).join("")||`<p class="muted">該当する利用者はいません。</p>`; }
-    catch(error){target.innerHTML=`<p class="error-text">${escapeHtml(error.message)}</p>`;}
+    catch(error){target.innerHTML=`<p class="error-text">${escapeHtml(friendlyError(error))}</p>`;}finally{setButtonBusy(button,false);}
   }
   async function showPeople() {
     const dialog=$("#people-dialog");
+    dialog.innerHTML=`<div class="dialog-loading"><div class="spinner"></div><p>共有メンバーとグループを読み込んでいます…</p></div>`;if(!dialog.open)dialog.showModal();
     try {
       const [friendResponse,groupResponse,directoryResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups"),api("/v1/directory")]);
       const friends=(await friendResponse.json()).items,groups=(await groupResponse.json()).items,suggestions=(await directoryResponse.json()).items;
       const accepted=friends.filter(item=>item.status==="accepted"),incoming=friends.filter(item=>item.incoming),outgoing=friends.filter(item=>item.status==="pending"&&!item.incoming);
       dialog.innerHTML=`<div class="panel-pad people-panel"><div class="people-heading"><div><small>FRIEND & GROUP</small><h2>共有メンバー</h2><p>候補から追加するか、名前・メールアドレスで検索できます。</p></div><div class="people-counts"><span><b>${accepted.length}</b>フレンド</span><span><b>${incoming.length}</b>承認待ち</span></div></div>${incoming.length?`<section class="people-section attention"><h3>あなたへの申請</h3>${incoming.map(directoryRow).join("")}</section>`:""}<section class="people-section"><h3>利用者を探す</h3><div class="people-search"><input id="people-query" type="search" placeholder="名前・メールアドレス（2文字以上）"><button class="primary" id="people-search">検索</button></div><div id="directory-results" class="directory-results">${suggestions.map(directoryRow).join("")||`<p class="muted">候補がまだありません。メールアドレスで検索してください。</p>`}</div></section><section class="people-section"><h3>フレンド一覧</h3>${accepted.length?accepted.map(friend=>`<div class="person-row"><label class="person-choice"><input class="group-member" type="checkbox" value="${friend.uid}"><span class="person-identity"><b>${escapeHtml(personName(friend))}</b><small>${escapeHtml(friend.email)}</small></span></label><button class="quiet-danger" data-remove-friend="${friend.uid}">解除</button></div>`).join(""):`<p class="muted">フレンドを追加すると写真の共有先に選べます。</p>`}${outgoing.map(friend=>`<div class="person-row"><span class="person-identity"><b>${escapeHtml(personName(friend))}</b><small>${escapeHtml(friend.email)} · 申請中</small></span><button data-remove-friend="${friend.uid}">取消</button></div>`).join("")}<div class="dialog-actions"><button id="new-group" ${accepted.length?"":"disabled"}>選択した人でグループ作成</button></div></section><section class="people-section"><h3>グループ</h3>${groups.map(group=>`<div class="person-row"><span><b>${escapeHtml(group.name)}</b></span><small>${group.members.length}人</small></div>`).join("")||`<p class="muted">フレンドを選択してグループを作成できます。</p>`}</section><div class="dialog-actions"><button class="ghost" data-close="people-dialog">閉じる</button></div></div>`;
-      if(!dialog.open)dialog.showModal();
-    } catch(error) { notify(error.message,true); }
+    } catch(error) { dialog.innerHTML=`<div class="dialog-error"><h2>共有メンバーを読み込めません</h2><p>${escapeHtml(friendlyError(error))}</p><div class="dialog-actions"><button class="ghost" data-close="people-dialog">閉じる</button><button class="primary" id="retry-people">再試行</button></div></div>`; }
   }
 
   document.addEventListener("click", async event => {
@@ -294,16 +357,18 @@
     const view = event.target.closest("[data-view]"); if (view) { $$(`[data-view]`).forEach(button=>button.classList.toggle("active",button===view)); state.view=view.dataset.view; if(state.view==="grid"||state.view==="timeline")renderGrid();else if(state.view==="calendar")renderCalendar();else renderMap(); return; }
     if (event.target.closest("#upload-button")) { if(!state.access.canUpload)return notify("このアカウントは閲覧・管理専用です。",true); return $("#upload-dialog").showModal(); }
     if (event.target.closest("#friend-button")) return showPeople();
-    const action=event.target.closest("[data-action]"); if(action){const dialog=$("#detail-dialog");const photo=state.photos.find(item=>item.id===dialog.dataset.photoId);if(!photo)return; if(action.dataset.action==="edit")return editDetail(photo);if(action.dataset.action==="share")return shareTarget("photo",photo.id,photo.title||photo.filename);if(action.dataset.action==="download")return download(`/v1/photos/${photo.id}/media/original`,photo.filename);if(action.dataset.action==="delete"&&confirm("この写真をゴミ箱へ移しますか？")){await api(`/v1/photos/${photo.id}`,{method:"DELETE"});dialog.close();await loadPhotos();}if(action.dataset.action==="restore"){await api(`/v1/photos/${photo.id}/restore`,{method:"POST"});dialog.close();await loadPhotos();}return;}
-    const copy=event.target.closest("[data-copy]");if(copy){await navigator.clipboard.writeText(copy.dataset.copy);copy.textContent="コピーしました";return;}
-    const exportButton=event.target.closest("[data-export]");if(exportButton){const type=exportButton.dataset.export;return download(type==="zip"?"/v1/export/originals.zip":`/v1/export/metadata.${type}`,`photo-archive.${type}`);}
-    if(event.target.closest("#new-album")){if(!state.access.canUpload)return notify("管理用アカウントからアルバムは登録できません。",true);const title=prompt("アルバム名");if(title){await api("/v1/albums",{method:"POST",body:JSON.stringify({title,visibility:"private"})});await renderAlbums();}return;}
+    const retryEdit=event.target.closest("[data-retry-edit]");if(retryEdit){const photo=state.photos.find(item=>item.id===retryEdit.dataset.retryEdit);if(photo)return editDetail(photo);}
+    if(event.target.closest("#retry-people"))return showPeople();
+    const action=event.target.closest("[data-action]"); if(action){const dialog=$("#detail-dialog"),photo=state.photos.find(item=>item.id===dialog.dataset.photoId);if(!photo)return notify("写真情報が更新されています。一覧を再読み込みしてください。",true);const kind=action.dataset.action,label={edit:"準備中",share:"準備中",download:"取得中",delete:"移動中",restore:"復元中"}[kind]||"処理中";setButtonBusy(action,true,label);try{if(kind==="edit")return await editDetail(photo);if(kind==="share")return await shareTarget("photo",photo.id,photo.title||photo.filename);if(kind==="download"){await download(`/v1/photos/${photo.id}/media/original`,photo.filename);notify("原本画像のダウンロードを開始しました。");return;}if(kind==="delete"){if(!confirm("この写真をゴミ箱へ移しますか？\n30日以内ならゴミ箱から復元できます。"))return;await api(`/v1/photos/${photo.id}`,{method:"DELETE"});dialog.close();await loadPhotos();notify("写真をゴミ箱へ移しました。");return;}if(kind==="restore"){await api(`/v1/photos/${photo.id}/restore`,{method:"POST"});dialog.close();await loadPhotos();notify("写真をゴミ箱から復元しました。");return;}}catch(error){notify(friendlyError(error),true);}finally{setButtonBusy(action,false);}return;}
+    const copy=event.target.closest("[data-copy]");if(copy){setButtonBusy(copy,true,"コピー中");try{await navigator.clipboard.writeText(copy.dataset.copy);copy.dataset.idleLabel="コピーしました";notify("共有URLをクリップボードへコピーしました。");}catch(error){notify("URLをコピーできませんでした。入力欄を長押ししてコピーしてください。",true);}finally{setButtonBusy(copy,false);}return;}
+    const exportButton=event.target.closest("[data-export]");if(exportButton){const type=exportButton.dataset.export;setButtonBusy(exportButton,true,"準備中");try{await download(type==="zip"?"/v1/export/originals.zip":`/v1/export/metadata.${type}`,`photo-archive.${type}`);notify("バックアップのダウンロードを開始しました。");}catch(error){notify(friendlyError(error,"バックアップを作成できませんでした。"),true);}finally{setButtonBusy(exportButton,false);}return;}
+    if(event.target.closest("#new-album")){if(!state.access.canUpload)return notify("管理用アカウントからアルバムは登録できません。",true);const title=prompt("アルバム名");if(!title)return;try{setContentLoading(true,"アルバムを作成しています…");await api("/v1/albums",{method:"POST",body:JSON.stringify({title,visibility:"private"})});await renderAlbums();notify("アルバムを作成しました。");}catch(error){notify(friendlyError(error,"アルバムを作成できませんでした。"),true);}finally{setContentLoading(false);}return;}
     const albumShare=event.target.closest("[data-share-album]");if(albumShare){const album=state.albums.find(item=>item.id===albumShare.dataset.shareAlbum);return shareTarget("album",album.id,album.title);}
-    const album=event.target.closest("[data-open-album]");if(album){const response=await api(`/v1/albums/${album.dataset.openAlbum}/photos`);const data=await response.json();state.photos=data.items;state.scope="mine";$("#list-title").textContent=data.album.title;renderGrid();return;}
+    const album=event.target.closest("[data-open-album]");if(album){setButtonBusy(album,true,"読込中");try{setContentLoading(true,"アルバムの写真を読み込んでいます…");const response=await api(`/v1/albums/${album.dataset.openAlbum}/photos`),data=await response.json();state.photos=data.items;state.scope="mine";$("#list-title").textContent=data.album.title;renderGrid();}catch(error){notify(friendlyError(error,"アルバムを開けませんでした。"),true);}finally{setContentLoading(false);setButtonBusy(album,false);}return;}
     if(event.target.closest("#people-search")){await searchPeople();return;}
-    const friend=event.target.closest("[data-friend]");if(friend){await api(`/v1/friends/${friend.dataset.friend}`,{method:"POST"});await showPeople();return;}
-    const removeFriend=event.target.closest("[data-remove-friend]");if(removeFriend){await api(`/v1/friends/${removeFriend.dataset.removeFriend}`,{method:"DELETE"});await showPeople();return;}
-    if(event.target.closest("#new-group")){const name=prompt("グループ名を入力してください");if(!name)return;const members=$$(".group-member:checked").map(input=>input.value);await api("/v1/groups",{method:"POST",body:JSON.stringify({name,members})});await showPeople();return;}
+    const friend=event.target.closest("[data-friend]");if(friend){setButtonBusy(friend,true,"処理中");try{await api(`/v1/friends/${friend.dataset.friend}`,{method:"POST"});await showPeople();notify("共有メンバー情報を更新しました。");}catch(error){notify(friendlyError(error,"フレンド申請を更新できませんでした。"),true);}finally{setButtonBusy(friend,false);}return;}
+    const removeFriend=event.target.closest("[data-remove-friend]");if(removeFriend){setButtonBusy(removeFriend,true,"処理中");try{await api(`/v1/friends/${removeFriend.dataset.removeFriend}`,{method:"DELETE"});await showPeople();notify("共有メンバー情報を更新しました。");}catch(error){notify(friendlyError(error,"フレンド情報を更新できませんでした。"),true);}finally{setButtonBusy(removeFriend,false);}return;}
+    if(event.target.closest("#new-group")){const name=prompt("グループ名を入力してください");if(!name)return;const members=$$(".group-member:checked").map(input=>input.value),button=event.target.closest("#new-group");setButtonBusy(button,true,"作成中");try{await api("/v1/groups",{method:"POST",body:JSON.stringify({name,members})});await showPeople();notify("共有グループを作成しました。");}catch(error){notify(friendlyError(error,"グループを作成できませんでした。"),true);}finally{setButtonBusy(button,false);}return;}
   });
 
   document.addEventListener("input", event => {
@@ -334,9 +399,9 @@
     const localManager=["admin@tayunet-traininfo.com","systemadmin@tayunet-traininfo.com"].includes(state.currentUser.email.toLowerCase());
     applyAccess({canUpload:!localManager,canManage:localManager,role:localManager?"manager":"contributor"});
     $("#auth-cover").remove(); $("#main-content").hidden=false;
-    try { const response=await fetch(`${API}/health`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const health=await response.json();$("#storage-count").textContent=bytes(health.storage.usedBytes);$("#trash-days").textContent=`${health.trashDays}日`;$("#photo-count").textContent=health.photos;$("#api-status").className="state-lamp online";$("#api-status").innerHTML="<i></i>写真API 正常"; } catch(_){$("#storage-count").textContent="確認不可";$("#api-status").className="state-lamp error";$("#api-status").innerHTML="<i></i>写真API 未接続";}
-    try { const response=await api("/v1/me");applyAccess(await response.json()); } catch(error) { notify(error.message,true); }
-    try { const response=await api("/v1/albums");state.albums=(await response.json()).items;$("#upload-album").innerHTML=`<option value="">なし</option>${state.albums.map(album=>`<option value="${album.id}">${escapeHtml(album.title)}</option>`).join("")}`; } catch(_) {}
+    try { const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);let response;try{response=await fetch(`${API}/health`,{signal:controller.signal,cache:"no-store"});}finally{clearTimeout(timer);}if(!response.ok)throw new Error(`HTTP ${response.status}`);const health=await response.json();$("#storage-count").textContent=bytes(health.storage.usedBytes);$("#trash-days").textContent=`${health.trashDays}日`;$("#photo-count").textContent=health.photos;$("#api-status").className="state-lamp online";$("#api-status").innerHTML="<i></i>写真API 正常";$("#api-status").title="写真サーバーへ接続済み"; } catch(_){$("#storage-count").textContent="確認不可";$("#api-status").className="state-lamp error";$("#api-status").innerHTML="<i></i>写真API 未接続";$("#api-status").title="写真サーバーへ接続できません";notify("写真サーバーへ接続できません。一覧が表示されない場合は、通信状態を確認してから再読み込みしてください。",true,true);}
+    try { const response=await api("/v1/me");applyAccess(await response.json()); } catch(error) { notify(friendlyError(error),true,true); }
+    try { const response=await api("/v1/albums");state.albums=(await response.json()).items;$("#upload-album").innerHTML=`<option value="">なし</option>${state.albums.map(album=>`<option value="${album.id}">${escapeHtml(album.title)}</option>`).join("")}`; } catch(error) {$("#upload-album").innerHTML='<option value="">アルバムを取得できません</option>';$("#upload-album").disabled=true;}
     await loadPhotos();
   });
 })();
