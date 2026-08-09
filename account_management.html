@@ -792,12 +792,41 @@ document.addEventListener("DOMContentLoaded", function () {
     /* ============================
        全ユーザー読み込み
     ============================ */
+    async function syncPhotoMemberDirectory(usersSnapshot) {
+        try {
+            const directory = db.collection("photo_member_directory");
+            const existing = await directory.get();
+            const sourceIds = new Set(usersSnapshot.docs.map(doc => doc.id));
+            const operations = [];
+            usersSnapshot.forEach(doc => {
+                const user = doc.data() || {};
+                const email = String(user.email || "").trim();
+                const manager = user.isAdmin === true || ["admin@tayunet-traininfo.com", "systemadmin@tayunet-traininfo.com"].includes(email.toLowerCase());
+                operations.push({ type: "set", ref: directory.doc(doc.id), data: {
+                    email,
+                    displayName: String(user.displayName || user.name || email.split("@")[0] || "").slice(0, 200),
+                    active: Boolean(email && user.approved === true && user.status === "active" && user.disabled !== true && !manager),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }});
+            });
+            existing.forEach(doc => { if (!sourceIds.has(doc.id)) operations.push({ type: "delete", ref: doc.ref }); });
+            for (let index = 0; index < operations.length; index += 400) {
+                const batch = db.batch();
+                operations.slice(index, index + 400).forEach(operation => operation.type === "set" ? batch.set(operation.ref, operation.data) : batch.delete(operation.ref));
+                await batch.commit();
+            }
+        } catch (error) {
+            console.warn("写真共有用の利用者名簿を同期できませんでした。", error);
+        }
+    }
+
     async function loadAllUsers() {
         try {
             const [snapshot, notesSnapshot] = await Promise.all([
                 db.collection("users").orderBy("registeredAt", "desc").get(),
                 db.collection("admin_notes").get()
             ]);
+            await syncPhotoMemberDirectory(snapshot);
 
             adminNotesByUid = {};
             notesSnapshot.forEach(doc => { adminNotesByUid[doc.id] = doc.data() || {}; });
