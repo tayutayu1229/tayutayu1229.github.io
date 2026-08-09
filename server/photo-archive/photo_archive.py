@@ -42,6 +42,10 @@ HOST = os.getenv("PHOTO_ARCHIVE_HOST", "0.0.0.0")
 PORT = int(os.getenv("PHOTO_ARCHIVE_PORT", "8790"))
 TRASH_DAYS = max(1, int(os.getenv("PHOTO_ARCHIVE_TRASH_DAYS", "30")))
 MAX_UPLOAD_BYTES = max(1, int(os.getenv("PHOTO_ARCHIVE_MAX_UPLOAD_MB", "100"))) * 1024 * 1024
+MANAGER_EMAILS = {
+    "admin@tayunet-traininfo.com",
+    "systemadmin@tayunet-traininfo.com",
+}
 ALLOWED_ORIGINS = [value.strip() for value in os.getenv(
     "PHOTO_ARCHIVE_ALLOWED_ORIGINS",
     "https://tayunet-traininfo.com,https://www.tayunet-traininfo.com",
@@ -59,7 +63,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.1")
+app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -173,7 +177,11 @@ def field(document: dict[str, Any], name: str) -> Any:
     return None
 
 
-async def verify_user(authorization: Annotated[str | None, Header()] = None) -> dict[str, str]:
+def is_manager(user: dict[str, Any]) -> bool:
+    return str(user.get("email") or "").casefold() in MANAGER_EMAILS
+
+
+async def verify_user(authorization: Annotated[str | None, Header()] = None) -> dict[str, Any]:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Firebaseログインが必要です")
     token = authorization[7:].strip()
@@ -198,10 +206,22 @@ async def verify_user(authorization: Annotated[str | None, Header()] = None) -> 
         raise
     except Exception as error:
         raise HTTPException(503, "利用者情報を確認できません") from error
+    display_name = str(field(profile, "displayName") or claims.get("name") or email.split("@")[0]).strip()[:200]
     with connect() as db:
-        db.execute("""INSERT INTO users(uid,email,last_seen_at) VALUES(?,?,?)
-          ON CONFLICT(uid) DO UPDATE SET email=excluded.email,last_seen_at=excluded.last_seen_at""", (uid, email, now_iso()))
-    return {"uid": uid, "email": email}
+        db.execute("""INSERT INTO users(uid,email,display_name,last_seen_at) VALUES(?,?,?,?)
+          ON CONFLICT(uid) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,last_seen_at=excluded.last_seen_at""", (uid, email, display_name, now_iso()))
+    role = "manager" if email.casefold() in MANAGER_EMAILS else "contributor"
+    return {"uid": uid, "email": email, "role": role, "canUpload": role == "contributor", "canManage": role == "manager"}
+
+
+def require_contributor(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    if is_manager(user):
+        raise HTTPException(403, "管理用アカウントから写真やアルバムは登録できません")
+    return user
+
+
+def can_manage(row: sqlite3.Row, user: dict[str, Any]) -> bool:
+    return is_manager(user) or row["owner_uid"] == user["uid"]
 
 
 def rational_text(value: Any) -> str:
@@ -283,6 +303,17 @@ def clean_payload(raw: dict[str, Any], exif: dict[str, Any] | None = None) -> di
     return data
 
 
+def upload_payload(common: dict[str, Any], individual: Any, filename: str, exif: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(common)
+    if isinstance(individual, dict):
+        for key in PHOTO_FIELDS:
+            if key in individual and individual[key] not in (None, "", []):
+                merged[key] = individual[key]
+    if not str(merged.get("title") or "").strip():
+        merged["title"] = Path(filename).stem
+    return clean_payload(merged, exif)
+
+
 def row_photo(row: sqlite3.Row) -> dict[str, Any]:
     item = dict(row)
     output = {
@@ -352,20 +383,31 @@ def health() -> dict[str, Any]:
             "storage": {"totalBytes": usage.total, "usedBytes": usage.used, "freeBytes": usage.free}}
 
 
+@app.get("/v1/me")
+def current_user(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    return {key: user[key] for key in ("uid", "email", "role", "canUpload", "canManage")}
+
+
 @app.post("/v1/photos")
 async def upload_photos(
     files: Annotated[list[UploadFile], File()],
     metadata: Annotated[str, Form()] = "{}",
-    user: dict[str, str] = Depends(verify_user),
+    file_metadata: Annotated[str, Form(alias="fileMetadata")] = "[]",
+    user: dict[str, Any] = Depends(require_contributor),
 ) -> dict[str, Any]:
     try:
         raw = json.loads(metadata or "{}")
+        individual_items = json.loads(file_metadata or "[]")
     except json.JSONDecodeError as error:
         raise HTTPException(400, "メタデータJSONが不正です") from error
+    if not isinstance(raw, dict) or not isinstance(individual_items, list):
+        raise HTTPException(400, "メタデータJSONの形式が不正です")
+    if len(individual_items) > 100:
+        raise HTTPException(400, "個別メタデータは100件までです")
     if not files or len(files) > 100:
         raise HTTPException(400, "1回に1〜100枚を選択してください")
     created: list[dict[str, Any]] = []
-    for upload in files:
+    for index, upload in enumerate(files):
         if not (upload.content_type or "").startswith("image/"):
             raise HTTPException(415, f"{upload.filename}: 画像ファイルではありません")
         photo_id = uuid.uuid4().hex
@@ -398,7 +440,8 @@ async def upload_photos(
             original.unlink(missing_ok=True)
             thumbnail.unlink(missing_ok=True)
             raise HTTPException(415, f"{upload.filename}: 画像を読み取れません") from error
-        data = clean_payload(raw, exif)
+        individual = individual_items[index] if index < len(individual_items) else {}
+        data = upload_payload(raw, individual, upload.filename or original.name, exif)
         timestamp = now_iso()
         with connect() as db:
             db.execute("""INSERT INTO photos VALUES(
@@ -434,17 +477,17 @@ def list_photos(
         needle = q.casefold().strip()
         for row in rows:
             if scope == "trash":
-                if row["owner_uid"] != user["uid"] or not row["deleted_at"]:
+                if (not is_manager(user) and row["owner_uid"] != user["uid"]) or not row["deleted_at"]:
                     continue
             elif row["deleted_at"]:
                 continue
-            elif scope == "mine" and row["owner_uid"] != user["uid"]:
+            elif scope == "mine" and not is_manager(user) and row["owner_uid"] != user["uid"]:
                 continue
             elif scope == "shared" and (row["owner_uid"] == user["uid"] or not can_view(db, row, user["uid"])):
                 continue
             elif scope == "public" and row["visibility"] != "public":
                 continue
-            elif scope == "all" and not can_view(db, row, user["uid"]):
+            elif scope == "all" and not is_manager(user) and not can_view(db, row, user["uid"]):
                 continue
             elif scope not in {"mine", "shared", "public", "all", "trash"}:
                 raise HTTPException(400, "一覧区分が不正です")
@@ -473,7 +516,7 @@ def list_photos(
 def get_photo(photo_id: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
         row = require_photo(db, photo_id)
-        if not can_view(db, row, user["uid"]): raise HTTPException(403, "閲覧権限がありません")
+        if not is_manager(user) and not can_view(db, row, user["uid"]): raise HTTPException(403, "閲覧権限がありません")
         return row_photo(row)
 
 
@@ -483,7 +526,7 @@ async def update_photo(photo_id: str, request: Request, user: dict[str, str] = D
     data = clean_payload(raw)
     with connect() as db:
         row = require_photo(db, photo_id)
-        if row["owner_uid"] != user["uid"]: raise HTTPException(403, "所有者だけが編集できます")
+        if not can_manage(row, user): raise HTTPException(403, "所有者または管理者だけが編集できます")
         db.execute("""UPDATE photos SET title=?,category=?,captured_at=?,location=?,station=?,latitude=?,longitude=?,
           train_number=?,origin=?,destination=?,train_type=?,service_date=?,changes=?,transport_route=?,article=?,notes=?,
           camera=?,lens=?,shutter_speed=?,aperture=?,iso=?,focal_length=?,tags_json=?,visibility=?,allowed_uids_json=?,
@@ -498,7 +541,7 @@ async def update_photo(photo_id: str, request: Request, user: dict[str, str] = D
             db.execute("DELETE FROM album_photos WHERE photo_id=?", (photo_id,))
             for album_id in data["albumIds"]:
                 album = db.execute("SELECT owner_uid FROM albums WHERE id=?", (album_id,)).fetchone()
-                if album and album["owner_uid"] == user["uid"]:
+                if album and (album["owner_uid"] == user["uid"] or is_manager(user)):
                     db.execute("INSERT INTO album_photos(album_id,photo_id) VALUES(?,?)", (album_id, photo_id))
         return row_photo(require_photo(db, photo_id))
 
@@ -507,7 +550,7 @@ async def update_photo(photo_id: str, request: Request, user: dict[str, str] = D
 def delete_photo(photo_id: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
         row = require_photo(db, photo_id)
-        if row["owner_uid"] != user["uid"]: raise HTTPException(403, "所有者だけが削除できます")
+        if not can_manage(row, user): raise HTTPException(403, "所有者または管理者だけが削除できます")
         db.execute("UPDATE photos SET deleted_at=?,updated_at=? WHERE id=?", (now_iso(), now_iso(), photo_id))
     return {"ok": True, "purgeAfterDays": TRASH_DAYS}
 
@@ -516,7 +559,7 @@ def delete_photo(photo_id: str, user: dict[str, str] = Depends(verify_user)) -> 
 def restore_photo(photo_id: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
         row = require_photo(db, photo_id)
-        if row["owner_uid"] != user["uid"]: raise HTTPException(403, "所有者だけが復元できます")
+        if not can_manage(row, user): raise HTTPException(403, "所有者または管理者だけが復元できます")
         db.execute("UPDATE photos SET deleted_at=NULL,updated_at=? WHERE id=?", (now_iso(), photo_id))
     return {"ok": True}
 
@@ -525,7 +568,7 @@ def restore_photo(photo_id: str, user: dict[str, str] = Depends(verify_user)) ->
 def photo_media(photo_id: str, variant: str, user: dict[str, str] = Depends(verify_user)) -> FileResponse:
     with connect() as db:
         row = require_photo(db, photo_id)
-        if not can_view(db, row, user["uid"]): raise HTTPException(403, "閲覧権限がありません")
+        if not is_manager(user) and not can_view(db, row, user["uid"]): raise HTTPException(403, "閲覧権限がありません")
         path = Path(row["thumbnail_path"] if variant == "thumbnail" else row["original_path"])
         media_type = "image/jpeg" if variant == "thumbnail" else row["mime"]
     if variant not in {"thumbnail", "original"} or not path.is_file(): raise HTTPException(404, "画像が見つかりません")
@@ -543,12 +586,12 @@ def album_output(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
 @app.get("/v1/albums")
 def list_albums(user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
-        rows = db.execute("SELECT * FROM albums WHERE owner_uid=? AND deleted_at IS NULL ORDER BY updated_at DESC", (user["uid"],)).fetchall()
+        rows = db.execute("SELECT * FROM albums WHERE deleted_at IS NULL ORDER BY updated_at DESC").fetchall() if is_manager(user) else db.execute("SELECT * FROM albums WHERE owner_uid=? AND deleted_at IS NULL ORDER BY updated_at DESC", (user["uid"],)).fetchall()
         return {"items": [album_output(db, row) for row in rows]}
 
 
 @app.post("/v1/albums")
-async def create_album(request: Request, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
+async def create_album(request: Request, user: dict[str, Any] = Depends(require_contributor)) -> dict[str, Any]:
     data = await request.json(); album_id = uuid.uuid4().hex; timestamp = now_iso()
     visibility = data.get("visibility") if data.get("visibility") in VISIBILITIES else "private"
     with connect() as db:
@@ -563,10 +606,10 @@ def album_photos(album_id: str, user: dict[str, str] = Depends(verify_user)) -> 
     with connect() as db:
         album = db.execute("SELECT * FROM albums WHERE id=? AND deleted_at IS NULL", (album_id,)).fetchone()
         if not album: raise HTTPException(404, "アルバムが見つかりません")
-        if album["owner_uid"] != user["uid"] and album["visibility"] != "public" and user["uid"] not in parse_json_list(album["allowed_uids_json"]):
+        if not is_manager(user) and album["owner_uid"] != user["uid"] and album["visibility"] != "public" and user["uid"] not in parse_json_list(album["allowed_uids_json"]):
             raise HTTPException(403, "閲覧権限がありません")
         rows = db.execute("SELECT p.* FROM photos p JOIN album_photos ap ON ap.photo_id=p.id WHERE ap.album_id=? AND p.deleted_at IS NULL ORDER BY ap.position,p.captured_at", (album_id,)).fetchall()
-        return {"album": album_output(db, album), "items": [row_photo(row) for row in rows if can_view(db, row, user["uid"])]}
+        return {"album": album_output(db, album), "items": [row_photo(row) for row in rows if is_manager(user) or can_view(db, row, user["uid"])]}
 
 
 def password_digest(password: str, salt: bytes) -> str:
@@ -580,7 +623,7 @@ async def create_share(request: Request, user: dict[str, str] = Depends(verify_u
     with connect() as db:
         table = "photos" if target_type == "photo" else "albums"
         row = db.execute(f"SELECT owner_uid FROM {table} WHERE id=?", (target_id,)).fetchone()
-        if not row or row["owner_uid"] != user["uid"]: raise HTTPException(403, "所有者だけが共有リンクを作れます")
+        if not row or (row["owner_uid"] != user["uid"] and not is_manager(user)): raise HTTPException(403, "所有者または管理者だけが共有リンクを作れます")
         token = secrets.token_urlsafe(32); salt = secrets.token_bytes(16) if data.get("password") else None
         expires = normalized_expiry(data.get("expiresAt"))
         db.execute("INSERT INTO shares VALUES(?,?,?,?,?,?,?,?,?,NULL)", (uuid.uuid4().hex, user["uid"], target_type, target_id,
@@ -635,11 +678,22 @@ def public_media(token: str, photo_id: str, variant: str, x_share_password: Anno
 
 @app.get("/v1/directory")
 def directory(q: str = "", user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
-    if len(q.strip()) < 3:
+    needle = q.strip()[:100]
+    if needle and len(needle) < 2:
         return {"items": []}
     with connect() as db:
-        rows = db.execute("SELECT uid,email,display_name FROM users WHERE uid<>? AND email LIKE ? ORDER BY email LIMIT 30", (user["uid"], f"%{q[:100]}%" )).fetchall()
-        return {"items": [dict(row) for row in rows]}
+        rows = db.execute("""SELECT u.uid,u.email,u.display_name,u.last_seen_at,f.status,f.requested_by
+          FROM users u LEFT JOIN friends f ON f.low_uid=MIN(u.uid,?) AND f.high_uid=MAX(u.uid,?)
+          WHERE u.uid<>? AND lower(u.email) NOT IN (?,?)
+            AND (?='' OR lower(u.email) LIKE lower(?) OR lower(u.display_name) LIKE lower(?))
+          ORDER BY CASE WHEN f.status='pending' AND f.requested_by<>? THEN 0 WHEN f.status='accepted' THEN 2 ELSE 1 END,
+            u.last_seen_at DESC LIMIT 30""", (
+              user["uid"], user["uid"], user["uid"], *sorted(MANAGER_EMAILS), needle,
+              f"%{needle}%", f"%{needle}%", user["uid"],
+          )).fetchall()
+        return {"items": [{"uid": row["uid"], "email": row["email"], "displayName": row["display_name"],
+          "relationship": row["status"] or "none", "incoming": row["status"] == "pending" and row["requested_by"] != user["uid"]}
+          for row in rows]}
 
 
 @app.get("/v1/friends")
@@ -665,6 +719,14 @@ def request_friend(target_uid: str, user: dict[str, str] = Depends(verify_user))
     return {"ok": True, "status": status}
 
 
+@app.delete("/v1/friends/{target_uid}")
+def remove_friend(target_uid: str, user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
+    low, high = sorted((user["uid"], target_uid))
+    with connect() as db:
+        db.execute("DELETE FROM friends WHERE low_uid=? AND high_uid=?", (low, high))
+    return {"ok": True}
+
+
 @app.get("/v1/groups")
 def groups(user: dict[str, str] = Depends(verify_user)) -> dict[str, Any]:
     with connect() as db:
@@ -684,7 +746,8 @@ async def create_group(request: Request, user: dict[str, str] = Depends(verify_u
 @app.get("/v1/export/metadata.{format}")
 def export_metadata(format: str, user: dict[str, str] = Depends(verify_user)) -> Response:
     with connect() as db:
-        items = [row_photo(row) for row in db.execute("SELECT * FROM photos WHERE owner_uid=? ORDER BY captured_at", (user["uid"],))]
+        rows = db.execute("SELECT * FROM photos ORDER BY captured_at") if is_manager(user) else db.execute("SELECT * FROM photos WHERE owner_uid=? ORDER BY captured_at", (user["uid"],))
+        items = [row_photo(row) for row in rows]
     if format == "json":
         return JSONResponse(items, headers={"Content-Disposition": "attachment; filename=photo-archive.json"})
     if format != "csv": raise HTTPException(404, "出力形式が不正です")
@@ -700,7 +763,7 @@ def export_originals(user: dict[str, str] = Depends(verify_user)) -> FileRespons
     os.close(fd)
     temporary = Path(name)
     with connect() as db, zipfile.ZipFile(temporary, "w", zipfile.ZIP_STORED) as archive:
-        rows = db.execute("SELECT * FROM photos WHERE owner_uid=? AND deleted_at IS NULL ORDER BY captured_at", (user["uid"],)).fetchall()
+        rows = db.execute("SELECT * FROM photos WHERE deleted_at IS NULL ORDER BY captured_at").fetchall() if is_manager(user) else db.execute("SELECT * FROM photos WHERE owner_uid=? AND deleted_at IS NULL ORDER BY captured_at", (user["uid"],)).fetchall()
         used: set[str] = set()
         for index, row in enumerate(rows, 1):
             safe = re.sub(r"[^A-Za-z0-9_. -]", "_", row["filename"]) or f"photo-{index}.jpg"
