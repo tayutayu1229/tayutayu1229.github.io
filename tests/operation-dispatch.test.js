@@ -13,6 +13,7 @@ assert.match(html, /auth_guard\.js/);
 assert.match(html, /firebase-data-auth\.js/);
 assert.match(html, /ODS-01/);
 assert.match(html, /情報打電/);
+assert.match(html, /id="compose-button" data-open-compose/);
 assert.match(html, /対応中/);
 assert.match(html, /引継ぎ/);
 assert.match(html, /お気に入り/);
