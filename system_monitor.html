@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>監視・公開状態 - システム運用管理</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/assets/css/system-admin.css"></head>
 <body data-ops-page="monitor"><div class="ops-shell">
 <header class="ops-header"><div class="ops-brand"><img src="/icon-192.png" alt=""><div><h1>監視・公開状態</h1><p>API・JSON・データ鮮度・定期診断・公開確認</p></div></div><div class="ops-header-actions"><span class="wide" data-admin-user>確認中</span><a href="/system_admin.html">管理ホーム</a><a href="/toppage.html">トップ</a></div></header>
-<nav class="ops-nav" aria-label="管理メニュー"><a href="/system_admin.html" data-page="home">管理ホーム</a><a href="/system_monitor.html" data-page="monitor">監視・公開状態</a><a href="/delay_statistics.html" data-page="delay">遅延分析</a><a href="/system_security.html" data-page="security">利用・セキュリティ</a><a href="/system_diagnostics.html" data-page="diagnostics">診断・データ管理</a></nav>
+<nav class="ops-nav" aria-label="管理メニュー"><a href="/system_admin.html" data-page="home">管理ホーム</a><a href="/system_monitor.html" data-page="monitor">監視・公開状態</a><a href="/system_security.html" data-page="security">利用・セキュリティ</a><a href="/system_diagnostics.html" data-page="diagnostics">診断・データ管理</a></nav>
 <main class="ops-main">
   <div class="ops-page-head"><div><h2>API・データ稼働監視</h2><p>実際に各取得先へ接続し、応答時間・形式・最終成功・連続失敗・鮮度を診断します。</p></div><div class="ops-actions"><select class="ops-btn" id="auto-interval" aria-label="自動診断間隔"><option value="0">自動診断なし</option><option value="60000">1分ごと</option><option value="300000" selected>5分ごと</option><option value="900000">15分ごと</option></select><button class="ops-btn primary" id="run-all">全項目を診断</button></div></div>
   <section class="ops-alerts" id="monitor-alerts"><div class="ops-alert info"><div><b>診断待ち</b><p>「全項目を診断」を押すと、すべての取得先を確認します。</p></div></div></section>
@@ -16,20 +16,19 @@
   <footer class="ops-footer"><span>実際の応答とJSON内容を検査します。ブラウザや接続先のCORS制限は詳細欄へ表示されます。</span><span>Ver.<span data-version>-</span></span></footer>
 </main></div>
 <div class="ops-modal" id="detail-modal"><div class="ops-modal-box"><div class="ops-modal-head"><h3 id="detail-title">診断詳細</h3><button class="ops-btn" onclick="document.getElementById('detail-modal').classList.remove('open')">閉じる</button></div><div class="ops-modal-body"><pre class="ops-code" id="detail-content"></pre></div></div></div>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/system-admin-core.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/system-admin-core.js"></script>
 <script>
 (() => {
   const TARGETS = [
     {id:'firebase-auth',name:'Firebase 管理者認証',kind:'認証',url:'Firebase Authentication',custom:'auth',maxAge:5},
     {id:'page-top',name:'トップページ',kind:'画面',url:'/toppage.html',format:'html',maxAge:1440},
     {id:'page-atos',name:'ATOS情報配信システム',kind:'画面',url:'/atosweb.html',format:'html',maxAge:1440},
-    {id:'page-delay-stats',name:'列車遅延分析',kind:'画面',url:'/delay_statistics.html',format:'html',maxAge:1440},
     {id:'page-admin',name:'アカウント管理',kind:'画面',url:'/account_management.html',format:'html',maxAge:1440},
     {id:'odpt-train',name:'ODPT 列車在線',kind:'API',url:'/api/odpt/challenge/odpt:Train?odpt:operator=odpt.Operator:JR-East',array:true,maxAge:5,required:['odpt:trainNumber','odpt:railway']},
     {id:'odpt-info',name:'ODPT 運行情報',kind:'API',url:'/api/odpt/challenge/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is',array:true,maxAge:20,required:['odpt:railway','odpt:trainInformationText']},
     {id:'odpt-railway',name:'ODPT 路線情報',kind:'API',url:'/api/odpt/challenge/odpt:Railway?odpt:operator=odpt.Operator:JR-East',array:true,maxAge:1440,required:['owl:sameAs']},
-    {id:'delay-history',name:'遅延実績収集API',kind:'履歴API',url:'https://history.tayunet-traininfo.com/health',array:false,maxAge:2,required:['ok','last_success','retention_days']},
-    {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetables',custom:'timetables',maxAge:10080},
+    {id:'delay-history',name:'遅延実績収集API',kind:'履歴API',url:'https://history.tayunet-traininfo.com/health',custom:'delayHistory',array:false,maxAge:2,required:['ok','last_success','retention_days','interval_seconds','storage']},
+    {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetable-files',custom:'timetables',maxAge:10080},
     {id:'workbase',name:'ATOS出力箇所',kind:'JSON',url:'/JREgyoumu/workdata/workbase.json',array:true,maxAge:10080},
     {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,maxAge:1440,required:['ok']},
     {id:'incidents',name:'運行情報履歴',kind:'JSON',url:'/JREgyoumu/JRchr/incidents.json',array:true,maxAge:1440,required:['title','datetime']},
@@ -53,16 +52,22 @@
         const current=firebase.auth().currentUser;if(!current)throw new Error('ログイン中の利用者がいません');await current.getIdToken(false);
         return success({itemCount:1,dataDate:new Date().toISOString(),ageMinutes:0,ageLabel:'現在',freshnessStatus:'ok',detail:`認証トークン: 有効\n利用者: ${current.email||current.uid}`});
       }
+      if(target.custom==='delayHistory'){
+        const response=await fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error(`履歴API HTTP ${response.status}`);
+        const payload=await response.json(),validation=validate(target,payload);
+        if(validation.length)throw new Error(`JSON形式不正: ${validation.map(error=>error.path).join(' / ')}`);
+        const lastSuccess=payload.last_success?new Date(payload.last_success):null,ageMinutes=lastSuccess&&!isNaN(lastSuccess)?Math.max(0,Math.round((Date.now()-lastSuccess.getTime())/60000)):null;
+        const storage=payload.storage||{},folderGb=Number(storage.folderBytes||0)/1024/1024/1024,maxGb=Number(storage.maxGigabytes||0),usage=Number(storage.usagePercent||0);
+        return success({itemCount:Number(payload.observation_count||0),dataDate:lastSuccess?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1?'1分未満':`${ageMinutes}分前`,freshnessStatus:payload.ok&&ageMinutes!==null&&ageMinutes<=target.maxAge?'ok':'warning',detail:`収集状態: ${payload.ok?'正常':'要確認'}\n取得間隔: ${payload.interval_seconds}秒\n保存実績: ${Number(payload.observation_count||0).toLocaleString('ja-JP')}件\n保存期間: ${payload.retention_days}日\n容量: ${folderGb.toFixed(2)}GB / ${maxGb}GB（${usage.toFixed(2)}%）\n容量整理: ${Number(payload.storage_deleted_observations||0).toLocaleString('ja-JP')}件削除`});
+      }
       if(target.custom==='timetables'){
-        const token=await TayunetFirebaseDataAuth.getIdToken();
-        const response=await fetch(target.url,{cache:'no-store',credentials:'include',signal:controller.signal,headers:{Accept:'application/json',Authorization:`Bearer ${token}`}});
-        if(!response.ok)throw new Error(`保護API HTTP ${response.status}`);
-        const payload=await response.json();
-        if(!payload||!Array.isArray(payload.items))throw new Error('JSON形式不正: $.items は配列が必要です');
-        const sample=payload.items[0];
-        if(sample&&(!sample.trainNumber||!Array.isArray(sample.stops)))throw new Error('JSON形式不正: $.items[0] に trainNumber(string) と stops(array) が必要です');
-        const dataDate=deepLatestDate(payload),ageMinutes=dataDate?Math.max(0,Math.round((Date.now()-dataDate.getTime())/60000)):null;
-        return success({itemCount:payload.items.length,dataDate:dataDate?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1440?`${Math.floor(ageMinutes/60)}時間前`:`${Math.floor(ageMinutes/1440)}日前`,freshnessStatus:ageMinutes==null?'unknown':ageMinutes>target.maxAge?'warning':'ok',detail:`認証: Firebase IDトークン有効\n項目数: ${payload.items.length}\nJSON検証: $.items / trainNumber / stops 正常`});
+        const bundle=await TayunetPrivateData.fetchTimetableBundle();
+        if(!bundle||!Array.isArray(bundle.files)||!Array.isArray(bundle.items))throw new Error('分割時刻表の応答形式が不正です');
+        const invalid=bundle.files.find(file=>!file.name||!Array.isArray(file.items)||file.items.some(item=>!item?.trainNumber||!Array.isArray(item.stops)));
+        if(invalid)throw new Error(`JSON形式不正: ${invalid.name||'ファイル名不明'} の trainNumber / stops を確認してください`);
+        const fileSummary=bundle.files.map(file=>`${file.name}: ${file.items.length.toLocaleString('ja-JP')}件`).join('\n');
+        return success({itemCount:bundle.count,ageLabel:'全ファイル取得済み',freshnessStatus:'ok',detail:`認証: Firebase IDトークン有効\n分割ファイル: ${bundle.files.length}個\n合計: ${bundle.count.toLocaleString('ja-JP')}件\n${fileSummary}\nJSON検証: 全ファイル正常`});
       }
       const response=await fetch(`${target.url}${target.url.includes('?')?'&':'?'}ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
       if(!response.ok)throw new Error(`HTTP ${response.status} ${response.statusText}`);

@@ -2704,7 +2704,7 @@ function loadExternalTimetables(){
   if(externalTimetablePromise) return externalTimetablePromise;
   const status=document.getElementById('json-tt-status');
   externalTimetablePromise=TayunetPrivateData.fetchTimetables().then(data=>{
-    if(!Array.isArray(data)) throw new Error('timetables.jsonのルートが配列ではありません');
+    if(!Array.isArray(data)) throw new Error('保護時刻表JSONの結合結果が配列ではありません');
     externalTimetables=data;
     const lines=[...new Set(data.map(x=>x.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
     document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${line}">${line}</option>`).join('');
@@ -2847,7 +2847,7 @@ async function searchUnifiedTrainTimetable(){
   if(!isToday&&odpt) await renderUnifiedTrainSource('odpt');
   else if(external) await renderUnifiedTrainSource('external');
   else if(odpt) await renderUnifiedTrainSource('odpt');
-  else result.innerHTML=`<div class="loading-box">${number}列車はtimetables.json・ODPT時刻表APIのどちらにも見つかりませんでした。</div>`;
+  else result.innerHTML=`<div class="loading-box">${number}列車は保護時刻表JSON・ODPT時刻表APIのどちらにも見つかりませんでした。</div>`;
 }
 async function renderUnifiedTrainSource(source){
   const match=unifiedTrainSearch;
@@ -2861,9 +2861,9 @@ async function renderUnifiedTrainSource(source){
     showAtosTrainTT(display,match.live||null,true);
   }
   const choices=[];
-  if(match.external) choices.push(`<button class="${source==='external'?'active':''}" onclick="renderUnifiedTrainSource('external')">timetables.json</button>`);
+  if(match.external) choices.push(`<button class="${source==='external'?'active':''}" onclick="renderUnifiedTrainSource('external')">保護時刻表JSON</button>`);
   if(match.odpt) choices.push(`<button class="${source==='odpt'?'active':''}" onclick="renderUnifiedTrainSource('odpt')">ODPT時刻表API</button>`);
-  document.getElementById('ttt-result').insertAdjacentHTML('afterbegin',`<div class="atos-view-tabs" style="margin:0 0 10px">${choices.join('')}</div><div class="atos-note">同時検索結果：${match.external?'timetables.jsonあり':'timetables.jsonなし'} ／ ${match.odpt?'ODPTあり':'ODPTなし'}</div>`);
+  document.getElementById('ttt-result').insertAdjacentHTML('afterbegin',`<div class="atos-view-tabs" style="margin:0 0 10px">${choices.join('')}</div><div class="atos-note">同時検索結果：${match.external?'保護時刻表JSONあり':'保護時刻表JSONなし'} ／ ${match.odpt?'ODPTあり':'ODPTなし'}</div>`);
 }
 function externalTime(value){const text=String(value??'');return !text.trim()||['…','...','・・・','ー','-'].includes(text)?'…':text;}
 function showExternalTrainTimetable(train,dateValue,inline=false){

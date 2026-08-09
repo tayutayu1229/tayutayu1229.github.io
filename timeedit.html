@@ -25,7 +25,8 @@
     .grid-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .grid-info span { display: block; font-size: 10px; color: #64748b; font-weight: bold; margin-bottom: 2px; }
 
-    input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; width: 100%; box-sizing: border-box; transition: border 0.2s; }
+    input, select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; box-sizing: border-box; transition: border 0.2s; }
+    input { width: 100%; }
     input:focus { border-color: var(--primary); outline: none; background: #fff; }
     
     table { width: 100%; border-collapse: collapse; margin-top: 5px; background: #fff; }
@@ -53,7 +54,8 @@
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
   <button class="btn-gray" onclick="document.getElementById('importFile').click()">💾 インポート</button>
   <button class="btn-blue" onclick="copyJson()">📋 JSONコピー</button>
-  <button class="btn-green" onclick="downloadMergedMaster()">⬇ 全件JSONを保存</button>
+  <button class="btn-green" onclick="downloadTargetFile()">⬇ 対象JSONを保存</button>
+  <label><b>新規列車の保存先</b> <select id="targetFile" aria-label="新規列車の保存先JSON"></select></label>
   <button class="btn-gray" onclick="TayunetPrivateData.openLogin()">🔐 TAYUNETログイン</button>
   <button class="btn-green" onclick="prepareNextSection()">➡ 次区間へスライド</button>
   <button class="btn-orange" onclick="quoteLineTemplate()">🔍 路線から駅を引用</button>
@@ -126,11 +128,26 @@
 <script>
   let stops = [];
   let masterData = [];
+  let masterFiles = [];
+
+  function refreshMasterData() {
+    masterData = masterFiles.flatMap(file => file.items);
+  }
+
+  function renderTargetFiles(preferredName = '') {
+    const select = document.getElementById('targetFile');
+    select.replaceChildren(...masterFiles.map(file => new Option(`${file.name}（${file.items.length}件）`, file.name)));
+    const fallback = masterFiles.at(-1)?.name || '';
+    select.value = masterFiles.some(file => file.name === preferredName) ? preferredName : fallback;
+  }
 
   window.onload = async function() {
     const status = document.getElementById('loadStatus');
     try {
-      masterData = await TayunetPrivateData.fetchTimetables();
+      const bundle = await TayunetPrivateData.fetchTimetableBundle();
+      masterFiles = bundle.files.map(file => ({name: file.name, items: file.items}));
+      refreshMasterData();
+      renderTargetFiles();
       if(Array.isArray(masterData)) {
         const lines = [...new Set(masterData.map(t => t.line))].filter(Boolean).sort();
         const lineL = document.getElementById('lineList');
@@ -138,7 +155,7 @@
         const stations = [...new Set(masterData.flatMap(t => t.stops.map(s => s.station)))].sort();
         const stationL = document.getElementById('stationList');
         stations.forEach(s => stationL.appendChild(new Option(s, s)));
-        status.innerText = "Master: Loaded (" + lines.length + " lines)";
+        status.innerText = `Master: ${masterFiles.length}ファイル・${masterData.length}件・${lines.length}線区`;
         status.style.background = "#dcfce7";
         status.style.color = "#166534";
       }
@@ -284,8 +301,13 @@
         const parsed = JSON.parse(e.target.result);
         const d = Array.isArray(parsed) ? parsed[0] : parsed;
         if (Array.isArray(parsed)) {
-          masterData = parsed;
-          showActionMsg(`💾 全件JSONを読込 (${parsed.length}件)。先頭データを編集中`);
+          const sourceName = file.name || 'timetables.json';
+          const existing = masterFiles.find(entry => entry.name === sourceName);
+          if (existing) existing.items = parsed;
+          else masterFiles.push({name: sourceName, items: parsed});
+          refreshMasterData();
+          renderTargetFiles(sourceName);
+          showActionMsg(`💾 ${sourceName}を読込 (${parsed.length}件)。先頭データを編集中`);
         }
         if (!d || typeof d !== 'object') throw new Error('列車データではありません');
         const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2"];
@@ -322,9 +344,9 @@
     return [item.trainNumber, item.line, item.dayType, item.startDate].map(v => String(v || '')).join('\u001f');
   }
 
-  function downloadMergedMaster() {
-    if (!Array.isArray(masterData) || masterData.length === 0) {
-      alert('先に「TAYUNETログイン」を済ませて再読み込みするか、既存の全件JSONをインポートしてください。');
+  function downloadTargetFile() {
+    if (!Array.isArray(masterFiles) || masterFiles.length === 0) {
+      alert('先に「TAYUNETログイン」を済ませて再読み込みするか、対象の時刻表JSONをインポートしてください。');
       return;
     }
     const record = currentRecord();
@@ -332,19 +354,35 @@
       alert('列車番号・路線名・始発駅発日・停車駅を入力してください。');
       return;
     }
-    const merged = masterData.map(item => JSON.parse(JSON.stringify(item)));
-    const index = merged.findIndex(item => recordKey(item) === recordKey(record));
+    const matches = masterFiles.flatMap(file => file.items
+      .map((item, index) => ({file, item, index}))
+      .filter(entry => recordKey(entry.item) === recordKey(record)));
+    if (matches.length > 1) {
+      alert(`同一キーの列車が${matches.length}件あります。重複を解消してから保存してください。`);
+      return;
+    }
+    const selectedName = matches[0]?.file.name || document.getElementById('targetFile').value;
+    const selectedFile = masterFiles.find(file => file.name === selectedName);
+    if (!selectedFile) {
+      alert('保存先JSONを選択してください。');
+      return;
+    }
+    const merged = selectedFile.items.map(item => JSON.parse(JSON.stringify(item)));
+    const index = matches[0]?.index ?? -1;
     if (index >= 0) {
-      if (!confirm('同じ列車番号・路線・曜日種別・施行日のデータがあります。置き換えますか？')) return;
+      if (!confirm(`${selectedName}に同じ列車番号・路線・曜日種別・施行日のデータがあります。置き換えますか？`)) return;
       merged[index] = record;
     } else {
       merged.push(record);
     }
     const blob = new Blob([JSON.stringify(merged, null, 2) + '\n'], { type: 'application/json' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob); link.download = 'timetables.json'; link.click();
+    link.href = URL.createObjectURL(blob); link.download = selectedName; link.click();
     URL.revokeObjectURL(link.href);
-    showActionMsg(`⬇ 全件JSONを保存しました (${merged.length}件)`);
+    selectedFile.items = merged;
+    refreshMasterData();
+    renderTargetFiles(selectedName);
+    showActionMsg(`⬇ ${selectedName}を保存しました (${merged.length}件)`);
   }
 </script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
