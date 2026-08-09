@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -88,6 +89,30 @@ class PhotoArchiveTest(unittest.TestCase):
         items = archive.directory("", {"uid": "viewer", "email": "viewer@example.com"})["items"]
         self.assertIn("member", {item["uid"] for item in items})
         self.assertNotIn("manager", {item["uid"] for item in items})
+
+    def test_friend_request_imports_an_active_firebase_user(self):
+        requester = {"uid": "firebase-requester", "email": "requester@example.com", "_token": "test-token"}
+        target_uid = "firebase-target-not-yet-in-photo-archive"
+        profile = {"fields": {
+            "email": {"stringValue": "new.member@example.com"},
+            "displayName": {"stringValue": "新規メンバー"},
+            "approved": {"booleanValue": True},
+            "status": {"stringValue": "active"},
+            "disabled": {"booleanValue": False},
+        }}
+        archive.app.dependency_overrides[archive.verify_user] = lambda: requester
+        try:
+            with patch.object(archive, "active_firestore_profile", AsyncMock(return_value=profile)):
+                with TestClient(archive.app) as client:
+                    response = client.post(f"/v1/friends/{target_uid}")
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["status"], "pending")
+            with archive.connect() as db:
+                imported = db.execute("SELECT email,display_name FROM users WHERE uid=?", (target_uid,)).fetchone()
+            self.assertEqual(imported["email"], "new.member@example.com")
+            self.assertEqual(imported["display_name"], "新規メンバー")
+        finally:
+            archive.app.dependency_overrides.clear()
 
     def test_upload_edit_and_password_share_flow(self):
         contributor = {"uid": "integration-user", "email": "integration@example.com"}
