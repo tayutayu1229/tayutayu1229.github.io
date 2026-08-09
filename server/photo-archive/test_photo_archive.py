@@ -39,6 +39,18 @@ class PhotoArchiveTest(unittest.TestCase):
                 self.assertLessEqual(thumbnail.width, 720)
                 self.assertLessEqual(thumbnail.height, 720)
 
+    def test_exif_camera_and_capture_time_are_extracted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "with-exif.jpg"
+            exif = Image.Exif()
+            exif[271] = "Canon"
+            exif[272] = "EOS 70D"
+            exif[36867] = "2026:07:01 13:32:45"
+            Image.new("RGB", (1200, 800), "white").save(source, exif=exif)
+            metadata = archive.image_metadata(source)
+            self.assertEqual(metadata["camera"], "Canon EOS 70D")
+            self.assertEqual(metadata["capturedAt"], "2026-07-01 13:32:45")
+
     def test_database_schema_is_initialized(self):
         with archive.connect() as db:
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
