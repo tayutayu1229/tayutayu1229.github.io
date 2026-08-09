@@ -33,6 +33,7 @@ assert.match(client, /写真API 正常/);
 assert.match(client, /function loadLeaflet/);
 assert.match(client, /preferCanvas: true/);
 assert.match(client, /circleMarker/);
+assert.match(client, /#empty-state"\)\.hidden = true; \$\("#map-view/);
 assert.match(client, /filters-open/);
 assert.match(client, /fileMetadata/);
 assert.match(client, /data-file-field/);

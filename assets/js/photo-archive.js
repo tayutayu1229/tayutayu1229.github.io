@@ -116,7 +116,7 @@
   }
 
   async function renderMap() {
-    $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#album-view").hidden = true; $("#map-view").hidden = false;
+    $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#album-view").hidden = true; $("#empty-state").hidden = true; $("#map-view").hidden = false;
     const renderId = ++state.mapRenderId;
     const located = state.photos.filter(photo => Number.isFinite(photo.latitude) && Number.isFinite(photo.longitude));
     const mapView = $("#map-view");
