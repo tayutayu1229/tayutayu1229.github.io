@@ -20,6 +20,17 @@ service cloud.firestore {
         );
     }
 
+    function isActiveMember() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active"
+        && (
+          !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(["disabled"])
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled == false
+        );
+    }
+
     function validYear(value) {
       return value is int && value >= 2000 && value <= 2100;
     }
@@ -75,8 +86,24 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if signedIn() && (request.auth.uid == userId || isAdministrator());
-      allow list: if isAdministrator();
+      // The photo archive exposes an approved-member directory. Pending and
+      // disabled profiles remain invisible to ordinary members.
+      allow get: if signedIn() && (
+        request.auth.uid == userId
+        || isAdministrator()
+        || (
+          isActiveMember()
+          && resource.data.approved == true
+          && resource.data.status == "active"
+          && resource.data.disabled == false
+        )
+      );
+      allow list: if isAdministrator() || (
+        isActiveMember()
+        && resource.data.approved == true
+        && resource.data.status == "active"
+        && resource.data.disabled == false
+      );
 
       // A registrant may only create their own, pending, non-admin record.
       allow create: if signedIn()

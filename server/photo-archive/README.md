@@ -24,6 +24,8 @@ curl --fail http://127.0.0.1:8790/health
 sudo docker ps --filter name=tayunet-photo-archive
 ```
 
+フレンド検索は、写真アーカイブの利用履歴ではなく Firestore の `users` から承認済み・有効な利用者を参照します。`firestore.rules` も同時に公開し、一般利用者には承認済み・有効なプロフィールだけを検索許可してください。フレンド申請時にはAPIが対象UIDをFirebaseへ再照会し、無効・承認待ち・管理用アカウントを拒否します。
+
 再更新も同じコマンドです。Dockerイメージ構築時にサーバーテストが走り、失敗したイメージは起動しません。
 
 ## Cloudflare Tunnel
