@@ -1,7 +1,10 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
+from fastapi.testclient import TestClient
 from PIL import Image
 
 import photo_archive as archive
@@ -73,6 +76,45 @@ class PhotoArchiveTest(unittest.TestCase):
         items = archive.directory("", {"uid": "viewer", "email": "viewer@example.com"})["items"]
         self.assertIn("member", {item["uid"] for item in items})
         self.assertNotIn("manager", {item["uid"] for item in items})
+
+    def test_upload_edit_and_password_share_flow(self):
+        contributor = {"uid": "integration-user", "email": "integration@example.com"}
+        archive.app.dependency_overrides[archive.require_contributor] = lambda: contributor
+        archive.app.dependency_overrides[archive.verify_user] = lambda: contributor
+        image = io.BytesIO()
+        Image.new("RGB", (1280, 720), "royalblue").save(image, "JPEG")
+        image.seek(0)
+        try:
+            with TestClient(archive.app) as client:
+                uploaded = client.post(
+                    "/v1/photos",
+                    files={"files": ("operation-test.jpg", image.getvalue(), "image/jpeg")},
+                    data={
+                        "metadata": json.dumps({"category": "train", "location": "試験撮影地"}),
+                        "fileMetadata": json.dumps([{"title": "運用確認写真", "trainNumber": "9001"}]),
+                    },
+                )
+                self.assertEqual(uploaded.status_code, 200, uploaded.text)
+                photo = uploaded.json()["items"][0]
+                self.assertEqual(photo["title"], "運用確認写真")
+                self.assertEqual(photo["trainNumber"], "9001")
+                self.assertEqual(client.get(f"/v1/photos/{photo['id']}/media/thumbnail").status_code, 200)
+
+                edited = client.patch(f"/v1/photos/{photo['id']}", json={**photo, "title": "編集済み運用確認写真", "tags": ["試験", "共有"]})
+                self.assertEqual(edited.status_code, 200, edited.text)
+                self.assertEqual(edited.json()["title"], "編集済み運用確認写真")
+
+                shared = client.post("/v1/shares", json={
+                    "targetType": "photo", "targetId": photo["id"], "password": "test-pass", "expiresAt": "2099-01-01T00:00",
+                })
+                self.assertEqual(shared.status_code, 200, shared.text)
+                token = shared.json()["token"]
+                self.assertEqual(client.get(f"/public/{token}").status_code, 401)
+                public = client.get(f"/public/{token}", headers={"X-Share-Password": "test-pass"})
+                self.assertEqual(public.status_code, 200, public.text)
+                self.assertEqual(public.json()["item"]["title"], "編集済み運用確認写真")
+        finally:
+            archive.app.dependency_overrides.clear()
 
 
 if __name__ == "__main__":
