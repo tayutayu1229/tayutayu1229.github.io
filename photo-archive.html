@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="写真と撮影情報を安全に保存・検索・共有する撮影記録アーカイブ">
   <title>撮影記録アーカイブ｜東京圏輸送情報システム</title>
-  <link rel="stylesheet" href="/assets/css/photo-archive.css?v=2026.08.09.1">
+  <link rel="stylesheet" href="/assets/css/photo-archive.css?v=2026.08.09.2">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynHOKjmjMZcWg6wldZ3MpMbM3MNM=" crossorigin="">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -14,14 +14,18 @@
 <body>
   <div class="auth-cover" id="auth-cover"><div class="spinner"></div><p>利用者情報を確認しています</p></div>
   <header class="archive-header">
-    <a class="brand" href="/toppage.html" aria-label="システム一覧へ戻る"><span class="brand-mark">写</span><span><b>撮影記録アーカイブ</b><small>TAYUNET PHOTO ARCHIVE</small></span></a>
+    <a class="brand" href="/toppage.html" aria-label="システム一覧へ戻る"><span class="brand-mark">東</span><span><small>東京圏輸送情報システム</small><b>撮影記録アーカイブ</b></span></a>
     <div class="header-actions"><span id="user-info">認証確認中</span><button class="ghost" id="friend-button">共有メンバー</button><button class="primary" id="upload-button">＋ 写真を追加</button><button class="ghost" id="firebase-logout-button">ログアウト</button></div>
   </header>
+  <div class="system-strip">
+    <div class="system-path"><a href="/toppage.html">システム一覧</a><span>›</span><b>撮影記録管理</b><span class="system-code">PRA-01</span></div>
+    <div class="system-state"><span class="state-lamp checking" id="api-status"><i></i>写真API 確認中</span><span>保存先：Ubuntu HDD</span><time id="system-clock">--:--:--</time></div>
+  </div>
 
   <main id="main-content" hidden>
     <section class="hero">
-      <div><p class="eyebrow">YOUR PHOTOGRAPHIC LOGBOOK</p><h1>撮った一枚を、あとから探せる記録へ。</h1><p>原本はUbuntu HDDへ保存。撮影情報、列車情報、場所、タグをまとめて整理できます。</p></div>
-      <div class="hero-stats"><div><strong id="photo-count">—</strong><span>写真</span></div><div><strong id="storage-count">—</strong><span>HDD使用量</span></div><div><strong id="trash-days">30日</strong><span>ゴミ箱保管</span></div></div>
+      <div class="hero-heading"><div class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="5" width="19" height="15.5" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 5 9 2.8h6L16.5 5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12.8" r="4.2" stroke="currentColor" stroke-width="1.5"/></svg></div><div><p class="eyebrow">PHOTO RECORD MANAGEMENT SYSTEM</p><h1>撮影記録管理</h1><p>写真・撮影諸元・列車情報を一元管理し、検索・共有・出力を行います。</p></div></div>
+      <div class="hero-stats"><div><span>登録写真</span><strong id="photo-count">—</strong><small>PHOTOS</small></div><div><span>HDD使用量</span><strong id="storage-count">—</strong><small>STORAGE</small></div><div><span>ゴミ箱保管</span><strong id="trash-days">30日</strong><small>RETENTION</small></div></div>
     </section>
 
     <nav class="scope-tabs" aria-label="写真一覧">
@@ -30,7 +34,7 @@
 
     <section class="workspace">
       <aside class="filters" id="filters">
-        <div class="filter-title"><b>絞り込み</b><button id="clear-filters">クリア</button></div>
+        <div class="filter-title"><div><small>SEARCH CONDITION</small><b>検索条件</b></div><button id="clear-filters">条件クリア</button></div>
         <label>キーワード<input id="search-q" type="search" placeholder="列車番号、場所、メモ…"></label>
         <div class="two"><label>撮影日（開始）<input id="date-from" type="date"></label><label>撮影日（終了）<input id="date-to" type="date"></label></div>
         <label>種類<select id="category-filter"><option value="">すべて</option><option value="train">列車</option><option value="freight">貨物列車</option><option value="landscape">風景</option><option value="other">その他</option></select></label>
@@ -44,7 +48,7 @@
       </aside>
 
       <section class="content">
-        <div class="content-toolbar"><div><h2 id="list-title">個人一覧</h2><span id="result-count">読み込み中</span></div><div class="view-buttons" role="group"><button class="active" data-view="grid" title="グリッド">▦</button><button data-view="timeline" title="タイムライン">☷</button><button data-view="calendar" title="カレンダー">日</button><button data-view="map" title="マップ">⌖</button></div></div>
+        <div class="content-toolbar"><div class="content-title"><span class="content-index">01</span><div><small>PHOTO RECORD LIST</small><h2 id="list-title">個人一覧</h2></div><span class="result-chip" id="result-count">読み込み中</span></div><div class="view-buttons" role="group" aria-label="表示形式"><button class="active" data-view="grid" title="グリッド"><span>▦</span><small>GRID</small></button><button data-view="timeline" title="タイムライン"><span>☷</span><small>LIST</small></button><button data-view="calendar" title="カレンダー"><span>日</span><small>DATE</small></button><button data-view="map" title="マップ"><span>⌖</span><small>MAP</small></button></div></div>
         <div class="notice" id="notice" hidden></div>
         <div class="photo-grid" id="photo-list" aria-live="polite"></div>
         <div class="calendar-view" id="calendar-view" hidden></div>
@@ -90,6 +94,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/auth_guard.js?v=2026.08.08.2"></script>
   <script src="/T-time/firebase-data-auth.js?v=2026.08.09.1"></script>
-  <script src="/assets/js/photo-archive.js?v=2026.08.09.1"></script>
+  <script src="/assets/js/photo-archive.js?v=2026.08.09.2"></script>
 </body>
 </html>
