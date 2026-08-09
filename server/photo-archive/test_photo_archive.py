@@ -102,7 +102,7 @@ class PhotoArchiveTest(unittest.TestCase):
         }}
         archive.app.dependency_overrides[archive.verify_user] = lambda: requester
         try:
-            with patch.object(archive, "active_firestore_profile", AsyncMock(return_value=profile)):
+            with patch.object(archive, "active_directory_profile", AsyncMock(return_value=profile)):
                 with TestClient(archive.app) as client:
                     response = client.post(f"/v1/friends/{target_uid}")
             self.assertEqual(response.status_code, 200, response.text)

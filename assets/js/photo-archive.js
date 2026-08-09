@@ -422,8 +422,8 @@
   async function loadFirebaseDirectory() {
     if(state.firebaseDirectory)return state.firebaseDirectory;
     if(!window.firebase?.firestore)throw new Error("Firebase利用者一覧を読み込めません。ページを再読み込みしてください。");
-    const snapshot=await firebase.firestore().collection("users")
-      .where("approved","==",true).where("status","==","active").where("disabled","==",false).limit(500).get();
+    const snapshot=await firebase.firestore().collection("photo_member_directory")
+      .where("active","==",true).limit(500).get();
     const managerEmails=new Set(["admin@tayunet-traininfo.com","systemadmin@tayunet-traininfo.com"]);
     state.firebaseDirectory=snapshot.docs.map(document=>{
       const profile=document.data()||{},email=String(profile.email||"").trim();
