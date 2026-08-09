@@ -63,7 +63,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.3")
+app = FastAPI(title="TAYUNET Photo Archive", version="2026.08.09.4")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -197,6 +197,23 @@ async def active_firestore_profile(uid: str, token: str) -> dict[str, Any]:
     active = field(profile, "approved") is True and field(profile, "status") == "active" and field(profile, "disabled") is not True
     if not active:
         raise HTTPException(403, "利用承認済みのアカウントが必要です")
+    return profile
+
+
+async def active_directory_profile(uid: str, token: str) -> dict[str, Any]:
+    url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/photo_member_directory/{uid}"
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    except Exception as error:
+        raise HTTPException(503, "共有利用者情報を確認できません") from error
+    if response.status_code == 404:
+        raise HTTPException(404, "Firebaseに共有可能な利用者が見つかりません")
+    if response.status_code != 200:
+        raise HTTPException(503, "Firebaseの共有利用者情報を確認できません")
+    profile = response.json()
+    if field(profile, "active") is not True:
+        raise HTTPException(403, "現在共有できないアカウントです")
     return profile
 
 
@@ -720,7 +737,7 @@ async def request_friend(target_uid: str, user: dict[str, str] = Depends(verify_
     token = str(user.get("_token") or "")
     if not token:
         raise HTTPException(401, "Firebaseログインをもう一度確認してください")
-    profile = await active_firestore_profile(target_uid, token)
+    profile = await active_directory_profile(target_uid, token)
     target_email = str(field(profile, "email") or "").strip().casefold()
     if not target_email or target_email in MANAGER_EMAILS:
         raise HTTPException(404, "共有できる利用者が見つかりません")

@@ -86,24 +86,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // The photo archive exposes an approved-member directory. Pending and
-      // disabled profiles remain invisible to ordinary members.
-      allow get: if signedIn() && (
-        request.auth.uid == userId
-        || isAdministrator()
-        || (
-          isActiveMember()
-          && resource.data.approved == true
-          && resource.data.status == "active"
-          && resource.data.disabled == false
-        )
-      );
-      allow list: if isAdministrator() || (
-        isActiveMember()
-        && resource.data.approved == true
-        && resource.data.status == "active"
-        && resource.data.disabled == false
-      );
+      allow get: if signedIn() && (request.auth.uid == userId || isAdministrator());
+      allow list: if isAdministrator();
 
       // A registrant may only create their own, pending, non-admin record.
       allow create: if signedIn()
@@ -124,6 +108,25 @@ service cloud.firestore {
           || request.resource.data.lastLoginAt == request.time
         )
       );
+      allow delete: if isAdministrator();
+    }
+
+    // Search-safe photo sharing directory. It intentionally contains none of
+    // the role, audit, login or administrator-only fields from /users.
+    match /photo_member_directory/{userId} {
+      allow read: if isAdministrator() || (
+        isActiveMember()
+        && resource.data.active == true
+      );
+      allow create, update: if isAdministrator()
+        && request.resource.data.keys().hasOnly(["email", "displayName", "active", "updatedAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 3
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 200
+        && request.resource.data.active is bool
+        && request.resource.data.updatedAt == request.time;
       allow delete: if isAdministrator();
     }
 
