@@ -111,7 +111,7 @@
     return response.json();
   }
 
-  async function fetchTimetables(params) {
+  async function fetchTimetableBundle(params) {
     let manifest;
     try {
       manifest = await fetchJson(TIMETABLE_MANIFEST_PATH);
@@ -121,19 +121,28 @@
       if (!legacyPayload || !Array.isArray(legacyPayload.items)) {
         throw new PrivateDataError("時刻表APIの応答形式が不正です。", "invalid_response");
       }
-      return legacyPayload.items;
+      return {
+        files: [{ name: "timetables.json", items: legacyPayload.items }],
+        items: legacyPayload.items,
+        count: legacyPayload.items.length,
+      };
     }
     if (!Array.isArray(manifest?.files) || manifest.files.length === 0) {
       throw new PrivateDataError("時刻表ファイル一覧の応答形式が不正です。", "invalid_response");
     }
-    const payloads = await Promise.all(manifest.files.map(async fileName => {
+    const files = await Promise.all(manifest.files.map(async fileName => {
       const payload = await fetchJson(`/api/timetables/${encodeURIComponent(fileName)}`, params);
       if (!payload || !Array.isArray(payload.items)) {
         throw new PrivateDataError(`${fileName} の応答形式が不正です。`, "invalid_response");
       }
-      return payload.items;
+      return { name: fileName, items: payload.items };
     }));
-    return payloads.flat();
+    const items = files.flatMap(file => file.items);
+    return { files, items, count: items.length };
+  }
+
+  async function fetchTimetables(params) {
+    return (await fetchTimetableBundle(params)).items;
   }
 
   async function fetchStations() {
@@ -149,6 +158,7 @@
     LOGIN_URL,
     PrivateDataError,
     TIMETABLE_MANIFEST_PATH,
+    fetchTimetableBundle,
     fetchTimetables,
     fetchStations,
     openLogin,
