@@ -3,7 +3,7 @@
   const API = "https://photo-api.tayunet-traininfo.com";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null, mapLayer: null, mapRenderer: null, leafletPromise: null, mapRenderId: 0, currentUser: null, access: { canUpload: true, canManage: false, role: "contributor" } };
+  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null, mapLayer: null, mapRenderer: null, leafletPromise: null, mapRenderId: 0, currentUser: null, uploadAllowedUids: new Set(), uploadAllowedGroupIds: new Set(), access: { canUpload: true, canManage: false, role: "contributor" } };
   const labels = { mine: "個人一覧", shared: "共有一覧", public: "全体公開", albums: "アルバム", map: "マップ", calendar: "カレンダー", trash: "ゴミ箱" };
 
   const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
@@ -107,10 +107,32 @@
     $("#tag-list").innerHTML = [...new Set(state.photos.flatMap(item => item.tags))].sort().map(value => `<option value="${escapeHtml(value)}">`).join("");
   }
 
+  function setPrimarySurface(surface) {
+    const surfaces = { grid: "#photo-list", calendar: "#calendar-view", map: "#map-view", albums: "#album-view" };
+    Object.entries(surfaces).forEach(([name, selector]) => { $(selector).hidden = name !== surface; });
+    const content = $(".content");
+    content.dataset.surface = surface;
+    content.classList.toggle("dedicated-scope", ["albums", "map", "calendar", "trash"].includes(state.scope));
+    const activeView = surface === "albums" ? "" : surface === "calendar" ? "calendar" : surface;
+    $$(`[data-view]`).forEach(button => button.classList.toggle("active", button.dataset.view === activeView));
+  }
+
+  function updateEmptyState() {
+    const empty = $("#empty-state"), title = $("h3", empty), message = $("p", empty);
+    const copy = state.scope === "trash"
+      ? ["ゴミ箱は空です", "削除した写真は30日間ここに保管され、期間内なら復元できます。"]
+      : state.scope === "shared"
+        ? ["共有された写真はありません", "ほかのメンバーから共有された写真がここに表示されます。"]
+        : state.scope === "public"
+          ? ["全体公開の写真はありません", "公開範囲を「全体公開」にした写真がここに表示されます。"]
+          : ["該当する写真がありません", "写真を追加するか、絞り込み条件を変えてみてください。"];
+    title.textContent = copy[0]; message.textContent = copy[1];
+  }
+
   function renderGrid() {
     state.mapRenderId += 1;
-    $("#calendar-view").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = true;
-    const list = $("#photo-list"); list.hidden = false; list.className = `photo-grid${state.view === "timeline" ? " timeline" : ""}`;
+    setPrimarySurface("grid"); updateEmptyState();
+    const list = $("#photo-list"); list.className = `photo-grid${state.view === "timeline" ? " timeline" : ""}`;
     list.innerHTML = state.photos.map(card).join("");
     $("#empty-state").hidden = state.photos.length > 0; $("#result-count").textContent = `${state.photos.length}件`;
     hydrateImages(list);
@@ -118,14 +140,25 @@
 
   function monthDays() {
     const byDay = new Map(); state.photos.forEach(photo => { const day = (photo.capturedAt || photo.createdAt || "").slice(0, 10); if (day) byDay.set(day, [...(byDay.get(day) || []), photo]); });
-    const days = [...byDay.keys()].sort().reverse();
-    const calendar = $("#calendar-view"); calendar.innerHTML = days.map(day => `<div class="calendar-day"><time>${escapeHtml(day)}</time><div class="calendar-thumbs">${byDay.get(day).slice(0,9).map(photo => `<button class="calendar-photo" data-id="${photo.id}"><img alt="${escapeHtml(photo.title || photo.filename)}"></button>`).join("")}</div><small>${byDay.get(day).length}枚</small></div>`).join("");
+    const months = [...new Set([...byDay.keys()].map(day => day.slice(0, 7)))].sort().reverse();
+    const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+    const calendar = $("#calendar-view");
+    calendar.innerHTML = months.map(month => {
+      const [year, monthNumber] = month.split("-").map(Number), first = new Date(year, monthNumber - 1, 1), lastDay = new Date(year, monthNumber, 0).getDate();
+      const cells = Array.from({ length: first.getDay() }, () => '<div class="calendar-day is-blank" aria-hidden="true"></div>');
+      for (let dayNumber = 1; dayNumber <= lastDay; dayNumber += 1) {
+        const key = `${month}-${String(dayNumber).padStart(2, "0")}`, photos = byDay.get(key) || [];
+        cells.push(`<div class="calendar-day${photos.length ? " has-photos" : ""}"><time datetime="${key}">${dayNumber}</time><div class="calendar-thumbs">${photos.slice(0, 6).map(photo => `<button class="calendar-photo" data-id="${photo.id}" aria-label="${escapeHtml(photo.title || photo.filename)}の詳細を開く"><img alt="${escapeHtml(photo.title || photo.filename)}"></button>`).join("")}</div>${photos.length ? `<small>${photos.length}枚</small>` : ""}</div>`);
+      }
+      const count = [...byDay.entries()].filter(([day]) => day.startsWith(month)).reduce((total, [, photos]) => total + photos.length, 0);
+      return `<section class="calendar-month"><header><h3>${year}年${monthNumber}月</h3><span>${count}枚</span></header><div class="calendar-weekdays">${weekdays.map(day => `<span>${day}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></section>`;
+    }).join("");
     $$(`.calendar-photo`, calendar).forEach(async button => { const photo = state.photos.find(item => item.id === button.dataset.id); try { $("img", button).src = await imageUrl(photo); } catch (error) { button.classList.add("image-error");button.title=friendlyError(error);button.innerHTML="画像取得失敗"; } });
   }
 
   function renderCalendar() {
     state.mapRenderId += 1;
-    $("#photo-list").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = true; $("#calendar-view").hidden = false; $("#empty-state").hidden = state.photos.length > 0; monthDays();
+    setPrimarySurface("calendar"); updateEmptyState(); $("#empty-state").hidden = state.photos.length > 0; monthDays(); $("#result-count").textContent = `${state.photos.length}件`;
   }
 
   function loadLeaflet() {
@@ -155,7 +188,7 @@
   }
 
   async function renderMap() {
-    $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#album-view").hidden = true; $("#empty-state").hidden = true; $("#map-view").hidden = false;
+    setPrimarySurface("map"); $("#empty-state").hidden = true;
     const renderId = ++state.mapRenderId;
     const located = state.photos.filter(photo => Number.isFinite(photo.latitude) && Number.isFinite(photo.longitude));
     const mapView = $("#map-view");
@@ -192,10 +225,10 @@
 
   async function renderAlbums() {
     state.mapRenderId += 1;
-    $("#photo-list").hidden = true; $("#calendar-view").hidden = true; $("#map-view").hidden = true; $("#album-view").hidden = false; $("#empty-state").hidden = true;
+    setPrimarySurface("albums"); $("#empty-state").hidden = true;
     const response = await api("/v1/albums"); state.albums = (await response.json()).items;
     $("#upload-album").innerHTML = `<option value="">なし</option>${state.albums.map(album => `<option value="${album.id}">${escapeHtml(album.title)}</option>`).join("")}`;
-    $("#album-view").innerHTML = `${state.access.canUpload ? `<button class="album-card album-create" id="new-album">＋ 新しいアルバム</button>` : ""}${state.albums.map(album => `<div class="album-card" data-album="${album.id}"><h3>${escapeHtml(album.title)}</h3><p>${escapeHtml(album.description)}</p><span>${album.photoCount}枚 · ${visibility(album.visibility)}</span><div class="dialog-actions"><button data-open-album="${album.id}">開く</button><button data-share-album="${album.id}">限定リンク</button></div></div>`).join("")}`;
+    $("#album-view").innerHTML = `<div class="feature-intro"><div><small>ALBUM LIBRARY</small><h3>アルバムで写真をまとめる</h3><p>テーマ・遠征・列車ごとに写真を整理し、アルバム単位で共有できます。</p></div>${state.access.canUpload ? `<button class="primary" id="new-album">＋ 新しいアルバム</button>` : ""}</div><div class="album-grid">${state.albums.map(album => `<article class="album-card" data-album="${album.id}"><div class="album-cover"><span>${album.photoCount}</span><small>PHOTOS</small></div><h3>${escapeHtml(album.title)}</h3><p>${escapeHtml(album.description || "説明はまだありません")}</p><span>${album.photoCount}枚 · ${visibility(album.visibility)}</span><div class="dialog-actions"><button data-open-album="${album.id}">開く</button><button data-share-album="${album.id}">限定リンク</button></div></article>`).join("") || '<div class="feature-empty"><b>アルバムはまだありません</b><p>「新しいアルバム」から最初のアルバムを作成できます。</p></div>'}</div>`;
     $("#result-count").textContent = `${state.albums.length}件`;
   }
 
@@ -209,8 +242,9 @@
     const scope = ["map", "calendar"].includes(state.scope) ? "mine" : state.scope;
     const params = queryString(); params.set("scope", scope);
     $("#result-count").textContent = "読み込み中"; setContentLoading(true,state.scope==="albums"?"アルバムを読み込んでいます…":"写真を読み込んでいます…");
+    setPrimarySurface(state.scope==="albums"?"albums":requestedView==="map"?"map":requestedView==="calendar"?"calendar":"grid");$("#empty-state").hidden=true;
     try { if(state.scope==="albums"){await renderAlbums();return;}const response = await api(`/v1/photos?${params}`); state.photos = (await response.json()).items; fillSuggestions(); if (requestedView === "map") await renderMap(); else if (requestedView === "calendar") renderCalendar(); else renderGrid(); }
-    catch (error) { state.photos=[];renderGrid();notify(`${friendlyError(error)}\n通信が戻ったら、一覧を選び直すか検索を再実行してください。`, true, true); $("#result-count").textContent = "取得失敗"; }
+    catch (error) { state.photos=[];if(state.scope==="albums"){setPrimarySurface("albums");$("#album-view").innerHTML='<div class="feature-empty"><b>アルバムを取得できませんでした</b><p>通信が戻ったらアルバムを選び直してください。</p></div>';}else if(requestedView==="map"){setPrimarySurface("map");$("#map-view").innerHTML='<div class="feature-empty"><b>地図を取得できませんでした</b><p>通信状態を確認して再度お試しください。</p></div>';}else if(requestedView==="calendar"){setPrimarySurface("calendar");$("#calendar-view").innerHTML='<div class="feature-empty"><b>カレンダーを取得できませんでした</b><p>通信状態を確認して再度お試しください。</p></div>';}else renderGrid();notify(`${friendlyError(error)}\n通信が戻ったら、一覧を選び直すか検索を再実行してください。`, true, true); $("#result-count").textContent = "取得失敗"; }
     finally { setContentLoading(false); }
   }
 
@@ -262,26 +296,63 @@
 
   function input(name, label, photo, options = {}) { const value=name==="capturedAt"?String(photo[name]||"").slice(0,16):(photo[name]??"");const attributes=[options.type&&`type="${options.type}"`,options.step&&`step="${options.step}"`,options.min!==undefined&&`min="${options.min}"`,options.max!==undefined&&`max="${options.max}"`,options.placeholder&&`placeholder="${escapeHtml(options.placeholder)}"`,options.required&&"required",options.maxlength&&`maxlength="${options.maxlength}"`].filter(Boolean).join(" ");return `<label class="${options.span2?"span2":""}">${label}<input name="${name}" value="${escapeHtml(value)}" ${attributes}></label>`; }
   function textarea(name,label,photo,options={}){return `<label class="${options.span2?"span2":""}">${label}<textarea name="${name}" rows="${options.rows||3}" maxlength="${options.maxlength||10000}" placeholder="${escapeHtml(options.placeholder||"")}">${escapeHtml(photo[name]||"")}</textarea></label>`;}
+  function mergeSharePeople(friends, directory) {
+    const people = new Map();
+    friends.filter(item => item.status === "accepted").forEach(item => people.set(item.uid, { ...item, relationship: "accepted" }));
+    directory.forEach(item => people.set(item.uid, { ...people.get(item.uid), ...item }));
+    return [...people.values()].sort((a, b) => (a.relationship === "accepted" ? -1 : 0) - (b.relationship === "accepted" ? -1 : 0) || personName(a).localeCompare(personName(b), "ja"));
+  }
+  function sharePersonChoice(person, selected) {
+    const relationship = person.relationship === "accepted" || person.status === "accepted" ? "フレンド" : "システム利用者";
+    return `<label class="share-choice share-person" data-person-search="${escapeHtml(`${personName(person)} ${person.email}`.toLowerCase())}"><input type="checkbox" name="allowedUids" value="${person.uid}" ${selected.has(person.uid)?"checked":""}><span>${escapeHtml(personName(person))}<small>${escapeHtml(person.email)} · ${relationship}</small></span></label>`;
+  }
+  function exifSummary(photo) {
+    const fields = [["撮影日時",photo.capturedAt],["カメラ",photo.camera],["レンズ",photo.lens],["シャッター",photo.shutterSpeed],["F値",photo.aperture],["ISO",photo.iso],["焦点距離",photo.focalLength],["GPS",Number.isFinite(photo.latitude)&&Number.isFinite(photo.longitude)]];
+    const available = fields.filter(([,value])=>value).map(([label])=>label);
+    return available.length ? `<div class="exif-status success"><b>保存済みの撮影データ ${available.length}項目</b><span>${available.map(label=>`<em>${escapeHtml(label)}</em>`).join("")}</span><small>アップロード時に画像ファイルのEXIFを自動読取し、空欄の項目へ保存します。編集した値は編集内容を優先します。</small></div>` : `<div class="exif-status"><b>この写真には読取可能なEXIFがありません</b><small>EXIFを削除した画像や一部形式では取得できません。必要な項目は手動入力できます。</small></div>`;
+  }
   async function editDetail(photo) {
     const dialog=$("#detail-dialog");dialog.innerHTML=`<div class="dialog-loading"><div class="spinner"></div><p>編集に必要な共有先情報を読み込んでいます…</p></div>`;if(!dialog.open)dialog.showModal();
     try {
-      const [friendsResponse,groupsResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups")]);
-      const friends=(await friendsResponse.json()).items.filter(item=>item.status==="accepted"),groups=(await groupsResponse.json()).items;
-      const selectedUsers=photo.allowedUids||[],selectedGroups=photo.allowedGroupIds||[];
-      const friendChoices=friends.length?friends.map(v=>`<label class="share-choice"><input type="checkbox" name="allowedUids" value="${v.uid}" ${selectedUsers.includes(v.uid)?"checked":""}><span>${escapeHtml(personName(v))}<small>${escapeHtml(v.email)}</small></span></label>`).join(""):`<p class="field-hint">共有できるフレンドがいません。先に「共有メンバー」から追加してください。</p>`;
+      const [friendsResponse,groupsResponse,directoryResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups"),api("/v1/directory")]);
+      const friends=(await friendsResponse.json()).items,groups=(await groupsResponse.json()).items,directory=(await directoryResponse.json()).items;
+      const selectedUsers=new Set(photo.allowedUids||[]),selectedGroups=photo.allowedGroupIds||[],people=mergeSharePeople(friends,directory);
+      const friendChoices=people.length?people.map(v=>sharePersonChoice(v,selectedUsers)).join(""):`<p class="field-hint no-share-candidates">共有候補がまだ登録されていません。相手が一度この写真アーカイブへログインすると、ここからすぐ選択できます。</p>`;
       const groupChoices=groups.length?groups.map(v=>`<label class="share-choice"><input type="checkbox" name="allowedGroupIds" value="${v.id}" ${selectedGroups.includes(v.id)?"checked":""}><span>${escapeHtml(v.name)}<small>${v.members.length}人</small></span></label>`).join(""):`<p class="field-hint">グループはまだありません。</p>`;
       dialog.innerHTML=`<form class="edit-shell" id="edit-form"><div class="edit-head"><div><small>PHOTO METADATA EDITOR</small><h2>撮影情報を編集</h2></div><button type="button" data-close="detail-dialog" aria-label="編集を閉じる">×</button></div><div class="edit-body"><p class="edit-intro">写真そのものは変更せず、検索・表示に使う撮影情報だけを編集します。</p><div class="edit-sections">
         <fieldset class="edit-section basic"><legend>基本情報</legend><div class="form-grid">${input("title","タイトル（必須）",photo,{required:true,maxlength:1000})}<label>写真の種類<select name="category">${["train","freight","landscape","other"].map(v=>`<option value="${v}" ${photo.category===v?"selected":""}>${category(v)}</option>`).join("")}</select></label>${input("capturedAt","撮影日時",photo,{type:"datetime-local"})}${input("location","撮影場所",photo,{placeholder:"地名・撮影ポイント"})}${input("station","最寄り駅・撮影駅",photo)}<label>タグ（カンマ区切り）<input name="tags" value="${escapeHtml((photo.tags||[]).join(", "))}" placeholder="貨物, 夜景, EF210"></label></div></fieldset>
         <fieldset class="edit-section train"><legend>列車・貨物情報</legend><div class="form-grid">${input("trainNumber","列車番号",photo)}${input("trainType","列車種別",photo)}${input("origin","始発駅",photo)}${input("destination","終着駅",photo)}${input("serviceDate","始発駅日付",photo,{type:"date"})}${input("changes","変更事項",photo)}${input("transportRoute","貨物輸送経路",photo,{span2:true,placeholder:"経由地を含む輸送経路"})}${textarea("article","記事・備考",photo,{span2:true,rows:3})}</div></fieldset>
-        <fieldset class="edit-section equipment"><legend>カメラ・撮影設定</legend><p class="field-hint">EXIFから自動取得した内容も必要に応じて補正できます。</p><div class="form-grid">${input("camera","カメラ",photo)}${input("lens","レンズ",photo)}${input("shutterSpeed","シャッタースピード",photo)}${input("aperture","F値",photo)}${input("iso","ISO感度",photo)}${input("focalLength","焦点距離",photo)}</div></fieldset>
-        <fieldset class="edit-section sharing"><legend>位置情報・公開範囲</legend><div class="form-grid">${input("latitude","緯度",photo,{type:"number",step:"any",min:-90,max:90})}${input("longitude","経度",photo,{type:"number",step:"any",min:-180,max:180})}<label class="span2">公開範囲<select name="visibility">${["private","users","link","public"].map(v=>`<option value="${v}" ${photo.visibility===v?"selected":""}>${visibility(v)}</option>`).join("")}</select></label></div><p class="field-hint">「特定メンバー」を選んだ場合だけ、次の共有先が利用されます。</p><div class="share-choice-grid">${friendChoices}${groupChoices}</div></fieldset>
+        <fieldset class="edit-section equipment"><legend>カメラ・撮影設定</legend>${exifSummary(photo)}<div class="form-grid">${input("camera","カメラ",photo)}${input("lens","レンズ",photo)}${input("shutterSpeed","シャッタースピード",photo)}${input("aperture","F値",photo)}${input("iso","ISO感度",photo)}${input("focalLength","焦点距離",photo)}</div></fieldset>
+        <fieldset class="edit-section sharing"><legend>位置情報・公開範囲</legend><div class="form-grid">${input("latitude","緯度",photo,{type:"number",step:"any",min:-90,max:90})}${input("longitude","経度",photo,{type:"number",step:"any",min:-180,max:180})}<label class="span2">公開範囲<select name="visibility">${["private","users","link","public"].map(v=>`<option value="${v}" ${photo.visibility===v?"selected":""}>${visibility(v)}</option>`).join("")}</select></label></div><div class="member-picker" id="edit-member-picker"><div class="member-picker-head"><div><b>共有するユーザー</b><small>フレンドでなくても、登録済みのシステム利用者を直接選べます。</small></div><button type="button" data-open-people-from-edit>共有メンバー管理</button></div><label class="member-filter">名前・メールで絞り込み<input id="edit-member-filter" type="search" placeholder="2文字以上で絞り込み"></label><div class="share-choice-grid" id="edit-member-results">${friendChoices}</div><div class="group-choice-area"><b>グループ</b><div class="share-choice-grid">${groupChoices}</div></div></div></fieldset>
         <fieldset class="edit-section notes"><legend>フリーメモ</legend>${textarea("notes","撮影時の状況・機材メモ・補足",photo,{span2:true,rows:5,placeholder:"撮影時の状況や設定の意図など"})}</fieldset>
       </div><div class="edit-footer"><p class="form-status" id="edit-status" role="status" aria-live="polite" hidden></p><div class="dialog-actions"><button type="button" class="ghost" data-close="detail-dialog">キャンセル</button><button class="primary" id="edit-save-button">変更を保存</button></div></div></div></form>`;
-      $("#edit-form").addEventListener("submit", async event => { event.preventDefault(); const form=event.currentTarget,button=$("#edit-save-button"),status=$("#edit-status");if(!form.reportValidity())return;const raw=Object.fromEntries(new FormData(form));raw.tags=String(raw.tags||"").split(",").map(v=>v.trim()).filter(Boolean);raw.allowedUids=$$('input[name="allowedUids"]:checked',form).map(v=>v.value);raw.allowedGroupIds=$$('input[name="allowedGroupIds"]:checked',form).map(v=>v.value);if((raw.latitude&&!raw.longitude)||(!raw.latitude&&raw.longitude)){setFormStatus(status,"位置情報は緯度と経度を両方入力してください。","error");return;}if(raw.visibility==="users"&&!raw.allowedUids.length&&!raw.allowedGroupIds.length){setFormStatus(status,"公開範囲が「特定メンバー」の場合は、共有するユーザーまたはグループを選んでください。","error");return;}setButtonBusy(button,true,"保存中");setFormStatus(status,"撮影情報を保存しています…","loading");try{const response=await api(`/v1/photos/${photo.id}`,{method:"PATCH",body:JSON.stringify(raw)});Object.assign(photo,await response.json());setFormStatus(status,"保存しました。","success");await loadPhotos();setTimeout(()=>{if(dialog.open)dialog.close();notify("撮影情報を保存しました。");},500);}catch(error){setFormStatus(status,friendlyError(error),"error");}finally{setButtonBusy(button,false);}});
+      const editForm=$("#edit-form");
+      $("#edit-member-filter").addEventListener("input",event=>{const query=event.currentTarget.value.trim().toLowerCase();$$('.share-person',editForm).forEach(choice=>{choice.hidden=Boolean(query)&&!choice.dataset.personSearch.includes(query);});});
+      $("#edit-member-results").addEventListener("change",event=>{if(!event.target.matches('input[name="allowedUids"]'))return;if(event.target.checked)selectedUsers.add(event.target.value);else selectedUsers.delete(event.target.value);});
+      editForm.addEventListener("submit", async event => { event.preventDefault(); const form=event.currentTarget,button=$("#edit-save-button"),status=$("#edit-status");if(!form.reportValidity())return;const raw=Object.fromEntries(new FormData(form));raw.tags=String(raw.tags||"").split(",").map(v=>v.trim()).filter(Boolean);raw.allowedUids=[...selectedUsers];raw.allowedGroupIds=$$('input[name="allowedGroupIds"]:checked',form).map(v=>v.value);if((raw.latitude&&!raw.longitude)||(!raw.latitude&&raw.longitude)){setFormStatus(status,"位置情報は緯度と経度を両方入力してください。","error");return;}if(raw.visibility==="users"&&!raw.allowedUids.length&&!raw.allowedGroupIds.length){setFormStatus(status,"公開範囲が「特定メンバー」の場合は、共有するユーザーまたはグループを選んでください。","error");return;}setButtonBusy(button,true,"保存中");setFormStatus(status,"撮影情報を保存しています…","loading");try{const response=await api(`/v1/photos/${photo.id}`,{method:"PATCH",body:JSON.stringify(raw)});Object.assign(photo,await response.json());setFormStatus(status,"保存しました。","success");await loadPhotos();setTimeout(()=>{if(dialog.open)dialog.close();notify("撮影情報を保存しました。");},500);}catch(error){setFormStatus(status,friendlyError(error),"error");}finally{setButtonBusy(button,false);}});
     } catch(error) { dialog.innerHTML=`<div class="dialog-error"><h2>編集画面を準備できません</h2><p>${escapeHtml(friendlyError(error))}</p><div class="dialog-actions"><button class="ghost" data-close="detail-dialog">閉じる</button><button class="primary" data-retry-edit="${photo.id}">再試行</button></div></div>`; }
   }
 
-  function uploadMetadata() { const raw = Object.fromEntries(new FormData($("#upload-form"))); raw.tags = raw.tags.split(",").map(value => value.trim()).filter(Boolean); raw.albumIds = raw.albumIds ? [raw.albumIds] : []; raw.allowedUids = []; raw.allowedGroupIds = []; return raw; }
+  async function prepareUploadSharing(force = false) {
+    const panel=$("#upload-member-picker"),status=$("#upload-member-status");
+    if(panel.dataset.loaded==="true"&&!force)return;
+    setFormStatus(status,"共有できるシステム利用者とグループを読み込んでいます…","loading");
+    try {
+      const [friendsResponse,directoryResponse,groupsResponse]=await Promise.all([api("/v1/friends"),api("/v1/directory"),api("/v1/groups")]);
+      const people=mergeSharePeople((await friendsResponse.json()).items,(await directoryResponse.json()).items),groups=(await groupsResponse.json()).items;
+      $("#upload-user-choices").innerHTML=people.map(person=>sharePersonChoice(person,state.uploadAllowedUids)).join("")||'<p class="field-hint no-share-candidates">共有候補がまだ登録されていません。相手が一度この写真アーカイブへログインすると選択できます。</p>';
+      $("#upload-group-choices").innerHTML=groups.map(group=>`<label class="share-choice"><input type="checkbox" name="uploadAllowedGroupIds" value="${group.id}" ${state.uploadAllowedGroupIds.has(group.id)?"checked":""}><span>${escapeHtml(group.name)}<small>${group.members.length}人</small></span></label>`).join("");
+      $("#upload-group-area").hidden=!groups.length;panel.dataset.loaded="true";
+      setFormStatus(status,people.length||groups.length?`${people.length}人・${groups.length}グループから選択できます。`:"共有候補がまだありません。相手が一度ログインした後に「候補を更新」を押してください。",people.length||groups.length?"success":"error");
+    } catch(error) { setFormStatus(status,friendlyError(error,"共有候補を読み込めませんでした。"),"error"); }
+  }
+  async function openUploadDialog() {
+    if(!state.access.canUpload)return notify("このアカウントは閲覧・管理専用です。",true);
+    const dialog=$("#upload-dialog");if(!dialog.open)dialog.showModal();
+    const users=$("#upload-form select[name='visibility']").value==="users";$("#upload-member-picker").hidden=!users;
+    if(users)await prepareUploadSharing();
+  }
+  function uploadMetadata() { const raw = Object.fromEntries(new FormData($("#upload-form"))); raw.tags = raw.tags.split(",").map(value => value.trim()).filter(Boolean); raw.albumIds = raw.albumIds ? [raw.albumIds] : []; raw.allowedUids = [...state.uploadAllowedUids]; raw.allowedGroupIds = [...state.uploadAllowedGroupIds]; return raw; }
   function individualMetadata() { return state.files.map(entry => ({ title: entry.title, category: entry.category, capturedAt: entry.capturedAt, location: entry.location, station: entry.station, trainNumber: entry.trainNumber, tags: entry.tags.split(",").map(value => value.trim()).filter(Boolean) })); }
   function releaseFile(entry) { if (entry.preview) URL.revokeObjectURL(entry.preview); }
   function makeFileEntry(file) { return { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, file, preview: URL.createObjectURL(file), title: file.name.replace(/\.[^.]+$/, ""), category: "", capturedAt: "", location: "", station: "", trainNumber: "", tags: "" }; }
@@ -298,13 +369,14 @@
   async function upload() {
     if (!state.access.canUpload) return notify("管理用アカウントから写真は登録できません。", true);
     if (!state.files.length) return notify("写真を選択してください。", true);
+    const metadata=uploadMetadata();if(metadata.visibility==="users"&&!metadata.allowedUids.length&&!metadata.allowedGroupIds.length)return setUploadStatus("公開範囲が「特定ユーザー／グループ」の場合は、共有先を1件以上選んでください。","error");
     const button=$("#upload-submit"),progress=$("#upload-progress"),bar=$("#upload-progress span");setButtonBusy(button,true,"保存中");progress.hidden=false;bar.style.width="0%";setUploadStatus("ログイン情報を確認しています…","loading");
     try {
-      const form = new FormData(); state.files.forEach(entry => form.append("files", entry.file)); form.append("metadata", JSON.stringify(uploadMetadata())); form.append("fileMetadata", JSON.stringify(individualMetadata()));
+      const form = new FormData(); state.files.forEach(entry => form.append("files", entry.file)); form.append("metadata", JSON.stringify(metadata)); form.append("fileMetadata", JSON.stringify(individualMetadata()));
       let user,token;try{user=await window.TayunetFirebaseDataAuth.currentUser();token=await user.getIdToken();}catch(error){throw new Error("ログインの確認に失敗しました。いったんログアウトして、もう一度ログインしてください。");}
       setUploadStatus("Ubuntu HDDへ送信しています…","loading");
       await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",`${API}/v1/photos`);xhr.timeout=10*60*1000;xhr.setRequestHeader("Authorization",`Bearer ${token}`);xhr.upload.onprogress=event=>{if(event.lengthComputable){const percent=Math.round(event.loaded/event.total*100);bar.style.width=`${percent}%`;setUploadStatus(`${state.files.length}枚を送信しています… ${percent}%`,"loading");}};xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)return resolve();let detail="";try{detail=JSON.parse(xhr.responseText).detail||""}catch(_){}reject(new Error(statusMessage(xhr.status,detail)));};xhr.onerror=()=>reject(new Error("写真APIへ接続できません。通信状態を確認して再度お試しください。"));xhr.ontimeout=()=>reject(new Error("アップロードが時間内に完了しませんでした。通信状態を確認して再度お試しください。"));xhr.onabort=()=>reject(new Error("アップロードを中断しました。"));xhr.send(form);});
-      const savedCount=state.files.length;bar.style.width="100%";setUploadStatus(`${savedCount}枚を保存しました。EXIFとサムネイルを反映しています…`,"success");state.files.forEach(releaseFile);state.files=[];renderQueue();await loadPhotos();notify(`${savedCount}枚の写真、撮影情報、EXIF、サムネイルを保存しました。`);setTimeout(()=>{if($("#upload-dialog").open)$("#upload-dialog").close();},700);
+      const savedCount=state.files.length;bar.style.width="100%";setUploadStatus(`${savedCount}枚を保存しました。EXIFとサムネイルを反映しています…`,"success");state.files.forEach(releaseFile);state.files=[];state.uploadAllowedUids.clear();state.uploadAllowedGroupIds.clear();renderQueue();await loadPhotos();notify(`${savedCount}枚の写真、撮影情報、EXIF、サムネイルを保存しました。`);setTimeout(()=>{if($("#upload-dialog").open)$("#upload-dialog").close();},700);
     } catch(error) { setUploadStatus(friendlyError(error,"アップロードに失敗しました。"),"error"); }
     finally { setButtonBusy(button,false); }
   }
@@ -349,15 +421,16 @@
   document.addEventListener("click", async event => {
     const mobileMenuButton=event.target.closest("#mobile-menu-button");if(mobileMenuButton){setMobileMenuOpen($("#mobile-action-menu").hidden);return;}
     const mobileFriend=event.target.closest("#mobile-friend-button");if(mobileFriend){setMobileMenuOpen(false);return showPeople();}
-    const mobileUpload=event.target.closest("#mobile-upload-button");if(mobileUpload){setMobileMenuOpen(false);if(!state.access.canUpload)return notify("このアカウントは閲覧・管理専用です。",true);$("#upload-dialog").showModal();return;}
+    const mobileUpload=event.target.closest("#mobile-upload-button");if(mobileUpload){setMobileMenuOpen(false);return openUploadDialog();}
     const mobileLogout=event.target.closest("#mobile-logout-button");if(mobileLogout){setMobileMenuOpen(false);$("#firebase-logout-button").click();return;}
     if(!$("#mobile-action-menu").hidden&&!event.target.closest("#mobile-action-menu"))setMobileMenuOpen(false);
+    const manageFromEdit=event.target.closest("[data-open-people-from-edit]");if(manageFromEdit){if($("#detail-dialog").open)$("#detail-dialog").close();return showPeople();}
     const close = event.target.closest("[data-close]"); if (close) return $(`#${close.dataset.close}`).close();
     const removeFile = event.target.closest("[data-remove-file]"); if (removeFile) { const index=state.files.findIndex(entry=>entry.id===removeFile.dataset.removeFile);if(index>=0){releaseFile(state.files[index]);state.files.splice(index,1);renderQueue()}return; }
     const cardButton = event.target.closest(".open-card,.calendar-photo"); if (cardButton) return openDetail(cardButton.closest("[data-id]").dataset.id);
-    const scope = event.target.closest("[data-scope]"); if (scope) { $$("[data-scope]").forEach(button=>button.classList.toggle("active",button===scope)); state.scope=scope.dataset.scope; $("#list-title").textContent=labels[state.scope]; await loadPhotos(); return; }
+    const scope = event.target.closest("[data-scope]"); if (scope) { $$("[data-scope]").forEach(button=>button.classList.toggle("active",button===scope)); state.scope=scope.dataset.scope; state.view="grid"; $("#list-title").textContent=labels[state.scope]; await loadPhotos(); return; }
     const view = event.target.closest("[data-view]"); if (view) { $$(`[data-view]`).forEach(button=>button.classList.toggle("active",button===view)); state.view=view.dataset.view; if(state.view==="grid"||state.view==="timeline")renderGrid();else if(state.view==="calendar")renderCalendar();else renderMap(); return; }
-    if (event.target.closest("#upload-button")) { if(!state.access.canUpload)return notify("このアカウントは閲覧・管理専用です。",true); return $("#upload-dialog").showModal(); }
+    if (event.target.closest("#upload-button")) return openUploadDialog();
     if (event.target.closest("#friend-button")) return showPeople();
     const retryEdit=event.target.closest("[data-retry-edit]");if(retryEdit){const photo=state.photos.find(item=>item.id===retryEdit.dataset.retryEdit);if(photo)return editDetail(photo);}
     if(event.target.closest("#retry-people"))return showPeople();
@@ -368,6 +441,7 @@
     const albumShare=event.target.closest("[data-share-album]");if(albumShare){const album=state.albums.find(item=>item.id===albumShare.dataset.shareAlbum);return shareTarget("album",album.id,album.title);}
     const album=event.target.closest("[data-open-album]");if(album){setButtonBusy(album,true,"読込中");try{setContentLoading(true,"アルバムの写真を読み込んでいます…");const response=await api(`/v1/albums/${album.dataset.openAlbum}/photos`),data=await response.json();state.photos=data.items;state.scope="mine";$("#list-title").textContent=data.album.title;renderGrid();}catch(error){notify(friendlyError(error,"アルバムを開けませんでした。"),true);}finally{setContentLoading(false);setButtonBusy(album,false);}return;}
     if(event.target.closest("#people-search")){await searchPeople();return;}
+    if(event.target.closest("#upload-reload-members")){await prepareUploadSharing(true);return;}
     const friend=event.target.closest("[data-friend]");if(friend){setButtonBusy(friend,true,"処理中");try{await api(`/v1/friends/${friend.dataset.friend}`,{method:"POST"});await showPeople();notify("共有メンバー情報を更新しました。");}catch(error){notify(friendlyError(error,"フレンド申請を更新できませんでした。"),true);}finally{setButtonBusy(friend,false);}return;}
     const removeFriend=event.target.closest("[data-remove-friend]");if(removeFriend){setButtonBusy(removeFriend,true,"処理中");try{await api(`/v1/friends/${removeFriend.dataset.removeFriend}`,{method:"DELETE"});await showPeople();notify("共有メンバー情報を更新しました。");}catch(error){notify(friendlyError(error,"フレンド情報を更新できませんでした。"),true);}finally{setButtonBusy(removeFriend,false);}return;}
     if(event.target.closest("#new-group")){const name=prompt("グループ名を入力してください");if(!name)return;const members=$$(".group-member:checked").map(input=>input.value),button=event.target.closest("#new-group");setButtonBusy(button,true,"作成中");try{await api("/v1/groups",{method:"POST",body:JSON.stringify({name,members})});await showPeople();notify("共有グループを作成しました。");}catch(error){notify(friendlyError(error,"グループを作成できませんでした。"),true);}finally{setButtonBusy(button,false);}return;}
@@ -375,7 +449,13 @@
 
   document.addEventListener("input", event => {
     const field=event.target.closest("[data-file-field]");if(field){const editor=field.closest("[data-file-id]");const entry=state.files.find(item=>item.id===editor.dataset.fileId);if(entry)entry[field.dataset.fileField]=field.value;return;}
+    if(event.target.matches("#upload-member-filter")){const query=event.target.value.trim().toLowerCase();$$('.share-person',$("#upload-user-choices")).forEach(choice=>{choice.hidden=Boolean(query)&&!choice.dataset.personSearch.includes(query);});return;}
     if(event.target.matches("#people-query")&&event.inputType==="insertLineBreak")searchPeople();
+  });
+  document.addEventListener("change",event=>{
+    if(event.target.matches('#upload-form select[name="visibility"]')){const users=event.target.value==="users";$("#upload-member-picker").hidden=!users;if(users)prepareUploadSharing();return;}
+    if(event.target.closest("#upload-user-choices")&&event.target.matches('input[name="allowedUids"]')){if(event.target.checked)state.uploadAllowedUids.add(event.target.value);else state.uploadAllowedUids.delete(event.target.value);return;}
+    if(event.target.closest("#upload-group-choices")&&event.target.matches('input[name="uploadAllowedGroupIds"]')){if(event.target.checked)state.uploadAllowedGroupIds.add(event.target.value);else state.uploadAllowedGroupIds.delete(event.target.value);}
   });
   document.addEventListener("keydown", event => { if(event.target.matches("#people-query")&&event.key==="Enter"){event.preventDefault();searchPeople()} });
 
