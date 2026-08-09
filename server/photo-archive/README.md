@@ -24,7 +24,7 @@ curl --fail http://127.0.0.1:8790/health
 sudo docker ps --filter name=tayunet-photo-archive
 ```
 
-再更新も同じコマンドです。Dockerイメージ構築時に5件のサーバーテストが走り、失敗したイメージは起動しません。
+再更新も同じコマンドです。Dockerイメージ構築時にサーバーテストが走り、失敗したイメージは起動しません。
 
 ## Cloudflare Tunnel
 
@@ -69,3 +69,5 @@ sudo rsync -a --delete /mnt/hdd/tayunet-photo-archive/ /path/to/backup/photo-arc
 - 公開リンクは推測困難なランダム値で、DBにはそのハッシュだけを保存します。
 - 共有パスワードはscryptでソルト付きハッシュ化し、平文保存しません。
 - 「自分のみ」「特定ユーザー／グループ」「限定リンク」「全体公開」を写真単位で指定できます。
+- `admin@tayunet-traininfo.com` と `systemadmin@tayunet-traininfo.com` は管理専用として扱い、写真・アルバムの登録APIを403で拒否します。
+- 管理専用アカウントは全写真の閲覧、撮影情報の修正、削除・復元、共有リンク作成、バックアップ出力ができます。
