@@ -241,10 +241,12 @@
   }
 
   function dataRows(photo) {
+    const focalLength = String(photo.focalLength || "").trim();
+    const focalLengthText = focalLength && /mm$/i.test(focalLength) ? focalLength : (focalLength ? `${focalLength} mm` : "");
     const rows = [
       ["列車番号", photo.trainNumber], ["始発・終着", [photo.origin, photo.destination].filter(Boolean).join(" → ")], ["列車種別", photo.trainType], ["始発駅日付", photo.serviceDate], ["変更事項", photo.changes],
       ["撮影日時", dateText(photo.capturedAt)], ["撮影場所", photo.location], ["駅", photo.station], ["輸送経路", photo.transportRoute], ["記事・備考", photo.article], ["フリーメモ", photo.notes],
-      ["カメラ", photo.camera], ["レンズ", photo.lens], ["シャッター", photo.shutterSpeed], ["F値", photo.aperture], ["ISO", photo.iso], ["焦点距離", photo.focalLength && `${photo.focalLength} mm`], ["タグ", photo.tags.join(" / ")], ["公開範囲", visibility(photo.visibility)], ["ファイル", `${photo.filename}（${bytes(photo.byteSize)}）`]
+      ["カメラ", photo.camera], ["レンズ", photo.lens], ["シャッター", photo.shutterSpeed], ["F値", photo.aperture], ["ISO", photo.iso], ["焦点距離", focalLengthText], ["タグ", photo.tags.join(" / ")], ["公開範囲", visibility(photo.visibility)], ["ファイル", `${photo.filename}（${bytes(photo.byteSize)}）`]
     ];
     return rows.filter(([, value]) => value).map(([name, value]) => `<div class="data-group"><dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   }
