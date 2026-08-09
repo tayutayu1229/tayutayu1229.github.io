@@ -45,6 +45,35 @@ class PhotoArchiveTest(unittest.TestCase):
         self.assertTrue(archive.normalized_expiry("2026-08-10T12:30").endswith("+09:00"))
         self.assertIsNone(archive.normalized_expiry(""))
 
+    def test_manager_accounts_are_read_only(self):
+        manager = {"uid": "manager", "email": "ADMIN@tayunet-traininfo.com"}
+        self.assertTrue(archive.is_manager(manager))
+        with self.assertRaisesRegex(Exception, "登録できません"):
+            archive.require_contributor(manager)
+        self.assertFalse(archive.is_manager({"uid": "member", "email": "member@example.com"}))
+
+    def test_individual_upload_metadata_overrides_common_values(self):
+        payload = archive.upload_payload(
+            {"location": "共通撮影地", "category": "train", "tags": ["共通"]},
+            {"title": "第8765列車", "location": "新川崎駅", "tags": ["貨物"]},
+            "DSC_0001.JPG",
+            {"camera": "Example Camera"},
+        )
+        self.assertEqual(payload["title"], "第8765列車")
+        self.assertEqual(payload["location"], "新川崎駅")
+        self.assertEqual(payload["category"], "train")
+        self.assertEqual(payload["tags"], ["貨物"])
+        self.assertEqual(payload["camera"], "Example Camera")
+
+    def test_directory_suggests_members_but_hides_manager_accounts(self):
+        with archive.connect() as db:
+            db.execute("INSERT OR REPLACE INTO users VALUES(?,?,?,?)", ("viewer", "viewer@example.com", "閲覧者", archive.now_iso()))
+            db.execute("INSERT OR REPLACE INTO users VALUES(?,?,?,?)", ("member", "member@example.com", "撮影者", archive.now_iso()))
+            db.execute("INSERT OR REPLACE INTO users VALUES(?,?,?,?)", ("manager", "admin@tayunet-traininfo.com", "管理者", archive.now_iso()))
+        items = archive.directory("", {"uid": "viewer", "email": "viewer@example.com"})["items"]
+        self.assertIn("member", {item["uid"] for item in items})
+        self.assertNotIn("manager", {item["uid"] for item in items})
+
 
 if __name__ == "__main__":
     unittest.main()
