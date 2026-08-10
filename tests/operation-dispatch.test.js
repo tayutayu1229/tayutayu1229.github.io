@@ -43,6 +43,8 @@ for (const action of ['運転休止', '運休', '遅延', '折返し変更', '�
 }
 assert.match(client, /unacknowledged/);
 assert.match(client, /tayunet-operation-draft/);
+assert.match(client, /meaningful=/);
+assert.match(client, /\["trainNumber","sectionFrom","sectionTo","delayMinutes","planned","changed","notes"\]/);
 assert.match(client, /AbortController/);
 assert.match(client, /friendlyError/);
 assert.match(client, /Ubuntuの電報データベースへ保存しています/);
