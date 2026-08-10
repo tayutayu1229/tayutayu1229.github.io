@@ -49,6 +49,8 @@ assert.match(client, /原文は変更せず/);
 assert.match(client, /operation-dispatch\.csv/);
 assert.match(client, /受付日時/);
 assert.match(client, /打電日時/);
+assert.match(client, /paper-viewport/);
+assert.match(client, /detail-operations/);
 
 assert.match(server, /PRAGMA journal_mode=WAL/);
 assert.match(server, /dispatch_acknowledgements/);
@@ -66,5 +68,9 @@ assert.match(css, /overflow-y:auto/);
 assert.match(css, /@media print/);
 assert.match(css, /\.loading\[hidden\]/);
 assert.match(css, /size:A4 portrait/);
+assert.match(css, /#detail-content\{display:flex;width:100%;height:100%;min-height:0;overflow:hidden\}/);
+assert.match(css, /\.paper-viewport\{[^}]*overflow:auto/);
+assert.match(css, /\.detail-operations\{[^}]*overflow-y:auto/);
+assert.doesNotMatch(css, /--green|#075f49|linear-gradient/);
 
 console.log('operation dispatch audit: ok');
