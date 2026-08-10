@@ -27,8 +27,11 @@ assert.match(html, /id="compose-dialog"/);
 assert.match(html, /id="detail-dialog"/);
 assert.match(html, /id="settings-dialog"/);
 assert.match(html, /id="filter-mobile-button"/);
+assert.doesNotMatch(html, /A報|B報|C報|重要度/);
+assert.match(html, /車種・両数変更/);
+assert.match(html, /name="dispatchedAt"/);
 
-for (const label of ['運転休止・運休', '急病人救護・遅延', '踏切支障', '旅客案内・放送指示', '編成両数変更', '便宜乗車特認']) {
+for (const label of ['運転休止・運休', '急病人救護・遅延', '踏切支障', '旅客案内・放送指示', '車種・両数変更', '便宜乗車特認']) {
   assert.match(html, new RegExp(label));
 }
 for (const action of ['運転休止', '運休', '遅延', '折返し変更', '行先変更', '編成変更', '便宜乗車', '指定輸送']) {
@@ -44,6 +47,8 @@ assert.match(client, /確認済みにする/);
 assert.match(client, /続報・訂正・引継ぎを追記/);
 assert.match(client, /原文は変更せず/);
 assert.match(client, /operation-dispatch\.csv/);
+assert.match(client, /受付日時/);
+assert.match(client, /打電日時/);
 
 assert.match(server, /PRAGMA journal_mode=WAL/);
 assert.match(server, /dispatch_acknowledgements/);
@@ -59,5 +64,7 @@ assert.match(css, /@media\(max-width:560px\)/);
 assert.match(css, /100dvh/);
 assert.match(css, /overflow-y:auto/);
 assert.match(css, /@media print/);
+assert.match(css, /\.loading\[hidden\]/);
+assert.match(css, /size:A4 portrait/);
 
 console.log('operation dispatch audit: ok');

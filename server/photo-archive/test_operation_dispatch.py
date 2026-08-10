@@ -18,7 +18,7 @@ class OperationDispatchTest(unittest.TestCase):
         with TestClient(archive.app) as client:
             created = client.post("/v1/operation-dispatch", json={
                 "serviceDate": "2026-08-08", "eventAt": "2026-08-08T09:52",
-                "category": "delay", "priority": "A", "title": "京浜東北線 急病人救護",
+                "dispatchedAt": "2026-08-08T10:01", "category": "delay", "title": "京浜東北線 急病人救護",
                 "lineName": "京浜東北線", "location": "大宮駅", "reason": "急病のお客様救護",
                 "body": "大宮駅で救護を実施。後続列車に遅れ。", "recipients": "各駅・各指令",
                 "requiresAcknowledgement": True, "handover": True,
@@ -27,6 +27,8 @@ class OperationDispatchTest(unittest.TestCase):
             self.assertEqual(created.status_code, 200, created.text)
             item = created.json()
             self.assertRegex(item["dispatchNumber"], r"^OD-20260808-\d{4}$")
+            self.assertEqual(item["dispatchedAt"], "2026-08-08T10:01")
+            self.assertIsNotNone(item["receivedAt"])
             self.assertEqual(item["trains"][0]["delayMinutes"], 5)
 
             listed = client.get("/v1/operation-dispatch", params={"q": "905A", "status": "open"})
@@ -54,7 +56,7 @@ class OperationDispatchTest(unittest.TestCase):
     def test_summary_favorite_and_csv_export(self):
         with TestClient(archive.app) as client:
             created = client.post("/v1/operation-dispatch", json={
-                "title": "忘れ物防止放送", "category": "passenger", "priority": "C",
+                "title": "忘れ物防止放送", "category": "passenger",
                 "body": "繁忙期のため忘れ物防止放送を強化してください。",
             }).json()
             favorite = client.post(f"/v1/operation-dispatch/{created['id']}/favorite", json={"enabled": True})
@@ -65,6 +67,8 @@ class OperationDispatchTest(unittest.TestCase):
             exported = client.get("/v1/operation-dispatch/export.csv")
             self.assertEqual(exported.status_code, 200)
             self.assertIn("忘れ物防止放送", exported.content.decode("utf-8-sig"))
+            self.assertIn("打電日時", exported.content.decode("utf-8-sig"))
+            self.assertIn("受付日時", exported.content.decode("utf-8-sig"))
 
 
 if __name__ == "__main__":

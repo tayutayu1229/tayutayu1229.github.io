@@ -23,7 +23,6 @@ CATEGORIES = {
     "operation", "suspension", "delay", "turnback", "rolling_stock",
     "passenger", "special_boarding", "facility", "weather", "notice", "other",
 }
-PRIORITIES = {"A", "B", "C"}
 STATUSES = {"active", "monitoring", "resolved", "cancelled"}
 UPDATE_KINDS = {"followup", "status", "correction", "handover", "memo"}
 TRAIN_ACTIONS = {
@@ -83,7 +82,7 @@ class OperationDispatchStore:
               sender_name TEXT, requires_ack INTEGER NOT NULL DEFAULT 0,
               handover INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
               effective_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-              resolved_at TEXT
+              resolved_at TEXT, dispatched_at TEXT
             );
             CREATE TABLE IF NOT EXISTS dispatch_trains(
               id TEXT PRIMARY KEY, dispatch_id TEXT NOT NULL REFERENCES dispatches(id) ON DELETE CASCADE,
@@ -117,6 +116,10 @@ class OperationDispatchStore:
             CREATE INDEX IF NOT EXISTS idx_dispatch_trains_number ON dispatch_trains(train_number);
             CREATE INDEX IF NOT EXISTS idx_dispatch_updates_parent ON dispatch_updates(dispatch_id, created_at);
             """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(dispatches)")}
+            if "dispatched_at" not in columns:
+                db.execute("ALTER TABLE dispatches ADD COLUMN dispatched_at TEXT")
+            db.execute("UPDATE dispatches SET dispatched_at=COALESCE(dispatched_at, created_at, received_at) WHERE dispatched_at IS NULL OR dispatched_at='' ")
             db.execute("PRAGMA optimize")
 
     def next_number(self, db: sqlite3.Connection, service_date: str) -> str:
@@ -167,13 +170,14 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
     result = {
         "id": dispatch_id, "dispatchNumber": row["dispatch_number"], "serviceDate": row["service_date"],
         "eventAt": row["event_at"], "receivedAt": row["received_at"], "category": row["category"],
-        "priority": row["priority"], "status": row["status"], "title": row["title"],
+        "status": row["status"], "title": row["title"],
         "lineName": row["line_name"], "location": row["location"], "reason": row["reason"],
         "body": row["body"], "recipients": row["recipients"], "senderUid": row["sender_uid"],
         "senderEmail": row["sender_email"], "senderName": row["sender_name"],
         "requiresAcknowledgement": bool(row["requires_ack"]), "handover": bool(row["handover"]),
         "pinned": bool(row["pinned"]), "effectiveUntil": row["effective_until"],
-        "createdAt": row["created_at"], "updatedAt": row["updated_at"], "resolvedAt": row["resolved_at"],
+        "createdAt": row["created_at"], "dispatchedAt": row["dispatched_at"] or row["created_at"],
+        "updatedAt": row["updated_at"], "resolvedAt": row["resolved_at"],
         "trains": trains, "acknowledgementCount": ack_count, "acknowledged": acknowledged, "favorite": favorite,
     }
     if detail:
@@ -206,7 +210,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.10.1", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.10.2", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -216,7 +220,6 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
                 "active": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='active'").fetchone()[0],
                 "monitoring": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='monitoring'").fetchone()[0],
                 "handover": db.execute("SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring')").fetchone()[0],
-                "priorityA": db.execute("SELECT COUNT(*) FROM dispatches WHERE priority='A' AND status IN('active','monitoring')").fetchone()[0],
                 "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE service_date=?", (today,)).fetchone()[0],
                 "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status IN('active','monitoring')
                   AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (user["uid"],)).fetchone()[0],
@@ -226,7 +229,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     @app.get(prefix)
     def list_dispatches(
         q: str = Query("", max_length=200), status: str = Query(""), category: str = Query(""),
-        priority: str = Query(""), line: str = Query("", max_length=100), date_from: str = Query(""),
+        line: str = Query("", max_length=100), date_from: str = Query(""),
         date_to: str = Query(""), handover: bool = Query(False), favorite: bool = Query(False),
         unacknowledged: bool = Query(False),
         limit: int = Query(100, ge=1, le=300), user: dict[str, Any] = Depends(verify_user),
@@ -235,7 +238,6 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         if status in STATUSES: clauses.append("d.status=?"); parameters.append(status)
         elif status == "open": clauses.append("d.status IN('active','monitoring')")
         if category in CATEGORIES: clauses.append("d.category=?"); parameters.append(category)
-        if priority in PRIORITIES: clauses.append("d.priority=?"); parameters.append(priority)
         if line: clauses.append("d.line_name LIKE ?"); parameters.append(f"%{line}%")
         if date_from: clauses.append("d.service_date>=?"); parameters.append(date_from[:10])
         if date_to: clauses.append("d.service_date<=?"); parameters.append(date_to[:10])
@@ -249,7 +251,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
             clauses.append("""(d.title LIKE ? OR d.line_name LIKE ? OR d.location LIKE ? OR d.reason LIKE ? OR d.body LIKE ?
               OR d.dispatch_number LIKE ? OR EXISTS(SELECT 1 FROM dispatch_trains t WHERE t.dispatch_id=d.id AND (t.train_number LIKE ? OR t.section_from LIKE ? OR t.section_to LIKE ?)))""")
             parameters.extend([needle] * 9)
-        sql = f"SELECT d.* FROM dispatches d WHERE {' AND '.join(clauses)} ORDER BY d.pinned DESC, CASE d.status WHEN 'active' THEN 0 WHEN 'monitoring' THEN 1 ELSE 2 END, CASE d.priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 ELSE 2 END, d.updated_at DESC LIMIT ?"
+        sql = f"SELECT d.* FROM dispatches d WHERE {' AND '.join(clauses)} ORDER BY d.pinned DESC, CASE d.status WHEN 'active' THEN 0 WHEN 'monitoring' THEN 1 ELSE 2 END, d.updated_at DESC LIMIT ?"
         parameters.append(limit)
         with store.connect() as db:
             rows = db.execute(sql, parameters).fetchall()
@@ -259,10 +261,10 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     def export_csv(user: dict[str, Any] = Depends(verify_user)) -> Response:
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["打電番号", "運転日", "発生日時", "線区", "件名", "種別", "重要度", "状態", "事由", "本文", "発信者", "更新日時"])
+        writer.writerow(["打電番号", "運転日", "発生日時", "打電日時", "受付日時", "線区", "件名", "種別", "状態", "事由", "本文", "発信者", "更新日時"])
         with store.connect() as db:
             for row in db.execute("SELECT * FROM dispatches ORDER BY service_date DESC, updated_at DESC"):
-                writer.writerow([row["dispatch_number"], row["service_date"], row["event_at"], row["line_name"], row["title"], row["category"], row["priority"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
+                writer.writerow([row["dispatch_number"], row["service_date"], row["event_at"], row["dispatched_at"], row["received_at"], row["line_name"], row["title"], row["category"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
         return Response("\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=operation-dispatch.csv"})
 
     @app.post(prefix)
@@ -272,27 +274,31 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         if not title: raise HTTPException(400, "件名を入力してください")
         service_date = text(data.get("serviceDate"), 10) or datetime.now(JST).date().isoformat()
         category = data.get("category") if data.get("category") in CATEGORIES else "operation"
-        priority = data.get("priority") if data.get("priority") in PRIORITIES else "B"
         status = data.get("status") if data.get("status") in STATUSES else "active"
         trains = [item for index, raw in enumerate(json_list(data.get("trains"))) if (item := train_input(raw, index))]
         timestamp, dispatch_id = now_iso(), uuid.uuid4().hex
+        dispatched_at = text(data.get("dispatchedAt"), 40) or timestamp
         with store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             number = store.next_number(db, service_date)
-            db.execute("""INSERT INTO dispatches VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
-                dispatch_id, number, service_date, text(data.get("eventAt"), 40), timestamp, category, priority, status,
+            db.execute("""INSERT INTO dispatches(
+                id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
+                reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,
+                created_at,updated_at,resolved_at,dispatched_at
+              ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                dispatch_id, number, service_date, text(data.get("eventAt"), 40), timestamp, category, "", status,
                 title, text(data.get("lineName"), 150), text(data.get("location"), 300), text(data.get("reason"), 1000),
                 text(data.get("body"), 10000), text(data.get("recipients"), 3000), user["uid"], user.get("email", ""),
                 text(user.get("displayName") or user.get("email", ""), 200), boolean(data.get("requiresAcknowledgement")),
                 boolean(data.get("handover")), boolean(data.get("pinned")), text(data.get("effectiveUntil"), 40),
-                timestamp, timestamp, timestamp if status == "resolved" else None,
+                timestamp, timestamp, timestamp if status == "resolved" else None, dispatched_at,
             ))
             for train in trains:
                 db.execute("INSERT INTO dispatch_trains VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
                     train["id"], dispatch_id, train["position"], train["trainNumber"], train["action"], train["sectionFrom"],
                     train["sectionTo"], train["delayMinutes"], train["planned"], train["changed"], train["notes"],
                 ))
-            add_audit(db, dispatch_id, "created", user, f"{priority}報 {title}")
+            add_audit(db, dispatch_id, "created", user, f"{category} {title}")
             row = db.execute("SELECT * FROM dispatches WHERE id=?", (dispatch_id,)).fetchone()
             return dispatch_output(db, row, user["uid"], True)
 
