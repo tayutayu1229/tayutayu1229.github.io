@@ -92,6 +92,7 @@ class OperationDispatchTest(unittest.TestCase):
                 "dispatchedAt": "2026-08-08T10:01", "category": "delay", "title": "京浜東北線 急病人救護",
                 "lineName": "京浜東北線", "location": "大宮駅", "reason": "急病のお客様救護",
                 "body": "大宮駅で救護を実施。後続列車に遅れ。", "recipients": "各駅・各指令",
+                "senderName": "東京総合指令室",
                 "requiresAcknowledgement": True, "handover": True,
                 "trains": [{"trainNumber": "905A", "action": "遅延", "sectionFrom": "大宮", "delayMinutes": 5}],
             })
@@ -101,6 +102,8 @@ class OperationDispatchTest(unittest.TestCase):
             self.assertEqual(item["dispatchedAt"], "2026-08-08T10:01")
             self.assertIsNotNone(item["receivedAt"])
             self.assertEqual(item["trains"][0]["delayMinutes"], 5)
+            self.assertEqual(item["senderName"], "東京総合指令室")
+            self.assertEqual(item["updateCount"], 0)
 
             listed = client.get("/v1/operation-dispatch", params={"q": "905A", "status": "open"})
             self.assertEqual(listed.status_code, 200, listed.text)
@@ -113,10 +116,12 @@ class OperationDispatchTest(unittest.TestCase):
             self.assertNotIn(item["id"], {dispatch["id"] for dispatch in unacknowledged.json()["items"]})
 
             followed = client.post(f"/v1/operation-dispatch/{item['id']}/updates", json={
-                "kind": "followup", "body": "救護完了。運転再開、遅れは6分。",
+                "kind": "followup", "body": "救護完了。運転再開、遅れは6分。", "senderName": "大宮指令",
             })
             self.assertEqual(followed.status_code, 200, followed.text)
             self.assertEqual(followed.json()["updates"][-1]["kind"], "followup")
+            self.assertEqual(followed.json()["updates"][-1]["authorName"], "大宮指令")
+            self.assertEqual(followed.json()["updateCount"], 1)
 
             resolved = client.post(f"/v1/operation-dispatch/{item['id']}/status", json={
                 "status": "resolved", "handover": False, "note": "平常運転へ復帰",
