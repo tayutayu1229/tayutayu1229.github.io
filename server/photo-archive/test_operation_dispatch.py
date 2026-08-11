@@ -26,7 +26,7 @@ class OperationDispatchTest(unittest.TestCase):
             })
             self.assertEqual(created.status_code, 200, created.text)
             item = created.json()
-            self.assertRegex(item["dispatchNumber"], r"^OD-20260808-\d{4}$")
+            self.assertRegex(item["dispatchNumber"], r"^TKG-\d{3,}号$")
             self.assertEqual(item["dispatchedAt"], "2026-08-08T10:01")
             self.assertIsNotNone(item["receivedAt"])
             self.assertEqual(item["trains"][0]["delayMinutes"], 5)
