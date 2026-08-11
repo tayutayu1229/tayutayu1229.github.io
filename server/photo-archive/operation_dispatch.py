@@ -24,6 +24,13 @@ CATEGORIES = {
     "operation", "suspension", "delay", "turnback", "rolling_stock",
     "passenger", "special_boarding", "facility", "weather", "notice", "other",
 }
+CATEGORY_NUMBER_BASES = {
+    "operation": 500, "suspension": 500, "delay": 500,
+    "turnback": 500, "rolling_stock": 500,
+    "passenger": 700, "special_boarding": 700,
+    "facility": 700, "weather": 700,
+    "notice": 900, "other": 900,
+}
 STATUSES = {"active", "monitoring", "resolved", "cancelled"}
 UPDATE_KINDS = {"followup", "status", "correction", "handover", "memo"}
 TRAIN_ACTIONS = {
@@ -75,7 +82,7 @@ class OperationDispatchStore:
               service_date TEXT PRIMARY KEY, last_number INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS dispatches(
-              id TEXT PRIMARY KEY, dispatch_number TEXT NOT NULL UNIQUE,
+              id TEXT PRIMARY KEY, dispatch_number TEXT NOT NULL,
               service_date TEXT NOT NULL, event_at TEXT, received_at TEXT NOT NULL,
               category TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL,
               title TEXT NOT NULL, line_name TEXT, location TEXT, reason TEXT, body TEXT,
@@ -120,28 +127,53 @@ class OperationDispatchStore:
             columns = {row[1] for row in db.execute("PRAGMA table_info(dispatches)")}
             if "dispatched_at" not in columns:
                 db.execute("ALTER TABLE dispatches ADD COLUMN dispatched_at TEXT")
+                db.commit()
+            table_sql = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='dispatches'").fetchone()[0]
+            if re.search(r"dispatch_number\s+TEXT\s+NOT\s+NULL\s+UNIQUE", table_sql, re.IGNORECASE):
+                db.commit()
+                db.execute("PRAGMA foreign_keys=OFF")
+                db.executescript("""
+                CREATE TABLE dispatches_new(
+                  id TEXT PRIMARY KEY, dispatch_number TEXT NOT NULL,
+                  service_date TEXT NOT NULL, event_at TEXT, received_at TEXT NOT NULL,
+                  category TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL,
+                  title TEXT NOT NULL, line_name TEXT, location TEXT, reason TEXT, body TEXT,
+                  recipients TEXT, sender_uid TEXT NOT NULL, sender_email TEXT NOT NULL,
+                  sender_name TEXT, requires_ack INTEGER NOT NULL DEFAULT 0,
+                  handover INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+                  effective_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                  resolved_at TEXT, dispatched_at TEXT
+                );
+                INSERT INTO dispatches_new SELECT * FROM dispatches;
+                DROP TABLE dispatches;
+                ALTER TABLE dispatches_new RENAME TO dispatches;
+                CREATE INDEX idx_dispatch_status_updated ON dispatches(status, updated_at DESC);
+                CREATE INDEX idx_dispatch_line_event ON dispatches(line_name, event_at DESC);
+                CREATE INDEX idx_dispatch_service_date ON dispatches(service_date DESC);
+                CREATE INDEX idx_dispatch_handover ON dispatches(handover, status, updated_at DESC);
+                """)
+                db.execute("PRAGMA foreign_keys=ON")
             db.execute("UPDATE dispatches SET dispatched_at=COALESCE(dispatched_at, created_at, received_at) WHERE dispatched_at IS NULL OR dispatched_at='' ")
-            sequence_key = "__telegram__"
-            sequence_row = db.execute("SELECT last_number FROM dispatch_sequences WHERE service_date=?", (sequence_key,)).fetchone()
-            last_number = max(900, sequence_row[0] if sequence_row else 900)
-            legacy_rows = []
-            for row in db.execute("SELECT id,dispatch_number FROM dispatches ORDER BY created_at,id"):
-                match = re.fullmatch(r"TKG-(\d+)号", row["dispatch_number"] or "")
-                if match:
-                    last_number = max(last_number, int(match.group(1)))
-                else:
-                    legacy_rows.append(row)
-            for row in legacy_rows:
-                last_number += 1
-                db.execute("UPDATE dispatches SET dispatch_number=? WHERE id=?", (f"TKG-{last_number}号", row["id"]))
-            db.execute("""INSERT INTO dispatch_sequences(service_date,last_number) VALUES(?,?)
-              ON CONFLICT(service_date) DO UPDATE SET last_number=MAX(last_number,excluded.last_number)""", (sequence_key, last_number))
+            numbering_version = db.execute("SELECT 1 FROM dispatch_sequences WHERE service_date='__numbering_v2__'").fetchone()
+            if not numbering_version:
+                db.execute("DELETE FROM dispatch_sequences")
+                counters: dict[str, int] = {}
+                rows = db.execute("SELECT id,category,received_at,created_at FROM dispatches ORDER BY received_at,created_at,id").fetchall()
+                for row in rows:
+                    received_day = (row["received_at"] or row["created_at"] or now_iso())[:10]
+                    base = CATEGORY_NUMBER_BASES.get(row["category"], 900)
+                    sequence_key = f"{received_day}:{base}"
+                    counters[sequence_key] = counters.get(sequence_key, base) + 1
+                    db.execute("UPDATE dispatches SET dispatch_number=? WHERE id=?", (f"TKG-{counters[sequence_key]}号", row["id"]))
+                db.executemany("INSERT INTO dispatch_sequences(service_date,last_number) VALUES(?,?)", counters.items())
+                db.execute("INSERT INTO dispatch_sequences(service_date,last_number) VALUES('__numbering_v2__',2)")
             db.execute("PRAGMA optimize")
 
-    def next_number(self, db: sqlite3.Connection, service_date: str) -> str:
-        sequence_key = "__telegram__"
+    def next_number(self, db: sqlite3.Connection, received_day: str, category: str) -> str:
+        base = CATEGORY_NUMBER_BASES.get(category, 900)
+        sequence_key = f"{received_day}:{base}"
         row = db.execute("SELECT last_number FROM dispatch_sequences WHERE service_date=?", (sequence_key,)).fetchone()
-        number = max(900, row[0] if row else 900) + 1
+        number = max(base, row[0] if row else base) + 1
         db.execute("INSERT INTO dispatch_sequences VALUES(?,?) ON CONFLICT(service_date) DO UPDATE SET last_number=excluded.last_number", (sequence_key, number))
         return f"TKG-{number}号"
 
@@ -178,6 +210,14 @@ def train_output(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def dispatch_reference(number: str, received_at: str) -> str:
+    try:
+        received = datetime.fromisoformat(received_at).astimezone(JST)
+        return f"{received.month}月{received.day}日 {received.hour:02d}時{received.minute:02d}分　{number}"
+    except (TypeError, ValueError):
+        return number
+
+
 def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: bool = False) -> dict[str, Any]:
     dispatch_id = row["id"]
     trains = [train_output(train) for train in db.execute("SELECT * FROM dispatch_trains WHERE dispatch_id=? ORDER BY position", (dispatch_id,))]
@@ -185,7 +225,9 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
     acknowledged = bool(db.execute("SELECT 1 FROM dispatch_acknowledgements WHERE dispatch_id=? AND uid=?", (dispatch_id, uid)).fetchone())
     favorite = bool(db.execute("SELECT 1 FROM dispatch_favorites WHERE dispatch_id=? AND uid=?", (dispatch_id, uid)).fetchone())
     result = {
-        "id": dispatch_id, "dispatchNumber": row["dispatch_number"], "serviceDate": row["service_date"],
+        "id": dispatch_id, "dispatchNumber": row["dispatch_number"],
+        "dispatchReference": dispatch_reference(row["dispatch_number"], row["received_at"]),
+        "serviceDate": row["service_date"],
         "eventAt": row["event_at"], "receivedAt": row["received_at"], "category": row["category"],
         "status": row["status"], "title": row["title"],
         "lineName": row["line_name"], "location": row["location"], "reason": row["reason"],
@@ -227,7 +269,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.2", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.3", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -278,10 +320,10 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     def export_csv(user: dict[str, Any] = Depends(verify_user)) -> Response:
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["打電番号", "運転日", "発生日時", "打電日時", "受付日時", "線区", "件名", "種別", "状態", "事由", "本文", "発信者", "更新日時"])
+        writer.writerow(["照会表記", "打電番号", "運転日", "発生日時", "打電日時", "受付日時", "線区", "件名", "種別", "状態", "事由", "本文", "発信者", "更新日時"])
         with store.connect() as db:
             for row in db.execute("SELECT * FROM dispatches ORDER BY service_date DESC, updated_at DESC"):
-                writer.writerow([row["dispatch_number"], row["service_date"], row["event_at"], row["dispatched_at"], row["received_at"], row["line_name"], row["title"], row["category"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
+                writer.writerow([dispatch_reference(row["dispatch_number"], row["received_at"]), row["dispatch_number"], row["service_date"], row["event_at"], row["dispatched_at"], row["received_at"], row["line_name"], row["title"], row["category"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
         return Response("\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=operation-dispatch.csv"})
 
     @app.post(prefix)
@@ -297,7 +339,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         dispatched_at = text(data.get("dispatchedAt"), 40) or timestamp
         with store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            number = store.next_number(db, service_date)
+            number = store.next_number(db, timestamp[:10], category)
             db.execute("""INSERT INTO dispatches(
                 id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
                 reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,

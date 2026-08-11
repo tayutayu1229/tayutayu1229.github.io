@@ -36,6 +36,9 @@ assert.match(html, /車種・両数変更/);
 assert.match(html, /name="dispatchedAt"/);
 assert.match(html, /id="optional-trains"/);
 assert.match(html, /id="unacknowledged-alert"/);
+assert.match(html, /運転関係（TKG-501号から）/);
+assert.match(html, /旅客・保安関係（TKG-701号から）/);
+assert.match(html, /周知関係（TKG-901号から）/);
 assert.doesNotMatch(html, /PASSENGER TELEGRAM|PASSENGER TELEGRAM REGISTER|class="system-symbol"/);
 
 for (const label of ['運転休止・運休', '急病人救護・遅延', '踏切支障', '旅客案内・放送指示', '車種・両数変更', '便宜乗車特認']) {
@@ -61,6 +64,8 @@ assert.match(client, /原文は変更せず/);
 assert.match(client, /passenger-telegrams\.csv/);
 assert.match(client, /受付日時/);
 assert.match(client, /打電日時/);
+assert.match(client, /telegramReference/);
+assert.match(client, /処理状態を変更/);
 assert.match(client, /paper-viewport/);
 assert.match(client, /detail-operations/);
 assert.match(client, /function setView\(view\)/);
@@ -74,7 +79,8 @@ assert.match(server, /dispatch_audit/);
 assert.match(server, /BEGIN IMMEDIATE/);
 assert.match(server, /unacknowledged/);
 assert.match(server, /TKG-\{number\}号/);
-assert.match(server, /sequence_key = "__telegram__"/);
+assert.match(server, /CATEGORY_NUMBER_BASES/);
+assert.match(server, /sequence_key = f"\{received_day\}:\{base\}"/);
 assert.doesNotMatch(server, /@app\.(patch|put)\(f?"\{prefix\}\/\{\{dispatch_id\}\}"/);
 assert.match(docker, /operation_dispatch\.py/);
 assert.match(docker, /test_operation_dispatch\.py/);
@@ -92,6 +98,8 @@ assert.match(css, /\.detail-operations\{[^}]*overflow:auto/);
 assert.match(css, /width:210mm!important;height:297mm!important/);
 assert.match(css, /"MS PGothic"/);
 assert.match(css, /\.unacknowledged-alert/);
+assert.match(css, /\.sound-setting input\[type="checkbox"\]/);
+assert.match(css, /\.status-actions/);
 assert.doesNotMatch(css, /linear-gradient/);
 
 console.log('operation dispatch audit: ok');

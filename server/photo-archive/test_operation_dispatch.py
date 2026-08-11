@@ -1,9 +1,13 @@
 import unittest
 import uuid
+import sqlite3
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from fastapi.testclient import TestClient
 
 import photo_archive as archive
+from operation_dispatch import OperationDispatchStore
 
 
 class OperationDispatchTest(unittest.TestCase):
@@ -13,6 +17,56 @@ class OperationDispatchTest(unittest.TestCase):
 
     def tearDown(self):
         archive.app.dependency_overrides.clear()
+
+    def test_daily_numbering_uses_category_bands_and_resets(self):
+        with TemporaryDirectory() as directory:
+            store = OperationDispatchStore(Path(directory) / "dispatch.sqlite3")
+            with store.connect() as db:
+                self.assertEqual(store.next_number(db, "2026-08-11", "operation"), "TKG-501号")
+                self.assertEqual(store.next_number(db, "2026-08-11", "rolling_stock"), "TKG-502号")
+                self.assertEqual(store.next_number(db, "2026-08-11", "passenger"), "TKG-701号")
+                self.assertEqual(store.next_number(db, "2026-08-11", "weather"), "TKG-702号")
+                self.assertEqual(store.next_number(db, "2026-08-11", "notice"), "TKG-901号")
+                self.assertEqual(store.next_number(db, "2026-08-12", "operation"), "TKG-501号")
+                self.assertEqual(store.next_number(db, "2026-08-12", "passenger"), "TKG-701号")
+                self.assertEqual(store.next_number(db, "2026-08-12", "other"), "TKG-901号")
+
+    def test_legacy_unique_numbers_are_migrated_without_losing_relations(self):
+        with TemporaryDirectory() as directory:
+            database = Path(directory) / "legacy.sqlite3"
+            with sqlite3.connect(database) as db:
+                db.executescript("""
+                CREATE TABLE dispatch_sequences(service_date TEXT PRIMARY KEY, last_number INTEGER NOT NULL);
+                CREATE TABLE dispatches(
+                  id TEXT PRIMARY KEY, dispatch_number TEXT NOT NULL UNIQUE,
+                  service_date TEXT NOT NULL, event_at TEXT, received_at TEXT NOT NULL,
+                  category TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL,
+                  title TEXT NOT NULL, line_name TEXT, location TEXT, reason TEXT, body TEXT,
+                  recipients TEXT, sender_uid TEXT NOT NULL, sender_email TEXT NOT NULL,
+                  sender_name TEXT, requires_ack INTEGER NOT NULL DEFAULT 0,
+                  handover INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+                  effective_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                  resolved_at TEXT, dispatched_at TEXT
+                );
+                CREATE TABLE dispatch_updates(
+                  id TEXT PRIMARY KEY, dispatch_id TEXT NOT NULL REFERENCES dispatches(id) ON DELETE CASCADE,
+                  kind TEXT NOT NULL, body TEXT NOT NULL, author_uid TEXT NOT NULL,
+                  author_email TEXT NOT NULL, author_name TEXT, created_at TEXT NOT NULL
+                );
+                """)
+                required = ("", "resolved", "件名", "", "", "", "", "", "uid", "user@example.com", "", 0, 0, 0, "", "2026-08-10T10:00:00+09:00", "2026-08-10T10:00:00+09:00", None, "2026-08-10T09:59:00+09:00")
+                sql = "INSERT INTO dispatches VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                db.execute(sql, ("notice", "TKG-901号", "2026-08-10", None, "2026-08-10T10:00:00+09:00", "notice", *required))
+                db.execute(sql, ("passenger", "TKG-902号", "2026-08-10", None, "2026-08-10T10:01:00+09:00", "passenger", *required))
+                db.execute(sql, ("operation", "TKG-903号", "2026-08-11", None, "2026-08-11T10:00:00+09:00", "operation", *required))
+                db.execute("INSERT INTO dispatch_updates VALUES('update-1','notice','memo','保存確認','uid','user@example.com','担当','2026-08-10T10:02:00+09:00')")
+
+            store = OperationDispatchStore(database)
+            with store.connect() as db:
+                numbers = dict(db.execute("SELECT id,dispatch_number FROM dispatches"))
+                self.assertEqual(numbers, {"notice": "TKG-901号", "passenger": "TKG-701号", "operation": "TKG-501号"})
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM dispatch_updates").fetchone()[0], 1)
+                self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_create_search_acknowledge_followup_and_resolve(self):
         with TestClient(archive.app) as client:
