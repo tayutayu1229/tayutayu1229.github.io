@@ -34,6 +34,9 @@ for (const layout of ['table', 'cards', 'grid']) assert.match(html, new RegExp(`
 assert.doesNotMatch(html, /A報|B報|C報|重要度/);
 assert.match(html, /車種・両数変更/);
 assert.match(html, /name="dispatchedAt"/);
+assert.match(html, /id="optional-trains"/);
+assert.match(html, /id="unacknowledged-alert"/);
+assert.doesNotMatch(html, /PASSENGER TELEGRAM|PASSENGER TELEGRAM REGISTER|class="system-symbol"/);
 
 for (const label of ['運転休止・運休', '急病人救護・遅延', '踏切支障', '旅客案内・放送指示', '車種・両数変更', '便宜乗車特認']) {
   assert.match(html, new RegExp(label));
@@ -49,6 +52,9 @@ assert.match(client, /AbortController/);
 assert.match(client, /friendlyError/);
 assert.match(client, /Ubuntuの電報データベースへ保存しています/);
 assert.match(client, /localDate/);
+assert.match(client, /localDateTime/);
+assert.match(client, /\$\("#train-rows"\)\.innerHTML=""/);
+assert.match(client, /unack-alert-count/);
 assert.match(client, /確認済みにする/);
 assert.match(client, /続報・訂正・引継ぎを追記/);
 assert.match(client, /原文は変更せず/);
@@ -67,6 +73,8 @@ assert.match(server, /dispatch_acknowledgements/);
 assert.match(server, /dispatch_audit/);
 assert.match(server, /BEGIN IMMEDIATE/);
 assert.match(server, /unacknowledged/);
+assert.match(server, /TKG-\{number\}号/);
+assert.match(server, /sequence_key = "__telegram__"/);
 assert.doesNotMatch(server, /@app\.(patch|put)\(f?"\{prefix\}\/\{\{dispatch_id\}\}"/);
 assert.match(docker, /operation_dispatch\.py/);
 assert.match(docker, /test_operation_dispatch\.py/);
@@ -82,6 +90,8 @@ assert.match(css, /#detail-content\{height:100%;min-height:0\}/);
 assert.match(css, /\.paper-viewport\{[^}]*overflow:auto/);
 assert.match(css, /\.detail-operations\{[^}]*overflow:auto/);
 assert.match(css, /width:210mm!important;height:297mm!important/);
+assert.match(css, /"MS PGothic"/);
+assert.match(css, /\.unacknowledged-alert/);
 assert.doesNotMatch(css, /linear-gradient/);
 
 console.log('operation dispatch audit: ok');
