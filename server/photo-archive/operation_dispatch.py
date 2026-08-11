@@ -238,7 +238,9 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
         "lineName": row["line_name"], "location": row["location"], "reason": row["reason"],
         "body": row["body"], "recipients": row["recipients"], "senderUid": row["sender_uid"],
         "senderEmail": row["sender_email"], "senderName": row["sender_name"],
-        "requiresAcknowledgement": bool(row["requires_ack"]), "handover": bool(row["handover"]),
+        "requiresAcknowledgement": bool(row["requires_ack"]),
+        "confirmationRequired": bool(row["requires_ack"]) and row["status"] in {"active", "monitoring"},
+        "handover": bool(row["handover"]),
         "pinned": bool(row["pinned"]), "effectiveUntil": row["effective_until"],
         "createdAt": row["created_at"], "dispatchedAt": row["dispatched_at"] or row["created_at"],
         "updatedAt": row["updated_at"], "resolvedAt": row["resolved_at"],
@@ -274,7 +276,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.5", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.6", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -287,7 +289,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
                 "monitoring": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='monitoring'").fetchone()[0],
                 "handover": db.execute("SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring')").fetchone()[0],
                 "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE received_at>=? AND received_at<?", (today_start, today_end)).fetchone()[0],
-                "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status!='cancelled'
+                "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status IN('active','monitoring')
                   AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (user["uid"],)).fetchone()[0],
             }
         return {**counts, "operatingDate": today, "operatingDayEndsAt": today_end}
@@ -318,7 +320,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         if handover: clauses.append("d.handover=1")
         if favorite: clauses.append("EXISTS(SELECT 1 FROM dispatch_favorites f WHERE f.dispatch_id=d.id AND f.uid=?)"); parameters.append(user["uid"])
         if unacknowledged:
-            clauses.append("d.requires_ack=1 AND d.status!='cancelled' AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)")
+            clauses.append("d.requires_ack=1 AND d.status IN('active','monitoring') AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)")
             parameters.append(user["uid"])
         if q:
             needle = f"%{q}%"
@@ -418,7 +420,9 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     @app.post(f"{prefix}/{{dispatch_id}}/acknowledge")
     def acknowledge(dispatch_id: str, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
         with store.connect() as db:
-            require_dispatch(db, dispatch_id)
+            current = require_dispatch(db, dispatch_id)
+            if current["status"] not in {"active", "monitoring"}:
+                return dispatch_output(db, current, user["uid"], True)
             db.execute("INSERT OR IGNORE INTO dispatch_acknowledgements VALUES(?,?,?,?,?)", (dispatch_id, user["uid"], user.get("email", ""), text(user.get("displayName") or user.get("email", ""), 200), now_iso()))
             add_audit(db, dispatch_id, "acknowledged", user)
             return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
