@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -120,13 +121,29 @@ class OperationDispatchStore:
             if "dispatched_at" not in columns:
                 db.execute("ALTER TABLE dispatches ADD COLUMN dispatched_at TEXT")
             db.execute("UPDATE dispatches SET dispatched_at=COALESCE(dispatched_at, created_at, received_at) WHERE dispatched_at IS NULL OR dispatched_at='' ")
+            sequence_key = "__telegram__"
+            sequence_row = db.execute("SELECT last_number FROM dispatch_sequences WHERE service_date=?", (sequence_key,)).fetchone()
+            last_number = max(900, sequence_row[0] if sequence_row else 900)
+            legacy_rows = []
+            for row in db.execute("SELECT id,dispatch_number FROM dispatches ORDER BY created_at,id"):
+                match = re.fullmatch(r"TKG-(\d+)号", row["dispatch_number"] or "")
+                if match:
+                    last_number = max(last_number, int(match.group(1)))
+                else:
+                    legacy_rows.append(row)
+            for row in legacy_rows:
+                last_number += 1
+                db.execute("UPDATE dispatches SET dispatch_number=? WHERE id=?", (f"TKG-{last_number}号", row["id"]))
+            db.execute("""INSERT INTO dispatch_sequences(service_date,last_number) VALUES(?,?)
+              ON CONFLICT(service_date) DO UPDATE SET last_number=MAX(last_number,excluded.last_number)""", (sequence_key, last_number))
             db.execute("PRAGMA optimize")
 
     def next_number(self, db: sqlite3.Connection, service_date: str) -> str:
-        row = db.execute("SELECT last_number FROM dispatch_sequences WHERE service_date=?", (service_date,)).fetchone()
-        number = (row[0] if row else 0) + 1
-        db.execute("INSERT INTO dispatch_sequences VALUES(?,?) ON CONFLICT(service_date) DO UPDATE SET last_number=excluded.last_number", (service_date, number))
-        return f"OD-{service_date.replace('-', '')}-{number:04d}"
+        sequence_key = "__telegram__"
+        row = db.execute("SELECT last_number FROM dispatch_sequences WHERE service_date=?", (sequence_key,)).fetchone()
+        number = max(900, row[0] if row else 900) + 1
+        db.execute("INSERT INTO dispatch_sequences VALUES(?,?) ON CONFLICT(service_date) DO UPDATE SET last_number=excluded.last_number", (sequence_key, number))
+        return f"TKG-{number}号"
 
 
 def train_input(raw: Any, position: int) -> dict[str, Any] | None:
@@ -210,7 +227,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.10.2", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.1", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
