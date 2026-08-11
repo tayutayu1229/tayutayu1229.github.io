@@ -227,7 +227,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.1", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.2", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -238,7 +238,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
                 "monitoring": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='monitoring'").fetchone()[0],
                 "handover": db.execute("SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring')").fetchone()[0],
                 "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE service_date=?", (today,)).fetchone()[0],
-                "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status IN('active','monitoring')
+                "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status!='cancelled'
                   AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (user["uid"],)).fetchone()[0],
             }
         return counts
@@ -261,7 +261,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         if handover: clauses.append("d.handover=1")
         if favorite: clauses.append("EXISTS(SELECT 1 FROM dispatch_favorites f WHERE f.dispatch_id=d.id AND f.uid=?)"); parameters.append(user["uid"])
         if unacknowledged:
-            clauses.append("d.requires_ack=1 AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)")
+            clauses.append("d.requires_ack=1 AND d.status!='cancelled' AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)")
             parameters.append(user["uid"])
         if q:
             needle = f"%{q}%"
