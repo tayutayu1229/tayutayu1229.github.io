@@ -43,6 +43,20 @@ def now_iso() -> str:
     return datetime.now(JST).isoformat(timespec="seconds")
 
 
+def operating_day(value: datetime | str | None = None) -> str:
+    """午前3時を日界とする電報の取扱日を返す。"""
+    if isinstance(value, str):
+        try:
+            moment = datetime.fromisoformat(value)
+        except ValueError:
+            moment = datetime.now(JST)
+    else:
+        moment = value or datetime.now(JST)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=JST)
+    return (moment.astimezone(JST) - timedelta(hours=3)).date().isoformat()
+
+
 def text(value: Any, limit: int = 5000) -> str:
     return str(value or "").strip()[:limit]
 
@@ -260,28 +274,30 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.4", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.5", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
-        today = datetime.now(JST).date().isoformat()
+        today = operating_day()
+        today_start = f"{today}T03:00:00+09:00"
+        today_end = (datetime.fromisoformat(today_start) + timedelta(days=1)).isoformat()
         with store.connect() as db:
             counts = {
                 "active": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='active'").fetchone()[0],
                 "monitoring": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='monitoring'").fetchone()[0],
                 "handover": db.execute("SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring')").fetchone()[0],
-                "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE service_date=?", (today,)).fetchone()[0],
+                "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE received_at>=? AND received_at<?", (today_start, today_end)).fetchone()[0],
                 "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status!='cancelled'
                   AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (user["uid"],)).fetchone()[0],
             }
-        return counts
+        return {**counts, "operatingDate": today, "operatingDayEndsAt": today_end}
 
     @app.get(prefix)
     def list_dispatches(
         q: str = Query("", max_length=200), status: str = Query(""), category: str = Query(""),
         line: str = Query("", max_length=100), date_from: str = Query(""),
         date_to: str = Query(""), handover: bool = Query(False), favorite: bool = Query(False),
-        unacknowledged: bool = Query(False),
+        unacknowledged: bool = Query(False), operating_date: str = Query(""),
         limit: int = Query(100, ge=1, le=300), user: dict[str, Any] = Depends(verify_user),
     ) -> dict[str, Any]:
         clauses, parameters = ["1=1"], []
@@ -291,6 +307,14 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         if line: clauses.append("d.line_name LIKE ?"); parameters.append(f"%{line}%")
         if date_from: clauses.append("d.service_date>=?"); parameters.append(date_from[:10])
         if date_to: clauses.append("d.service_date<=?"); parameters.append(date_to[:10])
+        if operating_date:
+            day = operating_date[:10]
+            try:
+                start = datetime.fromisoformat(f"{day}T03:00:00+09:00")
+            except ValueError:
+                raise HTTPException(400, "取扱日が不正です")
+            clauses.append("d.received_at>=? AND d.received_at<?")
+            parameters.extend([start.isoformat(), (start + timedelta(days=1)).isoformat()])
         if handover: clauses.append("d.handover=1")
         if favorite: clauses.append("EXISTS(SELECT 1 FROM dispatch_favorites f WHERE f.dispatch_id=d.id AND f.uid=?)"); parameters.append(user["uid"])
         if unacknowledged:
@@ -330,7 +354,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         dispatched_at = text(data.get("dispatchedAt"), 40) or timestamp
         with store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            number = store.next_number(db, timestamp[:10], category)
+            number = store.next_number(db, operating_day(timestamp), category)
             db.execute("""INSERT INTO dispatches(
                 id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
                 reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,
