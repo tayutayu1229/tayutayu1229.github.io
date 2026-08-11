@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="旅客・運転情報を打電、確認、引継ぎする業務システム">
   <title>旅客電報システム｜東京圏輸送情報システム</title>
-  <link rel="stylesheet" href="/assets/css/operation-dispatch.css?v=2026.08.11.5">
+  <link rel="stylesheet" href="/assets/css/operation-dispatch.css?v=2026.08.11.6">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -31,13 +31,18 @@
   <div class="location-bar"><a href="/toppage.html">システム一覧</a><span>/</span><b>旅客電報</b><code>PTS-01</code></div>
 
   <main id="main-content">
+    <nav class="mode-switch" aria-label="利用モード">
+      <button type="button" data-operation-mode="viewer" class="active"><b>閲覧モード</b><small>確認・検索・印刷</small></button>
+      <button type="button" data-operation-mode="editor"><b>指令・編集モード</b><small>打電・続報・状態変更</small></button>
+      <p id="mode-description">受信した電報を読むための画面です。</p>
+    </nav>
     <section class="command-bar">
       <div class="page-heading">
         <h1>電報一覧</h1>
       </div>
       <div class="command-actions">
         <button type="button" id="refresh-button">最新情報へ更新</button>
-        <button type="button" class="primary" data-open-compose>＋ 新規打電</button>
+        <button type="button" class="primary editor-only" data-open-compose>＋ 新規打電</button>
       </div>
     </section>
 
@@ -108,6 +113,8 @@
           <label class="past-selector">過去の電報<select id="past-dispatch-select"><option value="">選択してください</option></select></label><button type="button" id="apply-past-dispatch">過去電報を複製</button>
         </section>
 
+        <fieldset class="sender-fieldset"><legend>発信箇所</legend><label>区所名<select name="senderName" id="sender-name" required><option value="">区所一覧を読み込み中…</option></select></label><p class="field-guide">前回選択した区所をこの端末に保存します。認証メールアドレスは監査記録だけに使用します。</p></fieldset>
+
         <fieldset><legend>基本情報</legend><div class="form-grid three"><label>情報種別<select name="category"><optgroup label="運転関係（TKG-501号から）"><option value="operation">運転手配</option><option value="suspension">運休・運転休止</option><option value="delay">遅延・輸送障害</option><option value="turnback">折返し・行先変更</option><option value="rolling_stock">車種・両数変更</option></optgroup><optgroup label="旅客・保安関係（TKG-701号から）"><option value="passenger">旅客案内</option><option value="special_boarding">便宜乗車</option><option value="facility">設備・保安</option><option value="weather">気象手配</option></optgroup><optgroup label="周知関係（TKG-901号から）"><option value="notice">周知・指示</option><option value="other">その他</option></optgroup></select></label><label>初期状態<select name="status"><option value="active">対応中</option><option value="monitoring">経過監視</option><option value="resolved">完了</option></select></label><label>打電日時（送信時に自動記録）<input name="dispatchedAt" type="datetime-local" step="1" readonly required></label></div><div class="form-grid"><label class="span2">件名<input name="title" required maxlength="300" placeholder="例：小海線 大雨による列車運休"></label><label>線区<input name="lineName" required placeholder="例：小海線"></label><label>発生場所<input name="location" placeholder="駅・駅間・区所"></label><label>運転日<input name="serviceDate" type="date" required></label><label>発生日時<input name="eventAt" type="datetime-local"></label><label class="span2">事由<input name="reason" placeholder="例：大雨のため"></label></div></fieldset>
         <details class="optional-trains" id="optional-trains"><summary><span><b>対象列車・手配</b><small>列車を指定する場合だけ入力</small></span><em>任意</em></summary><div class="optional-trains-body"><div id="train-rows" class="train-rows"></div><button type="button" class="add-row" id="add-train">＋ 対象列車を追加</button></div></details>
         <fieldset><legend>本文・受信箇所</legend><label>電報本文<textarea name="body" rows="7" placeholder="現状、手配内容、注意事項を記載"></textarea></label><label>受信者・関係箇所<textarea name="recipients" rows="3" placeholder="例：各駅、各指令、乗務員区所"></textarea></label></fieldset>
@@ -124,10 +131,10 @@
 
   <dialog id="settings-dialog" class="system-dialog small-dialog"><form class="settings-panel" id="settings-form"><header class="dialog-header"><div><h2>表示・入力設定</h2></div><button type="button" data-close="settings-dialog" aria-label="閉じる">×</button></header><div class="settings-body"><label>画面テーマ<select name="theme"><option value="light">ライト</option><option value="dark">ダーク</option><option value="system">端末設定に合わせる</option></select></label><label>一覧の文字サイズ<select name="density"><option value="comfortable">標準</option><option value="compact">コンパクト</option><option value="large">大きめ</option></select></label><label>既定の表示<select name="layout"><option value="table">表</option><option value="cards">カード</option><option value="grid">グリッド</option></select></label><label>自動更新<select name="refresh"><option value="30">30秒</option><option value="60">1分</option><option value="180">3分</option><option value="0">しない</option></select></label><label>既定の受信箇所<textarea name="recipients" rows="4" placeholder="各駅、各指令…"></textarea></label><label class="toggle-line sound-setting"><input name="sound" type="checkbox"><span><b>未確認電報の通知音</b><small>新しい未確認電報が増えたときだけ音を鳴らします</small></span></label></div><footer class="dialog-footer"><button type="button" data-close="settings-dialog">キャンセル</button><button class="primary">設定を保存</button></footer></form></dialog>
 
-  <div class="mobile-sheet" id="mobile-sheet" hidden><button data-open-compose>＋ 新規打電</button><button id="mobile-help">使い方</button><button id="mobile-settings">設定</button><button id="mobile-filters">検索条件</button></div>
+  <div class="mobile-sheet" id="mobile-sheet" hidden><button class="editor-only" data-open-compose>＋ 新規打電</button><button data-operation-mode="viewer">閲覧モード</button><button data-operation-mode="editor">指令・編集モード</button><button id="mobile-help">使い方</button><button id="mobile-settings">設定</button><button id="mobile-filters">検索条件</button></div>
   <div class="filter-backdrop" id="filter-backdrop" hidden></div>
   <script src="/auth_guard.js?v=2026.08.08.2"></script>
   <script src="/T-time/firebase-data-auth.js?v=2026.08.09.1"></script>
-  <script src="/assets/js/operation-dispatch.js?v=2026.08.11.5"></script>
+  <script src="/assets/js/operation-dispatch.js?v=2026.08.11.6"></script>
 </body>
 </html>

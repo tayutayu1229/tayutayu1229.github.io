@@ -228,6 +228,7 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
     dispatch_id = row["id"]
     trains = [train_output(train) for train in db.execute("SELECT * FROM dispatch_trains WHERE dispatch_id=? ORDER BY position", (dispatch_id,))]
     ack_count = db.execute("SELECT COUNT(*) FROM dispatch_acknowledgements WHERE dispatch_id=?", (dispatch_id,)).fetchone()[0]
+    update_count = db.execute("SELECT COUNT(*) FROM dispatch_updates WHERE dispatch_id=? AND kind!='status'", (dispatch_id,)).fetchone()[0]
     acknowledged = bool(db.execute("SELECT 1 FROM dispatch_acknowledgements WHERE dispatch_id=? AND uid=?", (dispatch_id, uid)).fetchone())
     favorite = bool(db.execute("SELECT 1 FROM dispatch_favorites WHERE dispatch_id=? AND uid=?", (dispatch_id, uid)).fetchone())
     result = {
@@ -244,7 +245,7 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
         "pinned": bool(row["pinned"]), "effectiveUntil": row["effective_until"],
         "createdAt": row["created_at"], "dispatchedAt": row["dispatched_at"] or row["created_at"],
         "updatedAt": row["updated_at"], "resolvedAt": row["resolved_at"],
-        "trains": trains, "acknowledgementCount": ack_count, "acknowledged": acknowledged, "favorite": favorite,
+        "trains": trains, "updateCount": update_count, "acknowledgementCount": ack_count, "acknowledged": acknowledged, "favorite": favorite,
     }
     if detail:
         result["updates"] = [{
@@ -276,7 +277,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.6", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.7", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -365,7 +366,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
                 dispatch_id, number, service_date, text(data.get("eventAt"), 40), timestamp, category, "", status,
                 title, text(data.get("lineName"), 150), text(data.get("location"), 300), text(data.get("reason"), 1000),
                 text(data.get("body"), 10000), text(data.get("recipients"), 3000), user["uid"], user.get("email", ""),
-                text(user.get("displayName") or user.get("email", ""), 200), boolean(data.get("requiresAcknowledgement")),
+                text(data.get("senderName") or user.get("displayName") or user.get("email", ""), 200), boolean(data.get("requiresAcknowledgement")),
                 boolean(data.get("handover")), boolean(data.get("pinned")), text(data.get("effectiveUntil"), 40),
                 timestamp, timestamp, timestamp if status == "resolved" else None, dispatched_at,
             ))
@@ -396,7 +397,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         timestamp = now_iso()
         with store.connect() as db:
             require_dispatch(db, dispatch_id)
-            db.execute("INSERT INTO dispatch_updates VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, dispatch_id, kind, body, user["uid"], user.get("email", ""), text(user.get("displayName") or user.get("email", ""), 200), timestamp))
+            db.execute("INSERT INTO dispatch_updates VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, dispatch_id, kind, body, user["uid"], user.get("email", ""), text(data.get("senderName") or user.get("displayName") or user.get("email", ""), 200), timestamp))
             db.execute("UPDATE dispatches SET updated_at=? WHERE id=?", (timestamp, dispatch_id))
             add_audit(db, dispatch_id, f"update:{kind}", user, body[:200])
             return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
@@ -413,7 +414,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
                 status, handover, timestamp, timestamp if status == "resolved" else None, dispatch_id,
             ))
             if note:
-                db.execute("INSERT INTO dispatch_updates VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, dispatch_id, "status", note, user["uid"], user.get("email", ""), text(user.get("displayName") or user.get("email", ""), 200), timestamp))
+                db.execute("INSERT INTO dispatch_updates VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, dispatch_id, "status", note, user["uid"], user.get("email", ""), text(data.get("senderName") or user.get("displayName") or user.get("email", ""), 200), timestamp))
             add_audit(db, dispatch_id, f"status:{status}", user, note)
             return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
 
