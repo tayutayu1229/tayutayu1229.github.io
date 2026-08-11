@@ -142,14 +142,17 @@ class OperationDispatchTest(unittest.TestCase):
             self.assertIn("受付日時", exported.content.decode("utf-8-sig"))
 
             confirmation_required = client.post("/v1/operation-dispatch", json={
-                "title": "完了後も確認が必要な電報", "category": "notice",
+                "title": "完了すると確認不要になる電報", "category": "notice",
                 "requiresAcknowledgement": True,
             }).json()
-            client.post(f"/v1/operation-dispatch/{confirmation_required['id']}/status", json={"status": "resolved"})
+            resolved = client.post(f"/v1/operation-dispatch/{confirmation_required['id']}/status", json={"status": "resolved"}).json()
+            self.assertFalse(resolved["confirmationRequired"])
             summary = client.get("/v1/operation-dispatch/summary").json()
-            self.assertGreaterEqual(summary["unacknowledged"], 1)
             unacknowledged = client.get("/v1/operation-dispatch", params={"unacknowledged": "true"}).json()["items"]
-            self.assertIn(confirmation_required["id"], {item["id"] for item in unacknowledged})
+            self.assertNotIn(confirmation_required["id"], {item["id"] for item in unacknowledged})
+            acknowledgement_count = resolved["acknowledgementCount"]
+            after_ack = client.post(f"/v1/operation-dispatch/{confirmation_required['id']}/acknowledge").json()
+            self.assertEqual(after_ack["acknowledgementCount"], acknowledgement_count)
 
 
 if __name__ == "__main__":
