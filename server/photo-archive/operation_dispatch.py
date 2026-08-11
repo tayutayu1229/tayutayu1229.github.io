@@ -210,14 +210,6 @@ def train_output(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def dispatch_reference(number: str, received_at: str) -> str:
-    try:
-        received = datetime.fromisoformat(received_at).astimezone(JST)
-        return f"{received.month}月{received.day}日 {received.hour:02d}時{received.minute:02d}分　{number}"
-    except (TypeError, ValueError):
-        return number
-
-
 def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: bool = False) -> dict[str, Any]:
     dispatch_id = row["id"]
     trains = [train_output(train) for train in db.execute("SELECT * FROM dispatch_trains WHERE dispatch_id=? ORDER BY position", (dispatch_id,))]
@@ -226,7 +218,6 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
     favorite = bool(db.execute("SELECT 1 FROM dispatch_favorites WHERE dispatch_id=? AND uid=?", (dispatch_id, uid)).fetchone())
     result = {
         "id": dispatch_id, "dispatchNumber": row["dispatch_number"],
-        "dispatchReference": dispatch_reference(row["dispatch_number"], row["received_at"]),
         "serviceDate": row["service_date"],
         "eventAt": row["event_at"], "receivedAt": row["received_at"], "category": row["category"],
         "status": row["status"], "title": row["title"],
@@ -269,7 +260,7 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.3", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.11.4", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -320,10 +311,10 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     def export_csv(user: dict[str, Any] = Depends(verify_user)) -> Response:
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["照会表記", "打電番号", "運転日", "発生日時", "打電日時", "受付日時", "線区", "件名", "種別", "状態", "事由", "本文", "発信者", "更新日時"])
+        writer.writerow(["電報番号", "運転日", "発生日時", "打電日時", "受付日時", "線区", "件名", "種別", "状態", "事由", "本文", "発信者", "更新日時"])
         with store.connect() as db:
             for row in db.execute("SELECT * FROM dispatches ORDER BY service_date DESC, updated_at DESC"):
-                writer.writerow([dispatch_reference(row["dispatch_number"], row["received_at"]), row["dispatch_number"], row["service_date"], row["event_at"], row["dispatched_at"], row["received_at"], row["line_name"], row["title"], row["category"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
+                writer.writerow([row["dispatch_number"], row["service_date"], row["event_at"], row["dispatched_at"], row["received_at"], row["line_name"], row["title"], row["category"], row["status"], row["reason"], row["body"], row["sender_email"], row["updated_at"]])
         return Response("\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=operation-dispatch.csv"})
 
     @app.post(prefix)
