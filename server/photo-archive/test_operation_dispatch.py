@@ -1,13 +1,14 @@
 import unittest
 import uuid
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from fastapi.testclient import TestClient
 
 import photo_archive as archive
-from operation_dispatch import OperationDispatchStore
+from operation_dispatch import JST, OperationDispatchStore, operating_day
 
 
 class OperationDispatchTest(unittest.TestCase):
@@ -17,6 +18,22 @@ class OperationDispatchTest(unittest.TestCase):
 
     def tearDown(self):
         archive.app.dependency_overrides.clear()
+
+    def test_operating_day_changes_at_3am(self):
+        self.assertEqual(operating_day(datetime(2026, 8, 12, 2, 59, 59, tzinfo=JST)), "2026-08-11")
+        self.assertEqual(operating_day(datetime(2026, 8, 12, 3, 0, 0, tzinfo=JST)), "2026-08-12")
+
+    def test_operating_date_filter_uses_received_time_and_3am_boundary(self):
+        with TestClient(archive.app) as client:
+            before_boundary = client.post("/v1/operation-dispatch", json={"title": "3時前", "category": "notice"}).json()
+            after_boundary = client.post("/v1/operation-dispatch", json={"title": "3時以後", "category": "notice"}).json()
+            with archive.OPERATION_DISPATCH.connect() as db:
+                db.execute("UPDATE dispatches SET received_at=? WHERE id=?", ("2026-08-12T02:59:59+09:00", before_boundary["id"]))
+                db.execute("UPDATE dispatches SET received_at=? WHERE id=?", ("2026-08-12T03:00:00+09:00", after_boundary["id"]))
+            items = client.get("/v1/operation-dispatch", params={"operating_date": "2026-08-11"}).json()["items"]
+            ids = {item["id"] for item in items}
+            self.assertIn(before_boundary["id"], ids)
+            self.assertNotIn(after_boundary["id"], ids)
 
     def test_daily_numbering_uses_category_bands_and_resets(self):
         with TemporaryDirectory() as directory:
