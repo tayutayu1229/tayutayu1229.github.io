@@ -16,8 +16,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 
 JST = timezone(timedelta(hours=9))
 CATEGORIES = {
@@ -33,6 +33,8 @@ CATEGORY_NUMBER_BASES = {
 }
 STATUSES = {"active", "monitoring", "resolved", "cancelled"}
 UPDATE_KINDS = {"followup", "status", "correction", "handover", "memo"}
+ATTACHMENT_MIMES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 TRAIN_ACTIONS = {
     "運転休止", "運休", "遅延", "運転再開", "折返し変更", "行先変更", "時刻変更",
     "編成変更", "車種変更", "臨時運転", "便宜乗車", "指定輸送", "抑止", "その他",
@@ -103,6 +105,7 @@ class OperationDispatchStore:
               recipients TEXT, sender_uid TEXT NOT NULL, sender_email TEXT NOT NULL,
               sender_name TEXT, requires_ack INTEGER NOT NULL DEFAULT 0,
               handover INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+              carryover INTEGER NOT NULL DEFAULT 0,
               effective_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
               resolved_at TEXT, dispatched_at TEXT
             );
@@ -131,6 +134,11 @@ class OperationDispatchStore:
               action TEXT NOT NULL, actor_uid TEXT NOT NULL, actor_email TEXT NOT NULL,
               detail TEXT, created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS dispatch_attachments(
+              id TEXT PRIMARY KEY, dispatch_id TEXT NOT NULL REFERENCES dispatches(id) ON DELETE CASCADE,
+              filename TEXT NOT NULL, mime TEXT NOT NULL, path TEXT NOT NULL, byte_size INTEGER NOT NULL,
+              caption TEXT, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_dispatch_status_updated ON dispatches(status, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_dispatch_line_event ON dispatches(line_name, event_at DESC);
             CREATE INDEX IF NOT EXISTS idx_dispatch_service_date ON dispatches(service_date DESC);
@@ -141,6 +149,9 @@ class OperationDispatchStore:
             columns = {row[1] for row in db.execute("PRAGMA table_info(dispatches)")}
             if "dispatched_at" not in columns:
                 db.execute("ALTER TABLE dispatches ADD COLUMN dispatched_at TEXT")
+                db.commit()
+            if "carryover" not in columns:
+                db.execute("ALTER TABLE dispatches ADD COLUMN carryover INTEGER NOT NULL DEFAULT 0")
                 db.commit()
             table_sql = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='dispatches'").fetchone()[0]
             if re.search(r"dispatch_number\s+TEXT\s+NOT\s+NULL\s+UNIQUE", table_sql, re.IGNORECASE):
@@ -155,10 +166,17 @@ class OperationDispatchStore:
                   recipients TEXT, sender_uid TEXT NOT NULL, sender_email TEXT NOT NULL,
                   sender_name TEXT, requires_ack INTEGER NOT NULL DEFAULT 0,
                   handover INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+                  carryover INTEGER NOT NULL DEFAULT 0,
                   effective_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                   resolved_at TEXT, dispatched_at TEXT
                 );
-                INSERT INTO dispatches_new SELECT * FROM dispatches;
+                INSERT INTO dispatches_new(
+                  id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
+                  reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,
+                  created_at,updated_at,resolved_at,dispatched_at
+                ) SELECT id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
+                  reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,
+                  created_at,updated_at,resolved_at,dispatched_at FROM dispatches;
                 DROP TABLE dispatches;
                 ALTER TABLE dispatches_new RENAME TO dispatches;
                 CREATE INDEX idx_dispatch_status_updated ON dispatches(status, updated_at DESC);
@@ -242,12 +260,19 @@ def dispatch_output(db: sqlite3.Connection, row: sqlite3.Row, uid: str, detail: 
         "requiresAcknowledgement": bool(row["requires_ack"]),
         "confirmationRequired": bool(row["requires_ack"]) and row["status"] in {"active", "monitoring"},
         "handover": bool(row["handover"]),
+        "carryover": bool(row["carryover"]),
         "pinned": bool(row["pinned"]), "effectiveUntil": row["effective_until"],
         "createdAt": row["created_at"], "dispatchedAt": row["dispatched_at"] or row["created_at"],
         "updatedAt": row["updated_at"], "resolvedAt": row["resolved_at"],
         "trains": trains, "updateCount": update_count, "acknowledgementCount": ack_count, "acknowledged": acknowledged, "favorite": favorite,
     }
     if detail:
+        result["attachments"] = [{
+            "id": attachment["id"], "filename": attachment["filename"], "mime": attachment["mime"],
+            "byteSize": attachment["byte_size"], "caption": attachment["caption"],
+            "position": attachment["position"],
+            "url": f"/v1/operation-dispatch/{dispatch_id}/attachments/{attachment['id']}",
+        } for attachment in db.execute("SELECT * FROM dispatch_attachments WHERE dispatch_id=? ORDER BY position,created_at", (dispatch_id,))]
         result["updates"] = [{
             "id": update["id"], "kind": update["kind"], "body": update["body"],
             "authorUid": update["author_uid"], "authorEmail": update["author_email"],
@@ -270,6 +295,8 @@ def add_audit(db: sqlite3.Connection, dispatch_id: str, action: str, user: dict[
 
 def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], database_path: Path) -> OperationDispatchStore:
     store = OperationDispatchStore(database_path)
+    attachment_root = database_path.parent / "operation-attachments"
+    attachment_root.mkdir(parents=True, exist_ok=True)
     prefix = "/v1/operation-dispatch"
 
     @app.get(f"{prefix}/health")
@@ -277,21 +304,23 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         with store.connect() as db:
             total = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
             active = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
-        return {"ok": True, "version": "2026.08.11.7", "records": total, "active": active}
+        return {"ok": True, "version": "2026.08.12.8", "records": total, "active": active}
 
     @app.get(f"{prefix}/summary")
     def summary(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
         today = operating_day()
         today_start = f"{today}T03:00:00+09:00"
         today_end = (datetime.fromisoformat(today_start) + timedelta(days=1)).isoformat()
+        visible = "(received_at>=? AND received_at<? OR (carryover=1 AND status IN('active','monitoring')))"
         with store.connect() as db:
             counts = {
-                "active": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='active'").fetchone()[0],
-                "monitoring": db.execute("SELECT COUNT(*) FROM dispatches WHERE status='monitoring'").fetchone()[0],
-                "handover": db.execute("SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring')").fetchone()[0],
+                "active": db.execute(f"SELECT COUNT(*) FROM dispatches WHERE status='active' AND {visible}", (today_start, today_end)).fetchone()[0],
+                "monitoring": db.execute(f"SELECT COUNT(*) FROM dispatches WHERE status='monitoring' AND {visible}", (today_start, today_end)).fetchone()[0],
+                "handover": db.execute(f"SELECT COUNT(*) FROM dispatches WHERE handover=1 AND status IN('active','monitoring') AND {visible}", (today_start, today_end)).fetchone()[0],
                 "today": db.execute("SELECT COUNT(*) FROM dispatches WHERE received_at>=? AND received_at<?", (today_start, today_end)).fetchone()[0],
                 "unacknowledged": db.execute("""SELECT COUNT(*) FROM dispatches d WHERE d.requires_ack=1 AND d.status IN('active','monitoring')
-                  AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (user["uid"],)).fetchone()[0],
+                  AND (d.received_at>=? AND d.received_at<? OR d.carryover=1)
+                  AND NOT EXISTS(SELECT 1 FROM dispatch_acknowledgements a WHERE a.dispatch_id=d.id AND a.uid=?)""", (today_start, today_end, user["uid"])).fetchone()[0],
             }
         return {**counts, "operatingDate": today, "operatingDayEndsAt": today_end}
 
@@ -300,10 +329,14 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
         q: str = Query("", max_length=200), status: str = Query(""), category: str = Query(""),
         line: str = Query("", max_length=100), date_from: str = Query(""),
         date_to: str = Query(""), handover: bool = Query(False), favorite: bool = Query(False),
-        unacknowledged: bool = Query(False), operating_date: str = Query(""),
+        unacknowledged: bool = Query(False), operating_date: str = Query(""), history: bool = Query(False),
         limit: int = Query(100, ge=1, le=300), user: dict[str, Any] = Depends(verify_user),
     ) -> dict[str, Any]:
         clauses, parameters = ["1=1"], []
+        if not history and not operating_date:
+            day_start = datetime.fromisoformat(f"{operating_day()}T03:00:00+09:00")
+            clauses.append("(d.received_at>=? AND d.received_at<? OR (d.carryover=1 AND d.status IN('active','monitoring')))" )
+            parameters.extend([day_start.isoformat(), (day_start + timedelta(days=1)).isoformat()])
         if status in STATUSES: clauses.append("d.status=?"); parameters.append(status)
         elif status == "open": clauses.append("d.status IN('active','monitoring')")
         if category in CATEGORIES: clauses.append("d.category=?"); parameters.append(category)
@@ -360,14 +393,14 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
             number = store.next_number(db, operating_day(timestamp), category)
             db.execute("""INSERT INTO dispatches(
                 id,dispatch_number,service_date,event_at,received_at,category,priority,status,title,line_name,location,
-                reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,effective_until,
+                reason,body,recipients,sender_uid,sender_email,sender_name,requires_ack,handover,pinned,carryover,effective_until,
                 created_at,updated_at,resolved_at,dispatched_at
-              ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+              ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
                 dispatch_id, number, service_date, text(data.get("eventAt"), 40), timestamp, category, "", status,
                 title, text(data.get("lineName"), 150), text(data.get("location"), 300), text(data.get("reason"), 1000),
                 text(data.get("body"), 10000), text(data.get("recipients"), 3000), user["uid"], user.get("email", ""),
                 text(data.get("senderName") or user.get("displayName") or user.get("email", ""), 200), boolean(data.get("requiresAcknowledgement")),
-                boolean(data.get("handover")), boolean(data.get("pinned")), text(data.get("effectiveUntil"), 40),
+                boolean(data.get("handover")), boolean(data.get("pinned")), boolean(data.get("carryover")), text(data.get("effectiveUntil"), 40),
                 timestamp, timestamp, timestamp if status == "resolved" else None, dispatched_at,
             ))
             for train in trains:
@@ -388,6 +421,45 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
     def get_dispatch(dispatch_id: str, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
         with store.connect() as db:
             return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
+
+    @app.post(f"{prefix}/{{dispatch_id}}/attachments")
+    async def add_attachment(
+        dispatch_id: str, file: UploadFile = File(...), caption: str = Form(""), position: int = Form(0),
+        user: dict[str, Any] = Depends(verify_user),
+    ) -> dict[str, Any]:
+        mime = (file.content_type or "").lower()
+        if mime not in ATTACHMENT_MIMES:
+            raise HTTPException(400, "JPEG・PNG・WebP・GIF画像を選択してください")
+        content = await file.read(MAX_ATTACHMENT_BYTES + 1)
+        if not content or len(content) > MAX_ATTACHMENT_BYTES:
+            raise HTTPException(400, "画像は1ファイル20MB以内にしてください")
+        attachment_id = uuid.uuid4().hex
+        destination = attachment_root / f"{attachment_id}{ATTACHMENT_MIMES[mime]}"
+        destination.write_bytes(content)
+        try:
+            with store.connect() as db:
+                require_dispatch(db, dispatch_id)
+                db.execute("INSERT INTO dispatch_attachments VALUES(?,?,?,?,?,?,?,?,?)", (
+                    attachment_id, dispatch_id, text(file.filename, 255) or destination.name, mime, str(destination),
+                    len(content), text(caption, 500), max(0, min(99, position)), now_iso(),
+                ))
+                add_audit(db, dispatch_id, "attachment:added", user, file.filename or destination.name)
+                return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+
+    @app.get(f"{prefix}/{{dispatch_id}}/attachments/{{attachment_id}}")
+    def attachment_media(dispatch_id: str, attachment_id: str, user: dict[str, Any] = Depends(verify_user)) -> FileResponse:
+        with store.connect() as db:
+            require_dispatch(db, dispatch_id)
+            attachment = db.execute("SELECT * FROM dispatch_attachments WHERE id=? AND dispatch_id=?", (attachment_id, dispatch_id)).fetchone()
+            if not attachment:
+                raise HTTPException(404, "添付画像が見つかりません")
+            path = Path(attachment["path"])
+            if not path.is_file():
+                raise HTTPException(404, "添付画像が見つかりません")
+            return FileResponse(path, media_type=attachment["mime"], filename=attachment["filename"])
 
     @app.post(f"{prefix}/{{dispatch_id}}/updates")
     async def add_update(dispatch_id: str, request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
@@ -413,9 +485,22 @@ def register_operation_dispatch(app: FastAPI, verify_user: Callable[..., Any], d
             db.execute("UPDATE dispatches SET status=?,handover=?,updated_at=?,resolved_at=? WHERE id=?", (
                 status, handover, timestamp, timestamp if status == "resolved" else None, dispatch_id,
             ))
+            if status in {"resolved", "cancelled"}:
+                db.execute("UPDATE dispatches SET carryover=0 WHERE id=?", (dispatch_id,))
             if note:
                 db.execute("INSERT INTO dispatch_updates VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, dispatch_id, "status", note, user["uid"], user.get("email", ""), text(data.get("senderName") or user.get("displayName") or user.get("email", ""), 200), timestamp))
             add_audit(db, dispatch_id, f"status:{status}", user, note)
+            return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
+
+    @app.post(f"{prefix}/{{dispatch_id}}/carryover")
+    async def set_carryover(dispatch_id: str, request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+        data = json_object(await request.json()); enabled = boolean(data.get("enabled")); timestamp = now_iso()
+        with store.connect() as db:
+            current = require_dispatch(db, dispatch_id)
+            if current["status"] not in {"active", "monitoring"} and enabled:
+                raise HTTPException(400, "完了・取消電報は翌日へ継続できません")
+            db.execute("UPDATE dispatches SET carryover=?,updated_at=? WHERE id=?", (enabled, timestamp, dispatch_id))
+            add_audit(db, dispatch_id, "carryover:on" if enabled else "carryover:off", user)
             return dispatch_output(db, require_dispatch(db, dispatch_id), user["uid"], True)
 
     @app.post(f"{prefix}/{{dispatch_id}}/acknowledge")
