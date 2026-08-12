@@ -40,7 +40,7 @@
   function setBusy(button,busy,label="処理中"){if(!button)return;button.disabled=busy;button.setAttribute("aria-busy",String(busy));button.classList.toggle("is-busy",busy);if(busy){button.dataset.label=button.textContent;button.textContent=`${label}…`;}else if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label;button.classList.add("operation-complete");setTimeout(()=>button.classList.remove("operation-complete"),900);}}
   const senderName=()=>localStorage.getItem("tayunet-operation-sender")||state.offices[0]||"東京総合指令室";
   const senderShort=value=>[...String(value||"指令").replace(/[\s　・()（）]/g,"")].slice(0,2).join("")||"指令";
-  function setMode(mode,persist=true){state.mode=mode==="editor"?"editor":"viewer";document.body.dataset.operationMode=state.mode;$$('[data-operation-mode]').forEach(button=>button.classList.toggle("active",button.dataset.operationMode===state.mode));$("#mode-description").textContent=state.mode==="editor"?"打電・続報・状態変更を行う指令担当者向け画面です。":"受信した電報を読むための画面です。";if(persist)localStorage.setItem("tayunet-operation-mode",state.mode);$("#mobile-sheet").hidden=true;}
+  function setMode(mode,persist=true){state.mode=mode==="editor"?"editor":"viewer";document.body.dataset.operationMode=state.mode;$$('[data-operation-mode]').forEach(button=>button.classList.toggle("active",button.dataset.operationMode===state.mode));$("#mode-description").textContent=state.mode==="editor"?"指令操作中":"閲覧中";if(persist)localStorage.setItem("tayunet-operation-mode",state.mode);$("#mobile-sheet").hidden=true;}
   async function loadOffices(){const select=$("#sender-name");try{const response=await fetch("/JREgyoumu/workdata/workbase.json",{cache:"force-cache"});if(!response.ok)throw new Error();const data=await response.json();state.offices=[...new Set((Array.isArray(data)?data:[]).map(value=>String(value).trim()).filter(Boolean))];select.innerHTML=state.offices.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");select.value=state.offices.includes(senderName())?senderName():state.offices[0]||"";if(select.value)localStorage.setItem("tayunet-operation-sender",select.value);}catch(_){select.innerHTML='<option value="東京総合指令室">東京総合指令室</option>';select.value=senderName();}}
 
   const templates={
@@ -109,7 +109,7 @@
     if(event.target.closest("[data-copy-dispatch]"))return copyCurrent();
     if(event.target.closest("[data-toggle-favorite]"))return toggleFavorite(state.current.id,!state.current.favorite).then(()=>openDetail(state.current.id));
     const status=event.target.closest("[data-set-status]");if(status)return setStatus(status.dataset.setStatus,status);
-  });
+  },true);
 
   $("#add-train").addEventListener("click",()=>{const section=$("#optional-trains");section.open=true;$("#train-rows").insertAdjacentHTML("beforeend",trainRow());const rows=$$("[data-train-row]",section);rows[rows.length-1]?.querySelector("input")?.focus();});
   $("#apply-template").addEventListener("click",()=>applyTemplate($("#template-select").value));
