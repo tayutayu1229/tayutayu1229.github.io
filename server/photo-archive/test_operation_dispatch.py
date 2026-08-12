@@ -159,6 +159,36 @@ class OperationDispatchTest(unittest.TestCase):
             after_ack = client.post(f"/v1/operation-dispatch/{confirmation_required['id']}/acknowledge").json()
             self.assertEqual(after_ack["acknowledgementCount"], acknowledgement_count)
 
+    def test_old_dispatches_are_hidden_unless_carried_over_or_history_requested(self):
+        with TestClient(archive.app) as client:
+            old = client.post("/v1/operation-dispatch", json={"title": "前取扱日の電報", "category": "notice"}).json()
+            with archive.OPERATION_DISPATCH.connect() as db:
+                db.execute("UPDATE dispatches SET received_at='2026-08-01T10:00:00+09:00' WHERE id=?", (old["id"],))
+            current = client.get("/v1/operation-dispatch", params={"status": "open"}).json()["items"]
+            self.assertNotIn(old["id"], {item["id"] for item in current})
+            history = client.get("/v1/operation-dispatch", params={"history": "true"}).json()["items"]
+            self.assertIn(old["id"], {item["id"] for item in history})
+            carried = client.post(f"/v1/operation-dispatch/{old['id']}/carryover", json={"enabled": True}).json()
+            self.assertTrue(carried["carryover"])
+            current = client.get("/v1/operation-dispatch", params={"status": "open"}).json()["items"]
+            self.assertIn(old["id"], {item["id"] for item in current})
+
+    def test_image_attachment_is_saved_and_returned(self):
+        with TestClient(archive.app) as client:
+            created = client.post("/v1/operation-dispatch", json={"title": "画像添付試験", "category": "notice"}).json()
+            attached = client.post(
+                f"/v1/operation-dispatch/{created['id']}/attachments",
+                files={"file": ("diagram.png", b"fake-png-data", "image/png")},
+                data={"caption": "運転整理図", "position": "2"},
+            )
+            self.assertEqual(attached.status_code, 200, attached.text)
+            attachment = attached.json()["attachments"][0]
+            self.assertEqual(attachment["caption"], "運転整理図")
+            self.assertEqual(attachment["position"], 2)
+            media = client.get(attachment["url"])
+            self.assertEqual(media.status_code, 200)
+            self.assertEqual(media.content, b"fake-png-data")
+
 
 if __name__ == "__main__":
     unittest.main()

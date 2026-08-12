@@ -64,7 +64,7 @@ PHOTO_FIELDS = (
 )
 VISIBILITIES = {"private", "users", "link", "public"}
 
-app = FastAPI(title="TAYUNET Photo Archive / Operation Dispatch", version="2026.08.11.7")
+app = FastAPI(title="TAYUNET Photo Archive / Operation Dispatch", version="2026.08.12.8")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
