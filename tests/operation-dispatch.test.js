@@ -83,6 +83,7 @@ assert.match(client, /function bindDetailControls/);
 assert.match(client, /operation-mode-select/);
 assert.match(client, /quick-compose/);
 assert.match(client, /history=true/);
+assert.match(client, /case"all":map\.set\("history","true"\)/);
 assert.match(client, /uploadComposeAttachment/);
 assert.match(client, /data-carryover/);
 assert.doesNotMatch(client, /new MutationObserver\(enhanceDetail\)/);
