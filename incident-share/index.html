@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#45a82d">
+  <title>異常時情報共有システム</title>
+  <meta name="description" content="写真・動画とGPS位置情報を現場から共有する業務システム">
+  <meta property="og:title" content="異常時情報共有システム">
+  <meta property="og:description" content="撮影するだけで、現場をリアルタイム共有。">
+  <meta property="og:image" content="https://tayunet-traininfo.com/incident-share/og.png">
+  <link rel="icon" href="./favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main class="system-shell mode-home" id="app">
+  <header class="system-header">
+    <button class="header-back tablet-only" id="backButton">‹ 戻る</button>
+    <div class="system-title"><span class="rail-mark"><i></i><i></i></span><div><b>異常時情報共有システム</b><small>INCIDENT INFORMATION SHARING</small></div></div>
+    <div class="header-right"><span class="online"><i></i><span id="serverStatus">デモ表示中</span></span><span id="clock">--:--</span><button id="refreshButton">↻ 更新</button></div>
+  </header>
+
+  <section class="tablet-home">
+    <p>自動送信モード <span>GPS位置情報を付加</span></p>
+    <button class="capture-button" data-capture="image"><span class="camera-icon"></span><b>静止画撮影</b><small>撮影後、自動的に共有画面へ進みます</small></button>
+    <button class="capture-button" data-capture="video"><span class="video-icon"></span><b>動画撮影</b><small>現場の状況を動画で記録します</small></button>
+    <div class="tablet-subactions"><button id="openGallery"><span>▦</span><b>共有データ閲覧</b><small>全社員共有</small></button><button data-device><span>▱</span><b>端末保存データ閲覧</b><small>未送信データ</small></button></div>
+  </section>
+
+  <div class="desktop-content">
+    <aside class="sidebar">
+      <div class="user-block"><span>運</span><div><small>ログイン所属</small><b>運輸車両部</b></div></div>
+      <nav><button class="active">▦ <span>共有データ一覧</span></button><button data-capture="image">▣ <span>静止画撮影</span></button><button data-capture="video">▶ <span>動画撮影</span></button><button data-map>⌖ <span>地図から探す</span></button><button data-device>▱ <span>端末保存データ</span></button></nav>
+      <div class="sidebar-status"><small>本日の共有</small><b><span id="todayCount">0</span><small>件</small></b><small>対応・確認中</small><b><span id="activeCount">0</span><small>件</small></b></div>
+    </aside>
+    <section class="workspace">
+      <div class="page-title"><div><span class="tablet-only">共有データ閲覧</span><h1>共有データ一覧</h1><p>現場から登録された写真・動画を新しい順に表示しています。</p></div><div class="desktop-actions"><button data-capture="video">▶ 動画撮影</button><button class="green" data-capture="image">▣ 静止画撮影</button></div></div>
+      <div class="toolbar"><label class="search-box"><span>⌕</span><input id="searchInput" placeholder="駅名・区間・コメントを検索"></label><select id="lineFilter"><option value="">全路線</option></select><div class="severity-filter" id="severityFilter"><button class="active" data-value="">すべて</button><button data-value="緊急">緊急</button><button data-value="警戒">警戒</button><button data-value="情報">情報</button></div><button class="filter-button">☷ 絞込</button></div>
+      <div class="list-meta"><b id="resultCount">0件</b><span><i></i>自動更新</span></div>
+      <div class="photo-grid" id="photoGrid"></div>
+    </section>
+  </div>
+
+  <div class="overlay" id="detailOverlay" hidden><article class="detail-panel"><header><button data-close-detail>‹ 戻る</button><b>共有データ詳細</b><button id="fullscreenButton">全画面表示</button></header><div class="detail-layout"><div class="detail-photo" id="detailPhoto"></div><div class="detail-data"><h2 id="detailTitle"></h2><div class="status-switch" id="statusSwitch"></div><dl><div><dt>撮影日時</dt><dd id="detailTime"></dd></div><div><dt>撮影場所</dt><dd id="detailLocation"></dd></div><div><dt>路線</dt><dd id="detailLine"></dd></div><div><dt>端末所属箇所</dt><dd id="detailReporter"></dd></div><div class="comment"><dt>コメント</dt><dd id="detailComment"></dd></div></dl></div></div></article></div>
+
+  <div class="overlay" id="uploadOverlay" hidden><form class="upload-panel" id="uploadForm"><header><div><small>GPS位置情報を自動取得</small><h2 id="uploadTitle">静止画撮影・共有</h2></div><button type="button" data-close-upload>×</button></header><div class="upload-body"><label class="media-picker" id="mediaPicker"><span class="camera-icon" id="captureIcon"></span><b id="captureLabel">カメラを起動</b><small>タップして撮影してください</small><input id="mediaInput" name="media" type="file" accept="image/*" capture="environment" required></label><div class="location-status"><span id="gpsIcon">⌖</span><div><b id="gpsTitle">位置情報を取得中</b><small id="gpsValue">端末のGPSを確認しています</small></div></div><div class="form-grid"><label><span>件名</span><input name="title" required placeholder="例：線路内倒木を確認"></label><label><span>路線</span><input name="line" required placeholder="例：中央本線"></label><label class="wide"><span>撮影場所</span><input name="location" required placeholder="駅名・区間・キロ程"></label><label><span>重要度</span><select name="severity"><option>緊急</option><option selected>警戒</option><option>情報</option></select></label><label><span>所属</span><input name="reporter" required placeholder="箇所名・班名"></label><label class="wide"><span>コメント（登録前に入力可能）</span><textarea name="comment" required rows="3" placeholder="現地状況と実施済み対応"></textarea></label></div></div><footer><button type="button" data-close-upload>キャンセル</button><button class="send" type="submit">共有サーバーへ登録</button></footer></form></div>
+  <div class="toast" id="toast" hidden></div>
+</main>
+<script src="./config.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
