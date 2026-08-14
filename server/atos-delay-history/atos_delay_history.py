@@ -101,6 +101,10 @@ def initialize_database() -> None:
                 ON observations(service_date, train_number, observed_at);
             CREATE INDEX IF NOT EXISTS idx_observations_date
                 ON observations(service_date);
+            CREATE INDEX IF NOT EXISTS idx_observations_history_lookup
+                ON observations(train_number, railway, service_date, station_id, observed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_observations_statistics
+                ON observations(service_date, train_number, railway, station_id, observed_at DESC);
             """
         )
         columns = {row["name"] for row in database.execute("PRAGMA table_info(observations)")}
@@ -268,6 +272,9 @@ def store_snapshot(trains: list[dict]) -> int:
               from_station = excluded.from_station,
               to_station = excluded.to_station,
               destination_station = excluded.destination_station
+            WHERE COALESCE(observations.from_station, '') <> COALESCE(excluded.from_station, '')
+               OR COALESCE(observations.to_station, '') <> COALESCE(excluded.to_station, '')
+               OR COALESCE(observations.destination_station, '') <> COALESCE(excluded.destination_station, '')
             """,
             rows,
         )
@@ -604,9 +611,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/health":
                 with connect() as database:
-                    count = database.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+                    # A full COUNT scan blocks the API once the history DB grows into
+                    # gigabytes. MAX(id) uses the primary-key B-tree and is an
+                    # intentionally approximate, constant-time health metric.
+                    count = database.execute("SELECT COALESCE(MAX(id), 0) FROM observations").fetchone()[0]
                     dates = database.execute("SELECT MIN(service_date), MAX(service_date) FROM observations").fetchone()
-                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS, "interval_seconds": INTERVAL, "storage": storage_status()})
+                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "observation_count_approximate": True, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS, "interval_seconds": INTERVAL, "storage": storage_status()})
                 return
             if parsed.path == "/api/v1/train-history":
                 self._send_json(200, train_history(urllib.parse.parse_qs(parsed.query)))
