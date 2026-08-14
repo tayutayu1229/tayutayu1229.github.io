@@ -615,8 +615,9 @@ class Handler(BaseHTTPRequestHandler):
                     # gigabytes. MAX(id) uses the primary-key B-tree and is an
                     # intentionally approximate, constant-time health metric.
                     count = database.execute("SELECT COALESCE(MAX(id), 0) FROM observations").fetchone()[0]
-                    dates = database.execute("SELECT MIN(service_date), MAX(service_date) FROM observations").fetchone()
-                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "observation_count_approximate": True, "oldest_service_date": dates[0], "newest_service_date": dates[1], "retention_days": RETENTION_DAYS, "interval_seconds": INTERVAL, "storage": storage_status()})
+                    oldest = database.execute("SELECT service_date FROM observations ORDER BY service_date ASC LIMIT 1").fetchone()
+                    newest = database.execute("SELECT service_date FROM observations ORDER BY service_date DESC LIMIT 1").fetchone()
+                self._send_json(200, {"ok": STATE["consecutive_failures"] == 0, **STATE, "observation_count": count, "observation_count_approximate": True, "oldest_service_date": oldest[0] if oldest else None, "newest_service_date": newest[0] if newest else None, "retention_days": RETENTION_DAYS, "interval_seconds": INTERVAL, "storage": storage_status()})
                 return
             if parsed.path == "/api/v1/train-history":
                 self._send_json(200, train_history(urllib.parse.parse_qs(parsed.query)))
