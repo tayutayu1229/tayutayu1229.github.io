@@ -34,6 +34,15 @@ class AtosDelayHistoryTest(unittest.TestCase):
                 """,
                 (date, railway, station, delay, station, destination, observed_at),
             )
+            database.execute(
+                """
+                INSERT INTO latest_observations
+                  (service_date, railway, train_number, station_id, phase, delay_seconds,
+                   from_station, to_station, destination_station, observed_at)
+                VALUES (?, ?, '100M', ?, 'departure', ?, ?, NULL, ?, ?)
+                """,
+                (date, railway, station, delay, station, destination, observed_at),
+            )
 
     def test_snapshot_uses_odpt_source_timestamp_and_destination(self):
         now = datetime.now(history.JST).replace(microsecond=0)
