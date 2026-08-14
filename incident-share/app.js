@@ -89,16 +89,18 @@
   function updateGridShape() {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const columns = width >= 1100 ? 8 : width >= 700 ? 5 : width < 360 ? 3 : 4;
+    const sidebarWidth = isLandscapeLayout() && !$("#app").classList.contains("sidebar-collapsed") ? 218 : 0;
+    const contentWidth = Math.max(320, width - sidebarWidth);
+    const columns = contentWidth >= 980 ? 8 : contentWidth >= 700 ? 5 : width < 360 ? 3 : 4;
     const header = width <= 700 ? 52 : 58;
     const date = width <= 700 ? 30 : 34;
     const footer = 70;
-    const gap = width >= 1100 ? 14 : width <= 700 ? 6 : 12;
-    const padX = width >= 1100 ? 26 : width <= 700 ? 7 : 18;
-    const padY = width >= 1100 ? 16 : width <= 700 ? 6 : 8;
-    const cardWidth = (width - padX * 2 - gap * (columns - 1)) / columns;
+    const gap = contentWidth >= 980 ? 14 : width <= 700 ? 6 : 12;
+    const padX = contentWidth >= 980 ? 26 : width <= 700 ? 7 : 18;
+    const padY = contentWidth >= 980 ? 16 : width <= 700 ? 6 : 8;
+    const cardWidth = (contentWidth - padX * 2 - gap * (columns - 1)) / columns;
     const availableHeight = Math.max(180, height - header - date - footer - padY * 2);
-    const rows = Math.max(2, Math.floor((availableHeight + gap) / (Math.max(62, cardWidth / 1.05) + gap)));
+    const rows = Math.max(2, Math.round((availableHeight + gap) / (Math.max(62, cardWidth) + gap)));
     state.columns = columns; state.rows = rows;
     document.documentElement.style.setProperty("--grid-columns", columns);
     document.documentElement.style.setProperty("--grid-rows", rows);
@@ -272,7 +274,9 @@
   $("#detailBack").addEventListener("click", closeDetail);
   $("#fullscreenButton").addEventListener("click", openFullscreen);
   $("#deleteButton").addEventListener("click", deleteSelected);
-  $("#sidebarToggleButton").addEventListener("click", () => $("#app").classList.toggle("sidebar-collapsed"));
+  $("#sidebarToggleButton").addEventListener("click", () => {
+    $("#app").classList.toggle("sidebar-collapsed"); updateGridShape(); renderGallery();
+  });
   $("#settingsCancelButton").addEventListener("click", closeSettings);
   $("#deviceSettingsForm").addEventListener("submit", (event) => {
     event.preventDefault(); const name = String(new FormData(event.currentTarget).get("deviceName") || "").trim();

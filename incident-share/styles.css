@@ -39,9 +39,7 @@ button { cursor: pointer; }
 .top-action.logout { padding: 6px 11px; border: 1px solid #ffffff88; border-radius: 3px; background: #d9ffc8; color: #18800f; font-size: 13px; }
 .top-action.settings { width: 38px; justify-content: center; font-size: 24px; }
 .top-action.sidebar-toggle { display: none; width: 38px; justify-content: center; }
-.settings-glyph { position: relative; width: 24px; height: 18px; display: inline-block; color: inherit; vertical-align: middle; }
-.settings-glyph::before { content: ""; position: absolute; left: 1px; right: 1px; top: 3px; height: 2px; background: currentColor; box-shadow: 0 6px currentColor, 0 12px currentColor; }
-.settings-glyph::after { content: ""; position: absolute; left: 5px; top: 0; width: 4px; height: 4px; border: 2px solid currentColor; border-radius: 50%; background: #fff; box-shadow: 9px 6px 0 -1px #fff, 9px 6px 0 1px currentColor, -2px 12px 0 -1px #fff, -2px 12px 0 1px currentColor; }
+.settings-glyph { width: 24px; height: 24px; display: block; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .menu-glyph { position: relative; width: 22px; height: 2px; display: block; background: currentColor; box-shadow: 0 -7px currentColor, 0 7px currentColor; }
 .landscape-sidebar { display: none; }
 
@@ -86,8 +84,11 @@ button { cursor: pointer; }
 @media (orientation: landscape) and (min-width: 701px) {
   :root { --sidebar-width: 218px; }
   .topbar { padding-left: calc(var(--sidebar-width) + 18px); }
+  .app:not(.sidebar-collapsed) .topbar { padding-left: calc(var(--sidebar-width) + 18px); }
   .topbar .logout, .topbar .settings { display: none !important; }
   .top-action.sidebar-toggle { display: flex; }
+  .top-action.sidebar-toggle { position: fixed; z-index: 24; left: 14px; top: calc(env(safe-area-inset-top) + 10px); }
+  .topbar .left-slot { padding-left: 44px; }
   .app[data-mode="gallery"] .top-action.back { display: none !important; }
   .landscape-sidebar { position: fixed; z-index: 21; left: 0; top: calc(var(--header-height) + env(safe-area-inset-top)); bottom: 0; width: var(--sidebar-width); display: flex; flex-direction: column; background: #fff; border-right: 1px solid #cfd7ca; box-shadow: 2px 0 7px #1f3c1820; }
   .sidebar-user { height: 76px; flex: 0 0 auto; padding: 15px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #dce2d8; background: #fbfcfa; }
@@ -112,7 +113,15 @@ button { cursor: pointer; }
   .app.sidebar-collapsed .landscape-sidebar { transform: translateX(-100%); }
   .app.sidebar-collapsed .topbar { padding-left: 18px; }
   .app.sidebar-collapsed > .gallery-screen, .app.sidebar-collapsed > .detail-screen, .app.sidebar-collapsed > .capture-screen, .app.sidebar-collapsed > .settings-screen, .app.sidebar-collapsed > .fullscreen-screen { margin-left: 0; }
-  .photo-grid { --grid-pad-x: 14px; }
+  .app > .detail-screen { max-width: none; grid-template-columns: minmax(0, 1fr) clamp(310px, 31vw, 420px); grid-template-rows: 100%; overflow: hidden; }
+  .app .detail-media-shell { height: 100%; border-right: 1px solid var(--line); }
+  .app .detail-media img, .app .detail-media video { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; }
+  .app .detail-fields { grid-template-rows: auto auto minmax(150px, 1fr) auto; overflow: auto; border-top: 0; }
+  .app .detail-fields .field-row { grid-template-columns: 86px minmax(0, 1fr); }
+  .app .detail-fields .field-row label { padding: 11px 10px; font-size: 12px; }
+  .app .detail-fields .field-row input, .app .detail-fields .field-row textarea { padding: 11px 12px; font-size: 13px; }
+  .app .detail-fields .form-actions { padding: 8px 10px; }
+  .app .detail-fields .form-actions button { padding: 8px 14px; }
 }
 
 .gallery-screen { height: calc(100dvh - var(--header-height) - env(safe-area-inset-top)); display: grid; grid-template-rows: var(--date-height) minmax(0, 1fr) calc(var(--footer-height) + env(safe-area-inset-bottom)); overflow: hidden; }
