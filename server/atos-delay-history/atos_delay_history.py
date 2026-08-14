@@ -220,6 +220,7 @@ def cleanup_storage_limit(force: bool = False) -> int:
                     "DELETE FROM latest_observations WHERE service_date < ?",
                     (oldest_remaining[0],),
                 )
+                database.commit()
             database.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             current = storage_status(database)
 
@@ -302,6 +303,7 @@ def store_snapshot(trains: list[dict]) -> int:
             """,
             rows,
         )
+        inserted = database.total_changes - before
         database.executemany(
             """
             INSERT INTO latest_observations
@@ -323,7 +325,6 @@ def store_snapshot(trains: list[dict]) -> int:
             """,
             rows,
         )
-        inserted = database.total_changes - before
     cleanup_old_observations()
     cleanup_storage_limit()
     return inserted
