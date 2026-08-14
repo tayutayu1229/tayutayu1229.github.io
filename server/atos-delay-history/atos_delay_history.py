@@ -315,7 +315,11 @@ def store_snapshot(trains: list[dict]) -> int:
               to_station = excluded.to_station,
               destination_station = excluded.destination_station,
               observed_at = excluded.observed_at
-            WHERE excluded.observed_at >= latest_observations.observed_at
+            WHERE latest_observations.phase <> excluded.phase
+               OR latest_observations.delay_seconds <> excluded.delay_seconds
+               OR COALESCE(latest_observations.from_station, '') <> COALESCE(excluded.from_station, '')
+               OR COALESCE(latest_observations.to_station, '') <> COALESCE(excluded.to_station, '')
+               OR COALESCE(latest_observations.destination_station, '') <> COALESCE(excluded.destination_station, '')
             """,
             rows,
         )
