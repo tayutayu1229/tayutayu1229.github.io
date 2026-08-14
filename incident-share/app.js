@@ -5,6 +5,7 @@
   const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
   const thumbnailQueue = { active: 0, pending: [], limit: 4 };
   const fullscreenZoom = { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, pinching: false, lastTap: 0 };
+  let viewportSyncTimers = [];
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -32,6 +33,11 @@
   function syncViewportHeight() {
     const height = window.visualViewport?.height || window.innerHeight;
     document.documentElement.style.setProperty("--viewport-height", `${Math.round(height)}px`);
+  }
+  function scheduleViewportSync() {
+    viewportSyncTimers.forEach(clearTimeout); viewportSyncTimers = [];
+    const update = () => { syncViewportHeight(); if (!$("#fullscreenScreen")?.hidden) requestAnimationFrame(applyFullscreenZoom); };
+    update(); [120, 360, 800].forEach((delay) => viewportSyncTimers.push(setTimeout(update, delay)));
   }
   function showToast(message, error = false) {
     const toast = $("#toast"); toast.textContent = `${error ? "!" : "✓"}　${message}`; toast.hidden = false;
@@ -406,15 +412,22 @@
   window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
   let resizeTimer;
   let previousLandscape = isLandscapeLayout();
-  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
-    const landscape = isLandscapeLayout(); syncViewportHeight(); if (updateGridShape()) renderGallery();
-    if (landscape !== previousLandscape) { previousLandscape = landscape; if (landscape && !$("#uploadSheet").hidden) return; if (landscape) showGallery(); else if (!$("#detailScreen").hidden) return; else showHome(); }
+  window.addEventListener("resize", () => { scheduleViewportSync(); clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
+    const landscape = isLandscapeLayout(); if (updateGridShape()) renderGallery();
+    if (landscape !== previousLandscape) {
+      previousLandscape = landscape;
+      if (!$("#uploadSheet").hidden || !$("#settingsScreen").hidden) return;
+      if (!$("#fullscreenScreen").hidden) { setHeader("fullscreen"); return; }
+      if (!$("#detailScreen").hidden) { $("#detailScreen").scrollTop = 0; setHeader("detail"); return; }
+      if (landscape) showGallery(); else showHome();
+    }
   }, 120); });
-  window.visualViewport?.addEventListener("resize", syncViewportHeight);
+  window.addEventListener("orientationchange", scheduleViewportSync);
+  window.visualViewport?.addEventListener("resize", scheduleViewportSync);
 
   async function start() {
     try {
-      syncViewportHeight();
+      scheduleViewportSync();
       $("#authCover p").textContent = "Firebase認証を確認しています";
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
