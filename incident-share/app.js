@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "" };
+  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", uploadFile: null, uploadPreviewUrl: "" };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -187,7 +187,10 @@
   function openUpload(kind = "both") {
     if (!deviceName()) { state.pendingCaptureKind = kind; showSettings(true); return; }
     state.uploadReturnMode = $("#galleryScreen").hidden ? "home" : "gallery";
-    const form = $("#uploadForm"); form.reset(); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
+    const form = $("#uploadForm"); form.reset();
+    if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
+    state.uploadFile = null; state.uploadPreviewUrl = "";
+    $("#mediaPicker").classList.remove("dragover"); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
     const input = $("#mediaInput");
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
     $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
@@ -196,8 +199,25 @@
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
+  function setUploadFile(file) {
+    if (!file) return;
+    const type = String(file.type || "");
+    if (!type.startsWith("image/") && !type.startsWith("video/")) { showToast("写真または動画を選択してください", true); return; }
+    const accept = $("#mediaInput").accept;
+    if (accept === "image/*" && !type.startsWith("image/")) { showToast("静止画を選択してください", true); return; }
+    if (accept === "video/*" && !type.startsWith("video/")) { showToast("動画を選択してください", true); return; }
+    if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
+    const picker = $("#mediaPicker"); picker.querySelectorAll("img,video").forEach((node) => node.remove());
+    state.uploadFile = file; state.uploadPreviewUrl = URL.createObjectURL(file);
+    const media = document.createElement(type.startsWith("video/") ? "video" : "img"); media.src = state.uploadPreviewUrl;
+    if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; media.playsInline = true; }
+    picker.append(media);
+  }
+
   $("#uploadForm").addEventListener("submit", async (event) => {
-    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = $("#mediaInput").files[0]; if (!file) return;
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = state.uploadFile || $("#mediaInput").files[0];
+    if (!file) { showToast("写真または動画を選択してください", true); return; }
+    data.set("media", file, file.name || "upload");
     data.set("occurredAt", isoValue(data.get("occurredAt")));
     const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
     try {
@@ -214,9 +234,21 @@
       Object.assign(state.selected, update); renderGallery(); showToast("撮影情報を保存しました");
     } catch (error) { showToast(error.message || "保存できませんでした", true); }
   });
-  $("#mediaInput").addEventListener("change", (event) => {
-    const file = event.target.files[0]; if (!file) return; const picker = $("#mediaPicker"); picker.querySelectorAll("img,video").forEach((node) => node.remove());
-    const media = document.createElement(file.type.startsWith("video/") ? "video" : "img"); media.src = URL.createObjectURL(file); if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; } picker.append(media);
+  $("#mediaInput").addEventListener("change", (event) => setUploadFile(event.target.files[0]));
+  const mediaPicker = $("#mediaPicker");
+  ["dragenter", "dragover"].forEach((type) => mediaPicker.addEventListener(type, (event) => {
+    event.preventDefault(); event.stopPropagation(); mediaPicker.classList.add("dragover");
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  }));
+  mediaPicker.addEventListener("dragleave", (event) => {
+    event.preventDefault(); event.stopPropagation();
+    if (!mediaPicker.contains(event.relatedTarget)) mediaPicker.classList.remove("dragover");
+  });
+  mediaPicker.addEventListener("drop", (event) => {
+    event.preventDefault(); event.stopPropagation(); mediaPicker.classList.remove("dragover");
+    const file = [...(event.dataTransfer?.files || [])].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/"));
+    if (!file) { showToast("写真または動画を選択してください", true); return; }
+    setUploadFile(file);
   });
   $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; state.page = 0; $("#filterSheet").hidden = true; renderGallery(); });
   $("#refreshButton").addEventListener("click", () => loadItems(true));
@@ -251,7 +283,7 @@
     if (pending) openUpload(pending); else showToast("端末名を保存しました");
   });
   $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
-  window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
+  window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
   let touchStartX = 0;
   $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
   $("#photoGrid").addEventListener("touchend", (event) => {
