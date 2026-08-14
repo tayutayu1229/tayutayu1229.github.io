@@ -105,6 +105,21 @@ def initialize_database() -> None:
                 ON observations(train_number, railway, service_date, station_id, observed_at DESC);
             CREATE INDEX IF NOT EXISTS idx_observations_statistics
                 ON observations(service_date, train_number, railway, station_id, observed_at DESC);
+            CREATE TABLE IF NOT EXISTS latest_observations (
+                service_date TEXT NOT NULL,
+                railway TEXT NOT NULL,
+                train_number TEXT NOT NULL,
+                station_id TEXT NOT NULL,
+                phase TEXT NOT NULL CHECK (phase IN ('arrival', 'departure')),
+                delay_seconds INTEGER NOT NULL CHECK (delay_seconds >= 0),
+                from_station TEXT,
+                to_station TEXT,
+                destination_station TEXT,
+                observed_at TEXT NOT NULL,
+                PRIMARY KEY (service_date, railway, train_number, station_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_latest_observations_date
+                ON latest_observations(service_date, train_number, observed_at);
             """
         )
         columns = {row["name"] for row in database.execute("PRAGMA table_info(observations)")}
@@ -122,6 +137,7 @@ def cleanup_old_observations(force: bool = False) -> int:
         before = database.total_changes
         database.execute("DELETE FROM observations WHERE service_date < ?", (cutoff,))
         deleted = database.total_changes - before
+        database.execute("DELETE FROM latest_observations WHERE service_date < ?", (cutoff,))
     STATE["last_cleanup"] = today
     STATE["deleted_observations"] = deleted
     if deleted:
@@ -196,6 +212,14 @@ def cleanup_storage_limit(force: bool = False) -> int:
             if not batch_deleted:
                 break
             deleted += batch_deleted
+            oldest_remaining = database.execute(
+                "SELECT service_date FROM observations ORDER BY service_date ASC LIMIT 1"
+            ).fetchone()
+            if oldest_remaining:
+                database.execute(
+                    "DELETE FROM latest_observations WHERE service_date < ?",
+                    (oldest_remaining[0],),
+                )
             database.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             current = storage_status(database)
 
@@ -275,6 +299,23 @@ def store_snapshot(trains: list[dict]) -> int:
             WHERE COALESCE(observations.from_station, '') <> COALESCE(excluded.from_station, '')
                OR COALESCE(observations.to_station, '') <> COALESCE(excluded.to_station, '')
                OR COALESCE(observations.destination_station, '') <> COALESCE(excluded.destination_station, '')
+            """,
+            rows,
+        )
+        database.executemany(
+            """
+            INSERT INTO latest_observations
+              (service_date, railway, train_number, station_id, phase, delay_seconds, from_station, to_station, destination_station, observed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(service_date, railway, train_number, station_id)
+            DO UPDATE SET
+              phase = excluded.phase,
+              delay_seconds = excluded.delay_seconds,
+              from_station = excluded.from_station,
+              to_station = excluded.to_station,
+              destination_station = excluded.destination_station,
+              observed_at = excluded.observed_at
+            WHERE excluded.observed_at >= latest_observations.observed_at
             """,
             rows,
         )
@@ -403,22 +444,15 @@ def statistics(params: dict[str, list[str]]) -> dict:
     with connect() as database:
         rows = database.execute(
             """
-            WITH ranked AS (
-              SELECT service_date, railway, train_number, station_id, phase, delay_seconds, destination_station, observed_at,
-                     ROW_NUMBER() OVER (
-                       PARTITION BY service_date, railway, train_number, station_id
-                       ORDER BY observed_at DESC, id DESC
-                     ) AS row_number
-              FROM observations WHERE service_date >= ?
-            )
             SELECT service_date, railway, train_number, station_id, phase, delay_seconds, destination_station, observed_at
-            FROM ranked WHERE row_number = 1
+            FROM latest_observations
+            WHERE service_date >= ?
             ORDER BY service_date, train_number, observed_at
             """,
             (cutoff,),
         ).fetchall()
         total_observations = database.execute(
-            "SELECT COUNT(*) FROM observations WHERE service_date >= ?", (cutoff,)
+            "SELECT COUNT(*) FROM latest_observations WHERE service_date >= ?", (cutoff,)
         ).fetchone()[0]
 
     station_stats: dict[tuple[str, str], dict] = defaultdict(lambda: {"samples": 0, "delayTotal": 0, "maxDelay": 0, "changeTotal": 0, "changes": 0, "increases": 0, "recoveries": 0})
