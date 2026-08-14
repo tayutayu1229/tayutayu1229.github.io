@@ -22,6 +22,24 @@
     const toast = $("#toast"); toast.textContent = `${error ? "!" : "✓"}　${message}`; toast.hidden = false;
     clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { toast.hidden = true; }, error ? 5200 : 3000);
   }
+  function setHeader(mode) {
+    const home = mode === "home";
+    $("#firebase-logout-button").hidden = !home;
+    $("#viewBackButton").hidden = home;
+    $("#settingsButton").hidden = !home;
+    $("#refreshButton").hidden = home || mode === "detail";
+    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : "共有データ閲覧";
+  }
+  function showHome() {
+    state.selected = null;
+    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true;
+    setHeader("home");
+  }
+  function showGallery() {
+    state.selected = null;
+    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#galleryScreen").hidden = false;
+    setHeader("gallery"); updateGridShape(); renderGallery();
+  }
   async function authorizedFetch(path, options = {}, retry = true) {
     if (!apiBase) throw new Error("共有サーバーが設定されていません");
     const auth = window.TayunetFirebaseDataAuth;
@@ -112,8 +130,7 @@
   }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
-    state.selected = item; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = false; $("#screenTitle").textContent = "共有データ詳細";
-    $(".topbar .back").setAttribute("href", "#gallery");
+    state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
     const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
     try {
@@ -122,10 +139,13 @@
     scrollTo({ top: 0, behavior: "instant" });
   }
   function closeDetail() {
-    state.selected = null; $("#detailScreen").hidden = true; $("#galleryScreen").hidden = false; $("#screenTitle").textContent = "共有データ閲覧"; $(".topbar .back").setAttribute("href", "/toppage.html");
+    showGallery();
   }
-  function openUpload() {
-    const form = $("#uploadForm"); form.reset(); form.elements.occurredAt.value = localInputValue();
+  function openUpload(kind = "both") {
+    const form = $("#uploadForm"); form.reset(); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
+    const input = $("#mediaInput");
+    input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
+    $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
     form.elements.device.value = localStorage.getItem("incident-share-device") || ""; $("#uploadSheet").hidden = false;
   }
   function closeUpload() { $("#uploadSheet").hidden = true; }
@@ -154,11 +174,17 @@
   });
   $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; state.page = 0; $("#filterSheet").hidden = true; renderGallery(); });
   $("#refreshButton").addEventListener("click", () => loadItems(true));
-  $("#captureButton").addEventListener("click", openUpload); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
+  $("#photoCaptureButton").addEventListener("click", () => openUpload("image"));
+  $("#videoCaptureButton").addEventListener("click", () => openUpload("video"));
+  $("#openGalleryButton").addEventListener("click", showGallery);
+  $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
+  $("#settingsButton").addEventListener("click", () => showToast("設定はトップページのシステム管理から変更できます"));
+  $("#captureButton").addEventListener("click", () => openUpload("both")); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
   $("#previousPage").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; renderGallery(); } });
   $("#nextPage").addEventListener("click", () => { const { pages } = pageInfo(); if (state.page < pages - 1) { state.page += 1; renderGallery(); } });
   $$('[data-close-upload]').forEach((button) => button.addEventListener("click", closeUpload)); $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
-  $("#detailBack").addEventListener("click", closeDetail); $(".topbar .back").addEventListener("click", (event) => { if (!$("#detailScreen").hidden) { event.preventDefault(); closeDetail(); } });
+  $("#detailBack").addEventListener("click", closeDetail);
+  $("#viewBackButton").addEventListener("click", () => { if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
   window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
   let touchStartX = 0;
   $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
@@ -176,7 +202,7 @@
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
       await window.TayunetFirebaseDataAuth.currentUser();
-      updateGridShape(); $("#authCover").hidden = true; $("#app").hidden = false; await loadItems();
+      updateGridShape(); $("#authCover").hidden = true; $("#app").hidden = false; showHome(); await loadItems();
     } catch (error) { $("#authCover p").textContent = error.message || "ログイン画面へ移動しています"; }
   }
   start();
