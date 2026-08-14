@@ -25,6 +25,7 @@
   }
   function setHeader(mode) {
     const home = mode === "home";
+    $("#app").dataset.mode = mode;
     $("#firebase-logout-button").hidden = !home;
     $("#viewBackButton").hidden = home;
     $("#settingsButton").hidden = !home;
