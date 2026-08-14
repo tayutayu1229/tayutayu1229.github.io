@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6, uploadReturnMode: "home" };
+  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "" };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -16,6 +16,11 @@
   }
   function isoValue(value) { return value ? new Date(value).toISOString() : new Date().toISOString(); }
   function isLandscapeLayout() { return window.innerWidth >= 701 && window.innerWidth > window.innerHeight; }
+  function deviceName() { return String(localStorage.getItem("incident-share-device") || "").trim(); }
+  function updateDeviceStatus() {
+    const name = deviceName(); const status = $("#sidebarDeviceStatus");
+    status.textContent = name || "未設定（撮影できません）"; status.classList.toggle("warning", !name);
+  }
   function longDate(value) {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
   }
@@ -29,21 +34,21 @@
     $("#firebase-logout-button").hidden = !home;
     $("#viewBackButton").hidden = home;
     $("#settingsButton").hidden = !home;
-    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture";
-    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : mode === "capture" ? $("#uploadHeading").textContent : "共有データ閲覧";
+    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings";
+    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
     $$(".landscape-sidebar nav button").forEach((button) => button.classList.remove("active"));
-    const sidebarButton = mode === "capture" ? null : $("#landscapeGalleryButton");
+    const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
     if (sidebarButton) sidebarButton.classList.add("active");
   }
   function showHome() {
     if (isLandscapeLayout()) { showGallery(); return; }
     state.selected = null;
-    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true;
+    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true;
     setHeader("home");
   }
   function showGallery() {
     state.selected = null;
-    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#galleryScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
     setHeader("gallery"); updateGridShape(); renderGallery();
   }
   async function authorizedFetch(path, options = {}, retry = true) {
@@ -147,20 +152,32 @@
   function closeDetail() {
     showGallery();
   }
+  function showSettings(warning = false) {
+    if (!$("#galleryScreen").hidden) state.settingsReturnMode = "gallery";
+    else if (!$("#homeScreen").hidden) state.settingsReturnMode = "home";
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
+    $("#deviceNameInput").value = deviceName(); $("#deviceWarning").hidden = !warning; setHeader("settings");
+    setTimeout(() => $("#deviceNameInput").focus(), 0);
+  }
+  function closeSettings() {
+    state.pendingCaptureKind = ""; $("#settingsScreen").hidden = true;
+    if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
+  }
   function openUpload(kind = "both") {
+    if (!deviceName()) { state.pendingCaptureKind = kind; showSettings(true); return; }
     state.uploadReturnMode = $("#galleryScreen").hidden ? "home" : "gallery";
     const form = $("#uploadForm"); form.reset(); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
     const input = $("#mediaInput");
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
     $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
-    form.elements.device.value = localStorage.getItem("incident-share-device") || "";
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
+    form.elements.device.value = deviceName();
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
   $("#uploadForm").addEventListener("submit", async (event) => {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = $("#mediaInput").files[0]; if (!file) return;
-    data.set("occurredAt", isoValue(data.get("occurredAt"))); localStorage.setItem("incident-share-device", String(data.get("device") || ""));
+    data.set("occurredAt", isoValue(data.get("occurredAt")));
     const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
     try {
       const response = await authorizedFetch("/api/incidents", { method: "POST", body: data }); const result = await response.json();
@@ -173,7 +190,7 @@
     const update = { id: state.selected.id, occurredAt: isoValue(data.get("occurredAt")), device: String(data.get("device") || "").trim(), comment: String(data.get("comment") || "").trim() };
     try {
       await authorizedFetch("/api/incidents", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(update) });
-      Object.assign(state.selected, update); localStorage.setItem("incident-share-device", update.device); renderGallery(); showToast("撮影情報を保存しました");
+      Object.assign(state.selected, update); renderGallery(); showToast("撮影情報を保存しました");
     } catch (error) { showToast(error.message || "保存できませんでした", true); }
   });
   $("#mediaInput").addEventListener("change", (event) => {
@@ -188,17 +205,26 @@
   $("#landscapeVideoButton").addEventListener("click", () => { openUpload("video"); $("#landscapeVideoButton").classList.add("active"); });
   $("#landscapeGalleryButton").addEventListener("click", showGallery);
   $("#landscapeDeviceButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
-  $("#landscapeSettingsButton").addEventListener("click", () => showToast("設定はトップページのシステム管理から変更できます"));
-  $("#landscapeLogoutButton").addEventListener("click", () => $("#firebase-logout-button").click());
+  $("#landscapeSettingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
+  $("#landscapeTopButton").addEventListener("click", () => { location.href = "/"; });
   $("#openGalleryButton").addEventListener("click", showGallery);
   $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
-  $("#settingsButton").addEventListener("click", () => showToast("設定はトップページのシステム管理から変更できます"));
+  $("#settingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
   $("#captureButton").addEventListener("click", () => openUpload("both")); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
   $("#previousPage").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; renderGallery(); } });
   $("#nextPage").addEventListener("click", () => { const { pages } = pageInfo(); if (state.page < pages - 1) { state.page += 1; renderGallery(); } });
   $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail);
-  $("#viewBackButton").addEventListener("click", () => { if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
+  $("#settingsCancelButton").addEventListener("click", closeSettings);
+  $("#deviceSettingsForm").addEventListener("submit", (event) => {
+    event.preventDefault(); const name = String(new FormData(event.currentTarget).get("deviceName") || "").trim();
+    if (!name) { $("#deviceWarning").hidden = false; $("#deviceNameInput").focus(); return; }
+    localStorage.setItem("incident-share-device", name); updateDeviceStatus(); $("#deviceWarning").hidden = true;
+    const pending = state.pendingCaptureKind; state.pendingCaptureKind = ""; $("#settingsScreen").hidden = true;
+    if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
+    if (pending) openUpload(pending); else showToast("端末名を保存しました");
+  });
+  $("#viewBackButton").addEventListener("click", () => { if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
   window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
   let touchStartX = 0;
   $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
@@ -220,7 +246,8 @@
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
       await window.TayunetFirebaseDataAuth.currentUser();
-      updateGridShape(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems();
+      updateGridShape(); updateDeviceStatus(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems();
+      if (!deviceName()) showToast("端末名が未設定です。設定画面で登録してください", true);
     } catch (error) { $("#authCover p").textContent = error.message || "ログイン画面へ移動しています"; }
   }
   start();
