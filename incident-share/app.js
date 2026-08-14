@@ -38,7 +38,7 @@
     $("#settingsButton").hidden = !home;
     $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen";
     $("#deleteButton").hidden = mode !== "detail";
-    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
+    $("#screenTitle").textContent = home ? "上野事業本部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
     $$(".landscape-sidebar nav button").forEach((button) => button.classList.remove("active"));
     const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
     if (sidebarButton) sidebarButton.classList.add("active");
@@ -196,6 +196,9 @@
     const input = $("#mediaInput");
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
     $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
+    $("#mediaPickerTitle").textContent = kind === "image" ? "写真を撮影／選択" : kind === "video" ? "動画を撮影／選択" : "写真・動画を撮影／選択";
+    $("#mediaPickerHint").textContent = kind === "image" ? "タップして端末のカメラまたは写真を開きます" : kind === "video" ? "タップして端末のカメラまたは動画を開きます" : "タップして端末のカメラまたは写真・動画を開きます";
+    $("#mediaPickerSymbol").textContent = kind === "video" ? "▶" : "▣";
     form.elements.device.value = deviceName();
     $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
   }
