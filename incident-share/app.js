@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
+  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "", captureLocation: null, locationPromise: null };
   const thumbnailQueue = { active: 0, pending: [], limit: 4 };
   const fullscreenZoom = { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, pinching: false, lastTap: 0 };
   let viewportSyncTimers = [];
@@ -30,6 +30,26 @@
   function shortTime(value) {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
   }
+  function hasLocation(item) { return Number.isFinite(item?.latitude) && Number.isFinite(item?.longitude); }
+  function updateCaptureLocationStatus(mode, detail = "") {
+    const panel = $("#captureLocationStatus"); if (!panel) return;
+    panel.dataset.status = mode;
+    $("span", panel).textContent = mode === "ready" ? `撮影場所を取得しました（精度 約${Math.round(state.captureLocation?.locationAccuracy || 0)}m）` : mode === "loading" ? "撮影場所を確認しています" : detail || "撮影場所を取得できませんでした";
+    $("#retryLocationButton").hidden = mode !== "error";
+  }
+  function requestCaptureLocation() {
+    state.captureLocation = null;
+    if (!navigator.geolocation) { updateCaptureLocationStatus("error", "この端末では撮影場所を取得できません"); return Promise.resolve(null); }
+    updateCaptureLocationStatus("loading");
+    state.locationPromise = new Promise((resolve) => navigator.geolocation.getCurrentPosition((position) => {
+      state.captureLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude, locationAccuracy: position.coords.accuracy };
+      updateCaptureLocationStatus("ready"); resolve(state.captureLocation);
+    }, (error) => {
+      const message = error.code === 1 ? "位置情報の利用が許可されていません" : "撮影場所を取得できませんでした";
+      updateCaptureLocationStatus("error", message); resolve(null);
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }));
+    return state.locationPromise;
+  }
   function syncViewportHeight() {
     const height = window.visualViewport?.height || window.innerHeight;
     document.documentElement.style.setProperty("--viewport-height", `${Math.round(height)}px`);
@@ -46,14 +66,14 @@
   function setHeader(mode) {
     const home = mode === "home";
     $("#app").dataset.mode = mode;
-    if (isLandscapeLayout() && (mode === "detail" || mode === "fullscreen")) $("#app").classList.add("sidebar-collapsed");
+    if (isLandscapeLayout() && (mode === "detail" || mode === "fullscreen" || mode === "location")) $("#app").classList.add("sidebar-collapsed");
     else if (mode === "home" || mode === "gallery") $("#app").classList.remove("sidebar-collapsed");
     $("#firebase-logout-button").hidden = !home;
     $("#viewBackButton").hidden = home;
     $("#settingsButton").hidden = !home;
-    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen";
+    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen" || mode === "location";
     $("#deleteButton").hidden = mode !== "detail";
-    $("#screenTitle").textContent = home ? "上野事業本部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
+    $("#screenTitle").textContent = home ? "上野事業本部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "location" ? "撮影場所" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
     $$(".landscape-sidebar nav button").forEach((button) => button.classList.remove("active"));
     const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
     if (sidebarButton) sidebarButton.classList.add("active");
@@ -61,12 +81,12 @@
   function showHome() {
     if (isLandscapeLayout()) { showGallery(); return; }
     state.selected = null;
-    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true;
+    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true;
     setHeader("home");
   }
   function showGallery() {
     state.selected = null;
-    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
     setHeader("gallery"); updateGridShape(); renderGallery();
   }
   async function authorizedFetch(path, options = {}, retry = true) {
@@ -211,8 +231,9 @@
   }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
-    releaseOriginalsExcept(item.id); state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
+    releaseOriginalsExcept(item.id); state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
+    const locationButton = $("#locationButton"); locationButton.disabled = !hasLocation(item); locationButton.querySelector("span").textContent = hasLocation(item) ? "撮影場所" : "位置情報なし";
     renderDetailStrip();
     const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
     try {
@@ -246,6 +267,18 @@
   }
   function touchDistance(touches) { return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY); }
   function closeFullscreen() { resetFullscreenZoom(); $("#fullscreenScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail"); }
+  function openLocation() {
+    if (!hasLocation(state.selected)) { showToast("この共有データには撮影場所がありません", true); return; }
+    const latitude = state.selected.latitude; const longitude = state.selected.longitude; const spread = .004;
+    const bbox = [longitude - spread, latitude - spread, longitude + spread, latitude + spread].join(",");
+    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${latitude},${longitude}`)}`;
+    $("#locationCoordinates").textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    $("#locationAccuracy").textContent = Number.isFinite(state.selected.locationAccuracy) ? `位置精度：約${Math.round(state.selected.locationAccuracy)}m` : "GPSで取得した撮影場所";
+    $("#locationExternalLink").href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(latitude)}&mlon=${encodeURIComponent(longitude)}#map=18/${encodeURIComponent(latitude)}/${encodeURIComponent(longitude)}`;
+    $("#mapLoading").hidden = false; $("#locationMap").src = mapUrl;
+    $("#detailScreen").hidden = true; $("#locationScreen").hidden = false; setHeader("location");
+  }
+  function closeLocation() { $("#locationMap").src = "about:blank"; $("#locationScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail"); }
   async function deleteSelected() {
     if (!state.selected || !confirm("この共有データを削除しますか？\n削除後は元に戻せません。")) return;
     const button = $("#deleteButton"); button.disabled = true; button.textContent = "削除中";
@@ -259,7 +292,7 @@
   function showSettings(warning = false) {
     if (!$("#galleryScreen").hidden) state.settingsReturnMode = "gallery";
     else if (!$("#homeScreen").hidden) state.settingsReturnMode = "home";
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
     $("#deviceNameInput").value = deviceName(); $("#deviceWarning").hidden = !warning; setHeader("settings");
     setTimeout(() => $("#deviceNameInput").focus(), 0);
   }
@@ -284,7 +317,8 @@
     $("#mediaPickerHint").textContent = kind === "image" ? "タップして端末のカメラまたは写真を開きます" : kind === "video" ? "タップして端末のカメラまたは動画を開きます" : "タップして端末のカメラまたは写真・動画を開きます";
     $("#mediaPickerSymbol").textContent = kind === "video" ? "▶" : "▣";
     form.elements.device.value = deviceName();
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
+    requestCaptureLocation();
     if (autoCapture) input.click();
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
@@ -311,6 +345,10 @@
     data.set("occurredAt", isoValue(data.get("occurredAt")));
     const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
     try {
+      if (!state.captureLocation && state.locationPromise) await Promise.race([state.locationPromise, new Promise((resolve) => setTimeout(resolve, 2500))]);
+      if (state.captureLocation) {
+        data.set("latitude", String(state.captureLocation.latitude)); data.set("longitude", String(state.captureLocation.longitude)); data.set("locationAccuracy", String(state.captureLocation.locationAccuracy || ""));
+      }
       const response = await authorizedFetch("/api/incidents", { method: "POST", body: data }); const result = await response.json();
       state.items.unshift(result.incident); $("#uploadSheet").hidden = true; showGallery(); showToast("共有サーバーへ登録しました");
     } catch (error) { showToast(error.message || "登録できませんでした", true); }
@@ -360,6 +398,9 @@
   $("#captureButton").addEventListener("click", () => openUpload("both")); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
   $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail);
+  $("#locationButton").addEventListener("click", openLocation);
+  $("#locationMap").addEventListener("load", () => { $("#mapLoading").hidden = true; });
+  $("#retryLocationButton").addEventListener("click", requestCaptureLocation);
   $("#detailMedia").addEventListener("click", (event) => { if (event.target.tagName !== "VIDEO") openFullscreen(); });
   $("#detailMedia").addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFullscreen(); } });
   $("#fullscreenMedia").addEventListener("touchstart", (event) => {
@@ -408,7 +449,7 @@
     if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
     if (pending) openUpload(pending, autoCapture); else showToast("端末名を保存しました");
   });
-  $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
+  $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#locationScreen").hidden) closeLocation(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
   window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
   let resizeTimer;
   let previousLandscape = isLandscapeLayout();
@@ -418,6 +459,7 @@
       previousLandscape = landscape;
       if (!$("#uploadSheet").hidden || !$("#settingsScreen").hidden) return;
       if (!$("#fullscreenScreen").hidden) { setHeader("fullscreen"); return; }
+      if (!$("#locationScreen").hidden) { setHeader("location"); return; }
       if (!$("#detailScreen").hidden) { $("#detailScreen").scrollTop = 0; setHeader("detail"); return; }
       if (landscape) showGallery(); else showHome();
     }
