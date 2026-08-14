@@ -2,120 +2,135 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const samples = [
-    { id:"sample-flood", title:"駅構内冠水", line:"外房線", location:"大網駅 コンコース", comment:"大雨によりコンコース床面が冠水。旅客通路を規制し、排水作業を実施中。", reporter:"千葉支社／大網駅", occurredAt:"2026-08-14T10:12:00+09:00", severity:"緊急", status:"対応中", mediaUrl:"./assets/demo-flood.png", mediaType:"image/png", lat:35.5234, lng:140.3119 },
-    { id:"sample-track", title:"線路内支障物を確認", line:"中央本線", location:"高尾〜相模湖間 42K380M付近", comment:"倒木の一部が上り線建築限界内に支障。現地係員が到着し、安全確認を実施中。", reporter:"八王子運輸区／現地確認班", occurredAt:"2026-08-14T09:42:00+09:00", severity:"緊急", status:"対応中", mediaUrl:"./assets/demo-track.png", mediaType:"image/png", lat:35.6427, lng:139.2821 },
-    { id:"sample-phone", title:"列車内遺失物の確認", line:"上越線", location:"新潟駅 5番線・車内", comment:"座席付近でスマートフォンを発見。駅係員へ引継ぎ済み。運行への影響なし。", reporter:"新潟運輸区", occurredAt:"2026-08-14T08:47:00+09:00", severity:"情報", status:"復旧済", mediaUrl:"./assets/demo-phone.png", mediaType:"image/png" },
-    { id:"sample-sign", title:"駅構内掲示物を確認", line:"横浜線", location:"石川町駅 トイレ内", comment:"不適切な掲示物を発見。施設担当へ連絡し、撤去対応を依頼済み。", reporter:"横浜支店／駅係員", occurredAt:"2026-08-14T07:25:00+09:00", severity:"警戒", status:"確認中", mediaUrl:"./assets/demo-sign.png", mediaType:"image/png" },
-  ];
-  let items = [...samples];
-  let selected = null;
-  let selectedSeverity = "";
-  let position = null;
-  let captureKind = "image";
+  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" } };
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
-  const $ = (selector) => document.querySelector(selector);
-  const $$ = (selector) => [...document.querySelectorAll(selector)];
-  const app = $("#app");
-  const photoGrid = $("#photoGrid");
-  const detailOverlay = $("#detailOverlay");
-  const uploadOverlay = $("#uploadOverlay");
-
-  function api(path) { return `${apiBase}${path}`; }
-  function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value ?? ""); return node.innerHTML; }
-  function dateLabel(value) { return new Intl.DateTimeFormat("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }).format(new Date(value)); }
-  function longDate(value) { return new Intl.DateTimeFormat("ja-JP", { timeZone:"Asia/Tokyo", year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" }).format(new Date(value)); }
-  function showToast(message) { const toast = $("#toast"); toast.textContent = `✓　${message}`; toast.hidden = false; clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.hidden = true, 3200); }
-
-  function render() {
-    const query = $("#searchInput").value.trim().toLowerCase();
-    const line = $("#lineFilter").value;
-    const filtered = items.filter((item) => (!selectedSeverity || item.severity === selectedSeverity) && (!line || item.line === line) && (!query || `${item.title} ${item.location} ${item.comment}`.toLowerCase().includes(query)));
-    $("#resultCount").textContent = `${filtered.length}件`;
-    $("#todayCount").textContent = items.length;
-    $("#activeCount").textContent = items.filter((item) => item.status !== "復旧済").length;
-    photoGrid.innerHTML = filtered.map((item) => `<button class="photo-card" data-id="${escapeHtml(item.id)}"><div class="thumb"><img src="${escapeHtml(item.mediaUrl)}" alt="${escapeHtml(item.title)}">${item.mediaType.startsWith("video") ? '<span class="play-mark">▶</span>' : ""}<span class="severity-label ${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span></div><div class="photo-info"><div><b>${escapeHtml(item.title)}</b><time>${dateLabel(item.occurredAt)}</time></div><p>${escapeHtml(item.line)}　${escapeHtml(item.location)}</p><span class="status ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></div></button>`).join("");
-    $$(".photo-card").forEach((button) => button.addEventListener("click", () => openDetail(button.dataset.id)));
+  function apiUrl(path) { return `${apiBase}${path}`; }
+  function escapeHtml(value) { const span = document.createElement("span"); span.textContent = String(value ?? ""); return span.innerHTML; }
+  function localInputValue(value = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
   }
-
-  function populateLines() {
-    const select = $("#lineFilter");
-    const value = select.value;
-    select.innerHTML = '<option value="">全路線</option>' + [...new Set(items.map((item) => item.line))].map((line) => `<option>${escapeHtml(line)}</option>`).join("");
-    select.value = value;
+  function isoValue(value) { return value ? new Date(value).toISOString() : new Date().toISOString(); }
+  function longDate(value) {
+    return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
   }
-
-  async function loadItems() {
-    if (!apiBase) { $("#serverStatus").textContent = "デモ表示中"; render(); return; }
+  function showToast(message, error = false) {
+    const toast = $("#toast"); toast.textContent = `${error ? "!" : "✓"}　${message}`; toast.hidden = false;
+    clearTimeout(showToast.timer); showToast.timer = setTimeout(() => { toast.hidden = true; }, error ? 5200 : 3000);
+  }
+  async function authorizedFetch(path, options = {}, retry = true) {
+    if (!apiBase) throw new Error("共有サーバーが設定されていません");
+    const auth = window.TayunetFirebaseDataAuth;
+    if (!auth) throw new Error("Firebase認証を初期化できません");
+    const headers = new Headers(options.headers || {});
+    headers.set("Authorization", `Bearer ${await auth.getIdToken(!retry)}`);
+    const response = await fetch(apiUrl(path), { ...options, headers, mode: "cors", cache: "no-store" });
+    if (response.status === 401 && retry) return authorizedFetch(path, options, false);
+    if (!response.ok) {
+      let detail = ""; try { detail = (await response.json()).error || ""; } catch (_) {}
+      const error = new Error(detail || `通信に失敗しました（${response.status}）`); error.status = response.status; throw error;
+    }
+    return response;
+  }
+  async function mediaUrl(item) {
+    if (state.mediaUrls.has(item.id)) return state.mediaUrls.get(item.id);
+    const response = await authorizedFetch(item.mediaUrl || `/api/media/${encodeURIComponent(item.mediaKey)}`);
+    const url = URL.createObjectURL(await response.blob()); state.mediaUrls.set(item.id, url); return url;
+  }
+  function visibleItems() {
+    const query = state.filter.query.trim().toLowerCase();
+    return state.items.filter((item) => {
+      const sameDate = !state.filter.date || String(item.occurredAt || "").slice(0, 10) === state.filter.date;
+      const matches = !query || `${item.device || ""} ${item.comment || ""}`.toLowerCase().includes(query);
+      return sameDate && matches;
+    });
+  }
+  function renderGallery() {
+    const items = visibleItems();
+    const grid = $("#photoGrid");
+    grid.innerHTML = items.map((item) => `<button class="photo-card loading" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(longDate(item.occurredAt))}の共有データ"><span class="edit-mark">✎</span>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
+    $("#emptyState").hidden = items.length > 0;
+    $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${items.length}件`;
+    $$(".photo-card", grid).forEach(async (card) => {
+      const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
+      try {
+        const source = await mediaUrl(item); const media = document.createElement(item.mediaType?.startsWith("video/") ? "video" : "img");
+        media.src = source; media.alt = `${longDate(item.occurredAt)}に撮影`; media.muted = true; media.preload = "metadata";
+        card.prepend(media); card.classList.remove("loading");
+      } catch (_) { card.className = "photo-card error"; card.textContent = "画像取得失敗"; }
+      card.addEventListener("click", () => openDetail(item.id));
+    });
+  }
+  async function loadItems(showNotice = false) {
+    $("#serverStatus").textContent = "取得中";
     try {
-      const response = await fetch(api("/api/incidents"), { headers: { accept:"application/json" } });
-      if (!response.ok) throw new Error();
-      const data = await response.json();
-      items = [...data.incidents.map((item) => ({ ...item, mediaUrl: item.mediaUrl?.startsWith("/") ? `${apiBase}${item.mediaUrl}` : item.mediaUrl })), ...samples];
-      $("#serverStatus").textContent = "共有サーバー接続中";
-      populateLines(); render();
-    } catch { $("#serverStatus").textContent = "サーバー未接続"; showToast("共有サーバーに接続できません"); }
+      const response = await authorizedFetch("/api/incidents"); const data = await response.json();
+      state.items = Array.isArray(data.incidents) ? data.incidents : [];
+      $("#serverStatus").textContent = "共有サーバー接続中"; renderGallery();
+      if (showNotice) showToast("最新情報へ更新しました");
+    } catch (error) {
+      $("#serverStatus").textContent = "サーバー未接続"; renderGallery(); showToast(error.message || "共有サーバーに接続できません", true);
+    }
   }
-
-  function openDetail(id) {
-    selected = items.find((item) => item.id === id);
-    if (!selected) return;
-    $("#detailPhoto").innerHTML = selected.mediaType.startsWith("video") ? `<video src="${escapeHtml(selected.mediaUrl)}" controls></video>` : `<img src="${escapeHtml(selected.mediaUrl)}" alt="${escapeHtml(selected.title)}">`;
-    $("#detailTitle").textContent = selected.title; $("#detailTime").textContent = longDate(selected.occurredAt); $("#detailLine").textContent = selected.line; $("#detailReporter").textContent = selected.reporter; $("#detailComment").textContent = selected.comment;
-    $("#detailLocation").innerHTML = escapeHtml(selected.location) + (selected.lat ? ` <a href="https://maps.google.com/?q=${selected.lat},${selected.lng}" target="_blank" rel="noreferrer">位置を地図表示</a>` : "");
-    $("#statusSwitch").innerHTML = ["対応中","確認中","復旧済"].map((status) => `<button data-status="${status}" class="${selected.status === status ? "active" : ""}">${status}</button>`).join("");
-    $$("[data-status]").forEach((button) => button.addEventListener("click", () => updateStatus(button.dataset.status)));
-    detailOverlay.hidden = false;
+  async function openDetail(id) {
+    const item = state.items.find((record) => record.id === id); if (!item) return;
+    state.selected = item; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = false; $("#screenTitle").textContent = "共有データ詳細";
+    $(".topbar .back").setAttribute("href", "#gallery");
+    $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
+    const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
+    try {
+      const source = await mediaUrl(item); frame.innerHTML = item.mediaType?.startsWith("video/") ? `<video src="${escapeHtml(source)}" controls playsinline></video>` : `<img src="${escapeHtml(source)}" alt="共有写真">`;
+    } catch (_) { frame.textContent = "画像を表示できません"; }
+    scrollTo({ top: 0, behavior: "instant" });
   }
-
-  async function updateStatus(status) {
-    if (!selected) return;
-    selected.status = status; render(); openDetail(selected.id);
-    if (apiBase && !selected.id.startsWith("sample")) fetch(api("/api/incidents"), { method:"PATCH", headers:{ "content-type":"application/json" }, body:JSON.stringify({ id:selected.id, status }) }).catch(() => {});
-    showToast(`状態を「${status}」へ更新しました`);
+  function closeDetail() {
+    state.selected = null; $("#detailScreen").hidden = true; $("#galleryScreen").hidden = false; $("#screenTitle").textContent = "共有データ閲覧"; $(".topbar .back").setAttribute("href", "/toppage.html");
   }
-
-  function openCapture(kind) {
-    captureKind = kind;
-    position = null;
-    $("#uploadTitle").textContent = kind === "image" ? "静止画撮影・共有" : "動画撮影・共有";
-    $("#captureLabel").textContent = kind === "image" ? "カメラを起動" : "ビデオを起動";
-    $("#mediaInput").accept = kind === "image" ? "image/*" : "video/*";
-    $("#captureIcon").className = kind === "image" ? "camera-icon" : "video-icon";
-    uploadOverlay.hidden = false;
-    navigator.geolocation?.getCurrentPosition((result) => { position = { lat:result.coords.latitude, lng:result.coords.longitude }; $("#gpsIcon").classList.add("ok"); $("#gpsTitle").textContent = "位置情報を取得しました"; $("#gpsValue").textContent = `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`; }, () => { $("#gpsTitle").textContent = "位置情報を取得できません"; $("#gpsValue").textContent = "端末設定を確認してください"; }, { enableHighAccuracy:true, timeout:8000 });
+  function openUpload() {
+    const form = $("#uploadForm"); form.reset(); form.elements.occurredAt.value = localInputValue();
+    form.elements.device.value = localStorage.getItem("incident-share-device") || ""; $("#uploadSheet").hidden = false;
   }
-
-  $("#mediaInput").addEventListener("change", (event) => { const file = event.target.files[0]; if (!file) return; const picker = $("#mediaPicker"); picker.classList.add("preview"); picker.querySelectorAll("span,b,small").forEach((node) => node.hidden = true); const old = picker.querySelector("img"); if (old) old.remove(); const image = document.createElement("img"); image.src = URL.createObjectURL(file); image.alt = "撮影プレビュー"; picker.prepend(image); });
+  function closeUpload() { $("#uploadSheet").hidden = true; }
 
   $("#uploadForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget; const data = new FormData(form); const file = $("#mediaInput").files[0]; if (!file) return;
-    if (position) { data.set("latitude", position.lat); data.set("longitude", position.lng); }
-    const button = form.querySelector(".send"); button.disabled = true; button.textContent = "登録中…";
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = $("#mediaInput").files[0]; if (!file) return;
+    data.set("occurredAt", isoValue(data.get("occurredAt"))); localStorage.setItem("incident-share-device", String(data.get("device") || ""));
+    const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
     try {
-      if (!apiBase) throw new Error("demo");
-      const response = await fetch(api("/api/incidents"), { method:"POST", body:data }); if (!response.ok) throw new Error(); const result = await response.json(); result.incident.mediaUrl = result.incident.mediaUrl?.startsWith("/") ? `${apiBase}${result.incident.mediaUrl}` : result.incident.mediaUrl; items.unshift(result.incident); showToast("共有サーバーへ登録しました");
-    } catch {
-      items.unshift({ id:`local-${Date.now()}`, title:data.get("title"), line:data.get("line"), location:data.get("location"), comment:data.get("comment"), reporter:data.get("reporter"), occurredAt:new Date().toISOString(), severity:data.get("severity"), status:"確認中", mediaUrl:URL.createObjectURL(file), mediaType:file.type, ...position });
-      showToast(apiBase ? "通信できないため端末内へ一時保存しました" : "デモの一覧へ追加しました");
-    } finally { button.disabled = false; button.textContent = "共有サーバーへ登録"; uploadOverlay.hidden = true; form.reset(); populateLines(); render(); }
+      const response = await authorizedFetch("/api/incidents", { method: "POST", body: data }); const result = await response.json();
+      state.items.unshift(result.incident); closeUpload(); renderGallery(); showToast("共有サーバーへ登録しました");
+    } catch (error) { showToast(error.message || "登録できませんでした", true); }
+    finally { submit.disabled = false; submit.textContent = "登録"; }
   });
+  $("#detailForm").addEventListener("submit", async (event) => {
+    event.preventDefault(); if (!state.selected) return; const data = new FormData(event.currentTarget);
+    const update = { id: state.selected.id, occurredAt: isoValue(data.get("occurredAt")), device: String(data.get("device") || "").trim(), comment: String(data.get("comment") || "").trim() };
+    try {
+      await authorizedFetch("/api/incidents", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(update) });
+      Object.assign(state.selected, update); localStorage.setItem("incident-share-device", update.device); renderGallery(); showToast("撮影情報を保存しました");
+    } catch (error) { showToast(error.message || "保存できませんでした", true); }
+  });
+  $("#mediaInput").addEventListener("change", (event) => {
+    const file = event.target.files[0]; if (!file) return; const picker = $("#mediaPicker"); picker.querySelectorAll("img,video").forEach((node) => node.remove());
+    const media = document.createElement(file.type.startsWith("video/") ? "video" : "img"); media.src = URL.createObjectURL(file); if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; } picker.append(media);
+  });
+  $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; $("#filterSheet").hidden = true; renderGallery(); });
+  $("#refreshButton").addEventListener("click", () => loadItems(true));
+  $("#captureButton").addEventListener("click", openUpload); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
+  $$('[data-close-upload]').forEach((button) => button.addEventListener("click", closeUpload)); $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
+  $("#detailBack").addEventListener("click", closeDetail); $(".topbar .back").addEventListener("click", (event) => { if (!$("#detailScreen").hidden) { event.preventDefault(); closeDetail(); } });
+  window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
 
-  $$("[data-capture]").forEach((button) => button.addEventListener("click", () => openCapture(button.dataset.capture)));
-  $$("[data-close-upload]").forEach((button) => button.addEventListener("click", () => uploadOverlay.hidden = true));
-  $$("[data-close-detail]").forEach((button) => button.addEventListener("click", () => detailOverlay.hidden = true));
-  $$("[data-device]").forEach((button) => button.addEventListener("click", () => showToast("端末内の未送信データはありません")));
-  $$("[data-map]").forEach((button) => button.addEventListener("click", () => showToast("位置情報は各データの詳細から表示できます")));
-  $("#openGallery").addEventListener("click", () => { app.classList.replace("mode-home","mode-gallery"); });
-  $("#backButton").addEventListener("click", () => { app.classList.replace("mode-gallery","mode-home"); });
-  $("#refreshButton").addEventListener("click", () => { loadItems(); showToast("最新情報を取得しました"); });
-  $("#fullscreenButton").addEventListener("click", () => $("#detailPhoto").requestFullscreen?.());
-  $("#searchInput").addEventListener("input", render); $("#lineFilter").addEventListener("change", render);
-  $$("#severityFilter button").forEach((button) => button.addEventListener("click", () => { selectedSeverity = button.dataset.value; $$("#severityFilter button").forEach((item) => item.classList.toggle("active", item === button)); render(); }));
-  detailOverlay.addEventListener("mousedown", (event) => { if (event.target === detailOverlay) detailOverlay.hidden = true; });
-  uploadOverlay.addEventListener("mousedown", (event) => { if (event.target === uploadOverlay) uploadOverlay.hidden = true; });
-  setInterval(() => $("#clock").textContent = new Intl.DateTimeFormat("ja-JP", { hour:"2-digit", minute:"2-digit" }).format(new Date()), 30000);
-  $("#clock").textContent = new Intl.DateTimeFormat("ja-JP", { hour:"2-digit", minute:"2-digit" }).format(new Date());
-  populateLines(); render(); loadItems();
+  async function start() {
+    try {
+      if (window.TayunetAuthReady) await window.TayunetAuthReady;
+      await window.TayunetFirebaseDataAuth.currentUser();
+      $("#authCover").hidden = true; $("#app").hidden = false; await loadItems();
+    } catch (_) { $("#authCover p").textContent = "ログイン画面へ移動しています"; }
+  }
+  start();
 })();
