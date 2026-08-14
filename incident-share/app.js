@@ -31,11 +31,14 @@
   function setHeader(mode) {
     const home = mode === "home";
     $("#app").dataset.mode = mode;
+    if (isLandscapeLayout() && (mode === "detail" || mode === "fullscreen")) $("#app").classList.add("sidebar-collapsed");
+    else if (mode === "home" || mode === "gallery") $("#app").classList.remove("sidebar-collapsed");
     $("#firebase-logout-button").hidden = !home;
     $("#viewBackButton").hidden = home;
     $("#settingsButton").hidden = !home;
-    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings";
-    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
+    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen";
+    $("#deleteButton").hidden = mode !== "detail";
+    $("#screenTitle").textContent = home ? "運輸車両部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
     $$(".landscape-sidebar nav button").forEach((button) => button.classList.remove("active"));
     const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
     if (sidebarButton) sidebarButton.classList.add("active");
@@ -43,12 +46,12 @@
   function showHome() {
     if (isLandscapeLayout()) { showGallery(); return; }
     state.selected = null;
-    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true;
+    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true;
     setHeader("home");
   }
   function showGallery() {
     state.selected = null;
-    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
     setHeader("gallery"); updateGridShape(); renderGallery();
   }
   async function authorizedFetch(path, options = {}, retry = true) {
@@ -141,7 +144,7 @@
   }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
-    state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
+    state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
     const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
     try {
@@ -152,10 +155,28 @@
   function closeDetail() {
     showGallery();
   }
+  async function openFullscreen() {
+    if (!state.selected) return;
+    const frame = $("#fullscreenMedia"); frame.textContent = "読み込み中…"; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = false; setHeader("fullscreen");
+    try {
+      const source = await mediaUrl(state.selected); frame.innerHTML = state.selected.mediaType?.startsWith("video/") ? `<video src="${escapeHtml(source)}" controls playsinline autoplay></video>` : `<img src="${escapeHtml(source)}" alt="共有画像の全画面表示">`;
+    } catch (_) { frame.textContent = "画像を表示できません"; }
+  }
+  function closeFullscreen() { $("#fullscreenScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail"); }
+  async function deleteSelected() {
+    if (!state.selected || !confirm("この共有データを削除しますか？\n削除後は元に戻せません。")) return;
+    const button = $("#deleteButton"); button.disabled = true; button.textContent = "削除中";
+    try {
+      await authorizedFetch(`/api/incidents?id=${encodeURIComponent(state.selected.id)}`, { method: "DELETE" });
+      const cached = state.mediaUrls.get(state.selected.id); if (cached) URL.revokeObjectURL(cached); state.mediaUrls.delete(state.selected.id);
+      state.items = state.items.filter((item) => item.id !== state.selected.id); state.selected = null; showGallery(); showToast("共有データを削除しました");
+    } catch (error) { showToast(error.message || "削除できませんでした", true); }
+    finally { button.disabled = false; button.textContent = "削除"; }
+  }
   function showSettings(warning = false) {
     if (!$("#galleryScreen").hidden) state.settingsReturnMode = "gallery";
     else if (!$("#homeScreen").hidden) state.settingsReturnMode = "home";
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
     $("#deviceNameInput").value = deviceName(); $("#deviceWarning").hidden = !warning; setHeader("settings");
     setTimeout(() => $("#deviceNameInput").focus(), 0);
   }
@@ -171,7 +192,7 @@
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
     $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
     form.elements.device.value = deviceName();
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
@@ -207,8 +228,8 @@
   $("#landscapeDeviceButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#landscapeSettingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
   $("#landscapeTopButton").addEventListener("click", () => {
-  location.href = "/toppage.html";
-});
+    location.href = "/toppage.html";
+  });
   $("#openGalleryButton").addEventListener("click", showGallery);
   $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#settingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
@@ -217,6 +238,9 @@
   $("#nextPage").addEventListener("click", () => { const { pages } = pageInfo(); if (state.page < pages - 1) { state.page += 1; renderGallery(); } });
   $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail);
+  $("#fullscreenButton").addEventListener("click", openFullscreen);
+  $("#deleteButton").addEventListener("click", deleteSelected);
+  $("#sidebarToggleButton").addEventListener("click", () => $("#app").classList.toggle("sidebar-collapsed"));
   $("#settingsCancelButton").addEventListener("click", closeSettings);
   $("#deviceSettingsForm").addEventListener("submit", (event) => {
     event.preventDefault(); const name = String(new FormData(event.currentTarget).get("deviceName") || "").trim();
@@ -226,7 +250,7 @@
     if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
     if (pending) openUpload(pending); else showToast("端末名を保存しました");
   });
-  $("#viewBackButton").addEventListener("click", () => { if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
+  $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
   window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
   let touchStartX = 0;
   $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
