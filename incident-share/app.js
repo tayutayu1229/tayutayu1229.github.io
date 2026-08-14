@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", uploadFile: null, uploadPreviewUrl: "" };
+  const state = { items: [], selected: null, mediaUrls: new Map(), galleryObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -23,6 +23,13 @@
   }
   function longDate(value) {
     return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  }
+  function shortTime(value) {
+    return new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+  }
+  function syncViewportHeight() {
+    const height = window.visualViewport?.height || window.innerHeight;
+    document.documentElement.style.setProperty("--viewport-height", `${Math.round(height)}px`);
   }
   function showToast(message, error = false) {
     const toast = $("#toast"); toast.textContent = `${error ? "!" : "✓"}　${message}`; toast.hidden = false;
@@ -88,49 +95,37 @@
   }
   function updateGridShape() {
     const width = window.innerWidth;
-    const height = window.innerHeight;
     const sidebarWidth = isLandscapeLayout() && !$("#app").classList.contains("sidebar-collapsed") ? 218 : 0;
     const contentWidth = Math.max(320, width - sidebarWidth);
     const columns = contentWidth >= 980 ? 8 : contentWidth >= 700 ? 5 : width < 360 ? 3 : 4;
-    const header = width <= 700 ? 52 : 58;
-    const date = width <= 700 ? 30 : 34;
-    const footer = 70;
-    const gap = contentWidth >= 980 ? 14 : width <= 700 ? 6 : 12;
-    const padX = contentWidth >= 980 ? 26 : width <= 700 ? 7 : 18;
-    const padY = contentWidth >= 980 ? 16 : width <= 700 ? 6 : 8;
-    const cardWidth = (contentWidth - padX * 2 - gap * (columns - 1)) / columns;
-    const availableHeight = Math.max(180, height - header - date - footer - padY * 2);
-    const rows = Math.max(2, Math.round((availableHeight + gap) / (Math.max(62, cardWidth) + gap)));
-    state.columns = columns; state.rows = rows;
+    const changed = state.columns !== columns; state.columns = columns;
     document.documentElement.style.setProperty("--grid-columns", columns);
-    document.documentElement.style.setProperty("--grid-rows", rows);
-  }
-  function pageInfo(items = visibleItems()) {
-    const pageSize = Math.max(1, state.columns * state.rows);
-    const pages = Math.max(1, Math.ceil(items.length / pageSize));
-    state.page = Math.min(state.page, pages - 1);
-    return { pageSize, pages, start: state.page * pageSize };
+    return changed;
   }
   function renderGallery() {
-    const allItems = visibleItems();
-    const { pageSize, pages, start } = pageInfo(allItems);
-    const items = allItems.slice(start, start + pageSize);
+    const items = visibleItems();
     const grid = $("#photoGrid");
-    grid.innerHTML = items.map((item) => `<button class="photo-card loading" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(longDate(item.occurredAt))}の共有データ"><span class="edit-mark">✎</span>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
-    $("#emptyState").hidden = allItems.length > 0;
-    $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${allItems.length}件`;
-    $("#pageNav").hidden = pages <= 1;
-    $("#pageLabel").textContent = `${state.page + 1} / ${pages}`;
-    $("#previousPage").disabled = state.page === 0;
-    $("#nextPage").disabled = state.page >= pages - 1;
-    $$(".photo-card", grid).forEach(async (card) => {
+    state.galleryObserver?.disconnect(); state.galleryObserver = null;
+    grid.innerHTML = items.map((item) => `<button class="photo-card loading" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(longDate(item.occurredAt))}の共有データ"><span class="edit-mark">✎</span><time class="photo-time">${escapeHtml(shortTime(item.occurredAt))}</time>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
+    $("#emptyState").hidden = items.length > 0;
+    $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${items.length}件`;
+    const loadCard = async (card) => {
       const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
       try {
         const source = await mediaUrl(item); const media = document.createElement(item.mediaType?.startsWith("video/") ? "video" : "img");
         media.src = source; media.alt = `${longDate(item.occurredAt)}に撮影`; media.muted = true; media.preload = "metadata";
         card.prepend(media); card.classList.remove("loading");
       } catch (_) { card.className = "photo-card error"; card.textContent = "画像取得失敗"; }
+    };
+    if ("IntersectionObserver" in window) {
+      state.galleryObserver = new IntersectionObserver((entries, observer) => entries.forEach((entry) => {
+        if (!entry.isIntersecting) return; observer.unobserve(entry.target); loadCard(entry.target);
+      }), { root: grid, rootMargin: "240px 0px" });
+    }
+    $$(".photo-card", grid).forEach((card) => {
+      const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
       card.addEventListener("click", () => openDetail(item.id));
+      if (state.galleryObserver) state.galleryObserver.observe(card); else loadCard(card);
     });
   }
   async function loadItems(showNotice = false) {
@@ -144,15 +139,40 @@
       $("#serverStatus").textContent = "サーバー未接続"; renderGallery(); showToast(error.message || "共有サーバーに接続できません", true);
     }
   }
+  function detailItems() {
+    const filtered = visibleItems();
+    return filtered.some((item) => item.id === state.selected?.id) ? filtered : state.items;
+  }
+  function navigateDetail(offset) {
+    if (!state.selected) return;
+    const items = detailItems(); const index = items.findIndex((item) => item.id === state.selected.id); const next = items[index + offset];
+    if (next) openDetail(next.id);
+  }
+  function renderDetailStrip() {
+    const allItems = detailItems(); const selectedIndex = allItems.findIndex((item) => item.id === state.selected?.id);
+    const start = Math.max(0, Math.min(selectedIndex - 15, Math.max(0, allItems.length - 31))); const items = allItems.slice(start, start + 31); const strip = $("#detailThumbnails");
+    strip.innerHTML = items.map((item) => `<button class="detail-thumb loading${item.id === state.selected?.id ? " active" : ""}" data-id="${escapeHtml(item.id)}" type="button" aria-label="${escapeHtml(longDate(item.occurredAt))}を表示"><time>${escapeHtml(shortTime(item.occurredAt))}</time>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
+    $("#detailPrevious").disabled = selectedIndex <= 0; $("#detailNext").disabled = selectedIndex < 0 || selectedIndex >= allItems.length - 1;
+    $$(".detail-thumb", strip).forEach(async (button) => {
+      const item = state.items.find((record) => record.id === button.dataset.id); if (!item) return;
+      button.addEventListener("click", () => openDetail(item.id));
+      try {
+        const source = await mediaUrl(item); const media = document.createElement(item.mediaType?.startsWith("video/") ? "video" : "img");
+        media.src = source; media.alt = ""; media.muted = true; media.preload = "metadata"; button.prepend(media); button.classList.remove("loading");
+      } catch (_) { button.classList.add("error"); }
+    });
+    setTimeout(() => $(".detail-thumb.active", strip)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" }), 0);
+  }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
     state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
+    renderDetailStrip();
     const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
     try {
       const source = await mediaUrl(item); frame.innerHTML = item.mediaType?.startsWith("video/") ? `<video src="${escapeHtml(source)}" controls playsinline></video>` : `<img src="${escapeHtml(source)}" alt="共有写真">`;
     } catch (_) { frame.textContent = "画像を表示できません"; }
-    scrollTo({ top: 0, behavior: "instant" });
+    $("#detailScreen").scrollTop = 0;
   }
   function closeDetail() {
     showGallery();
@@ -183,11 +203,12 @@
     setTimeout(() => $("#deviceNameInput").focus(), 0);
   }
   function closeSettings() {
-    state.pendingCaptureKind = ""; $("#settingsScreen").hidden = true;
+    state.pendingCaptureKind = ""; state.pendingAutoCapture = false; $("#settingsScreen").hidden = true;
     if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
   }
-  function openUpload(kind = "both") {
-    if (!deviceName()) { state.pendingCaptureKind = kind; showSettings(true); return; }
+  function openUpload(kind = "both", autoCapture = false) {
+    if (!deviceName()) { state.pendingCaptureKind = kind; state.pendingAutoCapture = autoCapture; showSettings(true); return; }
+    state.uploadKind = kind;
     state.uploadReturnMode = $("#galleryScreen").hidden ? "home" : "gallery";
     const form = $("#uploadForm"); form.reset();
     if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
@@ -195,12 +216,15 @@
     $("#mediaPicker").classList.remove("dragover"); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
     const input = $("#mediaInput");
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
+    if (kind === "both") input.removeAttribute("capture"); else input.setAttribute("capture", "environment");
+    $("#attachmentInput").accept = input.accept;
     $("#uploadHeading").textContent = kind === "image" ? "静止画撮影・共有" : kind === "video" ? "動画撮影・共有" : "共有データ登録";
     $("#mediaPickerTitle").textContent = kind === "image" ? "写真を撮影／選択" : kind === "video" ? "動画を撮影／選択" : "写真・動画を撮影／選択";
     $("#mediaPickerHint").textContent = kind === "image" ? "タップして端末のカメラまたは写真を開きます" : kind === "video" ? "タップして端末のカメラまたは動画を開きます" : "タップして端末のカメラまたは写真・動画を開きます";
     $("#mediaPickerSymbol").textContent = kind === "video" ? "▶" : "▣";
     form.elements.device.value = deviceName();
     $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
+    if (autoCapture) input.click();
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
@@ -236,10 +260,12 @@
     const update = { id: state.selected.id, occurredAt: isoValue(data.get("occurredAt")), device: String(data.get("device") || "").trim(), comment: String(data.get("comment") || "").trim() };
     try {
       await authorizedFetch("/api/incidents", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(update) });
-      Object.assign(state.selected, update); renderGallery(); showToast("撮影情報を保存しました");
+      Object.assign(state.selected, update); renderGallery(); renderDetailStrip(); showToast("撮影情報を保存しました");
     } catch (error) { showToast(error.message || "保存できませんでした", true); }
   });
   $("#mediaInput").addEventListener("change", (event) => setUploadFile(event.target.files[0]));
+  $("#attachmentInput").addEventListener("change", (event) => { setUploadFile(event.target.files[0]); event.target.value = ""; });
+  $("#fileSelectButton").addEventListener("click", () => $("#attachmentInput").click());
   const mediaPicker = $("#mediaPicker");
   ["dragenter", "dragover"].forEach((type) => mediaPicker.addEventListener(type, (event) => {
     event.preventDefault(); event.stopPropagation(); mediaPicker.classList.add("dragover");
@@ -255,12 +281,12 @@
     if (!file) { showToast("写真または動画を選択してください", true); return; }
     setUploadFile(file);
   });
-  $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; state.page = 0; $("#filterSheet").hidden = true; renderGallery(); });
+  $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; $("#filterSheet").hidden = true; renderGallery(); $("#photoGrid").scrollTop = 0; });
   $("#refreshButton").addEventListener("click", () => loadItems(true));
-  $("#photoCaptureButton").addEventListener("click", () => openUpload("image"));
-  $("#videoCaptureButton").addEventListener("click", () => openUpload("video"));
-  $("#landscapePhotoButton").addEventListener("click", () => { openUpload("image"); $("#landscapePhotoButton").classList.add("active"); });
-  $("#landscapeVideoButton").addEventListener("click", () => { openUpload("video"); $("#landscapeVideoButton").classList.add("active"); });
+  $("#photoCaptureButton").addEventListener("click", () => openUpload("image", true));
+  $("#videoCaptureButton").addEventListener("click", () => openUpload("video", true));
+  $("#landscapePhotoButton").addEventListener("click", () => { openUpload("image", true); $("#landscapePhotoButton").classList.add("active"); });
+  $("#landscapeVideoButton").addEventListener("click", () => { openUpload("video", true); $("#landscapeVideoButton").classList.add("active"); });
   $("#landscapeGalleryButton").addEventListener("click", showGallery);
   $("#landscapeDeviceButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#landscapeSettingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
@@ -271,42 +297,38 @@
   $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#settingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
   $("#captureButton").addEventListener("click", () => openUpload("both")); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
-  $("#previousPage").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; renderGallery(); } });
-  $("#nextPage").addEventListener("click", () => { const { pages } = pageInfo(); if (state.page < pages - 1) { state.page += 1; renderGallery(); } });
   $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail);
-  $("#fullscreenButton").addEventListener("click", openFullscreen);
+  $("#detailMedia").addEventListener("click", (event) => { if (event.target.tagName !== "VIDEO") openFullscreen(); });
+  $("#detailMedia").addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFullscreen(); } });
+  $("#detailPrevious").addEventListener("click", () => navigateDetail(-1));
+  $("#detailNext").addEventListener("click", () => navigateDetail(1));
   $("#deleteButton").addEventListener("click", deleteSelected);
   $("#sidebarToggleButton").addEventListener("click", () => {
-    $("#app").classList.toggle("sidebar-collapsed"); updateGridShape(); renderGallery();
+    $("#app").classList.toggle("sidebar-collapsed"); if (updateGridShape()) renderGallery();
   });
   $("#settingsCancelButton").addEventListener("click", closeSettings);
   $("#deviceSettingsForm").addEventListener("submit", (event) => {
     event.preventDefault(); const name = String(new FormData(event.currentTarget).get("deviceName") || "").trim();
     if (!name) { $("#deviceWarning").hidden = false; $("#deviceNameInput").focus(); return; }
     localStorage.setItem("incident-share-device", name); updateDeviceStatus(); $("#deviceWarning").hidden = true;
-    const pending = state.pendingCaptureKind; state.pendingCaptureKind = ""; $("#settingsScreen").hidden = true;
+    const pending = state.pendingCaptureKind; const autoCapture = state.pendingAutoCapture; state.pendingCaptureKind = ""; state.pendingAutoCapture = false; $("#settingsScreen").hidden = true;
     if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
-    if (pending) openUpload(pending); else showToast("端末名を保存しました");
+    if (pending) openUpload(pending, autoCapture); else showToast("端末名を保存しました");
   });
   $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
   window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
-  let touchStartX = 0;
-  $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
-  $("#photoGrid").addEventListener("touchend", (event) => {
-    const distance = (event.changedTouches[0]?.clientX || 0) - touchStartX; const { pages } = pageInfo();
-    if (distance < -55 && state.page < pages - 1) { state.page += 1; renderGallery(); }
-    if (distance > 55 && state.page > 0) { state.page -= 1; renderGallery(); }
-  }, { passive: true });
   let resizeTimer;
   let previousLandscape = isLandscapeLayout();
   window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
-    const landscape = isLandscapeLayout(); updateGridShape(); renderGallery();
+    const landscape = isLandscapeLayout(); syncViewportHeight(); if (updateGridShape()) renderGallery();
     if (landscape !== previousLandscape) { previousLandscape = landscape; if (landscape && !$("#uploadSheet").hidden) return; if (landscape) showGallery(); else if (!$("#detailScreen").hidden) return; else showHome(); }
   }, 120); });
+  window.visualViewport?.addEventListener("resize", syncViewportHeight);
 
   async function start() {
     try {
+      syncViewportHeight();
       $("#authCover p").textContent = "Firebase認証を確認しています";
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
