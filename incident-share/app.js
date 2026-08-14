@@ -2,7 +2,8 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), galleryObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
+  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
+  const thumbnailQueue = { active: 0, pending: [], limit: 4 };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -70,7 +71,7 @@
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     let response;
-    try { response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal, mode: "cors", cache: "no-store" }); }
+    try { response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal, mode: "cors", cache: options.cache || "no-store" }); }
     catch (error) { if (error.name === "AbortError") throw new Error("共有サーバーの応答に時間がかかっています。更新を押してください"); throw error; }
     finally { clearTimeout(timeout); }
     if (response.status === 401 && retry) return authorizedFetch(path, options, false);
@@ -80,10 +81,32 @@
     }
     return response;
   }
-  async function mediaUrl(item) {
-    if (state.mediaUrls.has(item.id)) return state.mediaUrls.get(item.id);
-    const response = await authorizedFetch(item.mediaUrl || `/api/media/${encodeURIComponent(item.mediaKey)}`);
-    const url = URL.createObjectURL(await response.blob()); state.mediaUrls.set(item.id, url); return url;
+  async function mediaUrl(item, variant = "original") {
+    const cacheKey = `${item.id}:${variant}`;
+    if (state.mediaUrls.has(cacheKey)) return state.mediaUrls.get(cacheKey);
+    if (state.mediaRequests.has(cacheKey)) return state.mediaRequests.get(cacheKey);
+    const path = variant === "thumbnail" ? (item.thumbnailUrl || `/api/media/${encodeURIComponent(item.mediaKey)}?variant=thumbnail`) : (item.mediaUrl || `/api/media/${encodeURIComponent(item.mediaKey)}`);
+    const request = (async () => {
+      const response = await authorizedFetch(path, { cache: "default" });
+      const url = URL.createObjectURL(await response.blob()); state.mediaUrls.set(cacheKey, url); return url;
+    })();
+    state.mediaRequests.set(cacheKey, request);
+    try { return await request; } finally { state.mediaRequests.delete(cacheKey); }
+  }
+  function queueThumbnail(task) {
+    return new Promise((resolve, reject) => { thumbnailQueue.pending.push({ task, resolve, reject }); runThumbnailQueue(); });
+  }
+  function runThumbnailQueue() {
+    while (thumbnailQueue.active < thumbnailQueue.limit && thumbnailQueue.pending.length) {
+      const entry = thumbnailQueue.pending.shift(); thumbnailQueue.active += 1;
+      Promise.resolve().then(entry.task).then(entry.resolve, entry.reject).finally(() => { thumbnailQueue.active -= 1; runThumbnailQueue(); });
+    }
+  }
+  function releaseOriginalsExcept(itemId = "") {
+    state.mediaUrls.forEach((url, key) => {
+      if (!key.endsWith(":original") || key === `${itemId}:original`) return;
+      URL.revokeObjectURL(url); state.mediaUrls.delete(key);
+    });
   }
   function visibleItems() {
     const query = state.filter.query.trim().toLowerCase();
@@ -111,16 +134,20 @@
     $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${items.length}件`;
     const loadCard = async (card) => {
       const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
+      if (!card.isConnected) return;
+      if (item.mediaType?.startsWith("video/")) { card.classList.remove("loading"); card.classList.add("video-card"); return; }
       try {
-        const source = await mediaUrl(item); const media = document.createElement(item.mediaType?.startsWith("video/") ? "video" : "img");
-        media.src = source; media.alt = `${longDate(item.occurredAt)}に撮影`; media.muted = true; media.preload = "metadata";
+        const source = await queueThumbnail(() => card.isConnected ? mediaUrl(item, "thumbnail") : Promise.reject(new Error("cancelled")));
+        if (!card.isConnected) return;
+        const media = document.createElement("img");
+        media.src = source; media.alt = `${longDate(item.occurredAt)}に撮影`; media.loading = "lazy"; media.decoding = "async";
         card.prepend(media); card.classList.remove("loading");
-      } catch (_) { card.className = "photo-card error"; card.textContent = "画像取得失敗"; }
+      } catch (_) { if (card.isConnected) { card.className = "photo-card error"; card.textContent = "画像取得失敗"; } }
     };
     if ("IntersectionObserver" in window) {
       state.galleryObserver = new IntersectionObserver((entries, observer) => entries.forEach((entry) => {
         if (!entry.isIntersecting) return; observer.unobserve(entry.target); loadCard(entry.target);
-      }), { root: grid, rootMargin: "240px 0px" });
+      }), { root: grid, rootMargin: "80px 0px" });
     }
     $$(".photo-card", grid).forEach((card) => {
       const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
@@ -153,19 +180,31 @@
     const start = Math.max(0, Math.min(selectedIndex - 15, Math.max(0, allItems.length - 31))); const items = allItems.slice(start, start + 31); const strip = $("#detailThumbnails");
     strip.innerHTML = items.map((item) => `<button class="detail-thumb loading${item.id === state.selected?.id ? " active" : ""}" data-id="${escapeHtml(item.id)}" type="button" aria-label="${escapeHtml(longDate(item.occurredAt))}を表示"><time>${escapeHtml(shortTime(item.occurredAt))}</time>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
     $("#detailPrevious").disabled = selectedIndex <= 0; $("#detailNext").disabled = selectedIndex < 0 || selectedIndex >= allItems.length - 1;
-    $$(".detail-thumb", strip).forEach(async (button) => {
+    state.detailObserver?.disconnect(); state.detailObserver = null;
+    const loadThumbnail = async (button) => {
+      const item = state.items.find((record) => record.id === button.dataset.id); if (!item) return;
+      if (item.mediaType?.startsWith("video/")) { button.classList.remove("loading"); button.classList.add("video-card"); return; }
+      try {
+        const source = await queueThumbnail(() => button.isConnected ? mediaUrl(item, "thumbnail") : Promise.reject(new Error("cancelled")));
+        if (!button.isConnected) return;
+        const media = document.createElement("img"); media.src = source; media.alt = ""; media.loading = "lazy"; media.decoding = "async"; button.prepend(media); button.classList.remove("loading");
+      } catch (_) { if (button.isConnected) button.classList.add("error"); }
+    };
+    if ("IntersectionObserver" in window) {
+      state.detailObserver = new IntersectionObserver((entries, observer) => entries.forEach((entry) => {
+        if (!entry.isIntersecting) return; observer.unobserve(entry.target); loadThumbnail(entry.target);
+      }), { root: strip, rootMargin: "0px 160px" });
+    }
+    $$(".detail-thumb", strip).forEach((button) => {
       const item = state.items.find((record) => record.id === button.dataset.id); if (!item) return;
       button.addEventListener("click", () => openDetail(item.id));
-      try {
-        const source = await mediaUrl(item); const media = document.createElement(item.mediaType?.startsWith("video/") ? "video" : "img");
-        media.src = source; media.alt = ""; media.muted = true; media.preload = "metadata"; button.prepend(media); button.classList.remove("loading");
-      } catch (_) { button.classList.add("error"); }
+      if (state.detailObserver) state.detailObserver.observe(button); else loadThumbnail(button);
     });
     setTimeout(() => $(".detail-thumb.active", strip)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" }), 0);
   }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
-    state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
+    releaseOriginalsExcept(item.id); state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
     renderDetailStrip();
     const frame = $("#detailMedia"); frame.textContent = "読み込み中…";
@@ -190,7 +229,7 @@
     const button = $("#deleteButton"); button.disabled = true; button.textContent = "削除中";
     try {
       await authorizedFetch(`/api/incidents?id=${encodeURIComponent(state.selected.id)}`, { method: "DELETE" });
-      const cached = state.mediaUrls.get(state.selected.id); if (cached) URL.revokeObjectURL(cached); state.mediaUrls.delete(state.selected.id);
+      state.mediaUrls.forEach((url, key) => { if (key.startsWith(`${state.selected.id}:`)) { URL.revokeObjectURL(url); state.mediaUrls.delete(key); } });
       state.items = state.items.filter((item) => item.id !== state.selected.id); state.selected = null; showGallery(); showToast("共有データを削除しました");
     } catch (error) { showToast(error.message || "削除できませんでした", true); }
     finally { button.disabled = false; button.textContent = "削除"; }
