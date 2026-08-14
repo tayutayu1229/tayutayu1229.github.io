@@ -206,7 +206,9 @@
   $("#landscapeGalleryButton").addEventListener("click", showGallery);
   $("#landscapeDeviceButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#landscapeSettingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
-  $("#landscapeTopButton").addEventListener("click", () => location.href = "/toppage.html";
+  $("#landscapeTopButton").addEventListener("click", () => {
+  location.href = "/toppage.html";
+});
   $("#openGalleryButton").addEventListener("click", showGallery);
   $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
   $("#settingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
