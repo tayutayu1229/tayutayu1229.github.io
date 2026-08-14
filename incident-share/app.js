@@ -4,6 +4,7 @@
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
   const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "" };
   const thumbnailQueue = { active: 0, pending: [], limit: 4 };
+  const fullscreenZoom = { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, pinching: false, lastTap: 0 };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -218,12 +219,27 @@
   }
   async function openFullscreen() {
     if (!state.selected) return;
-    const frame = $("#fullscreenMedia"); frame.textContent = "読み込み中…"; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = false; setHeader("fullscreen");
+    const frame = $("#fullscreenMedia"); resetFullscreenZoom(); frame.classList.toggle("zoomable", !state.selected.mediaType?.startsWith("video/")); frame.textContent = "読み込み中…"; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = false; setHeader("fullscreen");
     try {
       const source = await mediaUrl(state.selected); frame.innerHTML = state.selected.mediaType?.startsWith("video/") ? `<video src="${escapeHtml(source)}" controls playsinline autoplay></video>` : `<img src="${escapeHtml(source)}" alt="共有画像の全画面表示">`;
     } catch (_) { frame.textContent = "画像を表示できません"; }
   }
-  function closeFullscreen() { $("#fullscreenScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail"); }
+  function applyFullscreenZoom() {
+    const frame = $("#fullscreenMedia"); const image = $("img", frame); if (!image) return;
+    const maxX = frame.clientWidth * (fullscreenZoom.scale - 1) / 2; const maxY = frame.clientHeight * (fullscreenZoom.scale - 1) / 2;
+    fullscreenZoom.x = Math.max(-maxX, Math.min(maxX, fullscreenZoom.x)); fullscreenZoom.y = Math.max(-maxY, Math.min(maxY, fullscreenZoom.y));
+    image.style.transform = `translate3d(${fullscreenZoom.x}px, ${fullscreenZoom.y}px, 0) scale(${fullscreenZoom.scale})`;
+    frame.classList.toggle("is-zoomed", fullscreenZoom.scale > 1.01);
+  }
+  function resetFullscreenZoom() {
+    Object.assign(fullscreenZoom, { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, moved: false, pinching: false });
+    const frame = $("#fullscreenMedia"); frame?.classList.remove("is-zoomed"); const image = frame ? $("img", frame) : null; if (image) image.style.transform = "";
+  }
+  function toggleFullscreenZoom() {
+    fullscreenZoom.scale = fullscreenZoom.scale > 1.01 ? 1 : 2.5; fullscreenZoom.x = 0; fullscreenZoom.y = 0; applyFullscreenZoom();
+  }
+  function touchDistance(touches) { return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY); }
+  function closeFullscreen() { resetFullscreenZoom(); $("#fullscreenScreen").hidden = true; $("#detailScreen").hidden = false; setHeader("detail"); }
   async function deleteSelected() {
     if (!state.selected || !confirm("この共有データを削除しますか？\n削除後は元に戻せません。")) return;
     const button = $("#deleteButton"); button.disabled = true; button.textContent = "削除中";
@@ -340,6 +356,37 @@
   $("#detailBack").addEventListener("click", closeDetail);
   $("#detailMedia").addEventListener("click", (event) => { if (event.target.tagName !== "VIDEO") openFullscreen(); });
   $("#detailMedia").addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFullscreen(); } });
+  $("#fullscreenMedia").addEventListener("touchstart", (event) => {
+    if (!$("#fullscreenMedia").classList.contains("zoomable")) return;
+    fullscreenZoom.moved = false;
+    if (event.touches.length === 2) {
+      fullscreenZoom.pinching = true; fullscreenZoom.startDistance = touchDistance(event.touches); fullscreenZoom.startScale = fullscreenZoom.scale; event.preventDefault();
+    } else if (event.touches.length === 1 && fullscreenZoom.scale > 1) {
+      fullscreenZoom.startX = event.touches[0].clientX; fullscreenZoom.startY = event.touches[0].clientY; fullscreenZoom.baseX = fullscreenZoom.x; fullscreenZoom.baseY = fullscreenZoom.y; event.preventDefault();
+    }
+  }, { passive: false });
+  $("#fullscreenMedia").addEventListener("touchmove", (event) => {
+    if (!$("#fullscreenMedia").classList.contains("zoomable")) return;
+    if (event.touches.length === 2 && fullscreenZoom.startDistance) {
+      fullscreenZoom.moved = true; fullscreenZoom.scale = Math.max(1, Math.min(5, fullscreenZoom.startScale * touchDistance(event.touches) / fullscreenZoom.startDistance)); applyFullscreenZoom(); event.preventDefault();
+    } else if (event.touches.length === 1 && fullscreenZoom.scale > 1) {
+      fullscreenZoom.moved = true; fullscreenZoom.x = fullscreenZoom.baseX + event.touches[0].clientX - fullscreenZoom.startX; fullscreenZoom.y = fullscreenZoom.baseY + event.touches[0].clientY - fullscreenZoom.startY; applyFullscreenZoom(); event.preventDefault();
+    }
+  }, { passive: false });
+  $("#fullscreenMedia").addEventListener("touchend", (event) => {
+    if (!$("#fullscreenMedia").classList.contains("zoomable")) return;
+    if (fullscreenZoom.scale <= 1.01) resetFullscreenZoom();
+    if (!event.touches.length && !fullscreenZoom.moved && !fullscreenZoom.pinching) {
+      const now = Date.now(); if (now - fullscreenZoom.lastTap < 320) { toggleFullscreenZoom(); fullscreenZoom.lastTap = 0; } else fullscreenZoom.lastTap = now;
+    }
+    if (event.touches.length < 2) { fullscreenZoom.pinching = false; fullscreenZoom.startDistance = 0; }
+    if (event.touches.length === 1 && fullscreenZoom.scale > 1) { fullscreenZoom.startX = event.touches[0].clientX; fullscreenZoom.startY = event.touches[0].clientY; fullscreenZoom.baseX = fullscreenZoom.x; fullscreenZoom.baseY = fullscreenZoom.y; }
+  }, { passive: false });
+  $("#fullscreenMedia").addEventListener("dblclick", (event) => { if ($("#fullscreenMedia").classList.contains("zoomable")) { event.preventDefault(); toggleFullscreenZoom(); } });
+  $("#fullscreenMedia").addEventListener("wheel", (event) => {
+    if (!$("#fullscreenMedia").classList.contains("zoomable")) return;
+    event.preventDefault(); fullscreenZoom.scale = Math.max(1, Math.min(5, fullscreenZoom.scale * (event.deltaY < 0 ? 1.18 : .85))); if (fullscreenZoom.scale <= 1.01) { fullscreenZoom.x = 0; fullscreenZoom.y = 0; } applyFullscreenZoom();
+  }, { passive: false });
   $("#detailPrevious").addEventListener("click", () => navigateDetail(-1));
   $("#detailNext").addEventListener("click", () => navigateDetail(1));
   $("#deleteButton").addEventListener("click", deleteSelected);
