@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" } };
+  const state = { items: [], selected: null, mediaUrls: new Map(), filter: { date: "", query: "" }, page: 0, columns: 5, rows: 6 };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -28,7 +28,12 @@
     if (!auth) throw new Error("Firebase認証を初期化できません");
     const headers = new Headers(options.headers || {});
     headers.set("Authorization", `Bearer ${await auth.getIdToken(!retry)}`);
-    const response = await fetch(apiUrl(path), { ...options, headers, mode: "cors", cache: "no-store" });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let response;
+    try { response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal, mode: "cors", cache: "no-store" }); }
+    catch (error) { if (error.name === "AbortError") throw new Error("共有サーバーの応答に時間がかかっています。更新を押してください"); throw error; }
+    finally { clearTimeout(timeout); }
     if (response.status === 401 && retry) return authorizedFetch(path, options, false);
     if (!response.ok) {
       let detail = ""; try { detail = (await response.json()).error || ""; } catch (_) {}
@@ -49,12 +54,41 @@
       return sameDate && matches;
     });
   }
+  function updateGridShape() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const columns = width >= 1100 ? 8 : width >= 700 ? 5 : width < 360 ? 3 : 4;
+    const header = width <= 700 ? 52 : 58;
+    const date = width <= 700 ? 30 : 34;
+    const footer = 70;
+    const gap = width >= 1100 ? 14 : width <= 700 ? 6 : 12;
+    const padX = width >= 1100 ? 26 : width <= 700 ? 7 : 18;
+    const padY = width >= 1100 ? 16 : width <= 700 ? 6 : 8;
+    const cardWidth = (width - padX * 2 - gap * (columns - 1)) / columns;
+    const availableHeight = Math.max(180, height - header - date - footer - padY * 2);
+    const rows = Math.max(2, Math.floor((availableHeight + gap) / (Math.max(62, cardWidth / 1.05) + gap)));
+    state.columns = columns; state.rows = rows;
+    document.documentElement.style.setProperty("--grid-columns", columns);
+    document.documentElement.style.setProperty("--grid-rows", rows);
+  }
+  function pageInfo(items = visibleItems()) {
+    const pageSize = Math.max(1, state.columns * state.rows);
+    const pages = Math.max(1, Math.ceil(items.length / pageSize));
+    state.page = Math.min(state.page, pages - 1);
+    return { pageSize, pages, start: state.page * pageSize };
+  }
   function renderGallery() {
-    const items = visibleItems();
+    const allItems = visibleItems();
+    const { pageSize, pages, start } = pageInfo(allItems);
+    const items = allItems.slice(start, start + pageSize);
     const grid = $("#photoGrid");
     grid.innerHTML = items.map((item) => `<button class="photo-card loading" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(longDate(item.occurredAt))}の共有データ"><span class="edit-mark">✎</span>${String(item.mediaType || "").startsWith("video/") ? '<span class="play">▶</span>' : ""}</button>`).join("");
-    $("#emptyState").hidden = items.length > 0;
-    $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${items.length}件`;
+    $("#emptyState").hidden = allItems.length > 0;
+    $("#dateLabel").textContent = state.filter.date ? state.filter.date.replaceAll("-", "年").replace(/年(\d{2})$/, "月$1日") : `共有データ　${allItems.length}件`;
+    $("#pageNav").hidden = pages <= 1;
+    $("#pageLabel").textContent = `${state.page + 1} / ${pages}`;
+    $("#previousPage").disabled = state.page === 0;
+    $("#nextPage").disabled = state.page >= pages - 1;
     $$(".photo-card", grid).forEach(async (card) => {
       const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
       try {
@@ -118,19 +152,32 @@
     const file = event.target.files[0]; if (!file) return; const picker = $("#mediaPicker"); picker.querySelectorAll("img,video").forEach((node) => node.remove());
     const media = document.createElement(file.type.startsWith("video/") ? "video" : "img"); media.src = URL.createObjectURL(file); if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; } picker.append(media);
   });
-  $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; $("#filterSheet").hidden = true; renderGallery(); });
+  $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; state.page = 0; $("#filterSheet").hidden = true; renderGallery(); });
   $("#refreshButton").addEventListener("click", () => loadItems(true));
   $("#captureButton").addEventListener("click", openUpload); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
+  $("#previousPage").addEventListener("click", () => { if (state.page > 0) { state.page -= 1; renderGallery(); } });
+  $("#nextPage").addEventListener("click", () => { const { pages } = pageInfo(); if (state.page < pages - 1) { state.page += 1; renderGallery(); } });
   $$('[data-close-upload]').forEach((button) => button.addEventListener("click", closeUpload)); $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail); $(".topbar .back").addEventListener("click", (event) => { if (!$("#detailScreen").hidden) { event.preventDefault(); closeDetail(); } });
   window.addEventListener("beforeunload", () => state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)));
+  let touchStartX = 0;
+  $("#photoGrid").addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX || 0; }, { passive: true });
+  $("#photoGrid").addEventListener("touchend", (event) => {
+    const distance = (event.changedTouches[0]?.clientX || 0) - touchStartX; const { pages } = pageInfo();
+    if (distance < -55 && state.page < pages - 1) { state.page += 1; renderGallery(); }
+    if (distance > 55 && state.page > 0) { state.page -= 1; renderGallery(); }
+  }, { passive: true });
+  let resizeTimer;
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { updateGridShape(); renderGallery(); }, 120); });
 
   async function start() {
     try {
-      if (window.TayunetAuthReady) await window.TayunetAuthReady;
+      $("#authCover p").textContent = "Firebase認証を確認しています";
+      const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
+      if (result && result.ok !== true) return;
       await window.TayunetFirebaseDataAuth.currentUser();
-      $("#authCover").hidden = true; $("#app").hidden = false; await loadItems();
-    } catch (_) { $("#authCover p").textContent = "ログイン画面へ移動しています"; }
+      updateGridShape(); $("#authCover").hidden = true; $("#app").hidden = false; await loadItems();
+    } catch (error) { $("#authCover p").textContent = error.message || "ログイン画面へ移動しています"; }
   }
   start();
 })();
