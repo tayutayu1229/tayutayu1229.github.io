@@ -42,9 +42,12 @@ else
   if ! restic snapshots >/dev/null 2>&1; then restic init; fi
   if output=$(restic backup --one-file-system --tag "$MODE" --exclude-caches "${existing[@]}" 2>&1); then
     stream_ok=true
+    archive_dir="$MONITOR_DATA/container-archives"
+    mkdir -p "$archive_dir"
     for item in "incident-share:/data:incident-share-data.tar" "jreast-press-bot-press-release-bot-1:/app/data:press-bot-data.tar"; do
       container="${item%%:*}"; rest="${item#*:}"; container_path="${rest%%:*}"; archive_name="${rest#*:}"
-      if stream_output=$(docker exec "$container" tar -C "$container_path" -cf - . | restic backup --stdin --stdin-filename "$archive_name" --tag "$MODE" 2>&1); then
+      archive_path="$archive_dir/$archive_name"
+      if docker cp "$container:$container_path/." - > "$archive_path" && stream_output=$(restic backup "$archive_path" --tag "$MODE" 2>&1); then
         output="$output $stream_output"
       else
         output="$output $stream_output"
