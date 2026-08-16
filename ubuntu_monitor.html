@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ubuntuサーバー監視 - システム運用管理</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/assets/css/system-admin.css">
+  <link rel="stylesheet" href="/assets/css/ubuntu-monitor.css">
+</head>
+<body data-ops-page="ubuntu">
+<div class="ops-shell">
+  <header class="ops-header">
+    <div class="ops-brand"><img src="/icon-192.png" alt=""><div><h1>Ubuntuサーバー監視</h1><p>yoshi-Inspiron-3668　リソース・サービス・外形監視</p></div></div>
+    <div class="ops-header-actions"><span class="wide" data-admin-user>確認中</span><a href="/system_admin.html">管理ホーム</a><a href="/toppage.html">トップ</a></div>
+  </header>
+  <nav class="ops-nav" aria-label="管理メニュー">
+    <a href="/system_admin.html" data-page="home">管理ホーム</a>
+    <a href="/system_monitor.html" data-page="monitor">公開状態</a>
+    <a href="/ubuntu_monitor.html" data-page="ubuntu">Ubuntu監視</a>
+    <a href="/system_security.html" data-page="security">利用・セキュリティ</a>
+    <a href="/system_diagnostics.html" data-page="diagnostics">診断・データ管理</a>
+  </nav>
+  <main class="ops-main">
+    <div class="ops-page-head">
+      <div><h2>サーバー稼働状況</h2><p>60秒ごとの内部監視と5分ごとの外形監視を統合表示します。</p></div>
+      <div class="ops-actions"><span class="server-updated" id="updated-at">接続中</span><button class="ops-btn primary" id="refresh-monitor">最新状態に更新</button></div>
+    </div>
+    <section class="server-health-banner" id="health-banner"><div><h2>監視APIへ接続しています</h2><p>Firebase管理者認証を確認中です。</p></div><div class="server-health-state">確認中</div></section>
+    <section class="ops-alerts" id="server-alerts"></section>
+    <section class="ops-kpis">
+      <div class="ops-kpi" id="kpi-cpu"><div class="label">CPU</div><div class="value">-</div><div class="sub">負荷を取得中</div></div>
+      <div class="ops-kpi blue" id="kpi-memory"><div class="label">メモリ</div><div class="value">-</div><div class="sub">80%で警告</div></div>
+      <div class="ops-kpi amber" id="kpi-disk"><div class="label">ディスク最大</div><div class="value">-</div><div class="sub">85%で警告</div></div>
+      <div class="ops-kpi" id="kpi-temp"><div class="label">最高温度</div><div class="value">-</div><div class="sub">80℃で警告</div></div>
+      <div class="ops-kpi blue" id="kpi-network"><div class="label">ネットワーク</div><div class="value">-</div><div class="sub">受信 / 送信</div></div>
+      <div class="ops-kpi" id="kpi-uptime"><div class="label">連続稼働</div><div class="value">-</div><div class="sub">起動後経過時間</div></div>
+    </section>
+    <section class="ops-grid">
+      <article class="ops-card span-8"><div class="ops-card-head"><h3>リソース推移</h3><small>直近24時間</small></div><div class="ops-card-body"><svg class="server-chart" id="resource-chart" viewBox="0 0 900 190" preserveAspectRatio="none" aria-label="CPU・メモリ・I/O待ちの推移"></svg><div class="chart-legend"><span style="--legend:#087f5b">CPU</span><span style="--legend:#1267a3">メモリ</span><span style="--legend:#df8700">I/O待ち</span></div></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>メモリ・I/O</h3><small>現在値</small></div><div class="ops-card-body" id="memory-detail"></div></article>
+      <article class="ops-card span-12"><div class="ops-card-head"><h3>Dockerコンテナ</h3><small>再起動は確認後に実行</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>状態</th><th>コンテナ</th><th>CPU</th><th>メモリ</th><th>Network I/O</th><th>Block I/O</th><th>操作</th></tr></thead><tbody id="docker-body"></tbody></table></div></article>
+      <article class="ops-card span-12"><div class="ops-card-head"><h3>PM2プロセス</h3><small>クラッシュ・再起動回数を監視</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>状態</th><th>プロセス</th><th>CPU</th><th>メモリ</th><th>再起動</th><th>稼働開始</th><th>操作</th></tr></thead><tbody id="pm2-body"></tbody></table></div></article>
+      <article class="ops-card span-8"><div class="ops-card-head"><h3>外形監視・API応答</h3><small>HTTP・JSON・応答時間</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>状態</th><th>対象</th><th>HTTP</th><th>応答</th><th>JSON</th></tr></thead><tbody id="endpoint-body"></tbody></table></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>TLS証明書</h3><small>30日前から警告</small></div><div class="ops-card-body"><ul class="ops-list" id="tls-list"></ul></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>ストレージ・SMART</h3><small>容量・温度・故障予兆</small></div><div class="ops-card-body" id="storage-detail"></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>ネットワーク診断</h3><small>帯域・損失・遅延</small></div><div class="ops-card-body" id="network-detail"></div></article>
+      <article class="ops-card"><div class="ops-card-head"><h3>バックアップ</h3><small>HDD・Google Drive</small></div><div class="ops-card-body" id="backup-detail"></div></article>
+      <article class="ops-card span-6"><div class="ops-card-head"><h3>セキュリティ・システム</h3><small>fail2ban・OOM・失敗サービス</small></div><div class="ops-card-body" id="security-detail"></div></article>
+      <article class="ops-card span-6"><div class="ops-card-head"><h3>障害・復旧イベント</h3><small>直近200件</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>日時</th><th>重要度</th><th>内容</th></tr></thead><tbody id="event-body"></tbody></table></div></article>
+      <article class="ops-card span-12"><div class="ops-card-head"><h3>操作履歴</h3><small>実行者・対象・結果</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>日時</th><th>実行者</th><th>対象</th><th>操作</th><th>結果</th></tr></thead><tbody id="action-body"></tbody></table></div></article>
+    </section>
+    <footer class="ops-footer"><span>閲覧・操作は許可された3管理者に限定されています。</span><span>自動更新60秒／Ver.<span data-version>-</span></span></footer>
+  </main>
+</div>
+<div class="ops-modal" id="service-modal"><div class="ops-modal-box wide"><div class="ops-modal-head"><h3 id="modal-title">サービス詳細</h3><button class="ops-btn" id="close-modal">閉じる</button></div><div class="ops-modal-body"><div id="restart-confirm" hidden><p>対象を再起動します。処理中は一時的に利用できなくなります。</p><div class="confirm-target" id="confirm-target"></div><button class="ops-btn danger" id="execute-restart">確認して再起動</button></div><pre class="ops-code" id="modal-content">読込中</pre></div></div></div>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="/auth_guard.js"></script>
+<script src="/assets/js/system-telemetry.js"></script>
+<script src="/assets/js/system-admin-core.js"></script>
+<script src="/assets/js/ubuntu-monitor.js"></script>
+</body>
+</html>

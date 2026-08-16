@@ -1,0 +1,85 @@
+name: Ubuntu external monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ubuntu-external-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get previous run state
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ubuntu-external-monitor.yml/runs?status=completed&per_page=1" --jq '.workflow_runs[0].conclusion // "unknown"')
+          echo "conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+
+      - name: Check public services
+        id: probe
+        continue-on-error: true
+        run: python3 scripts/external_server_monitor.py > external-monitor-result.json 2> external-monitor-error.txt
+
+      - name: Build notification
+        if: always()
+        id: message
+        env:
+          OUTCOME: ${{ steps.probe.outcome }}
+          PREVIOUS: ${{ steps.previous.outputs.conclusion }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          outcome=os.environ['OUTCOME']; previous=os.environ.get('PREVIOUS','unknown')
+          result=json.loads(Path('external-monitor-result.json').read_text()) if Path('external-monitor-result.json').exists() else {}
+          failed=[x for x in result.get('targets',[]) if not x.get('ok')]+[x for x in result.get('tls',[]) if not x.get('ok')]
+          notify=(outcome=='failure' and previous!='failure') or (outcome=='success' and previous=='failure')
+          title='【障害】外形監視で異常を検出' if outcome=='failure' else '【復旧】外形監視が正常に戻りました'
+          detail='\n'.join(f"• {x.get('name',x.get('host'))}: HTTP {x.get('status','-')} / {x.get('responseMs','-')}ms" for x in failed) or '9サービスのHTTP・JSON・TLS確認が正常です。'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write(f"notify={'true' if notify else 'false'}\n")
+              f.write(f"title={title}\n")
+              f.write('detail<<EOF\n'+detail+'\nEOF\n')
+          PY
+
+      - name: Notify Discord on state change
+        if: steps.message.outputs.notify == 'true'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.TAYUNET_MONITOR_DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: "1499762805065388274"
+          TITLE: ${{ steps.message.outputs.title }}
+          DETAIL: ${{ steps.message.outputs.detail }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          body=json.dumps({'embeds':[{'title':os.environ['TITLE'],'description':os.environ['DETAIL'][:4000],'color':12986408 if '障害' in os.environ['TITLE'] else 694883}]}).encode()
+          request=urllib.request.Request(f"https://discord.com/api/v10/channels/{os.environ['DISCORD_CHANNEL_ID']}/messages",data=body,headers={'Authorization':'Bot '+os.environ['DISCORD_BOT_TOKEN'],'Content-Type':'application/json','User-Agent':'TayunetMonitor/1.0'},method='POST')
+          urllib.request.urlopen(request,timeout=15).read()
+          PY
+
+      - name: Upload diagnostic result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-monitor-${{ github.run_id }}
+          path: |
+            external-monitor-result.json
+            external-monitor-error.txt
+          retention-days: 14
+
+      - name: Mark failed probe
+        if: steps.probe.outcome == 'failure'
+        run: exit 1
