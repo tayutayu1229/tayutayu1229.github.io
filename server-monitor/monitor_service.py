@@ -94,6 +94,7 @@ action_lock = threading.Lock()
 current_state: dict = {"status": "starting", "collectedAt": None}
 previous_cpu = None
 previous_network = None
+previous_oom_kills = None
 alert_streaks: dict[str, int] = {}
 active_alerts: dict[str, dict] = {}
 auth_cache: dict[str, tuple[float, dict]] = {}
@@ -363,11 +364,12 @@ def tls_status(host: str) -> dict:
 
 
 def smart_status() -> list[dict]:
-    if not shutil.which("smartctl"):
+    smartctl = shutil.which("smartctl") or ("/usr/sbin/smartctl" if Path("/usr/sbin/smartctl").exists() else None)
+    if not smartctl:
         return [{"device": "/dev/sda", "available": False}, {"device": "/dev/sdb", "available": False}]
     results = []
     for device in ("/dev/sda", "/dev/sdb"):
-        code, output = run(["smartctl", "-H", "-A", "-j", device], timeout=15)
+        code, output = run(["sudo", "-n", smartctl, "-H", "-A", "-j", device], timeout=15)
         try:
             data = json.loads(output)
             passed = data.get("smart_status", {}).get("passed")
@@ -380,14 +382,20 @@ def smart_status() -> list[dict]:
 
 
 def system_checks() -> dict:
+    global previous_oom_kills
     _, failed = run(["systemctl", "--failed", "--no-legend", "--no-pager"])
     vmstat = read_vmstat()
     _, journal = run(["journalctl", "-k", "--since", "-10 minutes", "--no-pager", "-n", "100"], timeout=10)
     oom_lines = [line for line in journal.splitlines() if re.search(r"out of memory|oom-kill|killed process", line, re.I)]
-    fail2ban_available = bool(shutil.which("fail2ban-client"))
+    oom_count = vmstat.get("oom_kill", 0)
+    if previous_oom_kills is not None and oom_count > previous_oom_kills:
+        oom_lines.append(f"OOM kill count increased: {previous_oom_kills} -> {oom_count}")
+    previous_oom_kills = oom_count
+    fail2ban_client = shutil.which("fail2ban-client") or ("/usr/bin/fail2ban-client" if Path("/usr/bin/fail2ban-client").exists() else None)
+    fail2ban_available = bool(fail2ban_client)
     fail2ban = {"available": fail2ban_available, "jails": []}
     if fail2ban_available:
-        code, output = run(["fail2ban-client", "status"])
+        code, output = run(["sudo", "-n", fail2ban_client, "status"])
         fail2ban.update({"ok": code == 0, "summary": output[-1000:]})
     return {
         "failedServices": [line.strip() for line in failed.splitlines() if line.strip()],
