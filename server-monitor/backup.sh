@@ -47,6 +47,7 @@ else
     for item in "incident-share:/data:incident-share-data.tar" "jreast-press-bot-press-release-bot-1:/app/data:press-bot-data.tar"; do
       container="${item%%:*}"; rest="${item#*:}"; container_path="${rest%%:*}"; archive_name="${rest#*:}"
       archive_path="$archive_dir/$archive_name"
+      stream_output=""
       if docker cp "$container:$container_path/." - > "$archive_path" && stream_output=$(restic backup "$archive_path" --tag "$MODE" 2>&1); then
         output="$output $stream_output"
       else
