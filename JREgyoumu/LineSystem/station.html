@@ -484,7 +484,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.className = `line-item flex items-center gap-3 p-3 rounded-md transition-colors ${isActive ? 'active' : ''}`;
                 item.setAttribute('data-railway', railwayId);
                 item.setAttribute('data-station-name', stationName);
-                item.innerHTML = `<i class="fas fa-route"></i><span>${railwayName}</span>`;
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-route';
+                const label = document.createElement('span');
+                label.textContent = railwayName;
+                item.replaceChildren(icon, label);
                 lineList.appendChild(item);
             });
         }
@@ -505,7 +509,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const isActive = (activeDirectionId && activeDirectionId === dir) || (!activeDirectionId && index === 0);
                     const button = document.createElement('button');
                     button.className = `direction-button px-4 py-2 rounded-full border border-gray-300 text-sm font-semibold transition-colors ${isActive ? 'active' : ''}`;
-                    button.innerHTML = `${dirMap.display} <span class="text-xs text-gray-500">${dirMap.sub}</span>`;
+                    button.append(document.createTextNode(`${dirMap.display} `));
+                    const sub = document.createElement('span');
+                    sub.className = 'text-xs text-gray-500';
+                    sub.textContent = dirMap.sub;
+                    button.appendChild(sub);
                     button.setAttribute('data-direction-id', dir);
                     directionButtons.appendChild(button);
                 }
@@ -563,13 +571,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const destinationName = train['odpt:destinationStation'].map(s => stationMap[s] || s.split('.').pop()).join(', ');
                     const trainType = trainTypeMap[train['odpt:trainType']] || train['odpt:trainType'].split('.').pop();
                     
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900">${train['odpt:departureTime']}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-900">${destinationName}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500">${trainType}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${statusText}</span></td>
-                        <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500">${train['odpt:trainNumber']}</div></td>
-                    `;
+                    const values = [train['odpt:departureTime'], destinationName, trainType, statusText, train['odpt:trainNumber']];
+                    const textClasses = ['text-sm font-medium text-gray-900', 'text-sm text-gray-900', 'text-sm text-gray-500', `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}`, 'text-sm text-gray-500'];
+                    values.forEach((value, index) => {
+                        const cell = document.createElement('td');
+                        cell.className = 'px-6 py-4 whitespace-nowrap';
+                        const text = document.createElement(index === 3 ? 'span' : 'div');
+                        text.className = textClasses[index];
+                        text.textContent = value || '';
+                        cell.appendChild(text);
+                        row.appendChild(cell);
+                    });
                     timetableBody.appendChild(row);
                 });
             } else {

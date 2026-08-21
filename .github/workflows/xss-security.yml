@@ -1,0 +1,26 @@
+name: XSS security checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static-security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check assets/js/site-brand.js
+          node --check assets/js/ubuntu-monitor.js
+          node --check unnyou/main.js
+          node scripts/check-inline-script-syntax.js
+      - name: Prevent XSS sink regressions
+        run: node scripts/check-xss-sinks.js
