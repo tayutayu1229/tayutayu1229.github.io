@@ -16,7 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(error => {
             console.error('Error loading JSON data:', error);
-            document.getElementById('results_table').querySelector('tbody').innerHTML = `<tr><td colspan="6">データの読み込みに失敗しました。<br>${error.message}</td></tr>`;
+            const errorRow = document.createElement('tr');
+            const errorCell = document.createElement('td');
+            errorCell.colSpan = 6;
+            errorCell.append('データの読み込みに失敗しました。', document.createElement('br'), String(error.message || '不明なエラー'));
+            errorRow.appendChild(errorCell);
+            document.getElementById('results_table').querySelector('tbody').replaceChildren(errorRow);
         });
 
     const searchButton = document.getElementById('search_button');
