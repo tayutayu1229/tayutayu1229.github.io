@@ -6,6 +6,7 @@
 <title>文書共有システム</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs" type="module"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.12/purify.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <style>
@@ -733,10 +734,27 @@ const createTab = (label, active, fn) => {
   };
   return btn;
 };
-const showPdfDirect = url => { stopPdfRendering(); pmBody.innerHTML = `<iframe src="${url}"></iframe>`; };
+const setPreviewUrl = (element, url) => {
+  const safe = window.TayunetSecurity?.safeUrl(url, { allowBlob:true }) || (String(url).startsWith('blob:') ? String(url) : '');
+  if (!safe) throw new Error('安全でないプレビューURLを拒否しました。');
+  element.setAttribute('src', safe);
+};
+const showPdfDirect = url => {
+  stopPdfRendering();
+  const frame = document.createElement('iframe');
+  setPreviewUrl(frame, url);
+  pmBody.replaceChildren(frame);
+};
 const showPdfEmbed = url => {
   stopPdfRendering();
-  pmBody.innerHTML = `<div class="pm-view-wrap"><embed src="${url}" type="application/pdf" style="width:100%;height:100%;background:#fff;"></embed></div>`;
+  const wrap = document.createElement('div');
+  wrap.className = 'pm-view-wrap';
+  const embed = document.createElement('embed');
+  embed.type = 'application/pdf';
+  embed.style.cssText = 'width:100%;height:100%;background:#fff;';
+  setPreviewUrl(embed, url);
+  wrap.appendChild(embed);
+  pmBody.replaceChildren(wrap);
 };
 const loadPdfJs = async () => {
   if (window.__tayunetPdfJsLib) return window.__tayunetPdfJsLib;
@@ -927,11 +945,14 @@ const showWordPreview = async (blob, f) => {
   try {
     const arrayBuffer = await blob.arrayBuffer();
     const result = await window.mammoth.convertToHtml({ arrayBuffer });
+    const safeDocumentHtml = window.DOMPurify
+      ? window.DOMPurify.sanitize(result.value || '', { USE_PROFILES:{ html:true } })
+      : '';
     const warnings = (result.messages || []).map(m => escapeHtmlText(m.message)).join('<br>');
     pmBody.innerHTML = `
       <div class="pm-view-wrap">
         <div class="pm-html-view">
-          ${result.value || '<p>本文を抽出できませんでした。</p>'}
+          ${safeDocumentHtml || '<p>本文を抽出できませんでした。</p>'}
           ${warnings ? `<div class="pm-note">変換メモ:<br>${warnings}</div>` : ''}
         </div>
       </div>`;
@@ -941,7 +962,10 @@ const showWordPreview = async (blob, f) => {
 };
 const sheetToHtml = (workbook, sheetName) => {
   const sheet = workbook.Sheets[sheetName];
-  return window.XLSX.utils.sheet_to_html(sheet, { editable:false });
+  const html = window.XLSX.utils.sheet_to_html(sheet, { editable:false });
+  return window.DOMPurify
+    ? window.DOMPurify.sanitize(html, { USE_PROFILES:{ html:true } })
+    : '<p>安全な表プレビューを準備できませんでした。</p>';
 };
 const showExcelPreview = async (blob, f) => {
   if (!window.XLSX) {

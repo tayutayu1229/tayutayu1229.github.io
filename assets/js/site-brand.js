@@ -1,6 +1,97 @@
 (() => {
   'use strict';
 
+  const URL_ATTRIBUTES = ['href', 'src', 'action', 'formaction', 'poster', 'xlink:href'];
+  const TRUSTED_SCRIPT_HOSTS = new Set([
+    location.hostname,
+    'www.gstatic.com',
+    'cdn.tailwindcss.com',
+    'cdnjs.cloudflare.com',
+    'cdn.jsdelivr.net',
+    'unpkg.com',
+    'esm.sh',
+    'stackpath.bootstrapcdn.com'
+  ]);
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[character]));
+  }
+
+  function safeToken(value, fallback = '') {
+    const token = String(value ?? '');
+    return /^[A-Za-z0-9_-]{1,128}$/.test(token) ? token : fallback;
+  }
+
+  function safeUrl(value, options = {}) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return options.allowEmpty === false ? null : '';
+    if (/^[\u0000-\u001F\u007F]/.test(raw)) return null;
+    try {
+      const parsed = new URL(raw, document.baseURI);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+      if (parsed.protocol === 'blob:' && options.allowBlob !== false) return parsed.href;
+      if (parsed.protocol === 'mailto:' || parsed.protocol === 'tel:') return parsed.href;
+      if (parsed.protocol === 'data:' && options.allowDataImage && /^data:image\/(?:avif|gif|jpeg|png|webp);/i.test(raw)) return raw;
+    } catch (_) {}
+    return null;
+  }
+
+  function setSafeUrl(element, attribute, value, options = {}) {
+    const safe = safeUrl(value, options);
+    if (safe === null) {
+      element.removeAttribute(attribute);
+      return false;
+    }
+    element.setAttribute(attribute, safe);
+    return true;
+  }
+
+  function isTrustedScriptUrl(value) {
+    try {
+      const parsed = new URL(value, document.baseURI);
+      return parsed.protocol === 'https:' && TRUSTED_SCRIPT_HOSTS.has(parsed.hostname);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function hardenNode(root) {
+    if (!(root instanceof Element)) return;
+    const nodes = [root, ...root.querySelectorAll('*')];
+    nodes.forEach((node) => {
+      if (node.tagName === 'SCRIPT') {
+        const source = node.getAttribute('src');
+        if (!source || !isTrustedScriptUrl(source)) {
+          node.remove();
+          return;
+        }
+      }
+      [...node.attributes].forEach((attribute) => {
+        const name = attribute.name.toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc') {
+          node.removeAttribute(attribute.name);
+          return;
+        }
+        if (!URL_ATTRIBUTES.includes(name)) return;
+        const allowDataImage = node.tagName === 'IMG' && name === 'src';
+        setSafeUrl(node, attribute.name, attribute.value, { allowDataImage });
+      });
+    });
+  }
+
+  function installDynamicMarkupGuard() {
+    if (!document.documentElement || !window.MutationObserver) return;
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => mutation.addedNodes.forEach(hardenNode));
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  window.TayunetSecurity = Object.freeze({ escapeHtml, safeToken, safeUrl, setSafeUrl });
+  installDynamicMarkupGuard();
+
   const ICON_PATH = '/icon-192.png';
   const HOME_PATH = '/toppage.html';
   const VERSION_PATH = '/system-version.json';
