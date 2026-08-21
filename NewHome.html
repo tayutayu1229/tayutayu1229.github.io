@@ -1046,6 +1046,7 @@ const stationNameMap = {
 };
 
 // ===== ヘルパー関数 =====
+function esc(value){ return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function rn(id){ return railwayMap[id]||id; }
 function tn(id){ const t=trainTypeMap[(id||'').replace('odpt.TrainType:','')]; return t?t[1]:(id||'').split(':').pop()||'不明'; }
 function shortenStn(name){
@@ -1228,13 +1229,13 @@ function renderInfo(){
       ? new Date(firstSeenEntry.date).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : null;
     html+=`<div class="train-card ${tcls} ${cls}">
-      <div class="card-row1"><span class="card-line-name">${name}</span><span class="status-stamp">${status}</span>
+      <div class="card-row1"><span class="card-line-name">${esc(name)}</span><span class="status-stamp">${esc(status)}</span>
         ${firstSeenStr?`<span class="info-since">情報取得: ${firstSeenStr}</span>`:''}
       </div>
-      ${cause||range?`<div class="card-meta">${cause?'事由: '+cause:''}${cause&&range?' ／ ':''}${range?'区間: '+range:''}</div>`:''}
-      <div class="card-text">${currentText}</div>
+      ${cause||range?`<div class="card-meta">${cause?'事由: '+esc(cause):''}${cause&&range?' ／ ':''}${range?'区間: '+esc(range):''}</div>`:''}
+      <div class="card-text">${esc(currentText)}</div>
       ${history.length>0?`<span class="hist-toggle" onclick="toggleHist('h${idx}',this)">▼ 過去の情報履歴 (${history.length}件)</span>
-      <ul class="hist-list" id="h${idx}">${history.map(p=>`<li class="hist-item"><span class="hist-time">${new Date(p.date).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span><span class="hist-s">[${p.status}]</span> ${p.text}</li>`).join('')}</ul>`:''}
+      <ul class="hist-list" id="h${idx}">${history.map(p=>`<li class="hist-item"><span class="hist-time">${new Date(p.date).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span><span class="hist-s">[${esc(p.status)}]</span> ${esc(p.text)}</li>`).join('')}</ul>`:''}
     </div>`;
   });
   container.innerHTML=html||`<div style="text-align:center;padding:40px;color:var(--text3);">表示する情報はありません</div>`;
@@ -1284,9 +1285,9 @@ function renderGrasp(){
     const dCls=mins>=20?'dc-20':mins>=10?'dc-10':mins>=3?'dc-3':'dc-0';
     const trCls=mins>=20?'tr-big':mins>=3?'tr-delay':'';
     if(s.delayed>0) dl++;
-    return `<tr class="${trCls}"><td><strong style="color:var(--text)">${name}</strong></td>
+    return `<tr class="${trCls}"><td><strong style="color:var(--text)">${esc(name)}</strong></td>
       <td><span class="delay-chip ${dCls}">${mins}分</span></td>
-      <td><span style="font-family:'Oswald',sans-serif;font-size:0.88rem;color:var(--green3)">${s.maxTrain||'—'}</span></td>
+      <td><span style="font-family:'Oswald',sans-serif;font-size:0.88rem;color:var(--green3)">${esc(s.maxTrain||'—')}</span></td>
       <td><span style="font-family:'Oswald',sans-serif;">${s.delayed}</span><span style="color:var(--text3)">/${s.total}</span></td>
       <td><div style="display:flex;align-items:center;gap:5px;"><div class="ratio-bar"><div class="ratio-fill ${barCls}" style="width:${barW}%"></div></div><span style="font-size:0.7rem;color:var(--text3);font-family:'Oswald',sans-serif;">${(ratio*100).toFixed(0)}%</span></div></td>
       <td><span class="mini-num ${s.d3>0?'mn-warn':''}">${s.d3}</span></td>
@@ -1500,8 +1501,8 @@ function atosRender(){
       else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
 
       div.innerHTML=
-        `<div class="train-number" style="color:var(--text)">${num}${delay>0?`<span class="train-delay">+${delay}分</span>`:''}</div>`+
-        `<div class="train-info-sub">${cars?cars+'両 ':''}${shortDest}</div>`;
+        `<div class="train-number" style="color:var(--text)">${esc(num)}${delay>0?`<span class="train-delay">+${delay}分</span>`:''}</div>`+
+        `<div class="train-info-sub">${cars?esc(cars)+'両 ':''}${esc(shortDest)}</div>`;
       div.onclick=()=>showAtosTrainDetails(train);
       lineDiv.appendChild(div);
     });
@@ -1528,12 +1529,12 @@ function showAtosTrainDetails(train){
   const destName=dest.length>0?(atosStationTitles[dest[0]]||dest[0].split('.').pop()):'不明';
   document.getElementById('td-num').textContent=`列番: ${train["odpt:trainNumber"]||'?'}`;
   document.getElementById('td-body').innerHTML=
-    `<strong>方向</strong>${getDirText(train["odpt:railDirection"],train["odpt:railway"])}<br>
+    `<strong>方向</strong>${esc(getDirText(train["odpt:railDirection"],train["odpt:railway"]))}<br>
     <strong>遅延</strong>${delay>0?delay+'分':'なし'}<br>
-    <strong>走行区間</strong>${to?from+'〜'+to:from}<br>
-    <strong>終着駅</strong>${destName}<br>
-    <strong>種別</strong>${tn(train["odpt:trainType"])}<br>
-    <strong>両数</strong>${train["odpt:carComposition"]||'不明'}両`;
+    <strong>走行区間</strong>${esc(to?from+'〜'+to:from)}<br>
+    <strong>終着駅</strong>${esc(destName)}<br>
+    <strong>種別</strong>${esc(tn(train["odpt:trainType"]))}<br>
+    <strong>両数</strong>${esc(train["odpt:carComposition"]||'不明')}両`;
   const tt=atosTimetableData.find(t=>t["odpt:trainNumber"]===train["odpt:trainNumber"]&&t["odpt:railway"]===train["odpt:railway"]);
   if(tt){
     const btn=document.createElement('button');
@@ -1555,9 +1556,9 @@ function showAtosTrainTT(tt){
   const destArr=(tt["odpt:destinationStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
   const trainType=tn(tt["odpt:trainType"]||'');
   let html=`<div class="doc-header">
-    <span class="doc-badge">${trainType}</span>
-    <span class="doc-train-num">${tt["odpt:trainNumber"]}</span>
-    <span class="doc-route">${origin} &#8594; ${destArr}</span>
+    <span class="doc-badge">${esc(trainType)}</span>
+    <span class="doc-train-num">${esc(tt["odpt:trainNumber"])}</span>
+    <span class="doc-route">${esc(origin)} &#8594; ${esc(destArr)}</span>
   </div>`;
   html+=`<table class="doc-table"><thead><tr>
     <th class="td-stn">駅名</th><th class="td-time">発車</th><th class="td-arr">着</th>
@@ -1569,9 +1570,9 @@ function showAtosTrainTT(tt){
     const arr=s["odpt:arrivalTime"]||'';
     const isFirst=i===0, isLast=i===stops.length-1;
     html+=`<tr>
-      <td class="td-stn${isFirst||isLast?' is-term':''}">${stnName}</td>
-      <td class="td-time">${dep||arr}</td>
-      <td class="td-arr">${arr&&dep&&arr!==dep?arr:''}</td>
+      <td class="td-stn${isFirst||isLast?' is-term':''}">${esc(stnName)}</td>
+      <td class="td-time">${esc(dep||arr)}</td>
+      <td class="td-arr">${esc(arr&&dep&&arr!==dep?arr:'')}</td>
     </tr>`;
   });
   html+='</tbody></table>';
@@ -1587,7 +1588,7 @@ async function showAtosStationTT(stationId, lineId){
     const cal=window.TayunetCalendar?.odptCalendar(today)||(today.getDay()===0||today.getDay()===6?'SaturdayHoliday':'Weekday');
     const cacheKey=`${stationId}-${lineId}-${cal}`;
     if(!cachedStationTT[cacheKey]){
-      const res=await fetch(`${BASE}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${stationId}&odpt:railway=${lineId}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
+      const res=await fetch(`${BASE}/odpt:StationTimetable?odpt:operator=odpt.Operator:JR-East&odpt:station=${encodeURIComponent(stationId)}&odpt:railway=${encodeURIComponent(lineId)}&odpt:calendar=odpt.Calendar:${encodeURIComponent(cal)}&${K}`);
       if(!res.ok) throw new Error('取得失敗');
       cachedStationTT[cacheKey]=await res.json();
     }
@@ -1611,7 +1612,7 @@ async function showAtosStationTT(stationId, lineId){
 
       for(const[dir,tts]of Object.entries(dirs)){
         const dirText=getDirText(dir,lineId);
-        html+=`<div class="doc-dir-head">${dirText}</div>`;
+        html+=`<div class="doc-dir-head">${esc(dirText)}</div>`;
         html+=`<table class="doc-table"><thead><tr>
           <th class="td-time">発車</th><th class="td-num">列番</th>
           <th class="td-type">種別</th><th>行先</th></tr></thead><tbody>`;
@@ -1637,12 +1638,12 @@ async function showAtosStationTT(stationId, lineId){
             const dests=(obj["odpt:destinationStation"]||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
             const delayMin2=delayMap[trainNum]||0;
             const isDelayed=delayMin2>0;
-            const timeDisp=rawTime+(isDelayed?`<span class="delay-badge">+${delayMin2}分</span>`:'');
+            const timeDisp=esc(rawTime)+(isDelayed?`<span class="delay-badge">+${delayMin2}分</span>`:'');
             html+=`<tr class="${isDelayed?'row-delayed':''}">
               <td class="td-time">${timeDisp}</td>
-              <td class="td-num">${trainNum}</td>
-              <td class="td-type">${tn(obj["odpt:trainType"])}</td>
-              <td>${dests||'—'}</td>
+              <td class="td-num">${esc(trainNum)}</td>
+              <td class="td-type">${esc(tn(obj["odpt:trainType"]))}</td>
+              <td>${esc(dests||'—')}</td>
             </tr>`;
             cnt++;
           }
@@ -1673,7 +1674,7 @@ async function loadRailwayList(){
       id:rw['owl:sameAs'].replace('odpt.Railway:',''),
       label:rw['odpt:railwayTitle']?.ja||rw['dc:title']||rw['owl:sameAs']
     })).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
-    const opts=sorted.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
+    const opts=sorted.map(r=>`<option value="${esc(r.id)}">${esc(r.label)}</option>`).join('');
     document.getElementById('stt-line').innerHTML='<option value="">路線を選択</option>'+opts;
     document.getElementById('ttt-line').innerHTML='<option value="">路線を選択</option>'+opts;
   } catch(e){ console.error(e); }
@@ -1688,7 +1689,7 @@ async function loadSttStations(){
     label:s['odpt:stationTitle']?.ja||s['odpt:station'].split('.').pop()
   }));
   const sel=document.getElementById('stt-station');
-  sel.innerHTML='<option value="">駅を選択</option>'+stations.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+  sel.innerHTML='<option value="">駅を選択</option>'+stations.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('');
   sel.style.display=''; document.getElementById('stt-dir').style.display=''; document.getElementById('stt-cal').style.display='';
 }
 async function searchStationTimetable(){
@@ -1712,10 +1713,10 @@ async function searchStationTimetable(){
         const typ=tn(e['odpt:trainType']||'');
         const num=e['odpt:trainNumber']||'—';
         return `<tr>
-          <td class="td-time">${e['odpt:departureTime']||e['odpt:arrivalTime']||'--:--'}</td>
-          <td class="td-num">${num}</td>
-          <td class="td-type">${typ}</td>
-          <td>${dests||'—'}</td>
+          <td class="td-time">${esc(e['odpt:departureTime']||e['odpt:arrivalTime']||'--:--')}</td>
+          <td class="td-num">${esc(num)}</td>
+          <td class="td-type">${esc(typ)}</td>
+          <td>${esc(dests||'—')}</td>
         </tr>`;
       }).join('')+'</tbody></table>';
     document.getElementById('stt-result').innerHTML=html;
@@ -1732,7 +1733,7 @@ async function loadTttTrains(){
     tttTrainData=await r.json();
     tttTrainData.forEach(t=>{ (t["odpt:trainTimetableObject"]||[]).forEach(s=>{ const id=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]; if(id&&!atosStationTitles[id]) atosStationTitles[id]=id.split('.').pop(); }); });
     const trains=[...new Set(tttTrainData.map(t=>t['odpt:trainNumber']))].sort();
-    sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${t}">${t}</option>`).join('');
+    sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
   } catch(e){ sel.innerHTML='<option value="">取得失敗</option>'; }
 }
 async function searchTrainTimetable(){
@@ -1746,9 +1747,9 @@ async function searchTrainTimetable(){
   const dest=(t['odpt:destinationStation']||[]).map(s=>atosStationTitles[s]||s.split('.').pop()).join('・');
   const trainType=tn(t['odpt:trainType']||'');
   let html=`<div class="doc-header">
-    <span class="doc-badge">${trainType}</span>
-    <span class="doc-train-num">${trainNum}</span>
-    <span class="doc-route">${origin} &#8594; ${dest}</span>
+    <span class="doc-badge">${esc(trainType)}</span>
+    <span class="doc-train-num">${esc(trainNum)}</span>
+    <span class="doc-route">${esc(origin)} &#8594; ${esc(dest)}</span>
   </div>`;
   html+=`<table class="doc-table"><thead><tr>
     <th class="td-stn">駅名</th><th class="td-time">発車</th><th class="td-arr">着</th>
@@ -1760,9 +1761,9 @@ async function searchTrainTimetable(){
     const arr=s['odpt:arrivalTime']||'';
     const isFirst=i===0, isLast=i===stops.length-1;
     html+=`<tr>
-      <td class="td-stn${isFirst||isLast?' is-term':''}">${stnName}</td>
-      <td class="td-time">${dep||arr}</td>
-      <td class="td-arr">${arr&&dep&&arr!==dep?arr:''}</td>
+      <td class="td-stn${isFirst||isLast?' is-term':''}">${esc(stnName)}</td>
+      <td class="td-time">${esc(dep||arr)}</td>
+      <td class="td-arr">${esc(arr&&dep&&arr!==dep?arr:'')}</td>
     </tr>`;
   });
   html+='</tbody></table>';
@@ -1783,7 +1784,7 @@ async function loadStations(){
     const lines=[...new Set(stationData.map(s=>s['odpt:railway'].replace('odpt.Railway:','')))];
     const sorted=lines.map(l=>({key:l,label:rn(l)})).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
     const sel=document.getElementById('stn-line-filter');
-    sel.innerHTML='<option value="">すべての路線</option>'+sorted.map(l=>`<option value="${l.key}">${l.label}</option>`).join('');
+    sel.innerHTML='<option value="">すべての路線</option>'+sorted.map(l=>`<option value="${esc(l.key)}">${esc(l.label)}</option>`).join('');
     renderStations();
   } catch(e){ document.getElementById('err-stn').style.display='block'; document.getElementById('err-stn').textContent='⚠ 取得失敗'; }
 }
@@ -1795,7 +1796,7 @@ function renderStations(){
   if(search) list=list.filter(s=>(s['odpt:stationTitle']?.ja||'').includes(search));
   document.getElementById('stn-count').textContent=`${list.length}駅`;
   const html=`<table class="data-table"><thead><tr><th>駅名</th><th>路線</th><th>駅コード</th></tr></thead><tbody>`+
-    list.slice(0,300).map(s=>`<tr><td><strong>${s['odpt:stationTitle']?.ja||'—'}</strong></td><td style="color:var(--text3)">${rn(s['odpt:railway'].replace('odpt.Railway:',''))}</td><td style="font-family:'Oswald',sans-serif;color:var(--green3)">${s['odpt:stationCode']||'—'}</td></tr>`).join('')+'</tbody></table>';
+    list.slice(0,300).map(s=>`<tr><td><strong>${esc(s['odpt:stationTitle']?.ja||'—')}</strong></td><td style="color:var(--text3)">${esc(rn(s['odpt:railway'].replace('odpt.Railway:','')))}</td><td style="font-family:'Oswald',sans-serif;color:var(--green3)">${esc(s['odpt:stationCode']||'—')}</td></tr>`).join('')+'</tbody></table>';
   document.getElementById('stn-list').innerHTML=html;
 }
 
@@ -1834,8 +1835,8 @@ function renderPassenger(){
       const pct=Math.round((s.journeys/maxJ)*100);
       const jStr=s.journeys>=10000?(s.journeys/10000).toFixed(1)+'万':(s.journeys||'—').toString();
       return `<div class="survey-card"><div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
-        <span style="font-weight:700;font-size:0.88rem;color:var(--text)">${s.name||'—'}</span>
-        <span style="font-size:0.7rem;color:var(--text3)">${s.line}</span>
+        <span style="font-weight:700;font-size:0.88rem;color:var(--text)">${esc(s.name||'—')}</span>
+        <span style="font-size:0.7rem;color:var(--text3)">${esc(s.line)}</span>
         <span style="font-size:0.66rem;color:var(--text3);margin-left:auto;">${s.year?s.year+'年調査':''}</span></div>
         <div style="display:flex;align-items:center;gap:8px;">
         <div class="survey-bar-bg"><div class="survey-bar" style="width:${pct}%"></div></div>
