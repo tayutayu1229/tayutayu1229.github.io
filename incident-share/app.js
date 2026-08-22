@@ -34,7 +34,7 @@
   function updateCaptureLocationStatus(mode, detail = "") {
     const panel = $("#captureLocationStatus"); if (!panel) return;
     panel.dataset.status = mode;
-    $("span", panel).textContent = mode === "ready" ? "ファイル内の撮影場所を読み取りました" : mode === "loading" ? "ファイル内の撮影場所を確認しています" : mode === "none" ? "このファイルに撮影場所は記録されていません" : mode === "idle" ? "写真・動画を選ぶと、ファイル内の撮影場所を確認します" : detail || "撮影場所を読み取れませんでした";
+    $("span", panel).textContent = detail || (mode === "ready" ? "ファイル内の撮影場所を読み取りました" : mode === "loading" ? "ファイル内の撮影場所を確認しています" : mode === "none" ? "このファイルに撮影場所は記録されていません" : mode === "idle" ? "写真・動画を選ぶと、ファイル内の撮影場所を確認します" : "撮影場所を読み取れませんでした");
   }
   function validEmbeddedLocation(value) {
     const latitude = Number(value?.latitude); const longitude = Number(value?.longitude);
@@ -57,6 +57,23 @@
       if (String(file.type || "").startsWith("image/") && window.exifr?.gps) return validEmbeddedLocation(await window.exifr.gps(file));
       return await quickTimeLocation(file);
     } catch (_) { return null; }
+  }
+  function isFreshCapture(file) {
+    const modified = Number(file?.lastModified);
+    return !Number.isFinite(modified) || modified <= 0 || Math.abs(Date.now() - modified) <= 10 * 60 * 1000;
+  }
+  function currentDeviceLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = validEmbeddedLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+          resolve(location ? { ...location, locationAccuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null } : null);
+        },
+        () => resolve(null),
+        { enableHighAccuracy: false, timeout: 7000, maximumAge: 30000 },
+      );
+    });
   }
   function guessedMediaType(file) {
     if (file.type) return file.type;
@@ -193,14 +210,17 @@
     const loadCard = async (card) => {
       const item = state.items.find((record) => record.id === card.dataset.id); if (!item) return;
       if (!card.isConnected) return;
-      if (item.mediaType?.startsWith("video/")) { card.classList.remove("loading"); card.classList.add("video-card"); return; }
       try {
         const source = await queueThumbnail(() => card.isConnected ? mediaUrl(item, "thumbnail") : Promise.reject(new Error("cancelled")));
         if (!card.isConnected) return;
         const media = document.createElement("img");
         media.src = source; media.alt = `${longDate(item.occurredAt)}に撮影`; media.loading = "lazy"; media.decoding = "async";
         card.prepend(media); card.classList.remove("loading");
-      } catch (_) { if (card.isConnected) { card.className = "photo-card error"; card.textContent = "画像取得失敗"; } }
+      } catch (_) {
+        if (!card.isConnected) return;
+        if (item.mediaType?.startsWith("video/")) { card.classList.remove("loading"); card.classList.add("video-card"); }
+        else { card.className = "photo-card error"; card.textContent = "画像取得失敗"; }
+      }
     };
     if ("IntersectionObserver" in window) {
       state.galleryObserver = new IntersectionObserver((entries, observer) => entries.forEach((entry) => {
@@ -241,12 +261,15 @@
     state.detailObserver?.disconnect(); state.detailObserver = null;
     const loadThumbnail = async (button) => {
       const item = state.items.find((record) => record.id === button.dataset.id); if (!item) return;
-      if (item.mediaType?.startsWith("video/")) { button.classList.remove("loading"); button.classList.add("video-card"); return; }
       try {
         const source = await queueThumbnail(() => button.isConnected ? mediaUrl(item, "thumbnail") : Promise.reject(new Error("cancelled")));
         if (!button.isConnected) return;
         const media = document.createElement("img"); media.src = source; media.alt = ""; media.loading = "lazy"; media.decoding = "async"; button.prepend(media); button.classList.remove("loading");
-      } catch (_) { if (button.isConnected) button.classList.add("error"); }
+      } catch (_) {
+        if (!button.isConnected) return;
+        if (item.mediaType?.startsWith("video/")) { button.classList.remove("loading"); button.classList.add("video-card"); }
+        else button.classList.add("error");
+      }
     };
     if ("IntersectionObserver" in window) {
       state.detailObserver = new IntersectionObserver((entries, observer) => entries.forEach((entry) => {
@@ -354,7 +377,7 @@
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
-  function setUploadFile(sourceFile) {
+  function setUploadFile(sourceFile, { allowCurrentLocation = false } = {}) {
     const file = normalizeFile(sourceFile);
     if (!file) return;
     const type = guessedMediaType(file);
@@ -369,10 +392,18 @@
     if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; media.playsInline = true; }
     picker.append(media);
     const generation = ++state.fileGeneration; state.captureLocation = null; updateCaptureLocationStatus("loading");
-    state.metadataPromise = embeddedLocation(file).then((location) => {
+    state.metadataPromise = (async () => {
+      const embedded = await embeddedLocation(file);
       if (generation !== state.fileGeneration) return null;
-      state.captureLocation = location; updateCaptureLocationStatus(location ? "ready" : "none"); return location;
-    }).catch(() => { if (generation === state.fileGeneration) updateCaptureLocationStatus("error"); return null; });
+      if (embedded) { state.captureLocation = embedded; updateCaptureLocationStatus("ready", "ファイル内の撮影場所を読み取りました"); return embedded; }
+      if (!allowCurrentLocation || !isFreshCapture(file)) { updateCaptureLocationStatus("none", "このファイルに撮影場所は記録されていません"); return null; }
+      updateCaptureLocationStatus("loading", "撮影直後のため、現在の撮影場所を確認しています");
+      const current = await currentDeviceLocation();
+      if (generation !== state.fileGeneration) return null;
+      state.captureLocation = current;
+      updateCaptureLocationStatus(current ? "ready" : "none", current ? "現在の撮影場所を登録します" : "撮影場所を取得できないため、位置情報なしで登録します");
+      return current;
+    })().catch(() => { if (generation === state.fileGeneration) updateCaptureLocationStatus("error"); return null; });
     state.preparedFilePromise = preparedImage(file).catch(() => file);
   }
 
@@ -479,8 +510,8 @@
       Object.assign(state.selected, update); renderGallery(); renderDetailStrip(); showToast("撮影情報を保存しました");
     } catch (error) { showToast(error.message || "保存できませんでした", true); }
   });
-  $("#mediaInput").addEventListener("change", (event) => setUploadFile(event.target.files[0]));
-  $("#attachmentInput").addEventListener("change", (event) => { setUploadFile(event.target.files[0]); event.target.value = ""; });
+  $("#mediaInput").addEventListener("change", (event) => setUploadFile(event.target.files[0], { allowCurrentLocation: true }));
+  $("#attachmentInput").addEventListener("change", (event) => { setUploadFile(event.target.files[0], { allowCurrentLocation: false }); event.target.value = ""; });
   $("#fileSelectButton").addEventListener("click", () => $("#attachmentInput").click());
   const mediaPicker = $("#mediaPicker");
   ["dragenter", "dragover"].forEach((type) => mediaPicker.addEventListener(type, (event) => {
@@ -495,7 +526,7 @@
     event.preventDefault(); event.stopPropagation(); mediaPicker.classList.remove("dragover");
     const file = [...(event.dataTransfer?.files || [])].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/"));
     if (!file) { showToast("写真または動画を選択してください", true); return; }
-    setUploadFile(file);
+    setUploadFile(file, { allowCurrentLocation: false });
   });
   $("#filterForm").addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); state.filter = { date: String(data.get("date") || ""), query: String(data.get("query") || "") }; $("#filterSheet").hidden = true; renderGallery(); $("#photoGrid").scrollTop = 0; });
   $("#refreshButton").addEventListener("click", () => loadItems(true));
