@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "", captureLocation: null, locationPromise: null };
+  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", deviceReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "", preparedFilePromise: null, metadataPromise: null, fileGeneration: 0, captureLocation: null, deviceDataUrls: [] };
   const thumbnailQueue = { active: 0, pending: [], limit: 4 };
   const fullscreenZoom = { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, pinching: false, lastTap: 0 };
   let viewportSyncTimers = [];
@@ -34,21 +34,52 @@
   function updateCaptureLocationStatus(mode, detail = "") {
     const panel = $("#captureLocationStatus"); if (!panel) return;
     panel.dataset.status = mode;
-    $("span", panel).textContent = mode === "ready" ? `撮影場所を取得しました（精度 約${Math.round(state.captureLocation?.locationAccuracy || 0)}m）` : mode === "loading" ? "撮影場所を確認しています" : detail || "撮影場所を取得できませんでした";
-    $("#retryLocationButton").hidden = mode !== "error";
+    $("span", panel).textContent = mode === "ready" ? "ファイル内の撮影場所を読み取りました" : mode === "loading" ? "ファイル内の撮影場所を確認しています" : mode === "none" ? "このファイルに撮影場所は記録されていません" : mode === "idle" ? "写真・動画を選ぶと、ファイル内の撮影場所を確認します" : detail || "撮影場所を読み取れませんでした";
   }
-  function requestCaptureLocation() {
-    state.captureLocation = null;
-    if (!navigator.geolocation) { updateCaptureLocationStatus("error", "この端末では撮影場所を取得できません"); return Promise.resolve(null); }
-    updateCaptureLocationStatus("loading");
-    state.locationPromise = new Promise((resolve) => navigator.geolocation.getCurrentPosition((position) => {
-      state.captureLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude, locationAccuracy: position.coords.accuracy };
-      updateCaptureLocationStatus("ready"); resolve(state.captureLocation);
-    }, (error) => {
-      const message = error.code === 1 ? "位置情報の利用が許可されていません" : "撮影場所を取得できませんでした";
-      updateCaptureLocationStatus("error", message); resolve(null);
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }));
-    return state.locationPromise;
+  function validEmbeddedLocation(value) {
+    const latitude = Number(value?.latitude); const longitude = Number(value?.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180 ? { latitude, longitude, locationAccuracy: null } : null;
+  }
+  async function quickTimeLocation(file) {
+    if (!String(file.type || "").startsWith("video/")) return null;
+    const chunkSize = Math.min(file.size, 4 * 1024 * 1024); const chunks = [file.slice(0, chunkSize)];
+    if (file.size > chunkSize) chunks.push(file.slice(Math.max(0, file.size - chunkSize)));
+    const decoder = new TextDecoder("latin1");
+    for (const chunk of chunks) {
+      const text = decoder.decode(await chunk.arrayBuffer());
+      const tagged = text.match(/(?:location\.ISO6709|©xyz)[\s\S]{0,160}?([+-]\d{2}(?:\.\d+)?)([+-]\d{3}(?:\.\d+)?)(?:[+-]\d+(?:\.\d+)?)?\/?/i);
+      if (tagged) return validEmbeddedLocation({ latitude: tagged[1], longitude: tagged[2] });
+    }
+    return null;
+  }
+  async function embeddedLocation(file) {
+    try {
+      if (String(file.type || "").startsWith("image/") && window.exifr?.gps) return validEmbeddedLocation(await window.exifr.gps(file));
+      return await quickTimeLocation(file);
+    } catch (_) { return null; }
+  }
+  function guessedMediaType(file) {
+    if (file.type) return file.type;
+    const extension = String(file.name || "").split(".").pop().toLowerCase();
+    const types = { jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", heic: "image/heic", heif: "image/heif", avif: "image/avif", png: "image/png", tif: "image/tiff", tiff: "image/tiff", webp: "image/webp", gif: "image/gif", mov: "video/quicktime", mp4: "video/mp4", m4v: "video/x-m4v", webm: "video/webm" };
+    return types[extension] || "";
+  }
+  function normalizeFile(file) {
+    const type = guessedMediaType(file); if (!type || file.type === type) return file;
+    try { return new File([file], file.name || "upload", { type, lastModified: file.lastModified || Date.now() }); } catch (_) { return file; }
+  }
+  async function preparedImage(file) {
+    if (!String(file.type || "").startsWith("image/") || file.size < 2.5 * 1024 * 1024 || !window.createImageBitmap) return file;
+    let bitmap;
+    try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (_) { try { bitmap = await createImageBitmap(file); } catch (_) { return file; } }
+    const maximum = 2560; const scale = Math.min(1, maximum / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 5 * 1024 * 1024) { bitmap.close(); return file; }
+    const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d", { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
+    if (!blob || blob.size >= file.size) return file;
+    const baseName = String(file.name || "photo").replace(/\.[^.]+$/, "");
+    return new File([blob], `${baseName}.jpg`, { type: "image/jpeg", lastModified: file.lastModified || Date.now() });
   }
   function syncViewportHeight() {
     const height = window.visualViewport?.height || window.innerHeight;
@@ -71,34 +102,34 @@
     $("#firebase-logout-button").hidden = !home;
     $("#viewBackButton").hidden = home;
     $("#settingsButton").hidden = !home;
-    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen" || mode === "location";
+    $("#refreshButton").hidden = home || mode === "detail" || mode === "capture" || mode === "settings" || mode === "fullscreen" || mode === "location" || mode === "device";
     $("#deleteButton").hidden = mode !== "detail";
-    $("#screenTitle").textContent = home ? "上野事業本部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "location" ? "撮影場所" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : "共有データ閲覧";
+    $("#screenTitle").textContent = home ? "上野事業本部" : mode === "detail" ? "共有データ詳細" : mode === "fullscreen" ? "全画面表示" : mode === "location" ? "撮影場所" : mode === "capture" ? $("#uploadHeading").textContent : mode === "settings" ? "端末設定" : mode === "device" ? "端末保存データ" : "共有データ閲覧";
     $$(".landscape-sidebar nav button").forEach((button) => button.classList.remove("active"));
-    const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
+    const sidebarButton = mode === "settings" ? $("#landscapeSettingsButton") : mode === "device" ? $("#landscapeDeviceButton") : mode === "capture" ? null : $("#landscapeGalleryButton");
     if (sidebarButton) sidebarButton.classList.add("active");
   }
   function showHome() {
     if (isLandscapeLayout()) { showGallery(); return; }
     state.selected = null;
-    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true;
+    $("#homeScreen").hidden = false; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#deviceScreen").hidden = true; $("#settingsScreen").hidden = true;
     setHeader("home");
   }
   function showGallery() {
     state.selected = null;
-    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#deviceScreen").hidden = true; $("#settingsScreen").hidden = true; $("#galleryScreen").hidden = false;
     setHeader("gallery"); updateGridShape(); renderGallery();
   }
   async function authorizedFetch(path, options = {}, retry = true) {
     if (!apiBase) throw new Error("共有サーバーが設定されていません");
     const auth = window.TayunetFirebaseDataAuth;
     if (!auth) throw new Error("Firebase認証を初期化できません");
-    const headers = new Headers(options.headers || {});
+    const headers = new Headers(options.headers || {}); const timeoutMs = Number(options.timeoutMs || 12000); const fetchOptions = { ...options }; delete fetchOptions.timeoutMs;
     headers.set("Authorization", `Bearer ${await auth.getIdToken(!retry)}`);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
-    try { response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal, mode: "cors", cache: options.cache || "no-store" }); }
+    try { response = await fetch(apiUrl(path), { ...fetchOptions, headers, signal: controller.signal, mode: "cors", cache: options.cache || "no-store" }); }
     catch (error) { if (error.name === "AbortError") throw new Error("共有サーバーの応答に時間がかかっています。更新を押してください"); throw error; }
     finally { clearTimeout(timeout); }
     if (response.status === 401 && retry) return authorizedFetch(path, options, false);
@@ -231,7 +262,7 @@
   }
   async function openDetail(id) {
     const item = state.items.find((record) => record.id === id); if (!item) return;
-    releaseOriginalsExcept(item.id); state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
+    releaseOriginalsExcept(item.id); state.selected = item; $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#deviceScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#detailScreen").hidden = false; setHeader("detail");
     $("#detailTime").value = localInputValue(item.occurredAt); $("#detailDevice").value = item.device || ""; $("#detailComment").value = item.comment || "";
     const locationButton = $("#locationButton"); locationButton.disabled = !hasLocation(item); locationButton.querySelector("span").textContent = hasLocation(item) ? "撮影場所" : "位置情報なし";
     renderDetailStrip();
@@ -292,7 +323,7 @@
   function showSettings(warning = false) {
     if (!$("#galleryScreen").hidden) state.settingsReturnMode = "gallery";
     else if (!$("#homeScreen").hidden) state.settingsReturnMode = "home";
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#deviceScreen").hidden = true; $("#uploadSheet").hidden = true; $("#settingsScreen").hidden = false;
     $("#deviceNameInput").value = deviceName(); $("#deviceWarning").hidden = !warning; setHeader("settings");
     setTimeout(() => $("#deviceNameInput").focus(), 0);
   }
@@ -306,7 +337,7 @@
     state.uploadReturnMode = $("#galleryScreen").hidden ? "home" : "gallery";
     const form = $("#uploadForm"); form.reset();
     if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
-    state.uploadFile = null; state.uploadPreviewUrl = "";
+    state.uploadFile = null; state.uploadPreviewUrl = ""; state.preparedFilePromise = null; state.metadataPromise = null; state.captureLocation = null; state.fileGeneration += 1;
     $("#mediaPicker").classList.remove("dragover"); $("#mediaPicker").querySelectorAll("img,video").forEach((node) => node.remove()); form.elements.occurredAt.value = localInputValue();
     const input = $("#mediaInput");
     input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "image/*,video/*";
@@ -317,15 +348,16 @@
     $("#mediaPickerHint").textContent = kind === "image" ? "タップして端末のカメラまたは写真を開きます" : kind === "video" ? "タップして端末のカメラまたは動画を開きます" : "タップして端末のカメラまたは写真・動画を開きます";
     $("#mediaPickerSymbol").textContent = kind === "video" ? "▶" : "▣";
     form.elements.device.value = deviceName();
-    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
-    requestCaptureLocation();
+    updateCaptureLocationStatus("idle");
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#deviceScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = false; setHeader("capture");
     if (autoCapture) input.click();
   }
   function closeUpload() { $("#uploadSheet").hidden = true; if (state.uploadReturnMode === "gallery") showGallery(); else showHome(); }
 
-  function setUploadFile(file) {
+  function setUploadFile(sourceFile) {
+    const file = normalizeFile(sourceFile);
     if (!file) return;
-    const type = String(file.type || "");
+    const type = guessedMediaType(file);
     if (!type.startsWith("image/") && !type.startsWith("video/")) { showToast("写真または動画を選択してください", true); return; }
     const accept = $("#mediaInput").accept;
     if (accept === "image/*" && !type.startsWith("image/")) { showToast("静止画を選択してください", true); return; }
@@ -336,22 +368,107 @@
     const media = document.createElement(type.startsWith("video/") ? "video" : "img"); media.src = state.uploadPreviewUrl;
     if (media.tagName === "VIDEO") { media.controls = true; media.muted = true; media.playsInline = true; }
     picker.append(media);
+    const generation = ++state.fileGeneration; state.captureLocation = null; updateCaptureLocationStatus("loading");
+    state.metadataPromise = embeddedLocation(file).then((location) => {
+      if (generation !== state.fileGeneration) return null;
+      state.captureLocation = location; updateCaptureLocationStatus(location ? "ready" : "none"); return location;
+    }).catch(() => { if (generation === state.fileGeneration) updateCaptureLocationStatus("error"); return null; });
+    state.preparedFilePromise = preparedImage(file).catch(() => file);
   }
 
-  $("#uploadForm").addEventListener("submit", async (event) => {
-    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = state.uploadFile || $("#mediaInput").files[0];
-    if (!file) { showToast("写真または動画を選択してください", true); return; }
-    data.set("media", file, file.name || "upload");
-    data.set("occurredAt", isoValue(data.get("occurredAt")));
-    const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
-    try {
-      if (!state.captureLocation && state.locationPromise) await Promise.race([state.locationPromise, new Promise((resolve) => setTimeout(resolve, 2500))]);
-      if (state.captureLocation) {
-        data.set("latitude", String(state.captureLocation.latitude)); data.set("longitude", String(state.captureLocation.longitude)); data.set("locationAccuracy", String(state.captureLocation.locationAccuracy || ""));
+  function newClientId() { return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+  function formDataForRecord(record) {
+    const data = new FormData();
+    data.set("media", record.file, record.fileName || "upload"); data.set("occurredAt", record.occurredAt); data.set("device", record.device); data.set("comment", record.comment || ""); data.set("clientId", record.clientId);
+    if (hasLocation(record)) { data.set("latitude", String(record.latitude)); data.set("longitude", String(record.longitude)); if (Number.isFinite(record.locationAccuracy)) data.set("locationAccuracy", String(record.locationAccuracy)); }
+    return data;
+  }
+  async function recordFromUploadForm(form) {
+    const rawFile = state.uploadFile || $("#mediaInput").files[0]; if (!rawFile) return null;
+    const values = new FormData(form); const file = await (state.preparedFilePromise || Promise.resolve(rawFile)); await (state.metadataPromise || Promise.resolve());
+    return { id: newClientId(), clientId: newClientId(), file, fileName: file.name || rawFile.name || "upload", mediaType: file.type || rawFile.type, occurredAt: isoValue(values.get("occurredAt")), device: String(values.get("device") || "").trim(), comment: String(values.get("comment") || "").trim(), ...(state.captureLocation || {}), attempts: 0, createdAt: new Date().toISOString(), lastError: "" };
+  }
+  async function uploadRecord(record, onAttempt) {
+    let lastError;
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      record.attempts = attempt; onAttempt?.(attempt);
+      try {
+        const timeoutMs = String(record.mediaType || "").startsWith("video/") ? 90000 : 45000;
+        const response = await authorizedFetch("/api/incidents", { method: "POST", body: formDataForRecord(record), timeoutMs });
+        return (await response.json()).incident;
+      } catch (error) {
+        lastError = error; record.lastError = error.message || "送信できませんでした";
+        if (Number(error.status) >= 400 && Number(error.status) < 500 && ![408, 425, 429].includes(Number(error.status))) { record.attempts = 5; break; }
+        if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
       }
-      const response = await authorizedFetch("/api/incidents", { method: "POST", body: data }); const result = await response.json();
-      state.items.unshift(result.incident); $("#uploadSheet").hidden = true; showGallery(); showToast("共有サーバーへ登録しました");
-    } catch (error) { showToast(error.message || "登録できませんでした", true); }
+    }
+    throw lastError || new Error("5回送信しましたが登録できませんでした");
+  }
+  async function updateUnsentCount() {
+    try {
+      const count = await window.IncidentOfflineStore.count();
+      [["#homeUnsentCount", count], ["#sidebarUnsentCount", count]].forEach(([selector, value]) => { const badge = $(selector); badge.textContent = String(value); badge.hidden = value === 0; });
+      return count;
+    } catch (_) { return 0; }
+  }
+  async function saveUnsentRecord(record) {
+    await window.IncidentOfflineStore.put(record); await updateUnsentCount();
+  }
+  function clearDeviceDataUrls() { state.deviceDataUrls.forEach((url) => URL.revokeObjectURL(url)); state.deviceDataUrls = []; }
+  function deviceText(tag, className, text) { const element = document.createElement(tag); if (className) element.className = className; element.textContent = text; return element; }
+  async function resendDeviceRecord(record, button) {
+    if (button) { button.disabled = true; button.textContent = "送信中"; }
+    try {
+      const incident = await uploadRecord(record, (attempt) => { if (button) button.textContent = attempt === 1 ? "送信中" : `再送 ${attempt}/5`; });
+      await window.IncidentOfflineStore.remove(record.id); if (!state.items.some((item) => item.id === incident.id)) state.items.unshift(incident);
+      await updateUnsentCount(); showToast("未送信データを共有サーバーへ登録しました"); return true;
+    } catch (error) {
+      record.lastError = error.message || "再送できませんでした"; await window.IncidentOfflineStore.put(record).catch(() => {}); showToast("再送できませんでした。端末内に保存したままです", true); return false;
+    } finally { if (button) { button.disabled = false; button.textContent = "再送"; } }
+  }
+  async function renderDeviceData() {
+    const list = $("#deviceDataList"); clearDeviceDataUrls(); list.replaceChildren();
+    let records = [];
+    try { records = await window.IncidentOfflineStore.list(); } catch (error) { showToast(error.message || "端末保存データを開けません", true); }
+    $("#deviceDataCount").textContent = `${records.length}件`; $("#deviceDataEmpty").hidden = records.length !== 0; $("#retryAllDeviceData").disabled = records.length === 0;
+    records.forEach((record) => {
+      const card = document.createElement("article"); card.className = "device-data-card";
+      const preview = document.createElement("div"); preview.className = "device-data-preview";
+      if (String(record.mediaType || "").startsWith("image/")) {
+        const url = URL.createObjectURL(record.file); state.deviceDataUrls.push(url); const image = document.createElement("img"); image.src = url; image.alt = "未送信写真"; preview.append(image);
+      } else { preview.append(deviceText("span", "device-video-mark", "▶"), deviceText("small", "", "動画")); }
+      const information = document.createElement("div"); information.className = "device-data-info";
+      information.append(deviceText("time", "", longDate(record.occurredAt)), deviceText("b", "", record.device || "端末名なし"), deviceText("p", "", record.comment || "コメントなし"));
+      const location = deviceText("small", "device-location", hasLocation(record) ? "撮影場所あり" : "位置情報なし"); information.append(location);
+      if (record.lastError) information.append(deviceText("small", "device-last-error", `前回：${record.lastError}`));
+      const actions = document.createElement("div"); actions.className = "device-data-actions";
+      const retry = deviceText("button", "primary", "再送"); retry.type = "button"; retry.addEventListener("click", async () => { if (await resendDeviceRecord(record, retry)) renderDeviceData(); });
+      const remove = deviceText("button", "", "削除"); remove.type = "button"; remove.addEventListener("click", async () => { if (!confirm("この未送信データを端末から削除しますか？")) return; await window.IncidentOfflineStore.remove(record.id); await updateUnsentCount(); renderDeviceData(); });
+      actions.append(retry, remove); card.append(preview, information, actions); list.append(card);
+    });
+  }
+  async function showDeviceData() {
+    state.deviceReturnMode = !$("#galleryScreen").hidden ? "gallery" : "home";
+    $("#homeScreen").hidden = true; $("#galleryScreen").hidden = true; $("#detailScreen").hidden = true; $("#fullscreenScreen").hidden = true; $("#locationScreen").hidden = true; $("#settingsScreen").hidden = true; $("#uploadSheet").hidden = true; $("#deviceScreen").hidden = false; setHeader("device"); await renderDeviceData();
+  }
+  function closeDeviceData() { clearDeviceDataUrls(); $("#deviceScreen").hidden = true; if (state.deviceReturnMode === "gallery") showGallery(); else showHome(); }
+
+  $("#uploadForm").addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.currentTarget; const file = state.uploadFile || $("#mediaInput").files[0];
+    if (!file) { showToast("写真または動画を選択してください", true); return; }
+    const submit = form.querySelector(".submit-link"); submit.disabled = true; submit.textContent = "登録中";
+    let record;
+    try {
+      submit.textContent = "画像準備中"; record = await recordFromUploadForm(form); if (!record) throw new Error("写真または動画を選択してください");
+      const incident = await uploadRecord(record, (attempt) => { submit.textContent = attempt === 1 ? "登録中" : `再送中 ${attempt}/5`; });
+      state.items.unshift(incident); $("#uploadSheet").hidden = true; showGallery(); showToast("共有サーバーへ登録しました");
+    } catch (error) {
+      if (!record) { showToast(error.message || "登録できませんでした", true); }
+      else {
+        try { await saveUnsentRecord(record); $("#uploadSheet").hidden = true; showGallery(); showToast("5回送信できなかったため、端末保存データへ保存しました", true); }
+        catch (_) { showToast("送信と端末保存の両方に失敗しました。画面を閉じずにもう一度お試しください", true); }
+      }
+    }
     finally { submit.disabled = false; submit.textContent = "登録"; }
   });
   $("#detailForm").addEventListener("submit", async (event) => {
@@ -387,20 +504,27 @@
   $("#landscapePhotoButton").addEventListener("click", () => { openUpload("image", true); $("#landscapePhotoButton").classList.add("active"); });
   $("#landscapeVideoButton").addEventListener("click", () => { openUpload("video", true); $("#landscapeVideoButton").classList.add("active"); });
   $("#landscapeGalleryButton").addEventListener("click", showGallery);
-  $("#landscapeDeviceButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
+  $("#landscapeDeviceButton").addEventListener("click", showDeviceData);
   $("#landscapeSettingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
   $("#landscapeTopButton").addEventListener("click", () => {
     location.href = "/toppage.html";
   });
   $("#openGalleryButton").addEventListener("click", showGallery);
-  $("#deviceDataButton").addEventListener("click", () => showToast("端末内の未送信データはありません"));
+  $("#deviceDataButton").addEventListener("click", showDeviceData);
   $("#settingsButton").addEventListener("click", () => { state.pendingCaptureKind = ""; showSettings(false); });
   $("#captureButton").addEventListener("click", () => openUpload("both")); $("#filterButton").addEventListener("click", () => { $("#filterSheet").hidden = false; });
   $$('[data-close-filter]').forEach((button) => button.addEventListener("click", () => { $("#filterSheet").hidden = true; }));
   $("#detailBack").addEventListener("click", closeDetail);
   $("#locationButton").addEventListener("click", openLocation);
   $("#locationMap").addEventListener("load", () => { $("#mapLoading").hidden = true; });
-  $("#retryLocationButton").addEventListener("click", requestCaptureLocation);
+  $("#retryAllDeviceData").addEventListener("click", async () => {
+    const button = $("#retryAllDeviceData"); button.disabled = true;
+    try {
+      const records = await window.IncidentOfflineStore.list(); let sent = 0;
+      for (let index = 0; index < records.length; index += 1) { button.textContent = `再送中 ${index + 1}/${records.length}`; if (await resendDeviceRecord(records[index])) sent += 1; }
+      await renderDeviceData(); if (sent) showToast(`${sent}件を共有サーバーへ登録しました`);
+    } finally { button.textContent = "すべて再送"; button.disabled = false; }
+  });
   $("#detailMedia").addEventListener("click", (event) => { if (event.target.tagName !== "VIDEO") openFullscreen(); });
   $("#detailMedia").addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFullscreen(); } });
   $("#fullscreenMedia").addEventListener("touchstart", (event) => {
@@ -449,15 +573,15 @@
     if (state.settingsReturnMode === "gallery") showGallery(); else showHome();
     if (pending) openUpload(pending, autoCapture); else showToast("端末名を保存しました");
   });
-  $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#locationScreen").hidden) closeLocation(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
-  window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
+  $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#locationScreen").hidden) closeLocation(); else if (!$("#deviceScreen").hidden) closeDeviceData(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
+  window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); clearDeviceDataUrls(); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
   let resizeTimer;
   let previousLandscape = isLandscapeLayout();
   window.addEventListener("resize", () => { scheduleViewportSync(); clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
     const landscape = isLandscapeLayout(); if (updateGridShape()) renderGallery();
     if (landscape !== previousLandscape) {
       previousLandscape = landscape;
-      if (!$("#uploadSheet").hidden || !$("#settingsScreen").hidden) return;
+      if (!$("#uploadSheet").hidden || !$("#settingsScreen").hidden || !$("#deviceScreen").hidden) return;
       if (!$("#fullscreenScreen").hidden) { setHeader("fullscreen"); return; }
       if (!$("#locationScreen").hidden) { setHeader("location"); return; }
       if (!$("#detailScreen").hidden) { $("#detailScreen").scrollTop = 0; setHeader("detail"); return; }
@@ -474,7 +598,7 @@
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
       await window.TayunetFirebaseDataAuth.currentUser();
-      updateGridShape(); updateDeviceStatus(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems();
+      updateGridShape(); updateDeviceStatus(); await updateUnsentCount(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems();
       if (!deviceName()) showToast("端末名が未設定です。設定画面で登録してください", true);
     } catch (error) { $("#authCover p").textContent = error.message || "ログイン画面へ移動しています"; }
   }
