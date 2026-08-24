@@ -1126,6 +1126,37 @@ window.addEventListener('keydown',event=>{
   if(event.key.length===1){secretKeys=(secretKeys+event.key.toUpperCase()).slice(-4);if(secretKeys==='ATOS'){secretKeys='';openDiagnostics();}}
 });
 
+// 動的に追加した要素の inline onclick は site-brand.js の安全対策で削除される。
+// data 属性とイベント委譲を使い、モーダル内の操作を安全に維持する。
+function encodeAtosActionValue(value){return encodeURIComponent(String(value??''));}
+function decodeAtosActionValue(value){try{return decodeURIComponent(String(value??''));}catch(e){return String(value??'');}}
+document.addEventListener('click',event=>{
+  const target=event.target instanceof Element?event.target.closest('[data-atos-action]'):null;
+  if(!target) return;
+  const action=target.dataset.atosAction;
+  if(action==='toggle-history') toggleHist(target.dataset.historyId,target);
+  else if(action==='open-operation-train') openAtosOperationTrain(
+    decodeAtosActionValue(target.dataset.train),
+    decodeAtosActionValue(target.dataset.station),
+    target.dataset.direction||'',
+    decodeAtosActionValue(target.dataset.serviceDate),
+    decodeAtosActionValue(target.dataset.kid)
+  );
+  else if(action==='switch-station-view') switchAtosStationView(target.dataset.view||'board',target);
+  else if(action==='filter-station-rows') filterAtosStationRows(target.dataset.side||'all',target);
+  else if(action==='open-train-from-station') openTrainByNumberFromStation(
+    decodeAtosActionValue(target.dataset.train),
+    decodeAtosActionValue(target.dataset.line)
+  );
+  else if(action==='render-unified-source') renderUnifiedTrainSource(target.dataset.source||'external');
+  else if(action==='open-external-linked') openExternalLinkedTrain(
+    decodeAtosActionValue(target.dataset.train),
+    decodeAtosActionValue(target.dataset.kid),
+    target.dataset.direction||'',
+    target.dataset.inline==='true'
+  );
+});
+
 // ===== 共有URL状態 =====
 function readUrlState(){
   const query=new URLSearchParams(location.search);
@@ -1596,7 +1627,7 @@ function renderInfo(){
       </div>
       ${cause||range?`<div class="card-meta">${cause?'事由: '+cause:''}${cause&&range?' ／ ':''}${range?'区間: '+range:''}</div>`:''}
       <div class="card-text">${currentText}</div>
-      ${history.length>0?`<span class="hist-toggle" onclick="toggleHist('h${idx}',this)">▼ 過去の情報履歴 (${history.length}件)</span>
+      ${history.length>0?`<span class="hist-toggle" data-atos-action="toggle-history" data-history-id="h${idx}">▼ 過去の情報履歴 (${history.length}件)</span>
       <ul class="hist-list" id="h${idx}">${history.map(p=>`<li class="hist-item"><span class="hist-time">${formatHistoryTimestamp(p.date)}</span><span class="hist-s">[${p.status}]</span> ${p.text}</li>`).join('')}</ul>`:''}
     </div>`;
   });
@@ -2547,7 +2578,7 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     const operationTrain=previousConnection?operationSource.previousTrain:nextConnection?operationSource.nextTrain:'';
     const operationKid=previousConnection?operationSource.previousKid:nextConnection?operationSource.nextKid:'';
     const connectionDirection=previousConnection?'previous':'next';
-    const operationTrainHtml=operationTrain?`<button class="train-link" onclick='openAtosOperationTrain(${JSON.stringify(operationTrain)},${JSON.stringify(stationId)},${JSON.stringify(connectionDirection)},${JSON.stringify(serviceDate)},${JSON.stringify(operationKid)})'>${operationTrain}</button>`:'';
+    const operationTrainHtml=operationTrain?`<button class="train-link" data-atos-action="open-operation-train" data-train="${encodeAtosActionValue(operationTrain)}" data-station="${encodeAtosActionValue(stationId)}" data-direction="${connectionDirection}" data-service-date="${encodeAtosActionValue(serviceDate)}" data-kid="${encodeAtosActionValue(operationKid)}">${operationTrain}</button>`:'';
     html+=`<tr${marker.current&&flashCurrent?' class="mobile-current"':''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${atosDisplayStationName(stationId)}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop['odpt:platformNumber']||'—'}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
   });
   html+=`</tbody></table></div><div class="mobile-atos-legend">「$」･･･運休　「*」･･･運済　「#」･･･変更　「¥」･･･運転禁止</div></div>`;
@@ -2641,7 +2672,7 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
     const connections=[...new Set(stationDetails.flatMap(s=>s['odpt:connectingRailway']||[]).map(getLineTitle))];
     const surveys=passengerDetails.flatMap(p=>p['odpt:passengerSurveyObject']||[]).sort((a,b)=>(b['odpt:surveyYear']||0)-(a['odpt:surveyYear']||0));
     const latestSurvey=surveys[0];
-    let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${lines.map(getLineTitle).join('・')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅名・駅コード</div><div class="atos-meta-value">${stnName}　${codes.join(' / ')||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日区分・表示列車</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}・${upcoming.length}本</div></div><div class="atos-meta-cell"><div class="atos-meta-label">1日利用</div><div class="atos-meta-value">${latestSurvey?Number(latestSurvey['odpt:passengerJourneys']||0).toLocaleString('ja-JP')+'人（'+latestSurvey['odpt:surveyYear']+'年）':'—'}</div></div>${connections.length?`<div class="atos-meta-cell" style="grid-column:1/-1"><div class="atos-meta-label">接続路線</div><div class="atos-meta-value">${connections.join('・')}</div></div>`:''}</div><div class="atos-view-tabs"><button class="active" onclick="switchAtosStationView('board',this)">ATOS発車標</button><button onclick="switchAtosStationView('dia',this)">駅別ダイヤモニタ</button></div><div class="atos-filterbar"><strong>表示方向：</strong><button class="active" onclick="filterAtosStationRows('all',this)">上下線両方</button><button onclick="filterAtosStationRows('up',this)">上りのみ</button><button onclick="filterAtosStationRows('down',this)">下りのみ</button><span style="margin-left:auto;font-size:.67rem;color:var(--text3)">上り(A線/北行/内回り)・下り(B線/南行/外回り)</span></div>`;
+    let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${lines.map(getLineTitle).join('・')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅名・駅コード</div><div class="atos-meta-value">${stnName}　${codes.join(' / ')||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日区分・表示列車</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}・${upcoming.length}本</div></div><div class="atos-meta-cell"><div class="atos-meta-label">1日利用</div><div class="atos-meta-value">${latestSurvey?Number(latestSurvey['odpt:passengerJourneys']||0).toLocaleString('ja-JP')+'人（'+latestSurvey['odpt:surveyYear']+'年）':'—'}</div></div>${connections.length?`<div class="atos-meta-cell" style="grid-column:1/-1"><div class="atos-meta-label">接続路線</div><div class="atos-meta-value">${connections.join('・')}</div></div>`:''}</div><div class="atos-view-tabs"><button class="active" data-atos-action="switch-station-view" data-view="board">ATOS発車標</button><button data-atos-action="switch-station-view" data-view="dia">駅別ダイヤモニタ</button></div><div class="atos-filterbar"><strong>表示方向：</strong><button class="active" data-atos-action="filter-station-rows" data-side="all">上下線両方</button><button data-atos-action="filter-station-rows" data-side="up">上りのみ</button><button data-atos-action="filter-station-rows" data-side="down">下りのみ</button><span style="margin-left:auto;font-size:.67rem;color:var(--text3)">上り(A線/北行/内回り)・下り(B線/南行/外回り)</span></div>`;
     if(!upcoming.length) html+='<div class="loading-box">本日の発車列車は終了したか、ODPT配信対象外です。</div>';
     else{
       html+=`<div id="atos-station-board" class="atos-station-view active"><div class="departure-board"><div class="departure-board-head"><span>${stnName}駅　発車案内</span><span>● LIVE ${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span></div>`;
@@ -2657,7 +2688,7 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
         const dep=obj['odpt:departureTime']||'', arr=obj['odpt:arrivalTime']||'';
         const dests=(obj['odpt:destinationStation']||[]).map(getFullStationTitle).join('・')||'—';
         const side=getTrainDir(dir,entryLine);
-        html+=`<tr data-atos-side="${side}"><td class="direction-compact" title="${getLineTitle(entryLine)}">${getDirText(dir,entryLine)}</td><td><button class="train-link" onclick='openTrainByNumberFromStation(${JSON.stringify(number)},${JSON.stringify(entryLine)})'>${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+        html+=`<tr data-atos-side="${side}"><td class="direction-compact" title="${getLineTitle(entryLine)}">${getDirText(dir,entryLine)}</td><td><button class="train-link" data-atos-action="open-train-from-station" data-train="${encodeAtosActionValue(number)}" data-line="${encodeAtosActionValue(entryLine)}">${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
       });
       html+='</tbody></table></div><div style="margin-top:7px;font-size:.67rem;color:var(--text3)">「000」は定刻、遅延時は赤字の001・002…で表示します。予測時刻は公開遅延からの参考計算です。</div></div>';
     }
@@ -2861,8 +2892,8 @@ async function renderUnifiedTrainSource(source){
     showAtosTrainTT(display,match.live||null,true);
   }
   const choices=[];
-  if(match.external) choices.push(`<button class="${source==='external'?'active':''}" onclick="renderUnifiedTrainSource('external')">保護時刻表JSON</button>`);
-  if(match.odpt) choices.push(`<button class="${source==='odpt'?'active':''}" onclick="renderUnifiedTrainSource('odpt')">ODPT時刻表API</button>`);
+  if(match.external) choices.push(`<button class="${source==='external'?'active':''}" data-atos-action="render-unified-source" data-source="external">保護時刻表JSON</button>`);
+  if(match.odpt) choices.push(`<button class="${source==='odpt'?'active':''}" data-atos-action="render-unified-source" data-source="odpt">ODPT時刻表API</button>`);
   document.getElementById('ttt-result').insertAdjacentHTML('afterbegin',`<div class="atos-view-tabs" style="margin:0 0 10px">${choices.join('')}</div><div class="atos-note">同時検索結果：${match.external?'保護時刻表JSONあり':'保護時刻表JSONなし'} ／ ${match.odpt?'ODPTあり':'ODPTなし'}</div>`);
 }
 function externalTime(value){const text=String(value??'');return !text.trim()||['…','...','・・・','ー','-'].includes(text)?'…':text;}
@@ -2874,8 +2905,8 @@ function showExternalTrainTimetable(train,dateValue,inline=false){
   html+=`<div class="atos-table-wrap"><table class="atos-table external-train-table"><thead><tr><th rowspan="2">列車種別</th><th rowspan="2">抑止</th><th rowspan="2">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2">番線</th><th rowspan="2">運用情報</th><th rowspan="2">運用列番</th></tr><tr><th>時間</th><th>到着</th><th>時間</th><th>発車</th></tr></thead><tbody>`;
   stops.forEach((stop,index)=>{
     let operation='',linked='';
-    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr1)},${JSON.stringify(train.kid1||train.kid||'')},"prev",${inline})'>${train.tr1}</button>`;}
-    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" onclick='openExternalLinkedTrain(${JSON.stringify(train.tr2)},${JSON.stringify(train.kid2||train.kid||'')},"next",${inline})'>${train.tr2}</button>`;}
+    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr1)}" data-kid="${encodeAtosActionValue(train.kid1||train.kid||'')}" data-direction="prev" data-inline="${inline?'true':'false'}">${train.tr1}</button>`;}
+    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr2)}" data-kid="${encodeAtosActionValue(train.kid2||train.kid||'')}" data-direction="next" data-inline="${inline?'true':'false'}">${train.tr2}</button>`;}
     html+=`<tr><td>${index===0?(train.type||''):''}</td><td></td><td><strong>${atosDisplayStationName(stop.station)||'—'}</strong></td><td class="time">${externalTime(stop.arrival)}</td><td></td><td class="time">${stop.departure||''}</td><td></td><td>${stop.trackN||'—'}</td><td>${operation}</td><td>${linked}</td></tr>`;
   });
   html+=`</tbody></table></div><div style="margin-top:8px;font-weight:800;font-size:.7rem">「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止</div>`;

@@ -4,6 +4,23 @@ const vm = require('node:vm');
 
 const html = fs.readFileSync('atosweb.html', 'utf8');
 
+for (const action of [
+  'toggle-history',
+  'open-operation-train',
+  'switch-station-view',
+  'filter-station-rows',
+  'open-train-from-station',
+  'render-unified-source',
+  'open-external-linked',
+]) {
+  assert.match(html, new RegExp(`data-atos-action=["']${action}["']`), `missing delegated action: ${action}`);
+}
+assert.doesNotMatch(
+  html,
+  /(?:html|choices\.push|operationTrainHtml|linked)=?[^\n]*onclick=/,
+  'dynamically generated ATOS controls must not use inline onclick handlers',
+);
+
 function sourceBetween(start, end) {
   const startIndex = html.indexOf(start);
   const endIndex = html.indexOf(end, startIndex);
