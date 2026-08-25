@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const passwordInput = document.getElementById('password'); 
         const confirmPasswordInput = document.getElementById('confirm-password'); 
         const inputs = registerForm.querySelectorAll('input');
+        const registrationDeviceId = (() => {
+            const key = 'tayunetOps:deviceId';
+            let id = localStorage.getItem(key);
+            if (!id) {
+                id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${crypto.getRandomValues(new Uint32Array(4)).join('-')}`;
+                localStorage.setItem(key, id);
+            }
+            return id;
+        })();
 
         // メッセージの表示
         function showMessage(message, isSuccess = false) {
@@ -79,6 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 disabled: false,
                 isAdmin: false,
                 status: "pending",
+                registrationDeviceId,
                 registeredAt: firebase.firestore.FieldValue.serverTimestamp()
             };
         }

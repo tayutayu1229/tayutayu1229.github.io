@@ -5,6 +5,21 @@
   const STORAGE_PREFIX = 'tayunetOps:';
   const nowIso = () => new Date().toISOString();
   const clampText = (value, max = 1000) => String(value ?? '').slice(0, max);
+  const deviceId = (() => {
+    const key = `${STORAGE_PREFIX}deviceId`;
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${crypto.getRandomValues(new Uint32Array(4)).join('-')}`;
+      localStorage.setItem(key, id);
+    }
+    return id;
+  })();
+  const environmentSignature = (() => {
+    const text = [navigator.userAgent, navigator.platform, navigator.language, `${screen.width}x${screen.height}`, Intl.DateTimeFormat().resolvedOptions().timeZone || ''].join('|');
+    let hash = 2166136261;
+    for (const char of text) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+    return (hash >>> 0).toString(36);
+  })();
   const safeJson = (value) => {
     try { return JSON.parse(JSON.stringify(value)); } catch (_) { return null; }
   };
@@ -179,6 +194,8 @@
       language: clampText(navigator.language || '', 30),
       screen: `${screen.width}x${screen.height}`,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      deviceId,
+      environmentSignature,
       lastSeenAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     try { await sessionRef.set(payload, { merge: true }); } catch (_) {}
@@ -192,6 +209,8 @@
         uid: user.uid,
         email: user.email || '',
         sessionId,
+        deviceId,
+        environmentSignature,
         startedAt: firebase.firestore.FieldValue.serverTimestamp(),
         revoked: false
       }, { merge: true });

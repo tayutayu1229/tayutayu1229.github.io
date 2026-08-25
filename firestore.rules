@@ -95,7 +95,10 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.approved == false
         && request.resource.data.isAdmin == false
-        && request.resource.data.status == "pending";
+        && request.resource.data.status == "pending"
+        && request.resource.data.registrationDeviceId is string
+        && request.resource.data.registrationDeviceId.size() >= 16
+        && request.resource.data.registrationDeviceId.size() <= 120;
 
       // Non-admin users can change their display email and record their own
       // server-generated login time. Arbitrary client timestamps are rejected.
@@ -191,7 +194,7 @@ service cloud.firestore {
         && request.resource.data.sessionId == resource.data.sessionId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "email", "active", "path", "title", "userAgent", "platform",
-          "language", "screen", "timezone", "lastSeenAt"
+          "language", "screen", "timezone", "deviceId", "environmentSignature", "lastSeenAt"
         ])
       );
       allow delete: if isAdministrator();
