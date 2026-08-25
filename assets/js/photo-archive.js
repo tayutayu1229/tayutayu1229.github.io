@@ -3,7 +3,7 @@
   const API = "https://photo-api.tayunet-traininfo.com";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null, mapLayer: null, mapRenderer: null, leafletPromise: null, mapRenderId: 0, currentUser: null, firebaseDirectory: null, uploadAllowedUids: new Set(), uploadAllowedGroupIds: new Set(), access: { canUpload: true, canManage: false, role: "contributor" } };
+  const state = { scope: "mine", view: "grid", photos: [], albums: [], files: [], blobs: new Map(), map: null, mapLayer: null, mapRenderer: null, leafletPromise: null, mapRenderId: 0, detailRenderId: 0, currentUser: null, firebaseDirectory: null, uploadAllowedUids: new Set(), uploadAllowedGroupIds: new Set(), access: { canUpload: true, canManage: false, role: "contributor" } };
   // 運用担当者はこの配列だけを編集すれば、登録・編集・検索の全選択肢へ反映されます。
   const PHOTO_CATEGORIES = Object.freeze([
     { value: "train", label: "定期旅客列車" }, { value: "freight", label: "貨物列車" },
@@ -47,13 +47,13 @@
   }
   updateClock(); setInterval(updateClock, 1000);
 
-  async function api(path, options = {}, retry = true) {
+  async function api(path, options = {}, retryAuth = true, retryTransient = true) {
     const { timeoutMs = 30000, ...requestOptions } = options;
     let user;
     try { user = await window.TayunetFirebaseDataAuth.currentUser(); }
     catch (error) { const wrapped = new Error("ログイン情報を確認できません。再ログインしてください。"); wrapped.cause = error; throw wrapped; }
     const headers = new Headers(options.headers || {});
-    try { headers.set("Authorization", `Bearer ${await user.getIdToken(!retry)}`); }
+    try { headers.set("Authorization", `Bearer ${await user.getIdToken(!retryAuth)}`); }
     catch (error) { const wrapped=new Error("ログインの確認に失敗しました。いったんログアウトして、もう一度ログインしてください。");wrapped.cause=error;throw wrapped; }
     if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
     const controller = new AbortController();
@@ -62,7 +62,12 @@
     try { response = await fetch(`${API}${path}`, { ...requestOptions, headers, signal: controller.signal, mode: "cors", cache: "no-store" }); }
     catch (error) { if(error.name==="AbortError")throw error;const wrapped=new Error("写真APIに接続できません。通信状態を確認し、少し待ってから再度お試しください。");wrapped.cause=error;throw wrapped; }
     finally { clearTimeout(timeout); }
-    if (response.status === 401 && retry) return api(path, options, false);
+    if (response.status === 401 && retryAuth) return api(path, options, false, retryTransient);
+    const method = String(requestOptions.method || "GET").toUpperCase();
+    if (retryTransient && ["GET", "HEAD"].includes(method) && [502, 503, 504].includes(response.status)) {
+      await new Promise(resolve => setTimeout(resolve, 700));
+      return api(path, options, retryAuth, false);
+    }
     if (!response.ok) {
       let detail = "";
       try { detail = (await response.json()).detail || ""; } catch (_) {}
@@ -310,11 +315,21 @@
 
   async function openDetail(id) {
     const photo = state.photos.find(item => item.id === id); if (!photo) return;
+    const renderId = ++state.detailRenderId;
     const dialog = $("#detail-dialog"); dialog.dataset.photoId = photo.id;
     const manageable = state.access.canManage || photo.ownerUid === (await window.TayunetFirebaseDataAuth.currentUser()).uid;
+    if (renderId !== state.detailRenderId) return;
     dialog.innerHTML = `<div class="detail-shell"><div class="detail-top"><h2>${escapeHtml(photo.trainNumber ? `第 ${photo.trainNumber} 列車` : (photo.title || photo.filename))}</h2><button data-close="detail-dialog" aria-label="詳細を閉じる">×</button></div><div class="detail-layout"><div class="detail-photo"><div class="dialog-loading"><div class="spinner"></div><p>原本画像を読み込んでいます…</p></div></div><dl class="detail-data">${dataRows(photo)}</dl></div><div class="detail-actions">${manageable ? `<button data-action="edit">撮影情報を編集</button><button data-action="share">共有する</button><button data-action="download">原本を保存</button>${photo.deletedAt ? `<button data-action="restore">ゴミ箱から復元</button>` : `<button class="danger" data-action="delete">ゴミ箱へ</button>`}` : `<button data-action="download">原本を保存</button>`}</div></div>`;
     dialog.showModal();
-    try { const url = await imageUrl(photo, "original"); $(".detail-photo", dialog).innerHTML = `<img src="${url}" alt="${escapeHtml(photo.title || photo.filename)}">`; } catch (error) { $(".detail-photo", dialog).innerHTML=`<div class="dialog-error"><h2>画像を表示できません</h2><p>${escapeHtml(friendlyError(error))}</p></div>`; }
+    try {
+      const url = await imageUrl(photo, "original"), frame = $(".detail-photo", dialog);
+      if (renderId !== state.detailRenderId || !dialog.open || dialog.dataset.photoId !== photo.id || !frame) return;
+      frame.innerHTML = `<img src="${url}" alt="${escapeHtml(photo.title || photo.filename)}">`;
+    } catch (error) {
+      const frame = $(".detail-photo", dialog);
+      if (renderId !== state.detailRenderId || !dialog.open || dialog.dataset.photoId !== photo.id || !frame) return;
+      frame.innerHTML=`<div class="dialog-error"><h2>画像を表示できません</h2><p>${escapeHtml(friendlyError(error))}</p></div>`;
+    }
   }
 
   function input(name, label, photo, options = {}) { const value=name==="capturedAt"?String(photo[name]||"").slice(0,16):(photo[name]??"");const attributes=[options.type&&`type="${options.type}"`,options.step&&`step="${options.step}"`,options.min!==undefined&&`min="${options.min}"`,options.max!==undefined&&`max="${options.max}"`,options.placeholder&&`placeholder="${escapeHtml(options.placeholder)}"`,options.required&&"required",options.maxlength&&`maxlength="${options.maxlength}"`].filter(Boolean).join(" ");return `<label class="${options.span2?"span2":""}">${label}<input name="${name}" value="${escapeHtml(value)}" ${attributes}></label>`; }
@@ -335,6 +350,7 @@
     return available.length ? `<div class="exif-status success"><b>保存済みの撮影データ ${available.length}項目</b><span>${available.map(label=>`<em>${escapeHtml(label)}</em>`).join("")}</span><small>アップロード時に画像ファイルのEXIFを自動読取し、空欄の項目へ保存します。編集した値は編集内容を優先します。</small></div>` : `<div class="exif-status"><b>この写真には読取可能なEXIFがありません</b><small>EXIFを削除した画像や一部形式では取得できません。必要な項目は手動入力できます。</small></div>`;
   }
   async function editDetail(photo, focusSharing = false) {
+    state.detailRenderId++;
     const dialog=$("#detail-dialog");dialog.innerHTML=`<div class="dialog-loading"><div class="spinner"></div><p>編集に必要な共有先情報を読み込んでいます…</p></div>`;if(!dialog.open)dialog.showModal();
     try {
       const [friendsResponse,groupsResponse,directoryResponse,albumsResponse]=await Promise.all([api("/v1/friends"),api("/v1/groups"),api("/v1/directory"),api("/v1/albums")]);
@@ -542,7 +558,7 @@
   $("#search-q").addEventListener("keydown", async event=>{if(event.key==="Enter"){await loadPhotos();setFiltersOpen(false)}});
   $("#clear-filters").addEventListener("click",async()=>{$$("#filters input,#filters select").forEach(input=>input.value="");await loadPhotos();setFiltersOpen(false)});
   document.addEventListener("keydown", event => { if(event.key!=="Escape")return;if(document.body.classList.contains("filters-open"))setFiltersOpen(false);if(!$("#mobile-action-menu").hidden)setMobileMenuOpen(false); });
-  $$(".archive-dialog").forEach(dialog=>dialog.addEventListener("close",()=>{if(!$("#people-dialog").open)document.documentElement.classList.remove("archive-modal-open");}));
+  $$(".archive-dialog").forEach(dialog=>dialog.addEventListener("close",()=>{if(dialog.id==="detail-dialog")state.detailRenderId++;if(!$("#people-dialog").open)document.documentElement.classList.remove("archive-modal-open");}));
   window.addEventListener("resize", () => { if (!window.matchMedia("(max-width: 1180px)").matches) setFiltersOpen(false);if(!window.matchMedia("(max-width: 900px)").matches)setMobileMenuOpen(false); });
 
   window.TayunetAuthReady.then(async ready => {
