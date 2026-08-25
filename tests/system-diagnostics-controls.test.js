@@ -13,6 +13,8 @@ assert.match(html, /写真詳細を閉じた後の遅延描画を無効化済み
 assert.match(html, /diagnosticFixDeployedAt=Date\.parse\('2026-08-25T03:39:21Z'\)/);
 assert.match(html, /写真APIの稼働復旧を確認し、参照処理へ自動再試行を追加済み/);
 assert.match(html, /公開画面でデータ取得・自動更新の正常動作を確認済み/);
+assert.match(html, /\['console_error','fetch_error'\]\.includes\(e\.type\)/);
+assert.match(html, /同時実行中の再起動操作を監視APIが安全に拒否した記録/);
 assert.doesNotMatch(html, /onclick="showErrorDetail\(/);
 assert.doesNotMatch(html, /onclick="deleteCacheEntry\(/);
 
