@@ -72,3 +72,32 @@ test('24時間に3個以上のIPを利用したアカウントを高リスクに
   assert.equal(result.accountIpRisks[0].recent24Count, 3);
   assert.equal(result.accountIpRisks[0].severity, 'high');
 });
+
+test('登録時端末と利用環境を端末プロフィールへ引き継ぐ', () => {
+  const result = analyze({
+    now: NOW,
+    users: [{
+      id: 'u1', email: 'one@example.com', registrationDeviceId: 'device-registration-1',
+      registrationEnvironmentSignature: 'environment-1', registrationPlatform: 'MacIntel',
+      registrationScreen: '1440x900', registeredAt: '2026-08-24T10:00:00+09:00'
+    }]
+  });
+
+  assert.equal(result.deviceProfiles.length, 1);
+  assert.equal(result.deviceProfiles[0].registrationDevice, true);
+  assert.equal(result.deviceProfiles[0].environmentSignature, 'environment-1');
+  assert.equal(result.deviceProfiles[0].screen, '1440x900');
+});
+
+test('同じ利用環境を使う複数アカウントを検出する', () => {
+  const result = analyze({
+    now: NOW,
+    logins: [
+      { uid: 'u1', email: 'one@example.com', environmentSignature: 'shared-environment', createdAt: '2026-08-25T09:00:00+09:00' },
+      { uid: 'u2', email: 'two@example.com', environmentSignature: 'shared-environment', createdAt: '2026-08-25T10:00:00+09:00' }
+    ]
+  });
+
+  assert.equal(result.sharedEnvironments.length, 1);
+  assert.equal(result.sharedEnvironments[0].accountCount, 2);
+});

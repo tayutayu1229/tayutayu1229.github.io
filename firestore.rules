@@ -99,6 +99,18 @@ service cloud.firestore {
         && request.resource.data.registrationDeviceId is string
         && request.resource.data.registrationDeviceId.size() >= 16
         && request.resource.data.registrationDeviceId.size() <= 120
+        && request.resource.data.registrationEnvironmentSignature is string
+        && request.resource.data.registrationEnvironmentSignature.size() <= 120
+        && request.resource.data.registrationUserAgent is string
+        && request.resource.data.registrationUserAgent.size() <= 500
+        && request.resource.data.registrationPlatform is string
+        && request.resource.data.registrationPlatform.size() <= 80
+        && request.resource.data.registrationLanguage is string
+        && request.resource.data.registrationLanguage.size() <= 30
+        && request.resource.data.registrationScreen is string
+        && request.resource.data.registrationScreen.size() <= 40
+        && request.resource.data.registrationTimezone is string
+        && request.resource.data.registrationTimezone.size() <= 80
         && request.resource.data.registrationIpAddress is string
         && request.resource.data.registrationIpAddress.size() <= 64
         && request.resource.data.registrationCountryCode is string
@@ -208,6 +220,12 @@ service cloud.firestore {
     match /system_audit/{auditId} {
       allow read, create, delete: if isAdministrator();
       allow update: if false;
+    }
+
+    // Administrator-confirmed browser devices used as an additional identity
+    // signal when IP addresses change. Members cannot trust their own devices.
+    match /security_trusted_devices/{deviceId} {
+      allow read, create, update, delete: if isAdministrator();
     }
 
     match /system_monitor_results/{resultId} {

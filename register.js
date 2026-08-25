@@ -36,6 +36,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return id;
         })();
+        const registrationEnvironment = (() => {
+            const text = [navigator.userAgent, navigator.platform, navigator.language, `${screen.width}x${screen.height}`, Intl.DateTimeFormat().resolvedOptions().timeZone || ''].join('|');
+            let hash = 2166136261;
+            for (const char of text) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+            return {
+                signature: (hash >>> 0).toString(36),
+                userAgent: navigator.userAgent.slice(0, 500),
+                platform: String(navigator.platform || '').slice(0, 80),
+                language: String(navigator.language || '').slice(0, 30),
+                screen: `${screen.width}x${screen.height}`,
+                timezone: String(Intl.DateTimeFormat().resolvedOptions().timeZone || '').slice(0, 80)
+            };
+        })();
         const registrationNetworkPromise = (async () => {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 3500);
@@ -103,6 +116,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 isAdmin: false,
                 status: "pending",
                 registrationDeviceId,
+                registrationEnvironmentSignature: registrationEnvironment.signature,
+                registrationUserAgent: registrationEnvironment.userAgent,
+                registrationPlatform: registrationEnvironment.platform,
+                registrationLanguage: registrationEnvironment.language,
+                registrationScreen: registrationEnvironment.screen,
+                registrationTimezone: registrationEnvironment.timezone,
                 registrationIpAddress: network.ipAddress || '',
                 registrationCountryCode: network.countryCode || '',
                 registeredAt: firebase.firestore.FieldValue.serverTimestamp()

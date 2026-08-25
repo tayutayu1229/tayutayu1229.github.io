@@ -14,6 +14,15 @@ test('管理画面に操作・IP履歴の絞り込みと出力を備える', () 
   assert.match(html, /短期間のIP変化/);
 });
 
+test('IP以外の端末確認と信頼済み管理を備える', () => {
+  const html = fs.readFileSync(path.join(root, 'system_security.html'), 'utf8');
+  for (const id of ['tab-devices', 'device-user', 'device-status', 'device-search', 'device-body', 'shared-environment-body', 'environment-change-body']) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /信頼済みにする/);
+  assert.match(html, /security_trusted_devices/);
+});
+
 test('操作記録は入力欄の値を送信しない', () => {
   const telemetry = fs.readFileSync(path.join(root, 'assets/js/system-telemetry.js'), 'utf8');
   assert.match(telemetry, /attachInteractionCapture/);

@@ -20,6 +20,8 @@
     const accountDevices = new Map();
     const ipAccounts = new Map();
     const accountIps = new Map();
+    const environmentAccounts = new Map();
+    const accountEnvironments = new Map();
     const userById = new Map(users.map(user => [accountKey(user), user]));
 
     function observe(record, deviceId, source, timestamp, active = false) {
@@ -38,12 +40,40 @@
 
       if (!accountDevices.has(uid)) accountDevices.set(uid, new Map());
       const byDevice = accountDevices.get(uid);
-      const existingDevice = byDevice.get(device) || { deviceId: device, sources: new Set(), firstSeen: at || now, lastSeen: 0, active: false };
+      const existingDevice = byDevice.get(device) || { deviceId: device, sources: new Set(), firstSeen: at || now, lastSeen: 0, active: false, registrationDevice: false };
       existingDevice.sources.add(source);
       if (at) existingDevice.firstSeen = Math.min(existingDevice.firstSeen || at, at);
       existingDevice.lastSeen = Math.max(existingDevice.lastSeen, at);
       existingDevice.active ||= active;
+      existingDevice.registrationDevice ||= source === '登録';
+      existingDevice.environmentSignature = record.environmentSignature || record.registrationEnvironmentSignature || existingDevice.environmentSignature || '';
+      existingDevice.userAgent = record.userAgent || record.registrationUserAgent || existingDevice.userAgent || '';
+      existingDevice.platform = record.platform || record.registrationPlatform || existingDevice.platform || '';
+      existingDevice.language = record.language || record.registrationLanguage || existingDevice.language || '';
+      existingDevice.screen = record.screen || record.registrationScreen || existingDevice.screen || '';
+      existingDevice.timezone = record.timezone || record.registrationTimezone || existingDevice.timezone || '';
       byDevice.set(device, existingDevice);
+    }
+
+    function observeEnvironment(record, signature, source, timestamp) {
+      const uid = accountKey(record);
+      if (!uid || !signature) return;
+      const key = String(signature).slice(0, 120);
+      const at = toMillis(timestamp);
+      if (!environmentAccounts.has(key)) environmentAccounts.set(key, new Map());
+      const byAccount = environmentAccounts.get(key);
+      const account = byAccount.get(uid) || { uid, email: accountLabel(record), sources: new Set(), firstSeen: at || now, lastSeen: 0 };
+      account.sources.add(source);
+      if (at) account.firstSeen = Math.min(account.firstSeen || at, at);
+      account.lastSeen = Math.max(account.lastSeen, at);
+      byAccount.set(uid, account);
+      if (!accountEnvironments.has(uid)) accountEnvironments.set(uid, new Map());
+      const byEnvironment = accountEnvironments.get(uid);
+      const environment = byEnvironment.get(key) || { signature: key, sources: new Set(), firstSeen: at || now, lastSeen: 0 };
+      environment.sources.add(source);
+      if (at) environment.firstSeen = Math.min(environment.firstSeen || at, at);
+      environment.lastSeen = Math.max(environment.lastSeen, at);
+      byEnvironment.set(key, environment);
     }
 
     function observeIp(record, ipAddress, source, timestamp) {
@@ -67,15 +97,16 @@
       byIp.set(ip, entry);
     }
 
-    users.forEach(user => { observe(user, user.registrationDeviceId, '登録', user.registeredAt); observeIp(user, user.registrationIpAddress, '登録', user.registeredAt); });
-    logins.forEach(login => { observe(login, login.deviceId, 'ログイン', login.createdAt || login.clientTime); observeIp(login, login.ipAddress, 'ログイン', login.createdAt || login.clientTime); });
+    users.forEach(user => { observe(user, user.registrationDeviceId, '登録', user.registeredAt); observeIp(user, user.registrationIpAddress, '登録', user.registeredAt); observeEnvironment(user, user.registrationEnvironmentSignature, '登録', user.registeredAt); });
+    logins.forEach(login => { observe(login, login.deviceId, 'ログイン', login.createdAt || login.clientTime); observeIp(login, login.ipAddress, 'ログイン', login.createdAt || login.clientTime); observeEnvironment(login, login.environmentSignature, 'ログイン', login.createdAt || login.clientTime); });
     sessions.forEach(session => {
       const lastSeen = toMillis(session.lastSeenAt);
       const active = !session.revoked && session.active !== false && lastSeen > now - 5 * 60000;
       observe(session, session.deviceId, 'セッション', session.lastSeenAt || session.startedAt, active);
       observeIp(session, session.ipAddress, 'セッション', session.lastSeenAt || session.startedAt);
+      observeEnvironment(session, session.environmentSignature, 'セッション', session.lastSeenAt || session.startedAt);
     });
-    events.forEach(item => { observe(item, item.deviceId, '操作', item.createdAt || item.clientTime); observeIp(item, item.ipAddress, '操作', item.createdAt || item.clientTime); });
+    events.forEach(item => { observe(item, item.deviceId, '操作', item.createdAt || item.clientTime); observeIp(item, item.ipAddress, '操作', item.createdAt || item.clientTime); observeEnvironment(item, item.environmentSignature, '操作', item.createdAt || item.clientTime); });
 
     const multipleAccounts = [];
     for (const [deviceId, accountsMap] of deviceAccounts) {
@@ -136,11 +167,29 @@
       const score = Math.min(100, 15 + (recent24Count >= 3 ? 50 : 0) + (recent30Count >= 5 ? 35 : 0));
       return { uid, email: accountLabel(user), ips: values.sort((a, b) => b.lastSeen - a.lastSeen), recent24Count, recent30Count, score, severity: score >= 65 ? 'high' : score >= 40 ? 'medium' : 'low', lastSeen: Math.max(...values.map(item => item.lastSeen || 0)) };
     }).sort((a, b) => b.score - a.score || b.lastSeen - a.lastSeen);
+    const deviceProfiles = [...accountDevices.entries()].flatMap(([uid, devices]) => {
+      const user = userById.get(uid) || logins.find(item => accountKey(item) === uid) || sessions.find(item => accountKey(item) === uid) || { uid };
+      return [...devices.values()].map(device => ({ ...device, uid, email: accountLabel(user), sources: [...device.sources] }));
+    }).sort((a, b) => b.lastSeen - a.lastSeen);
+    const sharedEnvironments = [...environmentAccounts.entries()].filter(([, accounts]) => accounts.size >= 2).map(([signature, accounts]) => ({
+      signature,
+      accounts: [...accounts.values()].sort((a, b) => b.lastSeen - a.lastSeen),
+      accountCount: accounts.size,
+      lastSeen: Math.max(...[...accounts.values()].map(account => account.lastSeen || 0))
+    })).sort((a, b) => b.accountCount - a.accountCount || b.lastSeen - a.lastSeen);
+    const accountEnvironmentChanges = [...accountEnvironments.entries()].filter(([, environments]) => environments.size >= 2).map(([uid, environments]) => {
+      const user = userById.get(uid) || logins.find(item => accountKey(item) === uid) || sessions.find(item => accountKey(item) === uid) || { uid };
+      const values = [...environments.values()];
+      return { uid, email: accountLabel(user), environments: values.sort((a, b) => b.lastSeen - a.lastSeen), recent30Count: values.filter(item => item.lastSeen > now - 30 * DAY).length, lastSeen: Math.max(...values.map(item => item.lastSeen || 0)) };
+    }).sort((a, b) => b.recent30Count - a.recent30Count || b.lastSeen - a.lastSeen);
     return {
       multipleAccounts,
       sharedAccounts,
       sharedIps,
       accountIpRisks,
+      deviceProfiles,
+      sharedEnvironments,
+      accountEnvironmentChanges,
       highRiskCount: multipleAccounts.filter(item => item.severity === 'high').length + sharedAccounts.filter(item => item.severity === 'high').length,
       observedDeviceCount: deviceAccounts.size,
       observedIpCount: ipAccounts.size,
