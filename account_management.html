@@ -715,11 +715,36 @@ document.addEventListener("DOMContentLoaded", function () {
     window.closeModal = closeModal;
     modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
 
+    // site-brand.js は動的HTMLの inline イベント属性を安全のため削除する。
+    // 一覧・モーダル内の操作は data 属性からイベント委譲で処理する。
+    document.addEventListener("click", event => {
+        const target = event.target instanceof Element ? event.target.closest("[data-account-action]") : null;
+        if (!target) return;
+        const action = target.dataset.accountAction;
+        const uid = target.dataset.uid || "";
+        if (action === "close-modal") closeModal();
+        else if (action === "sort") window.toggleSort(target.dataset.table, target.dataset.key);
+        else if (action === "approve-user") window.approveUser(uid);
+        else if (action === "disable-user") window.disableUser(uid);
+        else if (action === "open-user-detail") window.openUserDetail(uid);
+        else if (action === "enable-user") window.enableUser(uid);
+        else if (action === "delete-user") window.deleteUser(uid);
+        else if (action === "promote-admin") window.promoteAdmin(uid);
+        else if (action === "revoke-admin") window.revokeAdmin(uid);
+        else if (action === "copy-user-email") window.copyUserEmail(uid);
+    });
+    document.addEventListener("change", event => {
+        const target = event.target instanceof Element ? event.target.closest("[data-account-change]") : null;
+        if (!target) return;
+        if (target.dataset.accountChange === "select-all") window.toggleSelectAll(target.dataset.table, target.checked);
+        else if (target.dataset.accountChange === "bulk-selection") window.updateBulkButtons();
+    });
+
     function confirmModal(message, confirmLabel, danger, onConfirm) {
         openModal("確認", `
             <p>${message}</p>
             <div class="modal-actions">
-                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-cancel" data-account-action="close-modal">キャンセル</button>
                 <button class="btn-confirm ${danger ? 'danger' : ''}" id="modal-confirm-btn">${confirmLabel}</button>
             </div>
         `);
@@ -886,7 +911,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const recent = document.getElementById("recent-users-list");
         if (recent) {
             recent.innerHTML = allUsers.length ? `<table class="recent-list"><tbody>${allUsers.map(u => `
-                <tr><td><b>${escapeHtml(u.email || "メール未設定")}</b><br><span class="muted">登録 ${formatDate(u.registeredAt)}<br>最終ログイン ${formatDate(u.lastLoginAt)}</span></td><td>${statusLabel(u.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>
+                <tr><td><b>${escapeHtml(u.email || "メール未設定")}</b><br><span class="muted">登録 ${formatDate(u.registeredAt)}<br>最終ログイン ${formatDate(u.lastLoginAt)}</span></td><td>${statusLabel(u.status)}</td><td><button class="btn-detail" data-account-action="open-user-detail" data-uid="${escapeHtml(u.uid)}">詳細</button></td></tr>
             `).join("")}</tbody></table>` : '<div class="empty-msg">登録ユーザーはいません。</div>';
         }
         const recentLogins = [...everyUser].filter(user => user.lastLoginAt)
@@ -894,7 +919,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const recentLoginsList = document.getElementById("recent-logins-list");
         if (recentLoginsList) {
             recentLoginsList.innerHTML = recentLogins.length ? `<table class="recent-list"><tbody>${recentLogins.map(user => `
-                <tr><td><b>${escapeHtml(user.email || "メール未設定")}</b><br><span class="muted">${formatDate(user.lastLoginAt)}</span></td><td>${statusLabel(user.status)}</td><td><button class="btn-detail" onclick="openUserDetail('${user.uid}')">詳細</button></td></tr>
+                <tr><td><b>${escapeHtml(user.email || "メール未設定")}</b><br><span class="muted">${formatDate(user.lastLoginAt)}</span></td><td>${statusLabel(user.status)}</td><td><button class="btn-detail" data-account-action="open-user-detail" data-uid="${escapeHtml(user.uid)}">詳細</button></td></tr>
             `).join("")}</tbody></table>` : '<div class="empty-msg">ログイン記録はまだありません。</div>';
         }
         const pendingHealth = document.getElementById("health-pending");
@@ -991,9 +1016,9 @@ document.addEventListener("DOMContentLoaded", function () {
             <table>
                 <thead>
                     <tr>
-                        <th class="chk-col"><input type="checkbox" id="pending-select-all" onchange="toggleSelectAll('pending', this.checked)"></th>
-                        <th class="sortable" onclick="toggleSort('pending','email')">メール <span class="sort-arrow">${sortArrow('pending','email')}</span></th>
-                        <th class="sortable" onclick="toggleSort('pending','registeredAt')">登録日 <span class="sort-arrow">${sortArrow('pending','registeredAt')}</span></th>
+                        <th class="chk-col"><input type="checkbox" id="pending-select-all" data-account-change="select-all" data-table="pending"></th>
+                        <th class="sortable" data-account-action="sort" data-table="pending" data-key="email">メール <span class="sort-arrow">${sortArrow('pending','email')}</span></th>
+                        <th class="sortable" data-account-action="sort" data-table="pending" data-key="registeredAt">登録日 <span class="sort-arrow">${sortArrow('pending','registeredAt')}</span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -1002,13 +1027,13 @@ document.addEventListener("DOMContentLoaded", function () {
         rows.forEach(u => {
             html += `
                 <tr>
-                    <td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+                    <td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${escapeHtml(u.uid)}" data-account-change="bulk-selection"></td>
                     <td>${escapeHtml(u.email)}</td>
                     <td>${formatDate(u.registeredAt)}</td>
                     <td>
-                        <button class="btn-approve" onclick="approveUser('${u.uid}')">承認</button>
-                        <button class="btn-disable" onclick="disableUser('${u.uid}')">無効化</button>
-                        <button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button>
+                        <button class="btn-approve" data-account-action="approve-user" data-uid="${escapeHtml(u.uid)}">承認</button>
+                        <button class="btn-disable" data-account-action="disable-user" data-uid="${escapeHtml(u.uid)}">無効化</button>
+                        <button class="btn-detail" data-account-action="open-user-detail" data-uid="${escapeHtml(u.uid)}">詳細</button>
                     </td>
                 </tr>
             `;
@@ -1031,10 +1056,10 @@ document.addEventListener("DOMContentLoaded", function () {
             <table>
                 <thead>
                     <tr>
-                        <th class="sortable" onclick="toggleSort('users','email')">メール <span class="sort-arrow">${sortArrow('users','email')}</span></th>
+                        <th class="sortable" data-account-action="sort" data-table="users" data-key="email">メール <span class="sort-arrow">${sortArrow('users','email')}</span></th>
                         <th>状態</th>
-                        <th class="sortable" onclick="toggleSort('users','isAdmin')">権限 <span class="sort-arrow">${sortArrow('users','isAdmin')}</span></th>
-                        <th class="sortable" onclick="toggleSort('users','lastLoginAt')">最終ログイン <span class="sort-arrow">${sortArrow('users','lastLoginAt')}</span></th>
+                        <th class="sortable" data-account-action="sort" data-table="users" data-key="isAdmin">権限 <span class="sort-arrow">${sortArrow('users','isAdmin')}</span></th>
+                        <th class="sortable" data-account-action="sort" data-table="users" data-key="lastLoginAt">最終ログイン <span class="sort-arrow">${sortArrow('users','lastLoginAt')}</span></th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -1046,11 +1071,11 @@ document.addEventListener("DOMContentLoaded", function () {
             const tags = u.tags.length ? `<div>${u.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>` : "";
             let buttons = "";
             if (u.uid !== CURRENT_USER_UID) {
-                buttons += `<button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button>`;
-                buttons += `<button class="btn-disable" onclick="disableUser('${u.uid}')">無効化</button>`;
+                buttons += `<button class="btn-detail" data-account-action="open-user-detail" data-uid="${escapeHtml(u.uid)}">詳細</button>`;
+                buttons += `<button class="btn-disable" data-account-action="disable-user" data-uid="${escapeHtml(u.uid)}">無効化</button>`;
                 buttons += u.isAdmin
-                    ? `<button class="btn-revoke" onclick="revokeAdmin('${u.uid}')">権限剥奪</button>`
-                    : `<button class="btn-admin" onclick="promoteAdmin('${u.uid}')">管理者付与</button>`;
+                    ? `<button class="btn-revoke" data-account-action="revoke-admin" data-uid="${escapeHtml(u.uid)}">権限剥奪</button>`
+                    : `<button class="btn-admin" data-account-action="promote-admin" data-uid="${escapeHtml(u.uid)}">管理者付与</button>`;
             } else {
                 buttons = "自分自身";
             }
@@ -1082,8 +1107,8 @@ document.addEventListener("DOMContentLoaded", function () {
             <table>
                 <thead>
                     <tr>
-                        <th class="chk-col"><input type="checkbox" id="disabled-select-all" onchange="toggleSelectAll('disabled', this.checked)"></th>
-                        <th class="sortable" onclick="toggleSort('disabled','email')">メール <span class="sort-arrow">${sortArrow('disabled','email')}</span></th>
+                        <th class="chk-col"><input type="checkbox" id="disabled-select-all" data-account-change="select-all" data-table="disabled"></th>
+                        <th class="sortable" data-account-action="sort" data-table="disabled" data-key="email">メール <span class="sort-arrow">${sortArrow('disabled','email')}</span></th>
                         <th>状態</th>
                         <th>操作</th>
                     </tr>
@@ -1093,13 +1118,13 @@ document.addEventListener("DOMContentLoaded", function () {
         rows.forEach(u => {
             html += `
                 <tr>
-                    <td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+                    <td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${escapeHtml(u.uid)}" data-account-change="bulk-selection"></td>
                     <td>${escapeHtml(u.email)}</td>
                     <td><span class="status-badge status-disabled">停止中</span></td>
                     <td>
-                        <button class="btn-detail" onclick="openUserDetail('${u.uid}')">詳細</button>
-                        <button class="btn-enable" onclick="enableUser('${u.uid}')">再有効化</button>
-                        <button class="btn-delete" onclick="deleteUser('${u.uid}')">削除</button>
+                        <button class="btn-detail" data-account-action="open-user-detail" data-uid="${escapeHtml(u.uid)}">詳細</button>
+                        <button class="btn-enable" data-account-action="enable-user" data-uid="${escapeHtml(u.uid)}">再有効化</button>
+                        <button class="btn-delete" data-account-action="delete-user" data-uid="${escapeHtml(u.uid)}">削除</button>
                     </td>
                 </tr>
             `;
@@ -1241,7 +1266,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const tagsHtml = user.tags.length ? user.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("") : '<span class="muted">未設定</span>';
         openModal("ユーザー詳細", `
             <dl class="detail-grid">
-                <dt>メールアドレス</dt><dd>${escapeHtml(user.email)} <button class="btn-copy" onclick="copyUserEmail('${user.uid}')">コピー</button></dd>
+                <dt>メールアドレス</dt><dd>${escapeHtml(user.email)} <button class="btn-copy" data-account-action="copy-user-email" data-uid="${escapeHtml(user.uid)}">コピー</button></dd>
                 <dt>状態</dt><dd>${statusLabel(user.status)}</dd>
                 <dt>権限</dt><dd>${user.isAdmin ? '<span class="status-badge status-admin">管理者</span>' : '一般ユーザー'}</dd>
                 <dt>登録日時</dt><dd>${formatDate(user.registeredAt)}</dd>
@@ -1255,7 +1280,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <textarea id="detail-note-input" placeholder="対応履歴や引き継ぎメモを記録できます。">${escapeHtml(user.adminNote)}</textarea>
             <div class="modal-error" id="detail-modal-error"></div>
             <div class="modal-actions">
-                <button class="btn-cancel" onclick="closeModal()">閉じる</button>
+                <button class="btn-cancel" data-account-action="close-modal">閉じる</button>
                 <button class="btn-confirm" id="detail-save-btn">メモを保存</button>
             </div>
         `);
@@ -1442,7 +1467,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <input type="password" id="reauth-password-input-email">
             <div class="modal-error" id="email-modal-error"></div>
             <div class="modal-actions">
-                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-cancel" data-account-action="close-modal">キャンセル</button>
                 <button class="btn-confirm" id="email-submit-btn">変更する</button>
             </div>
         `);
@@ -1494,7 +1519,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <input type="password" id="new-password-confirm-input">
             <div class="modal-error" id="password-modal-error"></div>
             <div class="modal-actions">
-                <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+                <button class="btn-cancel" data-account-action="close-modal">キャンセル</button>
                 <button class="btn-confirm" id="password-submit-btn">変更する</button>
             </div>
         `);
