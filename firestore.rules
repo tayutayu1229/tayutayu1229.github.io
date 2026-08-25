@@ -85,6 +85,25 @@ service cloud.firestore {
         && data.updatedBy == request.auth.uid;
     }
 
+    function validSecurityDeviceRequest(data) {
+      return data.keys().hasOnly([
+          "uid", "email", "deviceId", "environmentSignature", "userAgent",
+          "platform", "screen", "timezone", "path", "status",
+          "firstSeenAt", "lastSeenAt", "attemptCount"
+        ])
+        && data.uid is string
+        && data.email is string && data.email.size() <= 254
+        && data.deviceId is string && data.deviceId.size() >= 16 && data.deviceId.size() <= 120
+        && data.environmentSignature is string && data.environmentSignature.size() <= 120
+        && data.userAgent is string && data.userAgent.size() <= 500
+        && data.platform is string && data.platform.size() <= 80
+        && data.screen is string && data.screen.size() <= 40
+        && data.timezone is string && data.timezone.size() <= 80
+        && data.path is string && data.path.size() <= 300
+        && data.status == "blocked"
+        && data.attemptCount is int && data.attemptCount >= 1;
+    }
+
     match /users/{userId} {
       allow get: if signedIn() && (request.auth.uid == userId || isAdministrator());
       allow list: if isAdministrator();
@@ -225,7 +244,39 @@ service cloud.firestore {
     // Administrator-confirmed browser devices used as an additional identity
     // signal when IP addresses change. Members cannot trust their own devices.
     match /security_trusted_devices/{deviceId} {
-      allow read, create, update, delete: if isAdministrator();
+      allow get: if isAdministrator() || (
+        signedIn() && resource.data.uid == request.auth.uid
+      );
+      allow list: if isAdministrator();
+      allow create, update, delete: if isAdministrator();
+    }
+
+    // Unrecognized devices are blocked before protected pages are revealed.
+    // Members may only create/update the alert for their own account; decisions
+    // and deletion remain administrator-only.
+    match /security_device_requests/{requestId} {
+      allow get: if isAdministrator() || (
+        signedIn() && resource.data.uid == request.auth.uid
+      );
+      allow list: if isAdministrator();
+      allow create: if isActiveMember()
+        && request.resource.data.uid == request.auth.uid
+        && validSecurityDeviceRequest(request.resource.data)
+        && request.resource.data.firstSeenAt == request.time
+        && request.resource.data.lastSeenAt == request.time
+        && request.resource.data.attemptCount == 1;
+      allow update: if isActiveMember()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.deviceId == resource.data.deviceId
+        && validSecurityDeviceRequest(request.resource.data)
+        && request.resource.data.lastSeenAt == request.time
+        && request.resource.data.attemptCount == resource.data.attemptCount + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email", "environmentSignature", "userAgent", "platform", "screen",
+          "timezone", "path", "lastSeenAt", "attemptCount"
+        ]);
+      allow update, delete: if isAdministrator();
     }
 
     match /system_monitor_results/{resultId} {

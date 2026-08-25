@@ -135,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             approval_required: 'メールアドレスとパスワードは確認できましたが、管理者の利用承認がまだ完了していません。管理者へ承認を依頼してください。',
             disabled: 'このアカウントは利用停止中です。管理者へお問い合わせください。',
             session_revoked: '管理者によりこの端末のセッションが終了されました。もう一度ログインしてください。',
+            protected_device: 'この端末はおまかせ保護により停止されました。普段使っている登録時端末、または確認済み端末から利用してください。',
             auth_error: '認証サーバーへの接続を確認できませんでした。通信状態を確認して、もう一度ログインしてください。'
         };
         const reason = new URLSearchParams(location.search).get('reason');
