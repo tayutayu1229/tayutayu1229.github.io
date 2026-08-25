@@ -40,6 +40,7 @@
   let heartbeatTimer = null;
   let unsubscribeSession = null;
   let originalFetch = null;
+  let networkContext = { ipAddress: '', countryCode: '', networkEdge: '' };
   const recentEventKeys = new Map();
 
   function isDuplicateEvent(type, detail) {
@@ -51,7 +52,37 @@
     if (recentEventKeys.size > 250) {
       for (const [key, timestamp] of recentEventKeys) if (now - timestamp > 300000) recentEventKeys.delete(key);
     }
-    return now - previous < 60000;
+    return now - previous < (type === 'user_action' || type === 'form_submit' ? 1500 : 60000);
+  }
+
+  async function loadNetworkContext() {
+    const cacheKey = `${STORAGE_PREFIX}networkContext`;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+      if (cached?.ipAddress && Date.now() - Number(cached.savedAt || 0) < 6 * 3600000) {
+        networkContext = cached;
+        return networkContext;
+      }
+    } catch (_) {}
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    try {
+      const response = await fetch('https://1.1.1.1/cdn-cgi/trace', { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) return networkContext;
+      const values = Object.fromEntries((await response.text()).trim().split('\n').map(line => line.split('=')));
+      networkContext = {
+        ipAddress: clampText(values.ip || '', 64),
+        countryCode: clampText(values.loc || '', 8),
+        networkEdge: clampText(values.colo || '', 12),
+        savedAt: Date.now()
+      };
+      sessionStorage.setItem(cacheKey, JSON.stringify(networkContext));
+    } catch (_) {
+      // IP情報を取得できなくても認証や画面利用は止めない。
+    } finally {
+      clearTimeout(timer);
+    }
+    return networkContext;
   }
 
   function appendLocal(key, item, limit = 200) {
@@ -77,6 +108,12 @@
         ...payload,
         uid: payload.uid || user.uid,
         email: clampText(payload.email || user.email || '', 254),
+        sessionId: payload.sessionId || sessionId,
+        deviceId: payload.deviceId || deviceId,
+        environmentSignature: payload.environmentSignature || environmentSignature,
+        ipAddress: payload.ipAddress || networkContext.ipAddress || '',
+        countryCode: payload.countryCode || networkContext.countryCode || '',
+        networkEdge: payload.networkEdge || networkContext.networkEdge || '',
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         clientTime: payload.clientTime || nowIso()
       });
@@ -180,6 +217,56 @@
     });
   }
 
+  function safeActionLabel(element) {
+    if (!element) return '';
+    const aria = element.getAttribute?.('aria-label') || element.getAttribute?.('title') || '';
+    const text = aria || element.innerText || element.textContent || element.value || '';
+    return clampText(String(text).replace(/\s+/g, ' ').trim(), 160);
+  }
+
+  function safeActionTarget(element) {
+    const href = element?.getAttribute?.('href') || '';
+    if (!href) return '';
+    try {
+      const target = new URL(href, location.href);
+      return target.origin === location.origin ? target.pathname : target.origin;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function attachInteractionCapture() {
+    document.addEventListener('click', clickEvent => {
+      const element = clickEvent.target?.closest?.('button,a,[role="button"],input[type="button"],input[type="submit"],summary');
+      if (!element || element.closest('[data-telemetry-ignore]')) return;
+      const target = safeActionTarget(element);
+      const download = element.hasAttribute?.('download');
+      event('user_action', {
+        code: download ? 'download' : element.tagName === 'A' ? 'link' : 'click',
+        message: safeActionLabel(element) || element.id || element.tagName,
+        meta: { elementId: clampText(element.id || '', 100), target, download }
+      });
+    }, true);
+    document.addEventListener('submit', submitEvent => {
+      const form = submitEvent.target;
+      event('form_submit', {
+        code: clampText(form?.id || form?.getAttribute?.('name') || 'form', 100),
+        message: safeActionLabel(form?.querySelector?.('button[type="submit"],input[type="submit"]')) || 'フォーム送信',
+        meta: { formId: clampText(form?.id || '', 100) }
+      });
+    }, true);
+    document.addEventListener('change', changeEvent => {
+      const control = changeEvent.target;
+      if (!control?.matches?.('select,input[type="checkbox"],input[type="radio"],input[type="date"],input[type="time"]') || control.closest('[data-telemetry-ignore]')) return;
+      const label = control.labels?.[0]?.innerText || control.getAttribute('aria-label') || control.id || control.name || control.tagName;
+      event('user_action', {
+        code: 'control_change',
+        message: clampText(String(label).replace(/\s+/g, ' ').trim(), 160),
+        meta: { elementId: clampText(control.id || '', 100), controlType: clampText(control.type || control.tagName, 30) }
+      });
+    }, true);
+  }
+
   async function writeSession(active = true) {
     if (!sessionRef || !user) return;
     const payload = {
@@ -196,6 +283,9 @@
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
       deviceId,
       environmentSignature,
+      ipAddress: networkContext.ipAddress || '',
+      countryCode: networkContext.countryCode || '',
+      networkEdge: networkContext.networkEdge || '',
       lastSeenAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     try { await sessionRef.set(payload, { merge: true }); } catch (_) {}
@@ -211,6 +301,9 @@
         sessionId,
         deviceId,
         environmentSignature,
+        ipAddress: networkContext.ipAddress || '',
+        countryCode: networkContext.countryCode || '',
+        networkEdge: networkContext.networkEdge || '',
         startedAt: firebase.firestore.FieldValue.serverTimestamp(),
         revoked: false
       }, { merge: true });
@@ -237,8 +330,10 @@
     user = context.user || auth?.currentUser || null;
     profile = context.profile || null;
     if (!user) return window.TayunetTelemetry;
+    await loadNetworkContext();
     instrumentFetch();
     attachErrorCapture();
+    attachInteractionCapture();
     await startSession();
     const pageKey = `${STORAGE_PREFIX}page:${location.pathname}`;
     const lastView = Number(sessionStorage.getItem(pageKey) || 0);
@@ -250,10 +345,11 @@
   }
 
   window.TayunetTelemetry = Object.freeze({
-    start, event, audit, localValues,
+    start, event, audit, localValues, loadNetworkContext,
     get sessionId() { return sessionId; },
     get user() { return user; },
     get profile() { return profile; },
+    get networkContext() { return { ...networkContext }; },
     get originalFetch() { return originalFetch || window.fetch.bind(window); }
   });
 })();

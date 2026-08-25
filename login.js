@@ -45,6 +45,20 @@ document.addEventListener('DOMContentLoaded', function() {
             for (const char of text) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
             return (hash >>> 0).toString(36);
         })();
+        const networkContextPromise = (async () => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3500);
+            try {
+                const response = await fetch('https://1.1.1.1/cdn-cgi/trace', { cache: 'no-store', signal: controller.signal });
+                if (!response.ok) return {};
+                const values = Object.fromEntries((await response.text()).trim().split('\n').map(line => line.split('=')));
+                return { ipAddress: String(values.ip || '').slice(0, 64), countryCode: String(values.loc || '').slice(0, 8), networkEdge: String(values.colo || '').slice(0, 12) };
+            } catch (_) {
+                return {};
+            } finally {
+                clearTimeout(timer);
+            }
+        })();
 
         function rememberLoginAttempt(status, email, detail) {
             const entry = {
@@ -65,6 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
         async function recordSuccessfulLogin(user) {
             const entry = rememberLoginAttempt('success', user.email, '認証・利用承認成功');
             try {
+                const network = await networkContextPromise;
                 await db.collection('login_events').add({
                     uid: user.uid,
                     email: user.email || '',
@@ -73,6 +88,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     userAgent: entry.userAgent,
                     deviceId,
                     environmentSignature,
+                    ipAddress: network.ipAddress || '',
+                    countryCode: network.countryCode || '',
+                    networkEdge: network.networkEdge || '',
                     clientTime: entry.at,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });

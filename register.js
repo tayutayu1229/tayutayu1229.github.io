@@ -36,6 +36,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return id;
         })();
+        const registrationNetworkPromise = (async () => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3500);
+            try {
+                const response = await fetch('https://1.1.1.1/cdn-cgi/trace', { cache: 'no-store', signal: controller.signal });
+                if (!response.ok) return {};
+                const values = Object.fromEntries((await response.text()).trim().split('\n').map(line => line.split('=')));
+                return { ipAddress: String(values.ip || '').slice(0, 64), countryCode: String(values.loc || '').slice(0, 8), networkEdge: String(values.colo || '').slice(0, 12) };
+            } catch (_) {
+                return {};
+            } finally {
+                clearTimeout(timer);
+            }
+        })();
 
         // メッセージの表示
         function showMessage(message, isSuccess = false) {
@@ -81,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
 
-        function pendingProfile(email) {
+        function pendingProfile(email, network) {
             return {
                 email,
                 approved: false,
@@ -89,12 +103,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 isAdmin: false,
                 status: "pending",
                 registrationDeviceId,
+                registrationIpAddress: network.ipAddress || '',
+                registrationCountryCode: network.countryCode || '',
                 registeredAt: firebase.firestore.FieldValue.serverTimestamp()
             };
         }
 
         async function writePendingProfile(user, email) {
-            await db.collection("users").doc(user.uid).set(pendingProfile(email));
+            const network = await registrationNetworkPromise;
+            await db.collection("users").doc(user.uid).set(pendingProfile(email, network));
         }
 
         // 新規登録処理。Authだけ作成されてFirestore登録に失敗した場合は、

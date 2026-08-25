@@ -15,9 +15,11 @@
   const accountKey = record => record.uid || record.id || record.email || '';
   const accountLabel = record => record.email || record.uid || record.id || '不明';
 
-  function analyze({ users = [], logins = [], sessions = [], now = Date.now() } = {}) {
+  function analyze({ users = [], logins = [], sessions = [], events = [], now = Date.now() } = {}) {
     const deviceAccounts = new Map();
     const accountDevices = new Map();
+    const ipAccounts = new Map();
+    const accountIps = new Map();
     const userById = new Map(users.map(user => [accountKey(user), user]));
 
     function observe(record, deviceId, source, timestamp, active = false) {
@@ -44,13 +46,36 @@
       byDevice.set(device, existingDevice);
     }
 
-    users.forEach(user => observe(user, user.registrationDeviceId, '登録', user.registeredAt));
-    logins.forEach(login => observe(login, login.deviceId, 'ログイン', login.createdAt || login.clientTime));
+    function observeIp(record, ipAddress, source, timestamp) {
+      const uid = accountKey(record);
+      if (!uid || !ipAddress) return;
+      const ip = String(ipAddress).slice(0, 64);
+      const at = toMillis(timestamp);
+      if (!ipAccounts.has(ip)) ipAccounts.set(ip, new Map());
+      const byAccount = ipAccounts.get(ip);
+      const account = byAccount.get(uid) || { uid, email: accountLabel(record), sources: new Set(), firstSeen: at || now, lastSeen: 0 };
+      account.sources.add(source);
+      if (at) account.firstSeen = Math.min(account.firstSeen || at, at);
+      account.lastSeen = Math.max(account.lastSeen, at);
+      byAccount.set(uid, account);
+      if (!accountIps.has(uid)) accountIps.set(uid, new Map());
+      const byIp = accountIps.get(uid);
+      const entry = byIp.get(ip) || { ipAddress: ip, sources: new Set(), firstSeen: at || now, lastSeen: 0 };
+      entry.sources.add(source);
+      if (at) entry.firstSeen = Math.min(entry.firstSeen || at, at);
+      entry.lastSeen = Math.max(entry.lastSeen, at);
+      byIp.set(ip, entry);
+    }
+
+    users.forEach(user => { observe(user, user.registrationDeviceId, '登録', user.registeredAt); observeIp(user, user.registrationIpAddress, '登録', user.registeredAt); });
+    logins.forEach(login => { observe(login, login.deviceId, 'ログイン', login.createdAt || login.clientTime); observeIp(login, login.ipAddress, 'ログイン', login.createdAt || login.clientTime); });
     sessions.forEach(session => {
       const lastSeen = toMillis(session.lastSeenAt);
       const active = !session.revoked && session.active !== false && lastSeen > now - 5 * 60000;
       observe(session, session.deviceId, 'セッション', session.lastSeenAt || session.startedAt, active);
+      observeIp(session, session.ipAddress, 'セッション', session.lastSeenAt || session.startedAt);
     });
+    events.forEach(item => { observe(item, item.deviceId, '操作', item.createdAt || item.clientTime); observeIp(item, item.ipAddress, '操作', item.createdAt || item.clientTime); });
 
     const multipleAccounts = [];
     for (const [deviceId, accountsMap] of deviceAccounts) {
@@ -97,11 +122,28 @@
 
     multipleAccounts.sort((a, b) => b.score - a.score || b.lastSeen - a.lastSeen);
     sharedAccounts.sort((a, b) => b.score - a.score || b.lastSeen - a.lastSeen);
+    const sharedIps = [...ipAccounts.entries()].filter(([, accounts]) => accounts.size >= 2).map(([ipAddress, accounts]) => ({
+      ipAddress,
+      accounts: [...accounts.values()].sort((a, b) => b.lastSeen - a.lastSeen),
+      accountCount: accounts.size,
+      lastSeen: Math.max(...[...accounts.values()].map(account => account.lastSeen || 0))
+    })).sort((a, b) => b.accountCount - a.accountCount || b.lastSeen - a.lastSeen);
+    const accountIpRisks = [...accountIps.entries()].filter(([, ips]) => ips.size >= 2).map(([uid, ips]) => {
+      const values = [...ips.values()];
+      const recent24Count = values.filter(item => item.lastSeen > now - DAY).length;
+      const recent30Count = values.filter(item => item.lastSeen > now - 30 * DAY).length;
+      const user = userById.get(uid) || logins.find(item => accountKey(item) === uid) || sessions.find(item => accountKey(item) === uid) || { uid };
+      const score = Math.min(100, 15 + (recent24Count >= 3 ? 50 : 0) + (recent30Count >= 5 ? 35 : 0));
+      return { uid, email: accountLabel(user), ips: values.sort((a, b) => b.lastSeen - a.lastSeen), recent24Count, recent30Count, score, severity: score >= 65 ? 'high' : score >= 40 ? 'medium' : 'low', lastSeen: Math.max(...values.map(item => item.lastSeen || 0)) };
+    }).sort((a, b) => b.score - a.score || b.lastSeen - a.lastSeen);
     return {
       multipleAccounts,
       sharedAccounts,
+      sharedIps,
+      accountIpRisks,
       highRiskCount: multipleAccounts.filter(item => item.severity === 'high').length + sharedAccounts.filter(item => item.severity === 'high').length,
       observedDeviceCount: deviceAccounts.size,
+      observedIpCount: ipAccounts.size,
       legacyRecordCount: users.filter(user => !user.registrationDeviceId).length + logins.filter(login => !login.deviceId).length + sessions.filter(session => !session.deviceId).length
     };
   }

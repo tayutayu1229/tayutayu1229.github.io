@@ -45,3 +45,30 @@ test('端末IDがない旧記録は誤検知せず対象外件数へ含める', 
   assert.equal(result.sharedAccounts.length, 0);
   assert.equal(result.legacyRecordCount, 3);
 });
+
+test('同一IPを利用する複数アカウントを関連付ける', () => {
+  const result = analyze({
+    now: NOW,
+    logins: [
+      { uid: 'u1', email: 'one@example.com', ipAddress: '203.0.113.10', createdAt: '2026-08-25T09:00:00+09:00' },
+      { uid: 'u2', email: 'two@example.com', ipAddress: '203.0.113.10', createdAt: '2026-08-25T10:00:00+09:00' }
+    ]
+  });
+
+  assert.equal(result.sharedIps.length, 1);
+  assert.equal(result.sharedIps[0].accountCount, 2);
+});
+
+test('24時間に3個以上のIPを利用したアカウントを高リスクにする', () => {
+  const result = analyze({
+    now: NOW,
+    events: ['203.0.113.1', '203.0.113.2', '203.0.113.3'].map((ipAddress, index) => ({
+      uid: 'u1', email: 'one@example.com', ipAddress,
+      createdAt: new Date(NOW - index * 3600000).toISOString()
+    }))
+  });
+
+  assert.equal(result.accountIpRisks.length, 1);
+  assert.equal(result.accountIpRisks[0].recent24Count, 3);
+  assert.equal(result.accountIpRisks[0].severity, 'high');
+});
