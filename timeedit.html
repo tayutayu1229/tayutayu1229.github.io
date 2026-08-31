@@ -37,6 +37,23 @@
     
     .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: auto; font-weight: bold; }
     .hint-msg { font-size: 12px; color: var(--next); font-weight: bold; }
+    .quote-panel { margin: 0 0 14px; padding: 14px; border: 1px solid #fdba74; border-radius: 8px; background: #fff7ed; }
+    .quote-panel[hidden] { display: none; }
+    .quote-grid { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr); gap: 10px; align-items: end; }
+    .quote-grid label span { display: block; margin-bottom: 4px; color: #7c2d12; font-size: 11px; font-weight: bold; }
+    .quote-grid select { width: 100%; background: #fff; }
+    .route-preview { display: flex; gap: 5px; align-items: center; overflow-x: auto; padding: 10px 2px 6px; white-space: nowrap; scrollbar-width: thin; }
+    .route-station { padding: 5px 8px; border: 1px solid #fdba74; border-radius: 999px; background: #fff; }
+    .route-station.endpoint { color: #fff; border-color: #ea580c; background: #ea580c; font-weight: bold; }
+    .route-arrow { color: #c2410c; font-weight: bold; }
+    .quote-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .quote-summary { color: #9a3412; font-weight: bold; }
+    .subtle-note { margin: 6px 0 0; color: #64748b; font-size: 11px; }
+
+    @media (max-width: 720px) {
+      .quote-grid { grid-template-columns: 1fr; }
+      .section { min-width: 0; }
+    }
   </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -73,7 +90,7 @@
       <label><span>列車種別</span><input id="type" type="text" oninput="updateJSON()"></label>
       <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
       <label><span>始発駅発日</span><input id="startDate" type="date" oninput="updateJSON()"></label>
-      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="updateJSON()"></label>
+      <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="handleLineChange()"></label>
       <label><span>列車名</span><input id="name" type="text" oninput="updateJSON()"></label>
       <label><span>速度種別</span><input id="speed" type="text" oninput="updateJSON()"></label>
       <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
@@ -102,6 +119,20 @@
 
 <div class="section">
   <h2>3. 停車駅・着発時刻・番線</h2>
+  <div id="lineQuotePanel" class="quote-panel" hidden>
+    <div class="quote-grid">
+      <label><span>駅並びの候補</span><select id="routePattern" onchange="selectRoutePattern()"></select></label>
+      <label><span>ここから</span><select id="quoteStart" onchange="updateRoutePreview()"></select></label>
+      <label><span>ここまで</span><select id="quoteEnd" onchange="updateRoutePreview()"></select></label>
+    </div>
+    <div id="routePreview" class="route-preview" aria-live="polite"></div>
+    <div class="quote-actions">
+      <button class="btn-orange" type="button" onclick="applyLineTemplate()">選んだ区間を引用</button>
+      <button class="btn-gray" type="button" onclick="closeLineTemplate()">閉じる</button>
+      <span id="quoteSummary" class="quote-summary"></span>
+    </div>
+    <p class="subtle-note">「ここから」と「ここまで」を逆順に選ぶと、逆方向の駅順・番線で引用します。時刻は空欄で追加されます。</p>
+  </div>
   <table id="mainStopsTable">
     <thead><tr><th style="width:30%">駅名</th><th style="width:20%">到着</th><th style="width:20%">出発</th><th style="width:20%">番線</th><th style="width:10%">削除</th></tr></thead>
     <tbody id="stopsBody"></tbody>
@@ -129,6 +160,7 @@
   let stops = [];
   let masterData = [];
   let masterFiles = [];
+  let linePatterns = [];
 
   function refreshMasterData() {
     masterData = masterFiles.flatMap(file => file.items);
@@ -173,27 +205,175 @@
     }
   }
 
+  function handleLineChange() {
+    updateJSON();
+    if(!document.getElementById('lineQuotePanel').hidden) closeLineTemplate();
+  }
+
   function quoteLineTemplate() {
-    const lineName = document.getElementById('line').value;
-    if(!lineName) return;
-    const trains = masterData.filter(t => t.line === lineName);
-    if(trains.length === 0) { alert("その路線のデータは見つかりませんでした"); return; }
-    if(confirm(`路線「${lineName}」から駅構成を引用しますか？`)) {
-      const base = trains.reduce((p, c) => (p.stops.length > c.stops.length) ? p : c);
-      stops = base.stops.map(s => ({ station: s.station, arrival: "", departure: "", trackN: s.trackN || "" }));
-      updateUI();
-      showActionMsg("📋 駅リストを引用しました");
-    }
+    const lineName = document.getElementById('line').value.trim();
+    if(!lineName) { alert("先に路線名を選んでください"); return; }
+    linePatterns = buildLinePatterns(lineName);
+    if(linePatterns.length === 0) { alert("その路線の駅データは見つかりませんでした"); return; }
+
+    const patternSelect = document.getElementById('routePattern');
+    patternSelect.replaceChildren(...linePatterns.map((pattern, index) => {
+      const first = pattern.stops[0].station;
+      const last = pattern.stops.at(-1).station;
+      return new Option(`${first} → ${last}（${pattern.stops.length}駅・${pattern.count}列車）`, String(index));
+    }));
+    const preferredIndex = findPreferredPattern();
+    patternSelect.value = String(preferredIndex);
+    document.getElementById('lineQuotePanel').hidden = false;
+    selectRoutePattern();
+    document.getElementById('lineQuotePanel').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+
+  function buildLinePatterns(lineName) {
+    const grouped = new Map();
+    masterData.filter(train => train.line === lineName && Array.isArray(train.stops)).forEach(train => {
+      const routeStops = train.stops
+        .filter(stop => stop && String(stop.station || '').trim())
+        .map(stop => ({station: String(stop.station).trim(), trackN: stop.trackN ?? ''}));
+      if(routeStops.length === 0) return;
+      const key = routeStops.map(stop => stop.station).join('\u001f');
+      const current = grouped.get(key);
+      if(current) current.count += 1;
+      else grouped.set(key, {stops: routeStops, count: 1, exampleTrain: train.trainNumber || ''});
+    });
+    return [...grouped.values()].sort((a, b) =>
+      b.stops.length - a.stops.length || b.count - a.count ||
+      a.stops[0].station.localeCompare(b.stops[0].station, 'ja')
+    );
+  }
+
+  function findPreferredPattern() {
+    const origin = document.getElementById('origin').value.trim();
+    const destination = document.getElementById('destination').value.trim();
+    if(!origin && !destination) return 0;
+    const exact = linePatterns.findIndex(pattern => {
+      const names = pattern.stops.map(stop => stop.station);
+      const start = origin ? names.indexOf(origin) : 0;
+      const end = destination ? names.lastIndexOf(destination) : names.length - 1;
+      return start >= 0 && end >= 0;
+    });
+    return exact >= 0 ? exact : 0;
+  }
+
+  function selectRoutePattern() {
+    const pattern = linePatterns[Number(document.getElementById('routePattern').value)];
+    if(!pattern) return;
+    const options = pattern.stops.map((stop, index) => new Option(`${index + 1}. ${stop.station}`, String(index)));
+    const startSelect = document.getElementById('quoteStart');
+    const endSelect = document.getElementById('quoteEnd');
+    startSelect.replaceChildren(...options.map(option => option.cloneNode(true)));
+    endSelect.replaceChildren(...options);
+    const names = pattern.stops.map(stop => stop.station);
+    const preferredStart = names.indexOf(document.getElementById('origin').value.trim());
+    const preferredEnd = names.lastIndexOf(document.getElementById('destination').value.trim());
+    startSelect.value = String(preferredStart >= 0 ? preferredStart : 0);
+    endSelect.value = String(preferredEnd >= 0 ? preferredEnd : pattern.stops.length - 1);
+    updateRoutePreview();
+  }
+
+  function selectedTemplateStops() {
+    const pattern = linePatterns[Number(document.getElementById('routePattern').value)];
+    if(!pattern) return [];
+    const start = Number(document.getElementById('quoteStart').value);
+    const end = Number(document.getElementById('quoteEnd').value);
+    const low = Math.min(start, end);
+    const high = Math.max(start, end);
+    const selected = pattern.stops.slice(low, high + 1).map(stop => ({...stop}));
+    return start <= end ? selected : selected.reverse();
+  }
+
+  function updateRoutePreview() {
+    const selected = selectedTemplateStops();
+    const preview = document.getElementById('routePreview');
+    preview.replaceChildren();
+    selected.forEach((stop, index) => {
+      if(index > 0) {
+        const arrow = document.createElement('span');
+        arrow.className = 'route-arrow'; arrow.textContent = '›';
+        preview.appendChild(arrow);
+      }
+      const station = document.createElement('span');
+      station.className = `route-station${index === 0 || index === selected.length - 1 ? ' endpoint' : ''}`;
+      station.textContent = stop.station;
+      preview.appendChild(station);
+    });
+    const start = Number(document.getElementById('quoteStart').value);
+    const end = Number(document.getElementById('quoteEnd').value);
+    document.getElementById('quoteSummary').textContent = selected.length
+      ? `${selected.length}駅・${start <= end ? '登録順' : '逆方向'}` : '';
+  }
+
+  function applyLineTemplate() {
+    const selected = selectedTemplateStops();
+    if(selected.length === 0) return;
+    const lineName = document.getElementById('line').value.trim();
+    const quoted = applyDirectionalTracks(
+      selected.map(stop => ({station: stop.station, arrival: '', departure: '', trackN: stop.trackN ?? ''})),
+      lineName
+    );
+    stops = quoted;
+    document.getElementById('origin').value = stops[0].station;
+    document.getElementById('destination').value = stops.at(-1).station;
+    updateUI();
+    closeLineTemplate();
+    showActionMsg(`📋 ${stops[0].station}から${stops.at(-1).station}まで、${stops.length}駅を引用しました`);
+  }
+
+  function closeLineTemplate() {
+    document.getElementById('lineQuotePanel').hidden = true;
   }
 
   function reverseStops() {
     if (stops.length === 0) return;
     if (confirm("駅順を反転させますか？")) {
-      stops.reverse();
-      stops = stops.map(s => ({ station: s.station, arrival: s.departure, departure: s.arrival, trackN: s.trackN }));
+      const lineName = document.getElementById('line').value.trim();
+      const reversed = [...stops].reverse().map(stop => ({
+        station: stop.station,
+        arrival: stop.departure || '',
+        departure: stop.arrival || '',
+        trackN: stop.trackN ?? ''
+      }));
+      stops = applyDirectionalTracks(reversed, lineName);
+      document.getElementById('origin').value = stops[0].station;
+      document.getElementById('destination').value = stops.at(-1).station;
       updateUI();
-      showActionMsg("🔃 反転完了");
+      showActionMsg("🔃 駅順・着発・番線を逆方向へ反転しました");
     }
+  }
+
+  function directionalTrackCandidates(station, previousStation, nextStation, lineName) {
+    if(!station || (!previousStation && !nextStation)) return [];
+    const scores = new Map();
+    masterData.filter(train => !lineName || train.line === lineName).forEach(train => {
+      if(!Array.isArray(train.stops)) return;
+      train.stops.forEach((stop, index) => {
+        if(stop.station !== station || stop.trackN === undefined || stop.trackN === null || stop.trackN === '') return;
+        const matchesPrevious = previousStation && train.stops[index - 1]?.station === previousStation;
+        const matchesNext = nextStation && train.stops[index + 1]?.station === nextStation;
+        if(!matchesPrevious && !matchesNext) return;
+        const key = String(stop.trackN);
+        const score = 1 + (matchesPrevious ? 4 : 0) + (matchesNext ? 4 : 0) + (matchesPrevious && matchesNext ? 8 : 0);
+        scores.set(key, (scores.get(key) || 0) + score);
+      });
+    });
+    return [...scores.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja')).map(([track]) => track);
+  }
+
+  function applyDirectionalTracks(routeStops, lineName) {
+    return routeStops.map((stop, index) => {
+      const candidates = directionalTrackCandidates(
+        stop.station,
+        routeStops[index - 1]?.station || '',
+        routeStops[index + 1]?.station || '',
+        lineName
+      );
+      return {...stop, trackN: candidates[0] ?? stop.trackN ?? ''};
+    });
   }
 
   function updateTrackSuggestions(inputId, listId) {
@@ -240,7 +420,14 @@
   function createDynamicDatalist(index, stationName) {
     const dl = document.getElementById(`dl_track_${index}`);
     dl.innerHTML = "";
-    const tracks = [...new Set(masterData.flatMap(t => t.stops.filter(s => s.station === stationName).map(s => s.trackN)))].filter(Boolean);
+    const directional = directionalTrackCandidates(
+      stationName,
+      stops[index - 1]?.station || '',
+      stops[index + 1]?.station || '',
+      document.getElementById('line').value.trim()
+    );
+    const allTracks = masterData.flatMap(t => (t.stops || []).filter(s => s.station === stationName).map(s => s.trackN)).filter(Boolean).map(String);
+    const tracks = [...new Set([...directional, ...allTracks])];
     tracks.forEach(t => dl.appendChild(new Option(t, t)));
   }
 
@@ -278,18 +465,25 @@
   }
 
   function prepareNextSection() {
-    const nextTr = document.getElementById("tr2").value;
+    const nextTr = document.getElementById("tr2").value.trim();
     if (!nextTr) { alert("次列車番号を入力してください"); return; }
-    const curTr = document.getElementById("trainNumber").value;
+    const curTr = document.getElementById("trainNumber").value.trim();
     const nextKid1 = document.getElementById("kid2").value;
     const nextTt1 = document.getElementById("tt2").value;
+    const connectionStop = stops.length ? {...stops.at(-1), arrival: '', departure: ''} : null;
+    const connectionStation = connectionStop?.station || document.getElementById('destination').value.trim();
+    const detail = connectionStation ? `接続駅「${connectionStation}」を次区間の先頭に残します。` : '停車駅は空の状態で開始します。';
+    if(!confirm(`${nextTr}の編集へ進みますか？\n${detail}`)) return;
     document.getElementById("trainNumber").value = nextTr;
     document.getElementById("tr1").value = curTr;
     document.getElementById("kid1").value = nextKid1;
     document.getElementById("tt1").value = nextTt1;
     ["tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
-    stops = []; updateUI();
-    showActionMsg("➡ スライドしました");
+    document.getElementById('origin').value = connectionStation;
+    document.getElementById('destination').value = '';
+    stops = connectionStop ? [connectionStop] : [];
+    updateUI();
+    showActionMsg(`➡ ${nextTr}へスライドしました${connectionStation ? `（接続駅: ${connectionStation}）` : ''}`);
   }
 
   function handleImport(event) {
