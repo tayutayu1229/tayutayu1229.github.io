@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ダイヤ出力システム</title>
+  <link rel="stylesheet" href="/style.css?v=2026.08.23.5">
+  <script defer src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script defer src="/app.js?v=2026.08.23.5"></script>
+</head>
+<body>
+  <div class="auth-screen" id="auth-screen">
+    <div class="auth-box">
+      <h2>ダイヤ出力システム</h2>
+      <p>承認済みのTAYUNETアカウントでログインしてください。</p>
+      <form id="login-form">
+        <label>メールアドレス<input id="login-email" type="email" autocomplete="username" required></label>
+        <label>パスワード<input id="login-password" type="password" autocomplete="current-password" required></label>
+        <p class="auth-error" id="auth-error" role="alert"></p>
+        <button class="btn btn-green" id="login-button" type="submit">ログイン</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-title">PDF生成中...</div>
+    <div class="loading-caption">しばらくお待ちください</div>
+  </div>
+
+  <header><h1>ダイヤ出力システム</h1></header>
+
+  <div id="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">発行確認</h2>
+      <div class="confirm-view" id="confirm-view"></div>
+      <div class="modal-actions">
+        <button class="btn btn-green primary-action" id="exec-final" type="button">発行する</button>
+        <button class="btn btn-gray secondary-action" id="close-modal" type="button">戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="search-grid">
+        <div class="search-wide"><label for="qK">キーワード</label><input type="search" id="qK" placeholder="列番・線区・始発・行先・途中駅を検索" autocomplete="off"></div>
+        <div><label for="qD">施行日</label><input type="date" id="qD"></div>
+        <div><label for="qOutputDate">出力日（PDFの施行日）</label><input type="date" id="qOutputDate"></div>
+        <div><label for="qLine">線区</label><select id="qLine"><option value="">すべての線区</option></select></div>
+        <div><label for="qType">種別</label><select id="qType"><option value="">すべての種別</option></select></div>
+        <div><label for="qDay">運転日</label><select id="qDay"><option value="">すべて</option></select></div>
+        <div class="location-wide"><label for="qL">出力先</label><select id="qL"></select></div>
+        <button class="btn btn-green" id="reload-button" type="button">更新</button>
+        <button class="btn btn-gray" id="clear-filters" type="button">条件をクリア</button>
+      </div>
+    </div>
+
+    <div class="panel panel-table">
+      <div class="list-toolbar">
+        <strong id="result-count">読み込み中</strong>
+        <div class="list-controls">
+          <label for="sort-select">並び順</label>
+          <select id="sort-select">
+            <option value="date-desc">施行日が新しい順</option>
+            <option value="date-asc">施行日が古い順</option>
+            <option value="train">列番順</option>
+            <option value="line">線区順</option>
+          </select>
+          <label for="page-size">表示件数</label>
+          <select id="page-size"><option value="50">50件</option><option value="100" selected>100件</option><option value="200">200件</option></select>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>施行日</th><th>線区</th><th>列番</th><th>種別</th><th>運転日</th><th>区間</th><th>始発→終着時刻</th><th>停車駅</th><th>操作</th></tr></thead>
+        <tbody id="list"><tr><td class="empty" colspan="9">時刻表データを読み込んでいます。</td></tr></tbody>
+      </table>
+      <div class="pagination" id="pagination" hidden>
+        <button class="btn btn-gray btn-small" id="previous-page" type="button">前へ</button>
+        <span id="page-info"></span>
+        <button class="btn btn-gray btn-small" id="next-page" type="button">次へ</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
