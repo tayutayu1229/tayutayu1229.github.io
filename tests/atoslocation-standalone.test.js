@@ -1,0 +1,36 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+const standalone = fs.readFileSync('ATOSlocation.html', 'utf8');
+const monitor = fs.readFileSync('atosweb.html', 'utf8');
+const top = fs.readFileSync('toppage.html', 'utf8');
+
+for (const feature of [
+  'id="atosLineSelect"',
+  'id="atosDirection"',
+  'id="atos-monitor"',
+  'function atosManualUpdate()',
+  'function showAtosStationTT(',
+  'async function openAtosTrainTimetable(',
+  'id="modal-station-tt"',
+  'id="modal-train-tt"',
+]) {
+  assert.ok(monitor.includes(feature), `shared ATOS monitor is missing: ${feature}`);
+}
+
+assert.match(standalone, /<iframe id="atos-standalone" title="ATOS在線モニタ">/,
+  'ATOSlocation must provide a full-screen standalone monitor');
+assert.match(standalone, /params\.set\('standalone', '1'\)/,
+  'ATOSlocation must enable the shared standalone rendering mode');
+assert.doesNotMatch(standalone, /location\.replace\(/,
+  'ATOSlocation must not redirect to the integrated screen');
+assert.match(monitor, /const requestedView=standaloneRealtime\?'realtime'/,
+  'the standalone page must stay on its realtime monitor');
+assert.match(monitor, /\.standalone-realtime #nav-tabs \{ display: none; \}/,
+  'integrated navigation tabs must be hidden in the standalone monitor');
+assert.match(monitor, /ATOSlocation\.html/,
+  'the standalone monitor must create standalone share URLs');
+assert.match(top, /data-name="ATOS在線モニタ"[^>]+ATOSlocation\.html/,
+  'the top-page tile must open the standalone monitor');
+
+console.log('ATOS standalone monitor tests: ok');

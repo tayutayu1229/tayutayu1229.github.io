@@ -709,6 +709,14 @@ body.train-modal-open { position:fixed !important; left:0; right:0; width:100%; 
   #nav-tabs { padding: 0 8px; scrollbar-width: thin; }
   .nav-tab { padding: 8px 14px; font-size: 0.75rem; }
 }
+/* ===== ATOS在線モニタ単体表示 ===== */
+.standalone-realtime #nav-tabs { display: none; }
+.standalone-realtime .tab-panel:not(#tab-realtime) { display: none !important; }
+.standalone-realtime #tab-realtime { display: block !important; }
+.standalone-only { display: none; }
+.standalone-realtime .integrated-only { display: none; }
+.standalone-realtime .standalone-only { display: inline; }
+
 </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -720,14 +728,17 @@ body.train-modal-open { position:fixed !important; left:0; right:0; width:100%; 
 <script src="/assets/js/site-brand.js" defer></script>
 </head>
 <body>
+<script>
+if(new URLSearchParams(location.search).get('standalone')==='1') document.body.classList.add('standalone-realtime');
+</script>
 
 <!-- ===== HEADER ===== -->
 <div id="header">
   <div class="header-left">
     <div class="sys-badge">JR-EAST TTC</div>
     <div>
-      <div class="sys-title">ATOS情報配信システム</div>
-      <div class="sys-sub">統合情報モニタ　列車在線・運行把握・ダイヤ情報</div>
+      <div class="sys-title"><span class="integrated-only">ATOS情報配信システム</span><span class="standalone-only">ATOS在線モニタ</span></div>
+      <div class="sys-sub"><span class="integrated-only">統合情報モニタ　列車在線・運行把握・ダイヤ情報</span><span class="standalone-only">列車在線・運行状況・駅別／列車別ダイヤ</span></div>
     </div>
   </div>
   <div class="header-right">
@@ -1166,6 +1177,7 @@ function readUrlState(){
   return out;
 }
 const initialUrlState=readUrlState();
+const standaloneRealtime=new URLSearchParams(location.search).get('standalone')==='1';
 let urlStateReady=false;
 function syncUrlState(extra={}){
   if(!urlStateReady) return;
@@ -1174,6 +1186,7 @@ function syncUrlState(extra={}){
   const direction=document.getElementById('atosDirection')?.value||'all';
   const params=new URLSearchParams();
   params.set('view',extra.view||active);
+  if(standaloneRealtime) params.set('standalone','1');
   if(line) params.set('line',line);
   if(direction!=='all') params.set('direction',direction);
   if(infoFilterMode!=='all') params.set('info',infoFilterMode);
@@ -1189,19 +1202,29 @@ function syncUrlState(extra={}){
   if(extra.station) hashParts.push(`station=${encodeURIComponent(extra.station)}`);
   if(extra.train) hashParts.push(`train=${encodeURIComponent(extra.train)}`);
   history.replaceState(null,'',`${location.pathname}?${query}#${hashParts.join('&')}`);
+  if(standaloneRealtime&&window.parent!==window){
+    window.parent.postMessage({type:'atos-location-state',query},location.origin);
+  }
 }
 async function copyShareUrl(){
   syncUrlState();
   const btn=document.getElementById('share-url-btn');
-  try{ await navigator.clipboard.writeText(location.href); btn.textContent='コピー済み'; }
-  catch(e){ window.prompt('このURLをコピーしてください',location.href); btn.textContent='URL表示'; }
+  let shareUrl=location.href;
+  if(standaloneRealtime){
+    const params=new URLSearchParams(location.search);
+    params.delete('standalone'); params.delete('view');
+    shareUrl=`${location.origin}/ATOSlocation.html${params.size?`?${params}`:''}`;
+  }
+  try{ await navigator.clipboard.writeText(shareUrl); btn.textContent='コピー済み'; }
+  catch(e){ window.prompt('このURLをコピーしてください',shareUrl); btn.textContent='URL表示'; }
   setTimeout(()=>btn.textContent='共有URL',1800);
 }
 function goTopMenu(){
   document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none');
   stationModalBehindTrain=false;
   hideTrainDetails();
-  window.location.href='/toppage.html';
+  if(standaloneRealtime&&window.parent!==window) window.parent.location.href='/toppage.html';
+  else window.location.href='/toppage.html';
 }
 
 // ===== 路線名マップ =====
@@ -3091,7 +3114,7 @@ document.querySelectorAll('#info-filters .fchip').forEach((el,i)=>el.classList.t
 const graspModeIndex={all:0,delay:1,nodelay:2}[graspFilterMode]||0;
 document.querySelectorAll('#grasp-filters .fchip').forEach((el,i)=>el.classList.toggle('active',i===graspModeIndex));
 if(initialUrlState.sort&&['delay','name','ratio'].includes(initialUrlState.sort)) document.getElementById('grasp-sort').value=initialUrlState.sort;
-const requestedView=['realtime','grasp','info','stationdia','traindia','station'].includes(initialUrlState.view)?initialUrlState.view:'realtime';
+const requestedView=standaloneRealtime?'realtime':(['realtime','grasp','info','stationdia','traindia','station'].includes(initialUrlState.view)?initialUrlState.view:'realtime');
 const requestedButton=document.querySelector(`.nav-tab[data-tab="${requestedView}"]`);
 if(requestedButton) switchTab(requestedView,requestedButton,true);
 urlStateReady=true;

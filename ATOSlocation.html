@@ -3,41 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
   <title>ATOS在線モニタ</title>
-  <script>
-    (() => {
-      const query = new URLSearchParams(location.search);
-      const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-
-      // 旧URLで共有された在線条件を、統合ATOSモニタへそのまま引き継ぐ。
-      for (const key of ['line', 'direction', 'station', 'train', 'calendar']) {
-        if (!query.has(key) && hash.has(key)) query.set(key, hash.get(key));
-      }
-      query.set('view', 'realtime');
-
-      const target = `atosweb.html?${query.toString()}#view=realtime`;
-      location.replace(target);
-    })();
-  </script>
-  <noscript>
-    <meta http-equiv="refresh" content="0; url=atosweb.html?view=realtime#view=realtime">
-  </noscript>
+  <link rel="icon" href="/favicon.ico">
   <style>
-    :root { color-scheme: light; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #f4f6f4;
-      color: #153b2a;
-      font: 700 14px/1.6 system-ui, sans-serif;
-    }
-    a { color: #176b43; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #f3f3f3; }
+    #atos-standalone { display: block; width: 100%; height: 100%; border: 0; }
   </style>
 </head>
 <body>
-  <p>ATOS在線モニタを開いています。<br><a href="atosweb.html?view=realtime#view=realtime">自動的に移動しない場合はこちら</a></p>
+  <iframe id="atos-standalone" title="ATOS在線モニタ"></iframe>
+  <script>
+    (() => {
+      const frame = document.getElementById('atos-standalone');
+      const params = new URLSearchParams(location.search);
+      params.set('standalone', '1');
+      params.set('view', 'realtime');
+      frame.src = `atosweb.html?${params.toString()}#view=realtime`;
+
+      addEventListener('message', event => {
+        if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+        if (event.data?.type !== 'atos-location-state') return;
+        const next = new URLSearchParams(event.data.query || '');
+        next.delete('standalone');
+        next.delete('view');
+        history.replaceState(null, '', `${location.pathname}${next.size ? `?${next}` : ''}`);
+      });
+    })();
+  </script>
 </body>
 </html>
