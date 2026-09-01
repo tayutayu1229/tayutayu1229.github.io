@@ -35,6 +35,10 @@ for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-
 }
 assert.match(monitor, /function updateStandaloneAtosSummary\(/,
   'the standalone summary must update with the selected line');
+assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 15px;/,
+  'standalone train cards must use the dedicated rounded design');
+assert.match(monitor, /\.standalone-realtime \.train\.down::after \{ content: '›';/,
+  'standalone train cards must retain a clear direction marker');
 assert.match(top, /data-name="ATOS在線モニタ"[^>]+ATOSlocation\.html/,
   'the top-page tile must open the standalone monitor');
 
