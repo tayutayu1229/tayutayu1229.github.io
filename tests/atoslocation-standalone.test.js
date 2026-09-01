@@ -30,15 +30,8 @@ assert.match(monitor, /\.standalone-realtime #nav-tabs \{ display: none; \}/,
   'integrated navigation tabs must be hidden in the standalone monitor');
 assert.match(monitor, /ATOSlocation\.html/,
   'the standalone monitor must create standalone share URLs');
-for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-atos-delays', 'standalone-atos-stations']) {
-  assert.ok(monitor.includes(`id="${id}"`), `standalone summary is missing: ${id}`);
-}
-assert.match(monitor, /\.standalone-atos-summary \{ display: none !important;/,
-  'the standalone summary must stay hidden in the integrated atosweb view');
-assert.match(monitor, /\.standalone-realtime \.standalone-atos-summary \{ display: grid !important; \}/,
-  'the standalone summary must appear only in standalone mode');
-assert.match(monitor, /function updateStandaloneAtosSummary\(/,
-  'the standalone summary must update with the selected line');
+assert.doesNotMatch(monitor, /standalone-atos-summary|standalone-summary-card|updateStandaloneAtosSummary/,
+  'the obsolete summary cards must not appear in either monitor');
 assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 0;/,
   'standalone train cards must use a fully square frame');
 assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 24px\)/,

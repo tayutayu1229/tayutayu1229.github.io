@@ -737,13 +737,6 @@ body.train-modal-open { position:fixed !important; left:0; right:0; width:100%; 
 .standalone-realtime .atos-note { margin: 0 0 10px; background: #f6f8f6; }
 .standalone-realtime .station-line,
 .standalone-realtime .parallel-combined-track { margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-.standalone-atos-summary { display: none !important; grid-template-columns: 1.5fr repeat(3,1fr); gap: 8px; margin-bottom: 10px; }
-.standalone-realtime .standalone-atos-summary { display: grid !important; }
-.standalone-summary-card { min-width: 0; padding: 10px 12px; background: #fff; border: 1px solid var(--border2); border-left: 5px solid var(--green2); }
-.standalone-summary-card.delay { border-left-color: var(--red); }
-.standalone-summary-label { color: var(--text3); font-size: .62rem; font-weight: 800; letter-spacing: .08em; }
-.standalone-summary-value { margin-top: 2px; overflow: hidden; color: var(--text); font: 900 1.08rem/1.25 'Oswald','Noto Sans JP',sans-serif; text-overflow: ellipsis; white-space: nowrap; }
-.standalone-summary-card.delay .standalone-summary-value { color: var(--red2); }
 body.standalone-realtime {
   background:
     radial-gradient(circle at 8% 4%, rgba(68,177,117,.12), transparent 25rem),
@@ -761,12 +754,6 @@ body.standalone-realtime {
 .standalone-realtime .share-btn { border-radius: 10px; }
 .standalone-realtime #tab-realtime > .panel-box > .panel-head,
 .standalone-realtime .atos-line-selector-row,
-.standalone-realtime .standalone-summary-card { border-radius: 14px; }
-.standalone-realtime .standalone-summary-card {
-  background: linear-gradient(145deg,#fff 35%,#f2f8f4 100%);
-  box-shadow: 0 4px 12px rgba(18,70,39,.07);
-}
-.standalone-realtime .standalone-summary-card.delay { background: linear-gradient(145deg,#fff 35%,#fff3f4 100%); }
 .standalone-realtime .atos-line-selector-row .h-select,
 .standalone-realtime #atos-train-count,
 .standalone-realtime .hbtn { border-radius: 10px; }
@@ -823,8 +810,6 @@ body.standalone-realtime {
   .standalone-realtime .atos-line-selector-row > span:first-child { width: 100%; }
   .standalone-realtime #atosLineSelect,
   .standalone-realtime #atosDirection { flex: 1 1 100%; width: 100%; }
-  .standalone-atos-summary { grid-template-columns: 1fr 1fr; gap: 6px; }
-  .standalone-summary-card { padding: 8px 9px; }
 }
 /* タブレット縦・スマートフォンでは在線図だけを高密度化する。PC寸法は変更しない。 */
 @media(max-width:900px){
@@ -867,10 +852,6 @@ body.standalone-realtime {
   .standalone-realtime #tab-realtime > .panel-box > .panel-body { padding-top:6px; }
   .standalone-realtime .atos-line-selector-row { gap:5px; margin-bottom:6px; padding:6px; }
   .standalone-realtime .atos-line-selector-row .h-select { min-height:36px; font-size:.72rem; }
-  .standalone-atos-summary { gap:4px; margin-bottom:6px; }
-  .standalone-summary-card { padding:5px 6px; border-left-width:3px; }
-  .standalone-summary-label { font-size:.52rem; }
-  .standalone-summary-value { font-size:.82rem; }
   .station,
   .standalone-realtime .station { width:clamp(52px,15vw,64px); min-height:28px; padding:4px 2px; font-size:7.5px; }
   .train,
@@ -1037,12 +1018,6 @@ if(new URLSearchParams(location.search).get('standalone')==='1') document.body.c
     </div>
     <div class="panel-body">
       <div id="err-atos" class="error-box">⚠ データの取得に失敗しました</div>
-      <div class="standalone-atos-summary standalone-only" aria-live="polite">
-        <div class="standalone-summary-card"><div class="standalone-summary-label">表示路線</div><div class="standalone-summary-value" id="standalone-atos-line">—</div></div>
-        <div class="standalone-summary-card"><div class="standalone-summary-label">在線列車</div><div class="standalone-summary-value"><span id="standalone-atos-trains">—</span>本</div></div>
-        <div class="standalone-summary-card delay"><div class="standalone-summary-label">遅延列車</div><div class="standalone-summary-value"><span id="standalone-atos-delays">—</span>本</div></div>
-        <div class="standalone-summary-card"><div class="standalone-summary-label">表示駅</div><div class="standalone-summary-value"><span id="standalone-atos-stations">—</span>駅</div></div>
-      </div>
       <div class="atos-line-selector-row">
         <span style="font-size:0.8rem;font-weight:700;color:var(--text2);">路線選択:</span>
         <select class="h-select" id="atosLineSelect" onchange="atosLineChanged()" style="min-width:240px;"></select>
@@ -2211,7 +2186,7 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     box.appendChild(station);
   });
   const candidates=atosTrainData.filter(train=>mode.lines.includes(train['odpt:railway']));
-  const stacks={up:{},down:{}},max={up:0,down:0};let count=0,delayedCount=0;
+  const stacks={up:{},down:{}},max={up:0,down:0};let count=0;
   candidates.forEach(train=>{
     const filterDir=getTrainDir(train['odpt:railDirection'],train['odpt:railway']);
     if(directionFilter!=='all'&&filterDir!==directionFilter) return;
@@ -2226,12 +2201,11 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666');card.style.left=`${pos}%`;
     const trainH=compactAtos?44:60,trackGap=compactAtos?20:25;if(visualDir==='down') card.style.bottom=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;else card.style.top=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;
     populateAtosTrainCard(card,train);
-    card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;if(Number(train['odpt:delay'])>0) delayedCount++;
+    card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;
   });
   box.style.height=`${Math.max(compactAtos?132:170,(compactAtos?112:150)+(max.up+max.down)*(compactAtos?44:60))}px`;
   monitor.appendChild(box);
   document.getElementById('atos-train-count').textContent=`4路線共用・表示 ${count}本`;
-  updateStandaloneAtosSummary(count,delayedCount,mode.stations.length);
 }
 
 function atosRenderParallel(mode,monitor,directionFilter){
@@ -2242,7 +2216,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
     i+=g===0?4:3; if(part.length<2) break; groups.push(part);
   }
   const placed=new Set();
-  let count=0, delayedCount=0;
+  let count=0;
   groups.forEach((group,groupIndex)=>{
     const box=document.createElement('div'); box.className='parallel-combined-track';
     mode.lines.forEach((lineId,index)=>{
@@ -2267,7 +2241,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
       const pkey=ti>=0?`${Math.min(fi,ti)}-${Math.max(fi,ti)}-${tdir}`:`${fi}-${tdir}`;
       const laneKey=pkey;
       const offset=stacks[tdir][laneKey]||0; stacks[tdir][laneKey]=offset+1; max[tdir]=Math.max(max[tdir],offset+1);
-      cards.push({train,lineIndex,tdir,pos,offset}); placed.add(key); count++; if(Number(train['odpt:delay'])>0) delayedCount++;
+      cards.push({train,lineIndex,tdir,pos,offset}); placed.add(key); count++;
     }));
     const trainH=compactAtos?44:56; box.style.height=`${(compactAtos?112:150)+(max.up+max.down)*trainH}px`;
     cards.forEach(({train,lineIndex,tdir,pos,offset})=>{
@@ -2284,17 +2258,6 @@ function atosRenderParallel(mode,monitor,directionFilter){
     monitor.appendChild(box);
   });
   document.getElementById('atos-train-count').textContent=`並走2路線・表示 ${count}本`;
-  updateStandaloneAtosSummary(count,delayedCount,mode.stations.length);
-}
-
-function updateStandaloneAtosSummary(trainCount,delayCount,stationCount){
-  if(!standaloneRealtime) return;
-  const select=document.getElementById('atosLineSelect');
-  const lineLabel=select?.selectedOptions?.[0]?.textContent||'—';
-  document.getElementById('standalone-atos-line').textContent=lineLabel;
-  document.getElementById('standalone-atos-trains').textContent=trainCount;
-  document.getElementById('standalone-atos-delays').textContent=delayCount;
-  document.getElementById('standalone-atos-stations').textContent=stationCount;
 }
 
 function atosRender(){
@@ -2323,7 +2286,7 @@ function atosRender(){
 
   const allStations=(lineData["odpt:stationOrder"]||[]).sort((a,b)=>a["odpt:index"]-b["odpt:index"]);
   const stationIds=allStations.map(s=>s["odpt:station"]);
-  let trainCount=0, delayedTrainCount=0;
+  let trainCount=0;
   const placedTrainKeys=new Set();
 
   let groupIndex=0;
@@ -2402,7 +2365,6 @@ function atosRender(){
       toRender.push({train,pos,tdir,oc});
       placedTrainKeys.add(trainKey);
       trainCount++;
-      if(Number(train['odpt:delay'])>0) delayedTrainCount++;
     });
 
     const trainH=compactAtos?42:54,baseHeight=compactAtos?96:130;
@@ -2437,7 +2399,6 @@ function atosRender(){
 
   const cnt=document.getElementById('atos-train-count');
   if(cnt) cnt.textContent=`表示: ${trainCount}本`;
-  updateStandaloneAtosSummary(trainCount,delayedTrainCount,allStations.length);
   syncUrlState();
   window.scrollTo(0,scrollY);
 }
