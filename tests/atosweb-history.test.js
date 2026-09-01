@@ -87,6 +87,30 @@ assert.deepEqual(
 );
 assert.deepEqual(changed.__plannedDestinationStation, ['C']);
 
+context.atosRailwayData = [{
+  'owl:sameAs': 'LineA',
+  'odpt:stationOrder': [
+    {'odpt:station': 'A'},
+    {'odpt:station': 'P'},
+    {'odpt:station': 'C'},
+  ],
+}];
+context.historyPredictionForStation = (routeHistory, station) => routeHistory?.predictions?.[station] || null;
+const passSupplemented = context.supplementTimetableWithRouteStations({
+  'odpt:railway': 'LineA',
+  'odpt:trainTimetableObject': [
+    {'odpt:station': 'A', 'odpt:departureTime': '10:00:00'},
+    {'odpt:station': 'C', 'odpt:arrivalTime': '10:20:00'},
+  ],
+}, null, {predictions: {P: {plannedTime: '10:09:30'}}});
+assert.deepEqual(
+  Array.from(passSupplemented['odpt:trainTimetableObject'], stop => stop['odpt:station']),
+  ['A', 'P', 'C'],
+  'omitted pass-through stations must be restored from railway order',
+);
+assert.equal(passSupplemented['odpt:trainTimetableObject'][1]['odpt:arrivalTime'], '10:09:30');
+assert.equal(passSupplemented['odpt:trainTimetableObject'][1].__predictionBasis, 'history');
+
 console.log('atosweb history tests: ok');
 
 const operationContext = {

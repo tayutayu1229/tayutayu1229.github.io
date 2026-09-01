@@ -452,15 +452,19 @@ html, body {
 }
 .train:hover { box-shadow: 0 6px 14px rgba(0,0,0,.2); z-index:20; }
 .train:active { transform: translateX(-50%) translateY(1px); }
-/* 方向矢印 */
-.train.down { clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%); }
-.train.up { clip-path:polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%); }
+/* 進行方向側の上角だけを切り、カード同士が重なっても向きを判別できるようにする。 */
+.train.down { clip-path:polygon(0 0,calc(100% - 15px) 0,100% 15px,100% 100%,0 100%); }
+.train.up { clip-path:polygon(15px 0,100% 0,100% 100%,0 100%,0 15px); }
 .train::before { content:''; position:absolute; inset:3px; z-index:1; background:#d8dad9; clip-path:inherit; }
 .train > * { position:relative; z-index:2; }
 .train.delayed-train::before { background:#fff0f1; }
 .train-number { white-space:nowrap; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; font-family:'Oswald',sans-serif; color:var(--text); }
 .train-delay  { color: var(--red2); font-weight:900; font-size:10px; }
 .train-info-sub { font-size:8.5px; color:var(--text3); line-height:1.1; margin-top:2px; }
+.train-order { position:absolute; top:-12px; left:50%; z-index:4; transform:translateX(-50%); padding:2px 7px; color:#fff; background:#173f2a; border:2px solid #fff; border-radius:6px; font-size:8px; font-weight:900; line-height:1.2; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+.train-order.same-position { background:#7b5b18; }
+.train-line-chip { position:absolute; right:5px; bottom:3px; z-index:3; max-width:64px; overflow:hidden; color:var(--text3); font-size:7px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
+.corridor-combined-track::after { content:'常磐線快速・東海道線・高崎線・宇都宮線　共用線路'; position:absolute; top:9px; left:12px; z-index:2; padding:3px 8px; color:#28503a; background:rgba(255,255,255,.9); border:1px solid #b9c9bf; border-radius:6px; font-size:9px; font-weight:900; }
 
 .atos-table-wrap { overflow-x:auto; border:1px solid var(--border2); }
 .atos-table { width:100%; min-width:920px; border-collapse:collapse; table-layout:auto; font-size:.72rem; }
@@ -566,6 +570,8 @@ body.train-modal-open { position:fixed !important; left:0; right:0; width:100%; 
 .mobile-atos-train-monitor tr.mobile-current td { background:#fff4bf; }
 .mobile-atos-train-monitor td.mobile-prediction,
 .mobile-atos-train-monitor td.mobile-operation-train { color:#1537ad; }
+.mobile-atos-train-monitor tr.mobile-pass-stop td { background:#e8f0ec; color:#425248; }
+.mobile-pass-chip { display:inline-block; margin-left:5px; padding:1px 4px; color:#17643b; background:#d8f0e1; border:1px solid #72b58a; border-radius:3px; font-size:10px; vertical-align:middle; }
 .mobile-atos-train-monitor .mobile-delay-positive { color:#d7192d; }
 .mobile-atos-train-monitor .mobile-delay-zero { color:#111; }
 .mobile-atos-train-monitor .mobile-atos-legend { padding:5px 8px; font-size:13px; }
@@ -790,26 +796,23 @@ body.standalone-realtime {
 }
 .standalone-realtime .train {
   width: 142px; min-width: 142px; height: 50px; padding: 5px 28px 5px 12px;
-  color: inherit; background: #fff; border: 2px solid currentColor; border-radius: 15px;
-  clip-path: none !important; overflow: visible;
+  color: inherit; background: #fff; border: 2px solid currentColor; border-radius: 10px;
+  overflow: visible;
   box-shadow: 0 7px 16px rgba(19,52,31,.16);
   transition: box-shadow .16s,transform .16s;
 }
 .standalone-realtime .train.up { padding: 5px 12px 5px 28px; }
+.standalone-realtime .train.down { clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%); }
+.standalone-realtime .train.up { clip-path:polygon(16px 0,100% 0,100% 100%,0 100%,0 16px); }
 .standalone-realtime .train::before {
-  inset: 3px; background: linear-gradient(145deg,#fff,#eef3ef); border-radius: 11px; clip-path: none;
+  inset: 3px; background: linear-gradient(145deg,#fff,#eef3ef); border-radius: 10px; clip-path: inherit;
 }
 .standalone-realtime .train.delayed-train { border-color: #d8434d; }
 .standalone-realtime .train.delayed-train::before { background: linear-gradient(145deg,#fff,#fff0f1); }
 .standalone-realtime .train.limited-express-train::before { background: linear-gradient(145deg,#fff,#fff1f3); }
-.standalone-realtime .train::after {
-  position: absolute; top: 50%; z-index: 3; width: 19px; height: 19px;
-  display: grid; place-items: center; transform: translateY(-50%);
-  background: #fff; border: 2px solid currentColor; border-radius: 50%;
-  color: inherit; font: 900 15px/1 sans-serif;
-}
-.standalone-realtime .train.down::after { content: '›'; right: 6px; }
-.standalone-realtime .train.up::after { content: '‹'; left: 6px; }
+.standalone-realtime .train::after { position:absolute; top:5px; z-index:3; color:inherit; font:900 13px/1 sans-serif; }
+.standalone-realtime .train.down::after { content:'→'; right:7px; }
+.standalone-realtime .train.up::after { content:'←'; left:7px; }
 .standalone-realtime .train:hover { z-index: 20; transform: translateX(-50%) translateY(-3px); box-shadow: 0 12px 24px rgba(13,65,35,.24); }
 .standalone-realtime .train:active { transform: translateX(-50%) translateY(0); }
 .standalone-realtime .train-number { font-size: 13px; }
@@ -1424,7 +1427,13 @@ const sharedSections = {
   "odpt.Railway:JR-East.Takasaki":["odpt.Railway:JR-East.Utsunomiya"],
   "odpt.Railway:JR-East.Utsunomiya":["odpt.Railway:JR-East.Takasaki"]
 };
+const UENO_TOKYO_CORRIDOR_LINES=[
+  'odpt.Railway:JR-East.JobanRapid','odpt.Railway:JR-East.Tokaido',
+  'odpt.Railway:JR-East.Takasaki','odpt.Railway:JR-East.Utsunomiya'
+];
+const UENO_TOKYO_CORRIDOR_STATIONS=['品川','新橋','東京','上野'];
 const sharedTrackSections=[
+  {lines:UENO_TOKYO_CORRIDOR_LINES,stations:UENO_TOKYO_CORRIDOR_STATIONS},
   {lines:['odpt.Railway:JR-East.Utsunomiya','odpt.Railway:JR-East.Takasaki'],stations:['東京','上野','尾久','赤羽','浦和','さいたま新都心','大宮']},
   {lines:['odpt.Railway:JR-East.ShonanShinjuku','odpt.Railway:JR-East.SaikyoKawagoe'],stations:['大崎','恵比寿','渋谷','新宿','池袋']},
   {lines:['odpt.Railway:JR-East.ShonanShinjuku','odpt.Railway:JR-East.Yokosuka'],stations:['大船','戸塚','東戸塚','保土ケ谷','横浜','新川崎','武蔵小杉','西大井']},
@@ -1435,6 +1444,13 @@ const parallelDisplayModes={
     title:'田端〜品川 並走区間',
     lines:['odpt.Railway:JR-East.Yamanote','odpt.Railway:JR-East.KeihinTohokuNegishi'],
     stations:['田端','西日暮里','日暮里','鶯谷','上野','御徒町','秋葉原','神田','東京','有楽町','新橋','浜松町','田町','高輪ゲートウェイ','品川']
+  }
+};
+const corridorDisplayModes={
+  '上野東京ライン（品川〜上野 共用線路）':{
+    title:'品川〜上野 共用線路',
+    lines:UENO_TOKYO_CORRIDOR_LINES,
+    stations:UENO_TOKYO_CORRIDOR_STATIONS
   }
 };
 
@@ -1520,7 +1536,7 @@ const stationNameMap = {
 };
 const externalStationNameMap={
   ShinKiba:'新木場',Ebina:'海老名',Shonandai:'湘南台',ShinYokohama:'新横浜',WakoShi:'和光市',Wakoshi:'和光市',
-  Kara:'烏山',
+  Kara:'烏山',Maebashi:'前橋',ShinMaebashi:'新前橋',Kagohara:'籠原',Koga:'古河',Oyama:'小山',
   MotomachiChukagai:'元町・中華街',Hiyoshi:'日吉',MusashiKosugi:'武蔵小杉',Hanno:'飯能',Kotesashi:'小手指',
   Kawagoeshi:'川越市',ShinrinKoen:'森林公園',HonAtsugi:'本厚木',Isehara:'伊勢原',Odawara:'小田原',
   KataseEnoshima:'片瀬江ノ島',Karakida:'唐木田',Hashimoto:'橋本',ZushiHayama:'逗子・葉山',Misakiguchi:'三崎口',
@@ -1555,14 +1571,15 @@ let atosStationTitles={};
 
 function getStationTitle(id){
   if(!id) return '不明';
-  if(atosStationTitles[id]) return atosStationTitles[id];
   const code=id.split('.').pop();
-  return shortenStn(externalStationNameMap[code]||code);
+  const stored=atosStationTitles[id];
+  return shortenStn(stored&&stored!==code?stored:(externalStationNameMap[code]||stored||code));
 }
 function getFullStationTitle(id){
   if(!id) return '不明';
   const code=id.split('.').pop();
-  return atosStationTitles[id]||externalStationNameMap[code]||code;
+  const stored=atosStationTitles[id];
+  return stored&&stored!==code?stored:(externalStationNameMap[code]||stored||code);
 }
 
 // ===== 方向関数 =====
@@ -1985,7 +2002,7 @@ function buildAtosStationTitles(){
   atosRailwayData.forEach(line=>{
     (line["odpt:stationOrder"]||[]).forEach(st=>{
       const id=st["odpt:station"];
-      const ja=st["odpt:stationTitle"]?.ja||id.split('.').pop();
+      const code=id.split('.').pop(),ja=st["odpt:stationTitle"]?.ja||externalStationNameMap[code]||code;
       atosStationTitles[id]=ja;
     });
   });
@@ -2032,6 +2049,9 @@ function populateAtosLineSelect(){
   const pg=document.createElement('optgroup'); pg.label='並走区間（別線）';
   Object.keys(parallelDisplayModes).forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent='追加表示｜'+name;pg.appendChild(o);});
   sel.appendChild(pg);
+  const cg=document.createElement('optgroup'); cg.label='共用線路（路線統合）';
+  Object.keys(corridorDisplayModes).forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent='統合表示｜'+name;cg.appendChild(o);});
+  sel.appendChild(cg);
   // 初回だけURL指定を使い、以後の自動更新では利用者が現在選んでいる線区を優先する。
   // initialUrlState.line を毎回優先すると、更新のたびに共有URLの初期線区へ戻ってしまう。
   const requested=prev||initialUrlState.line;
@@ -2045,7 +2065,7 @@ function populateAtosLineSelect(){
 function restoreAtosDeepLink(){
   if(atosDeepLinkRestored) return;
   const selected=document.getElementById('atosLineSelect').value;
-  const lines=lineGroups[selected]||[selected];
+  const lines=parallelDisplayModes[selected]?.lines||corridorDisplayModes[selected]?.lines||lineGroups[selected]||[selected];
   if(initialUrlState.train){
     const live=atosTrainData.find(t=>t['odpt:trainNumber']===initialUrlState.train&&lines.includes(t['odpt:railway']));
     if(live){ atosDeepLinkRestored=true; openAtosTrainTimetable(live); return; }
@@ -2054,13 +2074,14 @@ function restoreAtosDeepLink(){
     const primary=lines[0];
     const line=atosRailwayData.find(r=>r['owl:sameAs']===primary);
     const station=(line?.['odpt:stationOrder']||[]).find(s=>s['odpt:station']===initialUrlState.station||s['odpt:stationTitle']?.ja===initialUrlState.station);
-    if(station){ atosDeepLinkRestored=true; showAtosStationTT(station['odpt:station'],primary,parallelDisplayModes[selected]?.lines||null); }
+    if(station){ atosDeepLinkRestored=true; showAtosStationTT(station['odpt:station'],primary,parallelDisplayModes[selected]?.lines||corridorDisplayModes[selected]?.lines||null); }
   }
 }
 
 function getAtosSelectionLines(){
   const selected=document.getElementById('atosLineSelect').value;
   if(parallelDisplayModes[selected]) return parallelDisplayModes[selected].lines;
+  if(corridorDisplayModes[selected]) return corridorDisplayModes[selected].lines;
   return lineGroups[selected]||[selected];
 }
 async function ensureAtosTimetablesForSelection(){
@@ -2116,13 +2137,102 @@ function resolveTrainPosition(train, stationIds, group) {
   return {from,to:atStation?null:apiTo,state:atStation?'station':'between'};
 }
 
+function atosTrainDisplayKey(train){
+  return `${train?.['odpt:railway']||''}|${train?.['odpt:trainNumber']||train?.['@id']||train?.['odpt:fromStation']||''}`;
+}
+function atosTrainPlannedMinute(train){
+  const number=normalizeTrainKey(train?.['odpt:trainNumber']);
+  const station=train?.['odpt:fromStation'];
+  const candidates=atosTimetableData.filter(item=>normalizeTrainKey(item?.['odpt:trainNumber'])===number&&item?.['odpt:railway']===train?.['odpt:railway']);
+  for(const timetable of candidates){
+    const stop=(timetable['odpt:trainTimetableObject']||[]).find(item=>samePhysicalStation(timetableStopStation(item),station));
+    if(stop) return timetableMinute(stop);
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+function buildAtosTrainOrderMap(trains,stationNames,primaryLineId,visualDirectionResolver=null){
+  const positions=[];
+  trains.forEach(train=>{
+    const from=getFullStationTitle(train['odpt:fromStation']);
+    const to=train['odpt:toStation']?getFullStationTitle(train['odpt:toStation']):null;
+    const fi=stationNames.indexOf(from),ti=to?stationNames.indexOf(to):-1;
+    if(fi<0) return;
+    const pos=ti>=0&&ti!==fi?(fi+ti)/2:fi;
+    const dir=visualDirectionResolver?visualDirectionResolver(train,fi,ti):getSharedVisualTrainDir(primaryLineId,train,fi,ti);
+    positions.push({train,key:atosTrainDisplayKey(train),dir,pos,minute:atosTrainPlannedMinute(train)});
+  });
+  const order=new Map();
+  for(const dir of ['down','up']){
+    const list=positions.filter(item=>item.dir===dir).sort((a,b)=>(dir==='down'?b.pos-a.pos:a.pos-b.pos)||a.minute-b.minute||a.key.localeCompare(b.key));
+    list.forEach((item,index)=>{
+      const samePosition=list.some((other,otherIndex)=>otherIndex!==index&&Math.abs(other.pos-item.pos)<.001);
+      order.set(item.key,{label:index===0?'先行':`${index+1}番手`,samePosition});
+    });
+  }
+  return order;
+}
+function populateAtosTrainCard(card,train,orderInfo=null,{showLine=false}={}){
+  if(orderInfo){
+    const order=document.createElement('span'); order.className=`train-order${orderInfo.samePosition?' same-position':''}`; order.textContent=orderInfo.label; card.appendChild(order);
+  }
+  const number=document.createElement('div'); number.className='train-number'; number.textContent=train['odpt:trainNumber']||'?';
+  const delaySeconds=Math.max(0,Number(train['odpt:delay'])||0);
+  if(delaySeconds){const delay=document.createElement('span');delay.className='train-delay';delay.textContent=`+${Math.floor(delaySeconds/60)}分`;number.appendChild(delay);}
+  card.appendChild(number);
+  const destination=(train['odpt:destinationStation']||[])[0],cars=train['odpt:carComposition']||'';
+  const sub=document.createElement('div');sub.className='train-info-sub';sub.textContent=[cars?`${cars}両`:'',shortenStn(getFullStationTitle(destination))].filter(Boolean).join(' ');card.appendChild(sub);
+  if(showLine){const line=document.createElement('span');line.className='train-line-chip';line.textContent=getLineTitle(train['odpt:railway']);card.appendChild(line);}
+}
+function corridorVisualDirection(train,fromIndex,toIndex){
+  if(toIndex>=0&&toIndex!==fromIndex) return toIndex>fromIndex?'down':'up';
+  const standard=getTrainDir(train?.['odpt:railDirection'],train?.['odpt:railway']);
+  return train?.['odpt:railway']==='odpt.Railway:JR-East.Tokaido'?(standard==='down'?'up':'down'):standard;
+}
+
+function atosRenderCorridor(mode,monitor,directionFilter){
+  const box=document.createElement('div'); box.className='station-line corridor-combined-track';
+  const track=document.createElement('div'); track.className='track-line';
+  track.style.background='linear-gradient(90deg,#1e5dc8 0 25%,#f68b1e 25% 100%)'; box.appendChild(track);
+  mode.stations.forEach((name,index)=>{
+    const match=mode.lines.map(lineId=>({lineId,station:(atosRailwayData.find(r=>r['owl:sameAs']===lineId)?.['odpt:stationOrder']||[]).find(s=>s['odpt:stationTitle']?.ja===name)})).find(item=>item.station);
+    const station=document.createElement('div');station.className='station';station.textContent=shortenStn(name);station.style.left=`${(index+1)*(100/(mode.stations.length+1))}%`;
+    if(match) station.onclick=()=>showAtosStationTT(match.station['odpt:station'],match.lineId,mode.lines);
+    box.appendChild(station);
+  });
+  const candidates=atosTrainData.filter(train=>mode.lines.includes(train['odpt:railway']));
+  const orderMap=buildAtosTrainOrderMap(candidates,mode.stations,mode.lines[0],corridorVisualDirection);
+  const stacks={up:{},down:{}},max={up:0,down:0};let count=0,delayedCount=0;
+  candidates.forEach(train=>{
+    const filterDir=getTrainDir(train['odpt:railDirection'],train['odpt:railway']);
+    if(directionFilter!=='all'&&filterDir!==directionFilter) return;
+    const from=getFullStationTitle(train['odpt:fromStation']),to=train['odpt:toStation']?getFullStationTitle(train['odpt:toStation']):null;
+    const fi=mode.stations.indexOf(from),ti=to?mode.stations.indexOf(to):-1;if(fi<0) return;
+    const visualDir=corridorVisualDirection(train,fi,ti);
+    const pos=(ti>=0&&ti!==fi?((fi+1)+(ti+1))/2:fi+1)*(100/(mode.stations.length+1));
+    const laneKey=ti>=0?`${Math.min(fi,ti)}-${Math.max(fi,ti)}`:`${fi}`;
+    const offset=stacks[visualDir][laneKey]||0;stacks[visualDir][laneKey]=offset+1;max[visualDir]=Math.max(max[visualDir],offset+1);
+    const limited=isLimitedExpressTrain(train),card=document.createElement('div');
+    card.className=`train ${visualDir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`;
+    card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666');card.style.left=`${pos}%`;
+    const trainH=60;if(visualDir==='down') card.style.bottom=`calc(50% + 25px + ${offset*trainH}px)`;else card.style.top=`calc(50% + 25px + ${offset*trainH}px)`;
+    populateAtosTrainCard(card,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:true});
+    card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;if(Number(train['odpt:delay'])>0) delayedCount++;
+  });
+  box.style.height=`${Math.max(170,150+(max.up+max.down)*60)}px`;
+  monitor.appendChild(box);
+  document.getElementById('atos-train-count').textContent=`4路線共用・表示 ${count}本`;
+  updateStandaloneAtosSummary(count,delayedCount,mode.stations.length);
+}
+
 function atosRenderParallel(mode,monitor,directionFilter){
   const groups=[];
   for(let i=0,g=0;i<mode.stations.length;g++){
     const part=g===0?mode.stations.slice(i,i+4):mode.stations.slice(i-1,i+3);
     i+=g===0?4:3; if(part.length<2) break; groups.push(part);
   }
-  const placed=new Set(); let count=0, delayedCount=0;
+  const placed=new Set(),modeTrains=atosTrainData.filter(train=>mode.lines.includes(train['odpt:railway']));
+  const orderMap=buildAtosTrainOrderMap(modeTrains,mode.stations,mode.lines[0]);
+  let count=0, delayedCount=0;
   groups.forEach((group,groupIndex)=>{
     const box=document.createElement('div'); box.className='parallel-combined-track';
     mode.lines.forEach((lineId,index)=>{
@@ -2157,8 +2267,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
       // 上側＝下り(B線/南行/外回り)、下側＝上り(A線/北行/内回り)。
       if(tdir==='down') card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`;
       else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
-      const delay=train['odpt:delay']?Math.floor(train['odpt:delay']/60):0, dest=(train['odpt:destinationStation']||[])[0];
-      card.innerHTML=`<div class="train-number">${train['odpt:trainNumber']||'?'}${delay?`<span class="train-delay">+${delay}分</span>`:''}</div><div class="train-info-sub">${train['odpt:carComposition']||''}両 ${shortenStn(getFullStationTitle(dest))}</div>`;
+      populateAtosTrainCard(card,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:true});
       card.onclick=()=>openAtosTrainTimetable(train); box.appendChild(card);
     });
     monitor.appendChild(box);
@@ -2185,6 +2294,7 @@ function atosRender(){
   monitor.innerHTML = '';
   if(!selectedLine) return;
   if(parallelDisplayModes[selectedLine]){ atosRenderParallel(parallelDisplayModes[selectedLine],monitor,directionFilter); syncUrlState(); return; }
+  if(corridorDisplayModes[selectedLine]){ atosRenderCorridor(corridorDisplayModes[selectedLine],monitor,directionFilter); syncUrlState(); return; }
 
   let targetLines=[], primaryLineId=selectedLine;
   if(lineGroups[selectedLine]){ targetLines=lineGroups[selectedLine]; primaryLineId=targetLines[0]; }
@@ -2201,6 +2311,8 @@ function atosRender(){
 
   const allStations=(lineData["odpt:stationOrder"]||[]).sort((a,b)=>a["odpt:index"]-b["odpt:index"]);
   const stationIds=allStations.map(s=>s["odpt:station"]);
+  const stationNames=stationIds.map(getFullStationTitle);
+  const orderMap=buildAtosTrainOrderMap(atosTrainData.filter(train=>targetLines.includes(train['odpt:railway'])),stationNames,primaryLineId);
   let trainCount=0, delayedTrainCount=0;
   const placedTrainKeys=new Set();
 
@@ -2223,11 +2335,12 @@ function atosRender(){
     group.forEach((sid,idx)=>{
       const s=document.createElement('div');
       s.className='station';
-      const fullName=atosStationTitles[sid]||sid.split('.').pop();
+      const fullName=getFullStationTitle(sid);
       s.textContent=shortenStn(fullName);
       s.title=fullName;
       s.style.left=`${(idx+1)*(100/(group.length+1))}%`;
-      s.onclick=()=>showAtosStationTT(sid,primaryLineId);
+      const combinedLines=[...new Set(sharedTrackSections.filter(section=>section.lines.includes(primaryLineId)&&section.stations.includes(fullName)).flatMap(section=>section.lines))];
+      s.onclick=()=>showAtosStationTT(sid,primaryLineId,combinedLines.length>1?combinedLines:null);
       lineDiv.appendChild(s);
     });
 
@@ -2302,9 +2415,7 @@ function atosRender(){
       if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
       else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
 
-      div.innerHTML=
-        `<div class="train-number" style="color:var(--text)">${num}${delay>0?`<span class="train-delay">+${delay}分</span>`:''}</div>`+
-        `<div class="train-info-sub">${cars?cars+'両 ':''}${shortDest}</div>`;
+      populateAtosTrainCard(div,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:targetLines.length>1});
       div.onclick=()=>openAtosTrainTimetable(train);
       lineDiv.appendChild(div);
     });
@@ -2333,12 +2444,12 @@ function showAtosTrainDetails(train){
   const destName=dest.length>0?getFullStationTitle(dest[0]):'不明';
   document.getElementById('td-num').textContent=`列番: ${train["odpt:trainNumber"]||'?'}`;
   document.getElementById('td-body').innerHTML=
-    `<strong>方向</strong>${getDirText(train["odpt:railDirection"],train["odpt:railway"])}<br>
+    `<strong>方向</strong>${diagEscape(getDirText(train["odpt:railDirection"],train["odpt:railway"]))}<br>
     <strong>遅延</strong>${delay>0?delay+'分':'なし'}<br>
-    <strong>走行区間</strong>${to?from+'〜'+to:from}<br>
-    <strong>終着駅</strong>${destName}<br>
-    <strong>種別</strong>${tn(train["odpt:trainType"])}<br>
-    <strong>両数</strong>${train["odpt:carComposition"]||'不明'}両`;
+    <strong>走行区間</strong>${diagEscape(to?from+'〜'+to:from)}<br>
+    <strong>終着駅</strong>${diagEscape(destName)}<br>
+    <strong>種別</strong>${diagEscape(tn(train["odpt:trainType"]))}<br>
+    <strong>両数</strong>${diagEscape(train["odpt:carComposition"]||'不明')}両`;
   const btn=document.createElement('button');
   btn.className='hbtn primary';
   btn.style.cssText='margin-top:10px;width:100%;font-size:0.73rem;';
@@ -2526,6 +2637,65 @@ function supplementTimetableWithHistory(tt,liveTrain,history){
     __railways:[...new Set([...(base.__railways||[base['odpt:railway']]),...(history?.railways||[])].filter(Boolean))]
   };
 }
+function timetableSeconds(value){
+  if(!value) return null;
+  const parts=String(value).split(':').map(Number);
+  if(parts.length<2||parts.some(Number.isNaN)) return null;
+  return (parts[0]<4?parts[0]+24:parts[0])*3600+parts[1]*60+(parts[2]||0);
+}
+function timetableTimeFromSeconds(value){
+  if(!Number.isFinite(value)) return '';
+  const normalized=((Math.round(value)%(24*3600))+(24*3600))%(24*3600);
+  return `${String(Math.floor(normalized/3600)).padStart(2,'0')}:${String(Math.floor(normalized%3600/60)).padStart(2,'0')}:${String(normalized%60).padStart(2,'0')}`;
+}
+function historicalPassTime(history,stationId){
+  const prediction=historyPredictionForStation(history,stationId)||{};
+  return prediction.plannedTime||prediction.scheduledTime||prediction.expectedTime||prediction.predictedTime||'';
+}
+function routeStationsConnecting(leftId,rightId,railways=[]){
+  const candidates=[...new Set(railways.filter(Boolean))];
+  for(const railway of candidates){
+    const order=(atosRailwayData.find(line=>line['owl:sameAs']===railway)?.['odpt:stationOrder']||[]).map(item=>item['odpt:station']);
+    const leftIndex=order.findIndex(id=>samePhysicalStation(id,leftId)),rightIndex=order.findIndex(id=>samePhysicalStation(id,rightId));
+    if(leftIndex<0||rightIndex<0||leftIndex===rightIndex||Math.abs(rightIndex-leftIndex)>30) continue;
+    const step=rightIndex>leftIndex?1:-1,between=[];
+    for(let index=leftIndex+step;index!==rightIndex;index+=step) between.push(order[index]);
+    return {railway,stations:between};
+  }
+  return null;
+}
+function supplementTimetableWithRouteStations(tt,liveTrain,history){
+  if(!tt) return tt;
+  const source=tt['odpt:trainTimetableObject']||[];
+  if(source.length<2) return tt;
+  const output=[];
+  for(let index=0;index<source.length-1;index++){
+    const left=source[index],right=source[index+1];output.push(left);
+    const leftId=timetableStopStation(left),rightId=timetableStopStation(right);
+    const railways=[left.__railway,...(left.__railways||[]),right.__railway,...(right.__railways||[]),...(tt.__railways||[]),tt['odpt:railway'],liveTrain?.['odpt:railway']];
+    const route=routeStationsConnecting(leftId,rightId,railways);
+    if(!route?.stations?.length) continue;
+    const leftSeconds=timetableSeconds(left['odpt:departureTime']||left['odpt:arrivalTime']);
+    let rightSeconds=timetableSeconds(right['odpt:arrivalTime']||right['odpt:departureTime']);
+    if(leftSeconds!==null&&rightSeconds!==null&&rightSeconds<leftSeconds) rightSeconds+=24*3600;
+    route.stations.forEach((stationId,stationIndex)=>{
+      if(source.some(stop=>samePhysicalStation(timetableStopStation(stop),stationId))) return;
+      const historyTime=historicalPassTime(history,stationId);
+      const fraction=(stationIndex+1)/(route.stations.length+1);
+      const interpolated=leftSeconds!==null&&rightSeconds!==null?timetableTimeFromSeconds(leftSeconds+(rightSeconds-leftSeconds)*fraction):'';
+      const estimated=historyTime||interpolated;
+      output.push({
+        'odpt:station':stationId,
+        ...(estimated?{'odpt:arrivalTime':estimated,'odpt:departureTime':estimated}:{}),
+        __railway:route.railway,
+        __inferredPass:true,
+        __predictionBasis:historyTime?'history':'interpolation'
+      });
+    });
+  }
+  output.push(source[source.length-1]);
+  return {...tt,'odpt:trainTimetableObject':output};
+}
 function applyLiveDestinationChange(tt,liveTrain){
   if(!tt||!liveTrain) return tt;
   const actualDestinations=liveTrain['odpt:destinationStation']||[];
@@ -2577,6 +2747,7 @@ async function openAtosTrainTimetable(train){
   await remoteHistoryPromise;
   if(tt?.__railways?.length>1) await loadRemoteAtosTrainDelayHistory(train,tt.__railways);
   tt=supplementTimetableWithHistory(tt,train,getAtosTrainDelayHistory(train,tt?.__railways||[train?.['odpt:railway']]));
+  tt=supplementTimetableWithRouteStations(tt,train,getAtosTrainDelayHistory(train,tt?.__railways||[train?.['odpt:railway']]));
   tt=applyLiveDestinationChange(tt,train);
   showAtosTrainTT(tt,train);
 }
@@ -2588,6 +2759,7 @@ async function refreshOpenAtosTrainTimetable(){
   let tt=combineAtosTrainTimetables(live,candidates);
   await loadRemoteAtosTrainDelayHistory(live,tt?.__railways||[live['odpt:railway']]);
   tt=supplementTimetableWithHistory(tt,live,getAtosTrainDelayHistory(live,tt?.__railways||[live['odpt:railway']]));
+  tt=supplementTimetableWithRouteStations(tt,live,getAtosTrainDelayHistory(live,tt?.__railways||[live['odpt:railway']]));
   tt=applyLiveDestinationChange(tt,live);
   renderAtosMobileTrainTT(tt,live,document.getElementById('mtt-body'));
 }
@@ -2723,7 +2895,7 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     if(currentIndex<0||index>=currentIndex) carriedForecastDelaySeconds=departureForecastDelaySeconds;
     const predicted=(value,completed,eligible,delaySeconds,actualTime)=>{
       if(completed&&actualTime) return actualTime;
-      return !completed&&eligible&&delaySeconds!==null&&delaySeconds>0&&value?offsetTimeSeconds(value,delaySeconds):'';
+      return !completed&&eligible&&delaySeconds!==null&&value?offsetTimeSeconds(value,delaySeconds):'';
     };
     const delayText=delay===null?'---':String(delay).padStart(3,'0');
     const first=index===0;
@@ -2734,7 +2906,9 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     const operationKid=previousConnection?operationSource.previousKid:nextConnection?operationSource.nextKid:'';
     const connectionDirection=previousConnection?'previous':'next';
     const operationTrainHtml=operationTrain?`<button class="train-link" data-atos-action="open-operation-train" data-train="${encodeAtosActionValue(operationTrain)}" data-station="${encodeAtosActionValue(stationId)}" data-direction="${connectionDirection}" data-service-date="${encodeAtosActionValue(serviceDate)}" data-kid="${encodeAtosActionValue(operationKid)}">${operationTrain}</button>`:'';
-    html+=`<tr${marker.current&&flashCurrent?' class="mobile-current"':''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${atosDisplayStationName(stationId)}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop['odpt:platformNumber']||'—'}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
+    const rowClasses=[marker.current&&flashCurrent?'mobile-current':'',stop.__inferredPass?'mobile-pass-stop':''].filter(Boolean).join(' ');
+    const stationLabel=`${atosDisplayStationName(stationId)}${stop.__inferredPass?'<span class="mobile-pass-chip">通過予測</span>':''}`;
+    html+=`<tr${rowClasses?` class="${rowClasses}"`:''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${stationLabel}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop.__inferredPass?'通過':(stop['odpt:platformNumber']||'—')}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${stop.__inferredPass?'推定':operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
   });
   html+=`</tbody></table></div><div class="mobile-atos-legend">「$」･･･運休　「*」･･･運済　「#」･･･変更　「¥」･･･運転禁止</div></div>`;
   output.innerHTML=html;
@@ -2778,7 +2952,7 @@ function showAtosTrainTT(tt,liveTrain=null,inline=false){
 }
 async function showAtosStationTT(stationId, lineId, combinedLines=null){
   document.getElementById('modal-station-tt').style.display='block';
-  const stnName=atosStationTitles[stationId]||stationId.split('.').pop();
+  const stnName=getFullStationTitle(stationId);
   document.getElementById('mstt-title').textContent=`駅別ダイヤモニタ　${stnName}`;
   document.getElementById('mstt-body').innerHTML='<div class="loading-box"><div class="h-spinner"></div>取得中...</div>';
   try{
@@ -2843,7 +3017,7 @@ async function showAtosStationTT(stationId, lineId, combinedLines=null){
         const dep=obj['odpt:departureTime']||'', arr=obj['odpt:arrivalTime']||'';
         const dests=(obj['odpt:destinationStation']||[]).map(getFullStationTitle).join('・')||'—';
         const side=getTrainDir(dir,entryLine);
-        html+=`<tr data-atos-side="${side}"><td class="direction-compact" title="${getLineTitle(entryLine)}">${getDirText(dir,entryLine)}</td><td><button class="train-link" data-atos-action="open-train-from-station" data-train="${encodeAtosActionValue(number)}" data-line="${encodeAtosActionValue(entryLine)}">${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${delay&&arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${delay&&dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+        html+=`<tr data-atos-side="${side}"><td class="direction-compact" title="${getLineTitle(entryLine)}">${getDirText(dir,entryLine)}</td><td><button class="train-link" data-atos-action="open-train-from-station" data-train="${encodeAtosActionValue(number)}" data-line="${encodeAtosActionValue(entryLine)}">${number}</button></td><td>${tn(obj['odpt:trainType'])}</td><td>${/D$/.test(number)?'DL':'EC'}</td><td class="time">${arr||'…'}</td><td class="time predicted">${arr?offsetTime(arr,delay):''}</td><td></td><td class="time">${dep||'…'}</td><td class="time predicted">${dep?offsetTime(dep,delay):''}</td><td></td><td>${obj['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
       });
       html+='</tbody></table></div><div style="margin-top:7px;font-size:.67rem;color:var(--text3)">「000」は定刻、遅延時は赤字の001・002…で表示します。予測時刻は公開遅延からの参考計算です。</div></div>';
     }
@@ -2868,8 +3042,8 @@ function filterAtosStationRows(side,button){
 async function openTrainByNumberFromStation(number,lineId){
   const live=atosTrainData.find(t=>t['odpt:trainNumber']===number&&t['odpt:railway']===lineId);
   let tt=atosTimetableData.find(t=>t['odpt:trainNumber']===number&&t['odpt:railway']===lineId);
-  if(!tt&&live){ await openAtosTrainTimetable(live); return; }
-  if(live) await Promise.all([loadRemoteAtosTrainDelayHistory(live),loadExternalTimetables().catch(()=>[])]);
+  if(live){ await openAtosTrainTimetable(live); return; }
+  tt=supplementTimetableWithRouteStations(tt,null,getAtosTrainDelayHistory(tt,tt?.__railways||[lineId]));
   showAtosTrainTT(tt,live);
 }
 
@@ -2893,7 +3067,7 @@ function loadExternalTimetables(){
     if(!Array.isArray(data)) throw new Error('保護時刻表JSONの結合結果が配列ではありません');
     externalTimetables=data;
     const lines=[...new Set(data.map(x=>x.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
-    document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${line}">${line}</option>`).join('');
+    document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${diagEscape(line)}">${diagEscape(line)}</option>`).join('');
     status.textContent=`保護時刻表 ${data.length.toLocaleString('ja-JP')}列車・${lines.length}線区を読込済み`;
     addDiagnostic('info','保護時刻表データ読込完了',{records:data.length,lines:lines.length},'timetable-api');
     return data;
@@ -2988,7 +3162,7 @@ async function searchJsonTrainTimetable(){
   let selected=candidates.find(x=>x.startDate===jsonDate);
   if(!selected) selected=candidates.filter(x=>(!x.dayType||x.dayType===dayType)&&String(x.startDate||'')<=jsonDate).sort((a,b)=>String(b.startDate||'').localeCompare(String(a.startDate||'')))[0];
   if(!selected) selected=candidates.find(x=>!x.dayType||x.dayType===dayType)||candidates[0];
-  if(!selected){result.innerHTML=`<div class="loading-box">${line} ${number}列車（${dayType}）は公開時刻表に見つかりませんでした。</div>`;return;}
+  if(!selected){result.innerHTML=`<div class="loading-box">${diagEscape(line)} ${diagEscape(number)}列車（${diagEscape(dayType)}）は公開時刻表に見つかりませんでした。</div>`;return;}
   showExternalTrainTimetable(selected,dateValue,true);
 }
 let unifiedTrainSearch={external:null,odpt:null,live:null,dateValue:''};
@@ -3033,7 +3207,7 @@ async function searchUnifiedTrainTimetable(){
   if(!isToday&&odpt) await renderUnifiedTrainSource('odpt');
   else if(external) await renderUnifiedTrainSource('external');
   else if(odpt) await renderUnifiedTrainSource('odpt');
-  else result.innerHTML=`<div class="loading-box">${number}列車は保護時刻表JSON・ODPT時刻表APIのどちらにも見つかりませんでした。</div>`;
+  else result.innerHTML=`<div class="loading-box">${diagEscape(number)}列車は保護時刻表JSON・ODPT時刻表APIのどちらにも見つかりませんでした。</div>`;
 }
 async function renderUnifiedTrainSource(source){
   const match=unifiedTrainSearch;
@@ -3056,13 +3230,13 @@ function showExternalTrainTimetable(train,dateValue,inline=false){
   if(!inline){activeAtosTrainModal=null;prepareTrainTimetableModal();}
   const output=document.getElementById(inline?'ttt-result':'mtt-body');
   const stops=train.stops||[];
-  let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区・施行日</div><div class="atos-meta-value">${train.line||'—'}・${dateValue||train.startDate||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転区間</div><div class="atos-meta-value">${train.origin||'—'} → ${train.destination||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号・種別</div><div class="atos-meta-value">${train.trainNumber||'—'}・${train.type||'—'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">曜日・動力・速度</div><div class="atos-meta-value">${train.dayType||'—'}・${train.power||'—'}・${train.speed||'—'}</div></div></div>`;
+  let html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区・施行日</div><div class="atos-meta-value">${diagEscape(train.line||'—')}・${diagEscape(dateValue||train.startDate||'—')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">運転区間</div><div class="atos-meta-value">${diagEscape(train.origin||'—')} → ${diagEscape(train.destination||'—')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">列車番号・種別</div><div class="atos-meta-value">${diagEscape(train.trainNumber||'—')}・${diagEscape(train.type||'—')}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">曜日・動力・速度</div><div class="atos-meta-value">${diagEscape(train.dayType||'—')}・${diagEscape(train.power||'—')}・${diagEscape(train.speed||'—')}</div></div></div>`;
   html+=`<div class="atos-table-wrap"><table class="atos-table external-train-table"><thead><tr><th rowspan="2">列車種別</th><th rowspan="2">抑止</th><th rowspan="2">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2">番線</th><th rowspan="2">運用情報</th><th rowspan="2">運用列番</th></tr><tr><th>時間</th><th>到着</th><th>時間</th><th>発車</th></tr></thead><tbody>`;
   stops.forEach((stop,index)=>{
     let operation='',linked='';
-    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr1)}" data-kid="${encodeAtosActionValue(train.kid1||train.kid||'')}" data-direction="prev" data-inline="${inline?'true':'false'}">${train.tr1}</button>`;}
-    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr2)}" data-kid="${encodeAtosActionValue(train.kid2||train.kid||'')}" data-direction="next" data-inline="${inline?'true':'false'}">${train.tr2}</button>`;}
-    html+=`<tr><td>${index===0?(train.type||''):''}</td><td></td><td><strong>${atosDisplayStationName(stop.station)||'—'}</strong></td><td class="time">${externalTime(stop.arrival)}</td><td></td><td class="time">${stop.departure||''}</td><td></td><td>${stop.trackN||'—'}</td><td>${operation}</td><td>${linked}</td></tr>`;
+    if(index===0){operation=train.tt1==='k'?'継送':train.tt1==='o'?'折返':'';if(train.tr1)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr1)}" data-kid="${encodeAtosActionValue(train.kid1||train.kid||'')}" data-direction="prev" data-inline="${inline?'true':'false'}">${diagEscape(train.tr1)}</button>`;}
+    if(index===stops.length-1){operation=train.tt2==='k'?'継送':train.tt2==='o'?'折返':'';if(train.tr2)linked=`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(train.tr2)}" data-kid="${encodeAtosActionValue(train.kid2||train.kid||'')}" data-direction="next" data-inline="${inline?'true':'false'}">${diagEscape(train.tr2)}</button>`;}
+    html+=`<tr><td>${index===0?diagEscape(train.type||''):''}</td><td></td><td><strong>${diagEscape(atosDisplayStationName(stop.station)||'—')}</strong></td><td class="time">${diagEscape(externalTime(stop.arrival))}</td><td></td><td class="time">${diagEscape(stop.departure||'')}</td><td></td><td>${diagEscape(stop.trackN||'—')}</td><td>${operation}</td><td>${linked}</td></tr>`;
   });
   html+=`</tbody></table></div><div style="margin-top:8px;font-weight:800;font-size:.7rem">「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止</div>`;
   output.innerHTML=html;
@@ -3096,7 +3270,7 @@ async function loadRailwayList(){
       id:rw['owl:sameAs'].replace('odpt.Railway:',''),
       label:rw['odpt:railwayTitle']?.ja||rw['dc:title']||rw['owl:sameAs']
     })).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
-    const opts=sorted.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
+    const opts=sorted.map(r=>`<option value="${diagEscape(r.id)}">${diagEscape(r.label)}</option>`).join('');
     document.getElementById('stt-line').innerHTML='<option value="">路線を選択</option>'+opts;
     document.getElementById('ttt-line').innerHTML='<option value="">路線を選択</option>'+opts;
   } catch(e){ console.error(e); }
@@ -3111,7 +3285,7 @@ async function loadSttStations(){
     label:s['odpt:stationTitle']?.ja||s['odpt:station'].split('.').pop()
   }));
   const sel=document.getElementById('stt-station');
-  sel.innerHTML='<option value="">駅を選択</option>'+stations.map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+  sel.innerHTML='<option value="">駅を選択</option>'+stations.map(s=>`<option value="${diagEscape(s.id)}">${diagEscape(s.label)}</option>`).join('');
   sel.style.display=''; document.getElementById('stt-dir').style.display=''; document.getElementById('stt-cal').style.display='';
 }
 async function searchStationTimetable(){
@@ -3125,14 +3299,14 @@ async function searchStationTimetable(){
     const data=await r.json();
     if(!data.length){ document.getElementById('stt-result').innerHTML='<div style="padding:20px;color:var(--text3);">データが見つかりませんでした</div>'; return; }
     const tt=data[0]['odpt:stationTimetableObject']||[];
-    const html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${rn(line)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅</div><div class="atos-meta-value">${document.getElementById('stt-station').selectedOptions[0]?.textContent||station}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">方向・本数</div><div class="atos-meta-value">${dir==='Inbound'?'上り':'下り'}・${tt.length}本</div></div></div><div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車番号</th><th>種別</th><th>動力</th><th>発時刻 計画</th><th>発時刻 予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延(分)</th></tr></thead><tbody>`+
+    const html=`<div class="atos-monitor-meta"><div class="atos-meta-cell"><div class="atos-meta-label">線区</div><div class="atos-meta-value">${diagEscape(rn(line))}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">駅</div><div class="atos-meta-value">${diagEscape(document.getElementById('stt-station').selectedOptions[0]?.textContent||station)}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">施行日</div><div class="atos-meta-value">${cal==='Weekday'?'平日':'土休日'}</div></div><div class="atos-meta-cell"><div class="atos-meta-label">方向・本数</div><div class="atos-meta-value">${dir==='Inbound'?'上り':'下り'}・${tt.length}本</div></div></div><div class="atos-table-wrap"><table class="atos-table"><thead><tr><th>列車番号</th><th>種別</th><th>動力</th><th>発時刻 計画</th><th>発時刻 予測</th><th>番線</th><th>運用情報</th><th>行先</th><th>遅延(分)</th></tr></thead><tbody>`+
       tt.map(e=>{
         const dests=(e['odpt:destinationStation']||[]).map(s=>atosStationTitles['odpt.Station:'+s]||getFullStationTitle(s)).join('・');
         const typ=tn(e['odpt:trainType']||'');
         const num=e['odpt:trainNumber']||'—';
         const live=atosTrainData.find(t=>t['odpt:trainNumber']===num), delay=live?.['odpt:delay']?Math.floor(live['odpt:delay']/60):0;
         const dep=e['odpt:departureTime']||e['odpt:arrivalTime']||'';
-        return `<tr><td>${num}</td><td>${typ}</td><td>${/D$/.test(num)?'DL':'EC'}</td><td class="time">${dep||'--:--'}</td><td class="time predicted">${delay?offsetTime(dep,delay):''}</td><td>${e['odpt:platformNumber']||'—'}</td><td>継送</td><td>${dests||'—'}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
+        return `<tr><td>${diagEscape(num)}</td><td>${diagEscape(typ)}</td><td>${/D$/.test(num)?'DL':'EC'}</td><td class="time">${diagEscape(dep||'--:--')}</td><td class="time predicted">${diagEscape(delay?offsetTime(dep,delay):'')}</td><td>${diagEscape(e['odpt:platformNumber']||'—')}</td><td>継送</td><td>${diagEscape(dests||'—')}</td><td class="${delay?'delay-positive':'delay-zero'}">${String(delay||0).padStart(3,'0')}</td></tr>`;
       }).join('')+'</tbody></table></div>';
     document.getElementById('stt-result').innerHTML=html;
   } catch(e){ document.getElementById('err-stt').style.display='block'; document.getElementById('err-stt').textContent='⚠ 取得失敗: '+e.message; }
@@ -3147,9 +3321,9 @@ async function loadTttTrains(){
   try{
     const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=odpt.Railway:${line}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
     tttTrainData=await r.json();
-    tttTrainData.forEach(t=>{ (t["odpt:trainTimetableObject"]||[]).forEach(s=>{ const id=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]; if(id&&!atosStationTitles[id]) atosStationTitles[id]=id.split('.').pop(); }); });
+    tttTrainData.forEach(t=>{ (t["odpt:trainTimetableObject"]||[]).forEach(s=>{ const id=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]; if(id&&!atosStationTitles[id]){const code=id.split('.').pop();atosStationTitles[id]=externalStationNameMap[code]||code;} }); });
     const trains=[...new Set(tttTrainData.map(t=>t['odpt:trainNumber']))].sort();
-    sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${t}">${t}</option>`).join('');
+    sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${diagEscape(t)}">${diagEscape(t)}</option>`).join('');
   } catch(e){ sel.innerHTML='<option value="">取得失敗</option>'; }
 }
 async function searchTrainTimetable(){
@@ -3176,7 +3350,7 @@ async function loadStations(){
     const lines=[...new Set(stationData.map(s=>s['odpt:railway'].replace('odpt.Railway:','')))];
     const sorted=lines.map(l=>({key:l,label:rn(l)})).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
     const sel=document.getElementById('stn-line-filter');
-    sel.innerHTML='<option value="">すべての路線</option>'+sorted.map(l=>`<option value="${l.key}">${l.label}</option>`).join('');
+    sel.innerHTML='<option value="">すべての路線</option>'+sorted.map(l=>`<option value="${diagEscape(l.key)}">${diagEscape(l.label)}</option>`).join('');
     renderStations();
   } catch(e){ document.getElementById('err-stn').style.display='block'; document.getElementById('err-stn').textContent='⚠ 取得失敗'; }
 }
@@ -3188,7 +3362,7 @@ function renderStations(){
   if(search) list=list.filter(s=>(s['odpt:stationTitle']?.ja||'').includes(search));
   document.getElementById('stn-count').textContent=`${list.length}駅`;
   const html=`<table class="data-table"><thead><tr><th>駅名</th><th>路線</th><th>駅コード</th></tr></thead><tbody>`+
-    list.slice(0,300).map(s=>`<tr><td><strong>${s['odpt:stationTitle']?.ja||'—'}</strong></td><td style="color:var(--text3)">${rn(s['odpt:railway'].replace('odpt.Railway:',''))}</td><td style="font-family:'Oswald',sans-serif;color:var(--green3)">${s['odpt:stationCode']||'—'}</td></tr>`).join('')+'</tbody></table>';
+    list.slice(0,300).map(s=>`<tr><td><strong>${diagEscape(s['odpt:stationTitle']?.ja||'—')}</strong></td><td style="color:var(--text3)">${diagEscape(rn(s['odpt:railway'].replace('odpt.Railway:','')))}</td><td style="font-family:'Oswald',sans-serif;color:var(--green3)">${diagEscape(s['odpt:stationCode']||'—')}</td></tr>`).join('')+'</tbody></table>';
   document.getElementById('stn-list').innerHTML=html;
 }
 
@@ -3227,8 +3401,8 @@ function renderPassenger(){
       const pct=Math.round((s.journeys/maxJ)*100);
       const jStr=s.journeys>=10000?(s.journeys/10000).toFixed(1)+'万':(s.journeys||'—').toString();
       return `<div class="survey-card"><div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
-        <span style="font-weight:700;font-size:0.88rem;color:var(--text)">${s.name||'—'}</span>
-        <span style="font-size:0.7rem;color:var(--text3)">${s.line}</span>
+        <span style="font-weight:700;font-size:0.88rem;color:var(--text)">${diagEscape(s.name||'—')}</span>
+        <span style="font-size:0.7rem;color:var(--text3)">${diagEscape(s.line)}</span>
         <span style="font-size:0.66rem;color:var(--text3);margin-left:auto;">${s.year?s.year+'年調査':''}</span></div>
         <div style="display:flex;align-items:center;gap:8px;">
         <div class="survey-bar-bg"><div class="survey-bar" style="width:${pct}%"></div></div>

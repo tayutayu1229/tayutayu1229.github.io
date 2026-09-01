@@ -35,10 +35,21 @@ for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-
 }
 assert.match(monitor, /function updateStandaloneAtosSummary\(/,
   'the standalone summary must update with the selected line');
-assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 15px;/,
-  'standalone train cards must use the dedicated rounded design');
-assert.match(monitor, /\.standalone-realtime \.train\.down::after \{ content: '›';/,
-  'standalone train cards must retain a clear direction marker');
+assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 10px;/,
+  'standalone train cards must keep a lightly rounded dedicated design');
+assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 15px\)/,
+  'train cards must cut the upper leading corner to show direction');
+assert.match(monitor, /function buildAtosTrainOrderMap\(/,
+  'train cards must calculate and display the running order');
+assert.match(monitor, /上野東京ライン（品川〜上野 共用線路）/,
+  'the four-line shared corridor must be selectable');
+for (const line of ['JobanRapid', 'Tokaido', 'Takasaki', 'Utsunomiya']) {
+  assert.ok(monitor.includes(`JR-East.${line}`), `shared corridor is missing: ${line}`);
+}
+assert.match(monitor, /Maebashi:'前橋'/,
+  'external JR station names must be localized');
+assert.match(monitor, /function supplementTimetableWithRouteStations\(/,
+  'prediction timetables must supplement omitted pass-through stations');
 assert.match(top, /data-name="ATOS在線モニタ"[^>]+ATOSlocation\.html/,
   'the top-page tile must open the standalone monitor');
 
