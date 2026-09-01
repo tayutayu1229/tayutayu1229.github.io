@@ -453,15 +453,14 @@ html, body {
 .train:hover { box-shadow: 0 6px 14px rgba(0,0,0,.2); z-index:20; }
 .train:active { transform: translateX(-50%) translateY(1px); }
 /* 進行方向側の上角だけを切り、カード同士が重なっても向きを判別できるようにする。 */
-.train.down { clip-path:polygon(0 0,calc(100% - 15px) 0,100% 15px,100% 100%,0 100%); }
-.train.up { clip-path:polygon(15px 0,100% 0,100% 100%,0 100%,0 15px); }
+.train.down { clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%); }
+.train.up { clip-path:polygon(24px 0,100% 0,100% 100%,0 100%,0 24px); }
 .train::before { content:''; position:absolute; inset:3px; z-index:1; background:#d8dad9; clip-path:inherit; }
 .train > * { position:relative; z-index:2; }
 .train.delayed-train::before { background:#fff0f1; }
 .train-number { white-space:nowrap; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; font-family:'Oswald',sans-serif; color:var(--text); }
 .train-delay  { color: var(--red2); font-weight:900; font-size:10px; }
 .train-info-sub { font-size:8.5px; color:var(--text3); line-height:1.1; margin-top:2px; }
-.train-line-chip { position:absolute; right:5px; bottom:3px; z-index:3; max-width:64px; overflow:hidden; color:var(--text3); font-size:7px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
 .corridor-combined-track::after { content:'常磐線快速・東海道線・高崎線・宇都宮線　共用線路'; position:absolute; top:9px; left:12px; z-index:2; padding:3px 8px; color:#28503a; background:rgba(255,255,255,.9); border:1px solid #b9c9bf; border-radius:6px; font-size:9px; font-weight:900; }
 
 .atos-table-wrap { overflow-x:auto; border:1px solid var(--border2); }
@@ -792,16 +791,16 @@ body.standalone-realtime {
 }
 .standalone-realtime .train {
   width: 142px; min-width: 142px; height: 50px; padding: 5px 28px 5px 12px;
-  color: inherit; background: #fff; border: 2px solid currentColor; border-radius: 10px;
+  color: inherit; background: #fff; border: 2px solid currentColor; border-radius: 0;
   overflow: visible;
   box-shadow: 0 7px 16px rgba(19,52,31,.16);
   transition: box-shadow .16s,transform .16s;
 }
 .standalone-realtime .train.up { padding: 5px 12px 5px 28px; }
-.standalone-realtime .train.down { clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%); }
-.standalone-realtime .train.up { clip-path:polygon(16px 0,100% 0,100% 100%,0 100%,0 16px); }
+.standalone-realtime .train.down { clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%); }
+.standalone-realtime .train.up { clip-path:polygon(24px 0,100% 0,100% 100%,0 100%,0 24px); }
 .standalone-realtime .train::before {
-  inset: 3px; background: linear-gradient(145deg,#fff,#eef3ef); border-radius: 10px; clip-path: inherit;
+  inset: 3px; background: linear-gradient(145deg,#fff,#eef3ef); border-radius: 0; clip-path: inherit;
 }
 .standalone-realtime .train.delayed-train { border-color: #d8434d; }
 .standalone-realtime .train.delayed-train::before { background: linear-gradient(145deg,#fff,#fff0f1); }
@@ -2133,14 +2132,13 @@ function resolveTrainPosition(train, stationIds, group) {
   return {from,to:atStation?null:apiTo,state:atStation?'station':'between'};
 }
 
-function populateAtosTrainCard(card,train,{showLine=false}={}){
+function populateAtosTrainCard(card,train){
   const number=document.createElement('div'); number.className='train-number'; number.textContent=train['odpt:trainNumber']||'?';
   const delaySeconds=Math.max(0,Number(train['odpt:delay'])||0);
   if(delaySeconds){const delay=document.createElement('span');delay.className='train-delay';delay.textContent=`+${Math.floor(delaySeconds/60)}分`;number.appendChild(delay);}
   card.appendChild(number);
   const destination=(train['odpt:destinationStation']||[])[0],cars=train['odpt:carComposition']||'';
   const sub=document.createElement('div');sub.className='train-info-sub';sub.textContent=[cars?`${cars}両`:'',shortenStn(getFullStationTitle(destination))].filter(Boolean).join(' ');card.appendChild(sub);
-  if(showLine){const line=document.createElement('span');line.className='train-line-chip';line.textContent=getLineTitle(train['odpt:railway']);card.appendChild(line);}
 }
 function corridorVisualDirection(train,fromIndex,toIndex){
   if(toIndex>=0&&toIndex!==fromIndex) return toIndex>fromIndex?'down':'up';
@@ -2173,7 +2171,7 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     card.className=`train ${visualDir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`;
     card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666');card.style.left=`${pos}%`;
     const trainH=60;if(visualDir==='down') card.style.bottom=`calc(50% + 25px + ${offset*trainH}px)`;else card.style.top=`calc(50% + 25px + ${offset*trainH}px)`;
-    populateAtosTrainCard(card,train,{showLine:true});
+    populateAtosTrainCard(card,train);
     card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;if(Number(train['odpt:delay'])>0) delayedCount++;
   });
   box.style.height=`${Math.max(170,150+(max.up+max.down)*60)}px`;
@@ -2224,7 +2222,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
       // 上側＝下り(B線/南行/外回り)、下側＝上り(A線/北行/内回り)。
       if(tdir==='down') card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`;
       else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
-      populateAtosTrainCard(card,train,{showLine:true});
+      populateAtosTrainCard(card,train);
       card.onclick=()=>openAtosTrainTimetable(train); box.appendChild(card);
     });
     monitor.appendChild(box);
@@ -2370,7 +2368,7 @@ function atosRender(){
       if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
       else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
 
-      populateAtosTrainCard(div,train,{showLine:targetLines.length>1});
+      populateAtosTrainCard(div,train);
       div.onclick=()=>openAtosTrainTimetable(train);
       lineDiv.appendChild(div);
     });

@@ -35,10 +35,12 @@ for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-
 }
 assert.match(monitor, /function updateStandaloneAtosSummary\(/,
   'the standalone summary must update with the selected line');
-assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 10px;/,
-  'standalone train cards must keep a lightly rounded dedicated design');
-assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 15px\)/,
+assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 0;/,
+  'standalone train cards must use a fully square frame');
+assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 24px\)/,
   'train cards must cut the upper leading corner to show direction');
+assert.doesNotMatch(monitor, /train-line-chip/,
+  'train cards must not show a railway-name chip');
 assert.match(monitor, /上野東京ライン（品川〜上野 共用線路）/,
   'the four-line shared corridor must be selectable');
 for (const line of ['JobanRapid', 'Tokaido', 'Takasaki', 'Utsunomiya']) {
