@@ -824,8 +824,60 @@ body.standalone-realtime {
   .standalone-realtime #atosDirection { flex: 1 1 100%; width: 100%; }
   .standalone-atos-summary { grid-template-columns: 1fr 1fr; gap: 6px; }
   .standalone-summary-card { padding: 8px 9px; }
-  .standalone-realtime .station { width: 84px; }
-  .standalone-realtime .train { width: 126px; min-width: 126px; }
+}
+/* タブレット縦・スマートフォンでは在線図だけを高密度化する。PC寸法は変更しない。 */
+@media(max-width:900px){
+  .station-line,
+  .parallel-combined-track { margin-bottom:8px; padding-inline:4px; }
+  .station,
+  .standalone-realtime .station {
+    width:clamp(58px,14vw,78px); min-height:32px; padding:5px 3px;
+    border-width:2px; border-radius:7px; font-size:clamp(8px,1.6vw,9.5px);
+    box-shadow:0 2px 6px rgba(8,45,24,.12);
+  }
+  .train,
+  .standalone-realtime .train {
+    width:clamp(76px,17vw,104px); min-width:clamp(76px,17vw,104px);
+    height:40px; padding:3px 20px 3px 6px; border-width:2px;
+    box-shadow:0 3px 8px rgba(19,52,31,.13);
+  }
+  .train.up,
+  .standalone-realtime .train.up { padding:3px 6px 3px 20px; }
+  .train.down,
+  .standalone-realtime .train.down { clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%); }
+  .train.up,
+  .standalone-realtime .train.up { clip-path:polygon(18px 0,100% 0,100% 100%,0 100%,0 18px); }
+  .train::before,
+  .standalone-realtime .train::before { inset:2px; }
+  .train-number,
+  .standalone-realtime .train-number { gap:2px; font-size:clamp(9px,1.9vw,11px); }
+  .train-delay,
+  .standalone-realtime .train-delay { padding:1px 3px; font-size:7px; }
+  .train-info-sub,
+  .standalone-realtime .train-info-sub { max-width:100%; margin-top:1px; overflow:hidden; font-size:clamp(6.5px,1.35vw,8px); text-overflow:ellipsis; }
+  .standalone-realtime .train::after { top:3px; font-size:9px; }
+  .standalone-realtime .train.down::after { right:4px; }
+  .standalone-realtime .train.up::after { left:4px; }
+  .corridor-combined-track::after { max-width:calc(100% - 16px); padding:2px 5px; font-size:7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .parallel-line-label { padding:1px 4px; font-size:7px; }
+}
+@media(max-width:480px){
+  .standalone-realtime #content { padding:4px; }
+  .standalone-realtime #tab-realtime > .panel-box > .panel-body { padding-top:6px; }
+  .standalone-realtime .atos-line-selector-row { gap:5px; margin-bottom:6px; padding:6px; }
+  .standalone-realtime .atos-line-selector-row .h-select { min-height:36px; font-size:.72rem; }
+  .standalone-atos-summary { gap:4px; margin-bottom:6px; }
+  .standalone-summary-card { padding:5px 6px; border-left-width:3px; }
+  .standalone-summary-label { font-size:.52rem; }
+  .standalone-summary-value { font-size:.82rem; }
+  .station,
+  .standalone-realtime .station { width:clamp(52px,15vw,64px); min-height:28px; padding:4px 2px; font-size:7.5px; }
+  .train,
+  .standalone-realtime .train { width:clamp(68px,19vw,82px); min-width:clamp(68px,19vw,82px); height:36px; }
+  .train-number,
+  .standalone-realtime .train-number { font-size:9px; }
+  .train-info-sub,
+  .standalone-realtime .train-info-sub { font-size:6.5px; }
 }
 
 </style>
@@ -2147,6 +2199,7 @@ function corridorVisualDirection(train,fromIndex,toIndex){
 }
 
 function atosRenderCorridor(mode,monitor,directionFilter){
+  const compactAtos=window.matchMedia('(max-width:900px)').matches;
   const box=document.createElement('div'); box.className='station-line corridor-combined-track';
   const track=document.createElement('div'); track.className='track-line';
   track.style.background='linear-gradient(90deg,#1e5dc8 0 25%,#f68b1e 25% 100%)'; box.appendChild(track);
@@ -2170,17 +2223,18 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     const limited=isLimitedExpressTrain(train),card=document.createElement('div');
     card.className=`train ${visualDir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`;
     card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666');card.style.left=`${pos}%`;
-    const trainH=60;if(visualDir==='down') card.style.bottom=`calc(50% + 25px + ${offset*trainH}px)`;else card.style.top=`calc(50% + 25px + ${offset*trainH}px)`;
+    const trainH=compactAtos?44:60,trackGap=compactAtos?20:25;if(visualDir==='down') card.style.bottom=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;else card.style.top=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;
     populateAtosTrainCard(card,train);
     card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;if(Number(train['odpt:delay'])>0) delayedCount++;
   });
-  box.style.height=`${Math.max(170,150+(max.up+max.down)*60)}px`;
+  box.style.height=`${Math.max(compactAtos?132:170,(compactAtos?112:150)+(max.up+max.down)*(compactAtos?44:60))}px`;
   monitor.appendChild(box);
   document.getElementById('atos-train-count').textContent=`4路線共用・表示 ${count}本`;
   updateStandaloneAtosSummary(count,delayedCount,mode.stations.length);
 }
 
 function atosRenderParallel(mode,monitor,directionFilter){
+  const compactAtos=window.matchMedia('(max-width:900px)').matches;
   const groups=[];
   for(let i=0,g=0;i<mode.stations.length;g++){
     const part=g===0?mode.stations.slice(i,i+4):mode.stations.slice(i-1,i+3);
@@ -2214,14 +2268,15 @@ function atosRenderParallel(mode,monitor,directionFilter){
       const offset=stacks[tdir][laneKey]||0; stacks[tdir][laneKey]=offset+1; max[tdir]=Math.max(max[tdir],offset+1);
       cards.push({train,lineIndex,tdir,pos,offset}); placed.add(key); count++; if(Number(train['odpt:delay'])>0) delayedCount++;
     }));
-    const trainH=56; box.style.height=`${150+(max.up+max.down)*trainH}px`;
+    const trainH=compactAtos?44:56; box.style.height=`${(compactAtos?112:150)+(max.up+max.down)*trainH}px`;
     cards.forEach(({train,lineIndex,tdir,pos,offset})=>{
       const limited=isLimitedExpressTrain(train);
       const card=document.createElement('div'); card.className=`train ${tdir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`; card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666'); card.style.left=`${pos}%`;
       // 複合表示でも路線別ではなく方向別に上下へ分ける。
       // 上側＝下り(B線/南行/外回り)、下側＝上り(A線/北行/内回り)。
-      if(tdir==='down') card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`;
-      else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
+      const trackGap=compactAtos?23:31;
+      if(tdir==='down') card.style.bottom=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;
+      else card.style.top=`calc(50% + ${trackGap}px + ${offset*trainH}px)`;
       populateAtosTrainCard(card,train);
       card.onclick=()=>openAtosTrainTimetable(train); box.appendChild(card);
     });
@@ -2246,6 +2301,7 @@ function atosRender(){
   const directionFilter=document.getElementById('atosDirection')?.value||'all';
   const monitor = document.getElementById('atos-monitor');
   const scrollY = window.scrollY;
+  const compactAtos=window.matchMedia('(max-width:900px)').matches;
   monitor.innerHTML = '';
   if(!selectedLine) return;
   if(parallelDisplayModes[selectedLine]){ atosRenderParallel(parallelDisplayModes[selectedLine],monitor,directionFilter); syncUrlState(); return; }
@@ -2348,8 +2404,8 @@ function atosRender(){
       if(Number(train['odpt:delay'])>0) delayedTrainCount++;
     });
 
-    const trainH=54;
-    lineDiv.style.height=`${Math.max(130,130+(maxUp+maxDown)*trainH)}px`;
+    const trainH=compactAtos?42:54,baseHeight=compactAtos?96:130;
+    lineDiv.style.height=`${Math.max(baseHeight,baseHeight+(maxUp+maxDown)*trainH)}px`;
 
     toRender.forEach(({train,pos,tdir,oc})=>{
       const delay=train["odpt:delay"]?Math.floor(train["odpt:delay"]/60):0;
@@ -2365,8 +2421,9 @@ function atosRender(){
       const trainColor=limited?'#d77a80':(lineColors[train['odpt:railway']]||color);
       div.style.color=trainColor;
       div.style.left=`${pos}%`;
-      if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
-      else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
+      const trackGap=compactAtos?16:20;
+      if(tdir==='up') div.style.top=`calc(50% + ${trackGap}px + ${oc*trainH}px)`;
+      else div.style.bottom=`calc(50% + ${trackGap}px + ${oc*trainH}px)`;
 
       populateAtosTrainCard(div,train);
       div.onclick=()=>openAtosTrainTimetable(train);

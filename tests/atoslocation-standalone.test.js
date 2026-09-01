@@ -41,6 +41,12 @@ assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 24px
   'train cards must cut the upper leading corner to show direction');
 assert.doesNotMatch(monitor, /train-line-chip/,
   'train cards must not show a railway-name chip');
+assert.match(monitor, /@media\(max-width:900px\)\{[\s\S]*width:clamp\(76px,17vw,104px\)/,
+  'portrait tablets must use compact train cards');
+assert.match(monitor, /@media\(max-width:480px\)\{[\s\S]*width:clamp\(68px,19vw,82px\)/,
+  'phones must use extra-compact train cards');
+assert.match(monitor, /matchMedia\('\(max-width:900px\)'\)\.matches/,
+  'rendered track height must adapt to narrow screens');
 assert.match(monitor, /上野東京ライン（品川〜上野 共用線路）/,
   'the four-line shared corridor must be selectable');
 for (const line of ['JobanRapid', 'Tokaido', 'Takasaki', 'Utsunomiya']) {
