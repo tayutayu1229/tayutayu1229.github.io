@@ -39,8 +39,6 @@ assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 10p
   'standalone train cards must keep a lightly rounded dedicated design');
 assert.match(monitor, /\.train\.down \{ clip-path:polygon\(0 0,calc\(100% - 15px\)/,
   'train cards must cut the upper leading corner to show direction');
-assert.match(monitor, /function buildAtosTrainOrderMap\(/,
-  'train cards must calculate and display the running order');
 assert.match(monitor, /上野東京ライン（品川〜上野 共用線路）/,
   'the four-line shared corridor must be selectable');
 for (const line of ['JobanRapid', 'Tokaido', 'Takasaki', 'Utsunomiya']) {

@@ -461,8 +461,6 @@ html, body {
 .train-number { white-space:nowrap; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; font-family:'Oswald',sans-serif; color:var(--text); }
 .train-delay  { color: var(--red2); font-weight:900; font-size:10px; }
 .train-info-sub { font-size:8.5px; color:var(--text3); line-height:1.1; margin-top:2px; }
-.train-order { position:absolute; top:-12px; left:50%; z-index:4; transform:translateX(-50%); padding:2px 7px; color:#fff; background:#173f2a; border:2px solid #fff; border-radius:6px; font-size:8px; font-weight:900; line-height:1.2; box-shadow:0 2px 6px rgba(0,0,0,.2); }
-.train-order.same-position { background:#7b5b18; }
 .train-line-chip { position:absolute; right:5px; bottom:3px; z-index:3; max-width:64px; overflow:hidden; color:var(--text3); font-size:7px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
 .corridor-combined-track::after { content:'常磐線快速・東海道線・高崎線・宇都宮線　共用線路'; position:absolute; top:9px; left:12px; z-index:2; padding:3px 8px; color:#28503a; background:rgba(255,255,255,.9); border:1px solid #b9c9bf; border-radius:6px; font-size:9px; font-weight:900; }
 
@@ -570,8 +568,6 @@ body.train-modal-open { position:fixed !important; left:0; right:0; width:100%; 
 .mobile-atos-train-monitor tr.mobile-current td { background:#fff4bf; }
 .mobile-atos-train-monitor td.mobile-prediction,
 .mobile-atos-train-monitor td.mobile-operation-train { color:#1537ad; }
-.mobile-atos-train-monitor tr.mobile-pass-stop td { background:#e8f0ec; color:#425248; }
-.mobile-pass-chip { display:inline-block; margin-left:5px; padding:1px 4px; color:#17643b; background:#d8f0e1; border:1px solid #72b58a; border-radius:3px; font-size:10px; vertical-align:middle; }
 .mobile-atos-train-monitor .mobile-delay-positive { color:#d7192d; }
 .mobile-atos-train-monitor .mobile-delay-zero { color:#111; }
 .mobile-atos-train-monitor .mobile-atos-legend { padding:5px 8px; font-size:13px; }
@@ -2137,44 +2133,7 @@ function resolveTrainPosition(train, stationIds, group) {
   return {from,to:atStation?null:apiTo,state:atStation?'station':'between'};
 }
 
-function atosTrainDisplayKey(train){
-  return `${train?.['odpt:railway']||''}|${train?.['odpt:trainNumber']||train?.['@id']||train?.['odpt:fromStation']||''}`;
-}
-function atosTrainPlannedMinute(train){
-  const number=normalizeTrainKey(train?.['odpt:trainNumber']);
-  const station=train?.['odpt:fromStation'];
-  const candidates=atosTimetableData.filter(item=>normalizeTrainKey(item?.['odpt:trainNumber'])===number&&item?.['odpt:railway']===train?.['odpt:railway']);
-  for(const timetable of candidates){
-    const stop=(timetable['odpt:trainTimetableObject']||[]).find(item=>samePhysicalStation(timetableStopStation(item),station));
-    if(stop) return timetableMinute(stop);
-  }
-  return Number.MAX_SAFE_INTEGER;
-}
-function buildAtosTrainOrderMap(trains,stationNames,primaryLineId,visualDirectionResolver=null){
-  const positions=[];
-  trains.forEach(train=>{
-    const from=getFullStationTitle(train['odpt:fromStation']);
-    const to=train['odpt:toStation']?getFullStationTitle(train['odpt:toStation']):null;
-    const fi=stationNames.indexOf(from),ti=to?stationNames.indexOf(to):-1;
-    if(fi<0) return;
-    const pos=ti>=0&&ti!==fi?(fi+ti)/2:fi;
-    const dir=visualDirectionResolver?visualDirectionResolver(train,fi,ti):getSharedVisualTrainDir(primaryLineId,train,fi,ti);
-    positions.push({train,key:atosTrainDisplayKey(train),dir,pos,minute:atosTrainPlannedMinute(train)});
-  });
-  const order=new Map();
-  for(const dir of ['down','up']){
-    const list=positions.filter(item=>item.dir===dir).sort((a,b)=>(dir==='down'?b.pos-a.pos:a.pos-b.pos)||a.minute-b.minute||a.key.localeCompare(b.key));
-    list.forEach((item,index)=>{
-      const samePosition=list.some((other,otherIndex)=>otherIndex!==index&&Math.abs(other.pos-item.pos)<.001);
-      order.set(item.key,{label:index===0?'先行':`${index+1}番手`,samePosition});
-    });
-  }
-  return order;
-}
-function populateAtosTrainCard(card,train,orderInfo=null,{showLine=false}={}){
-  if(orderInfo){
-    const order=document.createElement('span'); order.className=`train-order${orderInfo.samePosition?' same-position':''}`; order.textContent=orderInfo.label; card.appendChild(order);
-  }
+function populateAtosTrainCard(card,train,{showLine=false}={}){
   const number=document.createElement('div'); number.className='train-number'; number.textContent=train['odpt:trainNumber']||'?';
   const delaySeconds=Math.max(0,Number(train['odpt:delay'])||0);
   if(delaySeconds){const delay=document.createElement('span');delay.className='train-delay';delay.textContent=`+${Math.floor(delaySeconds/60)}分`;number.appendChild(delay);}
@@ -2200,7 +2159,6 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     box.appendChild(station);
   });
   const candidates=atosTrainData.filter(train=>mode.lines.includes(train['odpt:railway']));
-  const orderMap=buildAtosTrainOrderMap(candidates,mode.stations,mode.lines[0],corridorVisualDirection);
   const stacks={up:{},down:{}},max={up:0,down:0};let count=0,delayedCount=0;
   candidates.forEach(train=>{
     const filterDir=getTrainDir(train['odpt:railDirection'],train['odpt:railway']);
@@ -2215,7 +2173,7 @@ function atosRenderCorridor(mode,monitor,directionFilter){
     card.className=`train ${visualDir}${train['odpt:delay']?' delayed-train':''}${limited?' limited-express-train':''}`;
     card.style.color=limited?'#d77a80':(lineColors[train['odpt:railway']]||'#666');card.style.left=`${pos}%`;
     const trainH=60;if(visualDir==='down') card.style.bottom=`calc(50% + 25px + ${offset*trainH}px)`;else card.style.top=`calc(50% + 25px + ${offset*trainH}px)`;
-    populateAtosTrainCard(card,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:true});
+    populateAtosTrainCard(card,train,{showLine:true});
     card.onclick=()=>openAtosTrainTimetable(train);box.appendChild(card);count++;if(Number(train['odpt:delay'])>0) delayedCount++;
   });
   box.style.height=`${Math.max(170,150+(max.up+max.down)*60)}px`;
@@ -2230,8 +2188,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
     const part=g===0?mode.stations.slice(i,i+4):mode.stations.slice(i-1,i+3);
     i+=g===0?4:3; if(part.length<2) break; groups.push(part);
   }
-  const placed=new Set(),modeTrains=atosTrainData.filter(train=>mode.lines.includes(train['odpt:railway']));
-  const orderMap=buildAtosTrainOrderMap(modeTrains,mode.stations,mode.lines[0]);
+  const placed=new Set();
   let count=0, delayedCount=0;
   groups.forEach((group,groupIndex)=>{
     const box=document.createElement('div'); box.className='parallel-combined-track';
@@ -2267,7 +2224,7 @@ function atosRenderParallel(mode,monitor,directionFilter){
       // 上側＝下り(B線/南行/外回り)、下側＝上り(A線/北行/内回り)。
       if(tdir==='down') card.style.bottom=`calc(50% + 31px + ${offset*trainH}px)`;
       else card.style.top=`calc(50% + 31px + ${offset*trainH}px)`;
-      populateAtosTrainCard(card,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:true});
+      populateAtosTrainCard(card,train,{showLine:true});
       card.onclick=()=>openAtosTrainTimetable(train); box.appendChild(card);
     });
     monitor.appendChild(box);
@@ -2311,8 +2268,6 @@ function atosRender(){
 
   const allStations=(lineData["odpt:stationOrder"]||[]).sort((a,b)=>a["odpt:index"]-b["odpt:index"]);
   const stationIds=allStations.map(s=>s["odpt:station"]);
-  const stationNames=stationIds.map(getFullStationTitle);
-  const orderMap=buildAtosTrainOrderMap(atosTrainData.filter(train=>targetLines.includes(train['odpt:railway'])),stationNames,primaryLineId);
   let trainCount=0, delayedTrainCount=0;
   const placedTrainKeys=new Set();
 
@@ -2415,7 +2370,7 @@ function atosRender(){
       if(tdir==='up') div.style.top=`calc(50% + 20px + ${oc*trainH}px)`;
       else div.style.bottom=`calc(50% + 20px + ${oc*trainH}px)`;
 
-      populateAtosTrainCard(div,train,orderMap.get(atosTrainDisplayKey(train)),{showLine:targetLines.length>1});
+      populateAtosTrainCard(div,train,{showLine:targetLines.length>1});
       div.onclick=()=>openAtosTrainTimetable(train);
       lineDiv.appendChild(div);
     });
@@ -2871,8 +2826,11 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     const observedItem=marker.departure?(observed?.departure||observed):marker.arrival?(observed?.arrival||observed):null;
     const actualDelaySeconds=observedItem&&Number.isFinite(Number(observedItem.delaySeconds))?Math.max(0,Number(observedItem.delaySeconds)):(marker.current?liveDelaySeconds:null);
     const delay=actualDelaySeconds===null?null:Math.floor(actualDelaySeconds/60);
-    const arrival=stop['odpt:arrivalTime']||'';
-    const departure=stop['odpt:departureTime']||'';
+    const inferredPass=Boolean(stop.__inferredPass);
+    const estimatedArrival=stop['odpt:arrivalTime']||'';
+    const estimatedDeparture=stop['odpt:departureTime']||'';
+    const arrival=inferredPass?'':estimatedArrival;
+    const departure=inferredPass?'':estimatedDeparture;
     const actualArrival=stop.__actualArrivalTime||historyActualTime(observed?.arrival||(observed?.phase==='arrival'?observed:null)||((arrival||stop.__historyOnly)?observed?.departure:null));
     const actualDeparture=stop.__actualDepartureTime||historyActualTime(observed?.departure||(observed?.phase==='departure'?observed:null));
     const historical=historyPredictionForStation(history,stationId);
@@ -2890,7 +2848,7 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
         arrivalForecastDelaySeconds=Math.max(0,arrivalForecastDelaySeconds+adjustment);
       }
     }
-    const recoverySeconds=plannedDwellRecoverySeconds(arrival,departure);
+    const recoverySeconds=plannedDwellRecoverySeconds(estimatedArrival,estimatedDeparture);
     const departureForecastDelaySeconds=arrivalForecastDelaySeconds===null?null:Math.max(0,arrivalForecastDelaySeconds-recoverySeconds);
     if(currentIndex<0||index>=currentIndex) carriedForecastDelaySeconds=departureForecastDelaySeconds;
     const predicted=(value,completed,eligible,delaySeconds,actualTime)=>{
@@ -2906,9 +2864,10 @@ function renderAtosMobileTrainTT(tt,liveTrain,output){
     const operationKid=previousConnection?operationSource.previousKid:nextConnection?operationSource.nextKid:'';
     const connectionDirection=previousConnection?'previous':'next';
     const operationTrainHtml=operationTrain?`<button class="train-link" data-atos-action="open-operation-train" data-train="${encodeAtosActionValue(operationTrain)}" data-station="${encodeAtosActionValue(stationId)}" data-direction="${connectionDirection}" data-service-date="${encodeAtosActionValue(serviceDate)}" data-kid="${encodeAtosActionValue(operationKid)}">${operationTrain}</button>`:'';
-    const rowClasses=[marker.current&&flashCurrent?'mobile-current':'',stop.__inferredPass?'mobile-pass-stop':''].filter(Boolean).join(' ');
-    const stationLabel=`${atosDisplayStationName(stationId)}${stop.__inferredPass?'<span class="mobile-pass-chip">通過予測</span>':''}`;
-    html+=`<tr${rowClasses?` class="${rowClasses}"`:''}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${stationLabel}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival)}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture)}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop.__inferredPass?'通過':(stop['odpt:platformNumber']||'—')}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${stop.__inferredPass?'推定':operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
+    const rowClass=marker.current&&flashCurrent?' class="mobile-current"':'';
+    const arrivalPrediction=inferredPass?estimatedArrival:predicted(arrival,marker.arrival,arrivalForecastable,arrivalForecastDelaySeconds,actualArrival);
+    const departurePrediction=inferredPass?estimatedDeparture:predicted(departure,marker.departure,departureForecastable,departureForecastDelaySeconds,actualDeparture);
+    html+=`<tr${rowClass}><td>${first?trainType:''}</td><td></td><td class="mobile-station">${atosDisplayStationName(stationId)}</td><td class="mobile-time">${arrival||'…'}</td><td class="mobile-time mobile-prediction">${arrivalPrediction}</td><td class="mobile-marker">${marker.arrival?'＊':''}</td><td class="mobile-time">${departure||'…'}</td><td class="mobile-time mobile-prediction">${departurePrediction}</td><td class="mobile-marker">${marker.departure?'＊':''}</td><td>${stop['odpt:platformNumber']||'—'}</td><td class="${delay>0?'mobile-delay-positive':'mobile-delay-zero'}">${delayText}</td><td>${operation}</td><td class="mobile-operation-train">${operationTrainHtml}</td></tr>`;
   });
   html+=`</tbody></table></div><div class="mobile-atos-legend">「$」･･･運休　「*」･･･運済　「#」･･･変更　「¥」･･･運転禁止</div></div>`;
   output.innerHTML=html;
