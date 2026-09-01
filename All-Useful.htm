@@ -899,7 +899,7 @@ const TOOLS = [
 function buildGrid(){
   const list = document.getElementById('toolList');
   list.innerHTML = TOOLS.map(t=>`
-    <li><button type="button" class="tool-card" data-search="${t.label}" onclick="openTool('${t.id}')">
+    <li><button type="button" class="tool-card" data-search="${t.label}" data-open-tool="${t.id}">
       <span class="tool-mark">${t.mark}</span>
       <span>
         ${t.label}
@@ -910,6 +910,10 @@ function buildGrid(){
   `).join('');
 }
 buildGrid();
+document.getElementById('toolList').addEventListener('click', event=>{
+  const button=event.target.closest('[data-open-tool]');
+  if(button) openTool(button.dataset.openTool);
+});
 
 function openTool(id){
   document.getElementById('homeView').style.display='none';
@@ -1082,9 +1086,12 @@ function generatePasswords(){
   resultsDiv.innerHTML = passwords.map((p,idx)=>`
     <div class="pw-item">
       <span>${p}</span>
-      <button class="btn secondary small" onclick="copySinglePassword(${idx}, this)">コピー</button>
+      <button class="btn secondary small" data-copy-password="${idx}">コピー</button>
     </div>
   `).join('');
+  resultsDiv.querySelectorAll('[data-copy-password]').forEach(button=>{
+    button.addEventListener('click',()=>copySinglePassword(Number(button.dataset.copyPassword),button));
+  });
   document.getElementById('pwCopyAllRow').style.display = passwords.length>0 ? 'flex' : 'none';
 }
 function copySinglePassword(idx, btn){

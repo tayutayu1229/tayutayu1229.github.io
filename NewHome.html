@@ -1234,11 +1234,16 @@ function renderInfo(){
       </div>
       ${cause||range?`<div class="card-meta">${cause?'事由: '+esc(cause):''}${cause&&range?' ／ ':''}${range?'区間: '+esc(range):''}</div>`:''}
       <div class="card-text">${esc(currentText)}</div>
-      ${history.length>0?`<span class="hist-toggle" onclick="toggleHist('h${idx}',this)">▼ 過去の情報履歴 (${history.length}件)</span>
+      ${history.length>0?`<span class="hist-toggle" role="button" tabindex="0" data-history-id="h${idx}">▼ 過去の情報履歴 (${history.length}件)</span>
       <ul class="hist-list" id="h${idx}">${history.map(p=>`<li class="hist-item"><span class="hist-time">${new Date(p.date).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span><span class="hist-s">[${esc(p.status)}]</span> ${esc(p.text)}</li>`).join('')}</ul>`:''}
     </div>`;
   });
   container.innerHTML=html||`<div style="text-align:center;padding:40px;color:var(--text3);">表示する情報はありません</div>`;
+  container.querySelectorAll('[data-history-id]').forEach(el=>{
+    const open=()=>toggleHist(el.dataset.historyId,el);
+    el.addEventListener('click',open);
+    el.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}});
+  });
 }
 function toggleHist(id,el){ const li=document.getElementById(id); const open=li.style.display==='block'; li.style.display=open?'none':'block'; el.textContent=(open?'▼':'▲')+el.textContent.slice(1); }
 

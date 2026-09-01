@@ -481,6 +481,12 @@
         let allTrainGroups = [];
         let currentFilter = 'all';
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[char]);
+        }
+
         function formatDate(dateStr) {
             if (!dateStr) return "";
             const parts = dateStr.split(/[\/\-]/);
@@ -612,7 +618,7 @@
 
             } catch (error) {
                 document.getElementById('train-list').innerHTML =
-                    `<div class="empty-state">読み込みエラー: ${error.message}</div>`;
+                    `<div class="empty-state">読み込みエラー: ${escapeHtml(error.message)}</div>`;
             }
         }
 
@@ -652,13 +658,13 @@
 
                     const routeHtml = (t.startStation || t.endStation) ? `
                         <div class="route-row">
-                            ${t.startTime ? `<span class="route-time">${t.startTime}</span>` : ''}
-                            <span class="route-station">${t.startStation || '?'}</span>
+                            ${t.startTime ? `<span class="route-time">${escapeHtml(t.startTime)}</span>` : ''}
+                            <span class="route-station">${escapeHtml(t.startStation || '?')}</span>
                             <span class="route-line"></span>
-                            <span class="route-stop-count">${t.stopCount}駅</span>
+                            <span class="route-stop-count">${Number(t.stopCount) || 0}駅</span>
                             <span class="route-line"></span>
-                            <span class="route-station">${t.endStation || '?'}</span>
-                            ${t.endTime ? `<span class="route-time">${t.endTime}</span>` : ''}
+                            <span class="route-station">${escapeHtml(t.endStation || '?')}</span>
+                            ${t.endTime ? `<span class="route-time">${escapeHtml(t.endTime)}</span>` : ''}
                         </div>` : '';
 
                     // 複数線区にまたがる列車のみ経由線区を表示
@@ -666,18 +672,18 @@
                         <div class="via-row">
                             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h14M13 5l5 5-5 5"/></svg>
                             <span class="via-label">経由</span>
-                            <span class="via-chain">${t.lines.map(l => `<span class="via-line">${l.endsWith('線') ? l : l + '線'}</span>`).join('<span class="route-arrow">→</span>')}</span>
+                            <span class="via-chain">${t.lines.map(l => `<span class="via-line">${escapeHtml(l.endsWith('線') ? l : l + '線')}</span>`).join('<span class="route-arrow">→</span>')}</span>
                         </div>` : '';
 
                     return `
-                    <div class="train-item" onclick="saveAndGo('${t.id}', '${t.date}')">
+                    <div class="train-item" role="link" tabindex="0" data-train-id="${escapeHtml(t.id)}" data-original-date="${escapeHtml(t.date)}">
                         <div class="item-bar ${cat}"></div>
                         <div class="item-body">
                             <div class="item-top-row">
-                                <span class="train-date">${t.date}</span>
-                                <span class="train-num">${t.trainNumber}</span>
-                                ${t.type ? `<span class="type-badge">${t.type}</span>` : ''}
-                                <span class="day-type-tag ${tagClassMap[cat]}">${displayDayType}</span>
+                                <span class="train-date">${escapeHtml(t.date)}</span>
+                                <span class="train-num">${escapeHtml(t.trainNumber)}</span>
+                                ${t.type ? `<span class="type-badge">${escapeHtml(t.type)}</span>` : ''}
+                                <span class="day-type-tag ${tagClassMap[cat]}">${escapeHtml(displayDayType)}</span>
                             </div>
                             ${routeHtml}
                             ${viaHtml}
@@ -727,6 +733,17 @@
             chip.classList.add('active');
             currentFilter = chip.dataset.type;
             renderList();
+        });
+        document.getElementById('train-list').addEventListener('click', (e) => {
+            const item = e.target.closest('.train-item');
+            if (item) saveAndGo(item.dataset.trainId, item.dataset.originalDate);
+        });
+        document.getElementById('train-list').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const item = e.target.closest('.train-item');
+            if (!item) return;
+            e.preventDefault();
+            saveAndGo(item.dataset.trainId, item.dataset.originalDate);
         });
 
         loadData();

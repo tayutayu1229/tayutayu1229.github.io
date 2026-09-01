@@ -32,10 +32,19 @@ const forbidden = [];
 
 for (const file of files) {
   const source = fs.readFileSync(file, 'utf8');
+  const relative = path.relative(root, file);
   for (const [name, pattern] of Object.entries(rules)) totals[name] += (source.match(pattern) || []).length;
-  if (/\beval\s*\(/.test(source)) forbidden.push(`${path.relative(root, file)}: eval()`);
-  if (/\bnew\s+Function\s*\(/.test(source)) forbidden.push(`${path.relative(root, file)}: new Function()`);
-  if (/\b(?:href|src)\s*=\s*["']\s*javascript:/i.test(source)) forbidden.push(`${path.relative(root, file)}: javascript: URL`);
+  if (/\beval\s*\(/.test(source)) forbidden.push(`${relative}: eval()`);
+  if (/\bnew\s+Function\s*\(/.test(source)) forbidden.push(`${relative}: new Function()`);
+  if (/\b(?:href|src)\s*=\s*["']\s*javascript:/i.test(source)) forbidden.push(`${relative}: javascript: URL`);
+  if (/\.srcdoc\s*=/.test(source)) forbidden.push(`${relative}: srcdoc assignment`);
+
+  // HTML escaping alone does not make a value safe inside JavaScript event code.
+  // Reject template interpolation in the event attribute itself and require data-* + listeners.
+  const eventAttribute = /\bon[a-z]+\s*=\s*(["'])([\s\S]*?)\1/gi;
+  for (const match of source.matchAll(eventAttribute)) {
+    if (match[2].includes('${')) forbidden.push(`${relative}: dynamic inline event handler`);
+  }
 }
 
 const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));

@@ -970,6 +970,34 @@ function openModal(title, bodyHtml, fin) {
 function closeModal() { modalOverlay.classList.remove("open"); modalBody.innerHTML = ""; }
 window.closeModal = closeModal;
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener("click", e => {
+    const target = e.target.closest("[data-admin-action]");
+    if (!target) return;
+    const action = target.dataset.adminAction;
+    const id = target.dataset.id || "";
+    if (action === "close-modal") closeModal();
+    else if (action === "open-budget") openBudgetModal(id);
+    else if (action === "save-budget") saveBudget(id);
+    else if (action === "delete-budget") confirmDeleteFin(`予算「${target.dataset.name || ""}」を削除しますか？`, () => deleteBudget(id));
+    else if (action === "open-txn") openTxnModal(id);
+    else if (action === "save-txn") saveTxn(id);
+    else if (action === "delete-txn") confirmDeleteFin(`「${target.dataset.name || ""}」を削除しますか？`, () => deleteTxn(id));
+    else if (action === "open-fee") openFeePayModal(id);
+    else if (action === "open-member") openMemberModal(id);
+    else if (action === "save-member") saveMember(id);
+    else if (action === "save-fee") saveFeePayment(id);
+    else if (action === "delete-member") confirmDeleteFin(`メンバー「${target.dataset.name || ""}」を削除しますか？`, () => deleteMember(id));
+    else if (action === "remove-year") removeYear(Number(target.dataset.year));
+    else if (action === "remove-category") removeCategory(id, target.dataset.name || "");
+    else if (action === "user-detail") openUserDetail(id);
+    else if (action === "approve-user") approveUser(id);
+    else if (action === "disable-user") disableUser(id);
+    else if (action === "enable-user") enableUser(id);
+    else if (action === "delete-user") deleteUser(id);
+    else if (action === "revoke-admin") revokeAdmin(id);
+    else if (action === "promote-admin") promoteAdmin(id);
+    else if (action === "copy-user-email") copyUserEmail(id);
+});
 
 function confirmModal(message, label, danger, onConfirm) {
     openModal("確認", `
@@ -1287,8 +1315,8 @@ window.renderBudgets = function() {
             <td class="amt">${fmt(b.amount)}</td>
             <td style="font-size:0.78rem;color:var(--text3)">${esc(b.note||"")}</td>
             <td>
-                <button class="btn-fin btn-sm" onclick="openBudgetModal('${b.id}')">編集</button>
-                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('予算「${esc(b.category)}」を削除しますか？',()=>deleteBudget('${b.id}'))">削除</button>
+                <button class="btn-fin btn-sm" data-admin-action="open-budget" data-id="${esc(b.id)}">編集</button>
+                <button class="btn-delete btn-sm" data-admin-action="delete-budget" data-id="${esc(b.id)}" data-name="${esc(b.category)}">削除</button>
             </td>
         </tr>`).join("")}</tbody>
     </table>`;
@@ -1307,7 +1335,7 @@ window.openBudgetModal = function(id) {
         <div class="modal-error" id="m-berr"></div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
-            <button class="btn-confirm fin-confirm" id="m-bsave" onclick="saveBudget('${id||""}')">保存</button>
+            <button class="btn-confirm fin-confirm" id="m-bsave" data-admin-action="save-budget" data-id="${esc(id||"")}">保存</button>
         </div>`, true);
 };
 
@@ -1387,8 +1415,8 @@ window.renderTxns = function() {
             <td>${esc(t.title||"")}</td>
             <td style="font-size:0.72rem;color:var(--text3);max-width:120px;white-space:normal">${esc(t.note||"")}</td>
             <td>
-                <button class="btn-fin btn-sm" onclick="openTxnModal('${t.id}')">編集</button>
-                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('「${esc(t.title||t.category)}」を削除しますか？',()=>deleteTxn('${t.id}'))">削除</button>
+                <button class="btn-fin btn-sm" data-admin-action="open-txn" data-id="${esc(t.id)}">編集</button>
+                <button class="btn-delete btn-sm" data-admin-action="delete-txn" data-id="${esc(t.id)}" data-name="${esc(t.title||t.category)}">削除</button>
             </td>
         </tr>`).join("")}</tbody>
     </table></div>`;
@@ -1427,7 +1455,7 @@ window.openTxnModal = function(id) {
         <div class="modal-error" id="m-terr"></div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
-            <button class="btn-confirm fin-confirm" id="m-tsave" onclick="saveTxn('${id||""}')">保存</button>
+            <button class="btn-confirm fin-confirm" id="m-tsave" data-admin-action="save-txn" data-id="${esc(id||"")}">保存</button>
         </div>`, true);
     // Handle "other" category
     document.getElementById("m-tcat").addEventListener("change", function() {
@@ -1574,9 +1602,9 @@ function renderFeeTable() {
             <td style="font-size:0.78rem;white-space:nowrap">${fmtDate(fp?.paymentDate||"")||"—"}</td>
             <td style="font-size:0.72rem;color:var(--text3);max-width:100px;white-space:normal">${esc(fp?.note||m.note||"")}</td>
             <td>
-                <button class="btn-fin btn-sm" onclick="openFeePayModal('${m.id}')">支払登録</button>
-                <button class="btn-detail btn-sm" onclick="openMemberModal('${m.id}')">編集</button>
-                <button class="btn-delete btn-sm" onclick="confirmDeleteFin('メンバー「${esc(m.name)}」を削除しますか？',()=>deleteMember('${m.id}'))">削除</button>
+                <button class="btn-fin btn-sm" data-admin-action="open-fee" data-id="${esc(m.id)}">支払登録</button>
+                <button class="btn-detail btn-sm" data-admin-action="open-member" data-id="${esc(m.id)}">編集</button>
+                <button class="btn-delete btn-sm" data-admin-action="delete-member" data-id="${esc(m.id)}" data-name="${esc(m.name)}">削除</button>
             </td>
         </tr>`;
     }).join("")||'<tr><td colspan="9" class="empty-msg" style="text-align:center;padding:14px">メンバーがいません</td></tr>';
@@ -1636,7 +1664,7 @@ window.openMemberModal = async function(id) {
         <div class="modal-error" id="m-merr"></div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
-            <button class="btn-confirm fin-confirm" id="m-msave" onclick="saveMember('${id||""}')">保存</button>
+            <button class="btn-confirm fin-confirm" id="m-msave" data-admin-action="save-member" data-id="${esc(id||"")}">保存</button>
         </div>`, true);
 };
 
@@ -1686,7 +1714,7 @@ window.openFeePayModal = function(memberId) {
         <textarea id="m-fpnote">${esc(fp?.note||"")}</textarea>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
-            <button class="btn-confirm fin-confirm" onclick="saveFeePayment('${memberId}')">保存</button>
+            <button class="btn-confirm fin-confirm" data-admin-action="save-fee" data-id="${esc(memberId)}">保存</button>
         </div>`, true);
 };
 
@@ -1917,7 +1945,7 @@ function renderYearList() {
     el.innerHTML = finYears.map(y=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
             <span>${y}年度</span>
-            <button class="btn-delete btn-sm" onclick="removeYear(${y})">削除</button>
+            <button class="btn-delete btn-sm" data-admin-action="remove-year" data-year="${esc(y)}">削除</button>
         </div>`).join("") || '<div class="empty-msg">年度なし</div>';
 }
 window.removeYear = async function(yr) {
@@ -1944,7 +1972,7 @@ function renderCatList() {
     el.innerHTML = finCategories.map(c=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
             <span style="font-size:0.84rem">${esc(c.name)}</span>
-            <button class="btn-delete btn-sm" onclick="removeCategory('${c.id}','${esc(c.name)}')">削除</button>
+            <button class="btn-delete btn-sm" data-admin-action="remove-category" data-id="${esc(c.id)}" data-name="${esc(c.name)}">削除</button>
         </div>`).join("") || '<div class="empty-msg">カテゴリなし</div>';
 }
 window.removeCategory = async function(id,name) {
@@ -2032,7 +2060,7 @@ function renderDashboard(){
     const recent=document.getElementById("recent-users-list");
     if(recent) recent.innerHTML=all.length?`<table class="recent-list"><tbody>${all.map(u=>`
         <tr><td><b>${escapeHtml(u.email||"メール未設定")}</b><br><span class="muted">${formatDate2(u.registeredAt)}</span></td>
-        <td>${statusLabel2(u.status)}</td><td><button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>`).join("")}</tbody></table>`:
+        <td>${statusLabel2(u.status)}</td><td><button class="btn-detail btn-sm" data-admin-action="user-detail" data-id="${escapeHtml(u.uid)}">詳細</button></td></tr>`).join("")}</tbody></table>`:
         '<div class="empty-msg">登録ユーザーはいません。</div>';
     const ph=document.getElementById("health-pending");
     const dh=document.getElementById("health-disabled");
@@ -2062,11 +2090,11 @@ function renderPending(){
         <th class="sortable" onclick="toggleSort('pending','email')">メール <span class="sort-arrow">${sortArrow("pending","email")}</span></th>
         <th class="sortable" onclick="toggleSort('pending','registeredAt')">登録日 <span class="sort-arrow">${sortArrow("pending","registeredAt")}</span></th>
         <th>操作</th></tr></thead><tbody>
-        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="pending-chk" data-uid="${escapeHtml(u.uid)}" onchange="updateBulkButtons()"></td>
             <td>${escapeHtml(u.email)}</td><td>${formatDate2(u.registeredAt)}</td>
-            <td><button class="btn-approve btn-sm" onclick="approveUser('${u.uid}')">承認</button>
-                <button class="btn-disable btn-sm" onclick="disableUser('${u.uid}')">無効化</button>
-                <button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button></td></tr>`).join("")}
+            <td><button class="btn-approve btn-sm" data-admin-action="approve-user" data-id="${escapeHtml(u.uid)}">承認</button>
+                <button class="btn-disable btn-sm" data-admin-action="disable-user" data-id="${escapeHtml(u.uid)}">無効化</button>
+                <button class="btn-detail btn-sm" data-admin-action="user-detail" data-id="${escapeHtml(u.uid)}">詳細</button></td></tr>`).join("")}
     </tbody></table>`;
     applyTableFilter("pending-users-list");
 }
@@ -2082,10 +2110,10 @@ function renderUsers(){
             const tags=u.tags.length?`<div>${u.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`:"";
             let btns="";
             if(u.uid!==CURRENT_USER_UID){
-                btns=`<button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button>
-                      <button class="btn-disable btn-sm" onclick="disableUser('${u.uid}')">無効化</button>`+
-                    (u.isAdmin?`<button class="btn-revoke btn-sm" onclick="revokeAdmin('${u.uid}')">権限剥奪</button>`:
-                               `<button class="btn-admin btn-sm" onclick="promoteAdmin('${u.uid}')">管理者付与</button>`);
+                btns=`<button class="btn-detail btn-sm" data-admin-action="user-detail" data-id="${escapeHtml(u.uid)}">詳細</button>
+                      <button class="btn-disable btn-sm" data-admin-action="disable-user" data-id="${escapeHtml(u.uid)}">無効化</button>`+
+                    (u.isAdmin?`<button class="btn-revoke btn-sm" data-admin-action="revoke-admin" data-id="${escapeHtml(u.uid)}">権限剥奪</button>`:
+                               `<button class="btn-admin btn-sm" data-admin-action="promote-admin" data-id="${escapeHtml(u.uid)}">管理者付与</button>`);
             }else btns="自分自身";
             return`<tr><td>${escapeHtml(u.email)}${tags}</td>
                 <td>${statusLabel2(u.status)}</td>
@@ -2102,11 +2130,11 @@ function renderDisabled(){
         <th class="chk-col"><input type="checkbox" id="disabled-select-all" onchange="toggleSelectAll('disabled',this.checked)"></th>
         <th class="sortable" onclick="toggleSort('disabled','email')">メール <span class="sort-arrow">${sortArrow("disabled","email")}</span></th>
         <th>状態</th><th>操作</th></tr></thead><tbody>
-        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${u.uid}" onchange="updateBulkButtons()"></td>
+        ${rows.map(u=>`<tr><td class="chk-col"><input type="checkbox" class="disabled-chk" data-uid="${escapeHtml(u.uid)}" onchange="updateBulkButtons()"></td>
             <td>${escapeHtml(u.email)}</td><td><span class="status-badge status-disabled">停止中</span></td>
-            <td><button class="btn-detail btn-sm" onclick="openUserDetail('${u.uid}')">詳細</button>
-                <button class="btn-enable btn-sm" onclick="enableUser('${u.uid}')">再有効化</button>
-                <button class="btn-delete btn-sm" onclick="deleteUser('${u.uid}')">削除</button></td></tr>`).join("")}
+            <td><button class="btn-detail btn-sm" data-admin-action="user-detail" data-id="${escapeHtml(u.uid)}">詳細</button>
+                <button class="btn-enable btn-sm" data-admin-action="enable-user" data-id="${escapeHtml(u.uid)}">再有効化</button>
+                <button class="btn-delete btn-sm" data-admin-action="delete-user" data-id="${escapeHtml(u.uid)}">削除</button></td></tr>`).join("")}
     </tbody></table>`;
     applyTableFilter("disabled-users-list");
 }
@@ -2173,7 +2201,7 @@ window.openUserDetail=function(uid){
     const tagsHtml=u.tags.length?u.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join(""):'<span class="muted">未設定</span>';
     openModal("ユーザー詳細",`
         <dl class="detail-grid">
-            <dt>メールアドレス</dt><dd>${escapeHtml(u.email)} <button class="btn-copy btn-sm" onclick="copyUserEmail('${u.uid}')">コピー</button></dd>
+            <dt>メールアドレス</dt><dd>${escapeHtml(u.email)} <button class="btn-copy btn-sm" data-admin-action="copy-user-email" data-id="${escapeHtml(u.uid)}">コピー</button></dd>
             <dt>状態</dt><dd>${statusLabel2(u.status)}</dd>
             <dt>権限</dt><dd>${u.isAdmin?'<span class="status-badge status-admin">管理者</span>':"一般ユーザー"}</dd>
             <dt>登録日時</dt><dd>${formatDate2(u.registeredAt)}</dd>
