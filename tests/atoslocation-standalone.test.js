@@ -33,6 +33,10 @@ assert.match(monitor, /ATOSlocation\.html/,
 for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-atos-delays', 'standalone-atos-stations']) {
   assert.ok(monitor.includes(`id="${id}"`), `standalone summary is missing: ${id}`);
 }
+assert.match(monitor, /\.standalone-atos-summary \{ display: none !important;/,
+  'the standalone summary must stay hidden in the integrated atosweb view');
+assert.match(monitor, /\.standalone-realtime \.standalone-atos-summary \{ display: grid !important; \}/,
+  'the standalone summary must appear only in standalone mode');
 assert.match(monitor, /function updateStandaloneAtosSummary\(/,
   'the standalone summary must update with the selected line');
 assert.match(monitor, /\.standalone-realtime \.train \{[\s\S]*border-radius: 0;/,
