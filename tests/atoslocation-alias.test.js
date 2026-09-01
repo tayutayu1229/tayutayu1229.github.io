@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const alias = fs.readFileSync('ATOSlocation.html', 'utf8');
 const top = fs.readFileSync('toppage.html', 'utf8');
@@ -20,7 +21,7 @@ const location = {
   hash: '#line=odpt.Railway%3AJR-East.Yamanote&view=grasp',
   replace(target) { redirectedTo = target; },
 };
-new Function('location', 'URLSearchParams', redirectScript)(location, URLSearchParams);
+vm.runInNewContext(redirectScript, {location, URLSearchParams});
 assert.equal(
   redirectedTo,
   'atosweb.html?direction=up&line=odpt.Railway%3AJR-East.Yamanote&view=realtime#view=realtime',
