@@ -103,17 +103,17 @@
         <div class="space-y-4">
           <div class="flex items-center justify-between border-b pb-2">
             <h3 class="text-lg font-semibold">システムユーザー一覧</h3>
-            <button class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
+            <a href="../../testaccount.html" class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
               <i class="fas fa-user-plus mr-2"></i>新規ユーザー追加
-            </button>
+            </a>
           </div>
           <div class="bg-gray-50 p-4 rounded-md flex justify-between items-center">
             <div><p class="font-semibold">管理者</p><p class="text-sm text-gray-500">SetAdmin</p><p class="text-xs text-gray-400">権限: 管理者</p></div>
-            <div><button class="text-blue-500 hover:text-blue-700 mr-2"><i class="fas fa-edit"></i></button><button class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></div>
+            <a href="../../testaccount.html" class="text-blue-600 hover:text-blue-800" aria-label="管理者アカウントを管理"><i class="fas fa-user-pen mr-1"></i>管理</a>
           </div>
           <div class="bg-gray-50 p-4 rounded-md flex justify-between items-center">
             <div><p class="font-semibold">ユーザー管理者</p><p class="text-sm text-gray-500">UserAdmin</p><p class="text-xs text-gray-400">権限: ユーザ管理者</p></div>
-            <div><button class="text-blue-500 hover:text-blue-700 mr-2"><i class="fas fa-edit"></i></button><button class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></div>
+            <a href="../../testaccount.html" class="text-blue-600 hover:text-blue-800" aria-label="ユーザー管理者アカウントを管理"><i class="fas fa-user-pen mr-1"></i>管理</a>
           </div>
         </div>
       </section>
@@ -123,13 +123,14 @@
         <div class="space-y-4">
           <div>
             <label for="api-key" class="block text-sm font-medium text-gray-700">APIキー</label>
-            <input type="text" id="api-key" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring focus:ring-green-500 focus:ring-opacity-50">
+            <input type="password" id="api-key" autocomplete="off" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring focus:ring-green-500 focus:ring-opacity-50">
+            <p class="mt-1 text-xs text-gray-500">APIキーはこのタブを閉じるまでだけ保持します。</p>
           </div>
           <div>
             <label for="update-interval" class="block text-sm font-medium text-gray-700">リアルタイム更新間隔 (秒)</label>
-            <input type="number" id="update-interval" value="15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring focus:ring-green-500 focus:ring-opacity-50">
+            <input type="number" id="update-interval" min="5" max="3600" value="15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring focus:ring-green-500 focus:ring-opacity-50">
           </div>
-          <button class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">設定を保存</button>
+          <button id="save-system-settings" type="button" class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">設定を保存</button>
         </div>
       </section>
 
@@ -139,18 +140,18 @@
           <div>
             <p class="text-sm font-medium text-gray-700">遅延通知のしきい値</p>
             <div class="mt-1 flex items-center space-x-2">
-              <input type="number" value="5" class="w-20 rounded-md border-gray-300 shadow-sm">
+              <input type="number" id="delay-threshold" min="0" max="180" value="5" class="w-20 rounded-md border-gray-300 shadow-sm">
               <span class="text-gray-500">分以上の遅延で通知</span>
             </div>
           </div>
           <div>
             <p class="text-sm font-medium text-gray-700">通知方法</p>
             <div class="mt-1 space-y-1">
-              <label class="flex items-center"><input type="checkbox" checked class="rounded text-green-600"> <span class="ml-2">デスクトップ通知</span></label>
-              <label class="flex items-center"><input type="checkbox" class="rounded text-green-600"> <span class="ml-2">Eメール通知</span></label>
+              <label class="flex items-center"><input type="checkbox" id="desktop-notification" checked class="rounded text-green-600"> <span class="ml-2">デスクトップ通知</span></label>
+              <label class="flex items-center"><input type="checkbox" id="email-notification" class="rounded text-green-600"> <span class="ml-2">Eメール通知</span></label>
             </div>
           </div>
-          <button class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">設定を保存</button>
+          <button id="save-notification-settings" type="button" class="bg-[var(--accent)] text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">設定を保存</button>
         </div>
       </section>
 
@@ -181,6 +182,62 @@
     const menuItems = document.querySelectorAll('.menu-item');
     const contentArea = document.getElementById('content-area');
     const contentTitle = document.getElementById('content-title');
+
+    const showStatus = (message, isError = false) => {
+      let status = document.getElementById('settings-status');
+      if (!status) {
+        status = document.createElement('p');
+        status.id = 'settings-status';
+        status.className = 'mt-4 rounded-md p-3 text-sm';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        contentArea.prepend(status);
+      }
+      status.className = `mb-4 rounded-md p-3 text-sm ${isError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`;
+      status.textContent = message;
+    };
+
+    const readSavedObject = key => {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      } catch (error) {
+        console.warn(`保存済み設定 ${key} を読み込めませんでした。`, error);
+        return {};
+      }
+    };
+    const savedSystem = readSavedObject('line-system-settings');
+    const savedNotifications = readSavedObject('line-notification-settings');
+    document.getElementById('api-key').value = sessionStorage.getItem('line-api-key') || '';
+    document.getElementById('update-interval').value = savedSystem.updateInterval || 15;
+    document.getElementById('delay-threshold').value = savedNotifications.delayThreshold ?? 5;
+    document.getElementById('desktop-notification').checked = savedNotifications.desktop ?? true;
+    document.getElementById('email-notification').checked = savedNotifications.email ?? false;
+
+    document.getElementById('save-system-settings').addEventListener('click', () => {
+      const updateInterval = Number(document.getElementById('update-interval').value);
+      if (!Number.isInteger(updateInterval) || updateInterval < 5 || updateInterval > 3600) {
+        showStatus('更新間隔は5〜3600秒の整数で入力してください。', true);
+        return;
+      }
+      sessionStorage.setItem('line-api-key', document.getElementById('api-key').value);
+      localStorage.setItem('line-system-settings', JSON.stringify({updateInterval}));
+      showStatus('システム設定をこのブラウザに保存しました。');
+    });
+
+    document.getElementById('save-notification-settings').addEventListener('click', () => {
+      const delayThreshold = Number(document.getElementById('delay-threshold').value);
+      if (!Number.isInteger(delayThreshold) || delayThreshold < 0 || delayThreshold > 180) {
+        showStatus('遅延通知のしきい値は0〜180分の整数で入力してください。', true);
+        return;
+      }
+      localStorage.setItem('line-notification-settings', JSON.stringify({
+        delayThreshold,
+        desktop: document.getElementById('desktop-notification').checked,
+        email: document.getElementById('email-notification').checked
+      }));
+      showStatus('通知設定をこのブラウザに保存しました。');
+    });
 
     menuItems.forEach(item => {
       item.addEventListener('click', (e) => {

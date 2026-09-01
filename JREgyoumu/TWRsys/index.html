@@ -385,7 +385,7 @@
               <button class="secondary-btn push" id="clearFilters">条件をクリア</button>
             </div>
             <div class="table-wrap"><table><thead><tr><th>列車番号</th><th>種別</th><th>方向</th><th>計画位置</th><th>行先</th><th>次駅予定</th><th>情報</th><th>状態</th></tr></thead><tbody id="trainBody"></tbody></table></div>
-            <div class="pagination"><span id="resultCount">0件を表示</span><div class="pagination-controls"><button aria-label="前のページ">‹</button><button class="active">1</button><button aria-label="次のページ">›</button></div></div>
+            <div class="pagination"><span id="resultCount">0件を表示</span><div class="pagination-controls"><button id="previousPage" type="button" aria-label="前のページ">‹</button><button id="currentPage" type="button" class="active" aria-label="現在のページ" disabled>1</button><button id="nextPage" type="button" aria-label="次のページ">›</button></div></div>
           </div>
         </section>
 
@@ -453,11 +453,14 @@
     ];
     const titles = { dashboard:'運行ダッシュボード', trains:'列車運行一覧', stations:'駅情報', timetable:'駅時刻表', data:'データ接続' };
     let selectedStation = 3;
+    let trainPage = 1;
+    const TRAINS_PER_PAGE = 10;
     let apiToken = 'worker-managed';
 
     const icon = id => `<svg class="icon"><use href="#${id}"/></svg>`;
     const $ = sel => document.querySelector(sel);
     const $$ = sel => [...document.querySelectorAll(sel)];
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
     function updateClock(){
       const now = new Date();
@@ -490,8 +493,18 @@
       const dir = $('#directionFilter')?.value || 'all';
       const status = $('#statusFilter')?.value || 'all';
       const rows = trains.filter(t => (!q || t.some(v => v.toLowerCase().includes(q))) && (dir==='all'||t[2]===dir) && (status==='all'||t[7]===status));
-      $('#trainBody').innerHTML = rows.map(t => `<tr><td class="train-no">${t[0]}</td><td>${t[1]}</td><td><span class="direction">${icon('i-arrow')}${t[2]}</span></td><td>${t[3]}</td><td>${t[4]}</td><td>${t[5]}</td><td>${t[6]}</td><td><span class="tag ${t[7]==='定時'?'green':t[7]==='計画'?'blue':'amber'}">${t[7]}</span></td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">該当する列車はありません</td></tr>';
-      $('#resultCount').textContent = `${rows.length}件を表示`;
+      const pageCount = Math.max(1, Math.ceil(rows.length / TRAINS_PER_PAGE));
+      trainPage = Math.min(Math.max(1, trainPage), pageCount);
+      const firstIndex = (trainPage - 1) * TRAINS_PER_PAGE;
+      const visibleRows = rows.slice(firstIndex, firstIndex + TRAINS_PER_PAGE);
+      $('#trainBody').innerHTML = visibleRows.map(t => {
+        const safe = t.map(escapeHtml);
+        return `<tr><td class="train-no">${safe[0]}</td><td>${safe[1]}</td><td><span class="direction">${icon('i-arrow')}${safe[2]}</span></td><td>${safe[3]}</td><td>${safe[4]}</td><td>${safe[5]}</td><td>${safe[6]}</td><td><span class="tag ${t[7]==='定時'?'green':t[7]==='計画'?'blue':'amber'}">${safe[7]}</span></td></tr>`;
+      }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">該当する列車はありません</td></tr>';
+      $('#resultCount').textContent = rows.length ? `${firstIndex + 1}〜${firstIndex + visibleRows.length}件 / 全${rows.length}件` : '0件';
+      $('#currentPage').textContent = String(trainPage);
+      $('#previousPage').disabled = trainPage === 1;
+      $('#nextPage').disabled = trainPage === pageCount;
       $('#plannedTrainCount').innerHTML = `${trains.length}<span>編成</span>`;
     }
 
@@ -586,8 +599,10 @@
     trainSearch.addEventListener('pointerdown', () => trainSearch.removeAttribute('readonly'), {once:true});
     window.addEventListener('pageshow', () => { if(trainSearch.hasAttribute('readonly')) trainSearch.value=''; });
     [100,500,1500].forEach(delay => setTimeout(() => { if(trainSearch.hasAttribute('readonly')) trainSearch.value=''; }, delay));
-    ['trainSearch','directionFilter','statusFilter'].forEach(id => $(`#${id}`).addEventListener('input', renderTrains));
-    $('#clearFilters').addEventListener('click',()=>{ $('#trainSearch').value=''; $('#directionFilter').value='all'; $('#statusFilter').value='all'; renderTrains(); });
+    ['trainSearch','directionFilter','statusFilter'].forEach(id => $(`#${id}`).addEventListener('input', () => { trainPage=1; renderTrains(); }));
+    $('#clearFilters').addEventListener('click',()=>{ $('#trainSearch').value=''; $('#directionFilter').value='all'; $('#statusFilter').value='all'; trainPage=1; renderTrains(); });
+    $('#previousPage').addEventListener('click',()=>{ if(trainPage>1){ trainPage--; renderTrains(); }});
+    $('#nextPage').addEventListener('click',()=>{ trainPage++; renderTrains(); });
     $('#ttStation').addEventListener('change', renderTimetable); $('#ttDirection').addEventListener('change', renderTimetable);
 
     const dialog = $('#settingsDialog');

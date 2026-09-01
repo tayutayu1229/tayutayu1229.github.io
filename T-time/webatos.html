@@ -261,6 +261,8 @@
             line-height: 1;
             font-weight: bold;
             margin-top: 2px;
+            padding: 0;
+            background: transparent;
         }
 
         /* エラーメッセージ表示用のスタイル */
@@ -271,6 +273,15 @@
             font-size: 16px;
             background-color: var(--bg-white);
             border-bottom: 1px solid #ccc;
+        }
+
+        .info-msg {
+            color: var(--atos-blue);
+            font-weight: bold;
+            padding: 10px;
+            font-size: 14px;
+            background-color: #eef6ff;
+            border-bottom: 1px solid #b8cde5;
         }
         
         .hidden { display: none !important; }
@@ -485,12 +496,12 @@
                 <button class="refresh-button" onclick="performSearch()">
                      <img src="https://example.com/refresh-icon.png" alt="更新" style="display:none;"> 
                 </button>
-                <a href="#" class="help-icon">?</a>
+                <button type="button" id="searchHelp" class="help-icon" aria-label="検索条件のヘルプ">?</button>
             </div>
         </div>
 
 
-        <div id="messageArea" class="hidden error-msg"></div>
+        <div id="messageArea" class="hidden error-msg" role="status" aria-live="polite"></div>
         
         <div id="contentArea" class="hidden">
             
@@ -567,6 +578,14 @@
 
             return normalized;
         }
+
+        function showSearchHelp() {
+            const messageArea = document.getElementById('messageArea');
+            messageArea.textContent = '線区と施行日を選び、列車番号を入力すると検索します。回送・試運転などは列車番号左側の種別も選択してください。';
+            messageArea.classList.remove('hidden', 'error-msg');
+            messageArea.classList.add('info-msg');
+        }
+        document.getElementById('searchHelp').addEventListener('click', showSearchHelp);
         
         function isHoliday(date) {
             return window.TayunetCalendar?.isHoliday(date) || date.getDay() === 0 || date.getDay() === 6;
@@ -597,6 +616,8 @@
             const noInput = document.getElementById('trainNoInput');
             const messageArea = document.getElementById('messageArea'); 
             const contentArea = document.getElementById('contentArea');
+            messageArea.classList.remove('info-msg');
+            messageArea.classList.add('error-msg');
 
             const selectedLine = lineSelect.value;
             const selectedDateUI = dateInput.value; 
