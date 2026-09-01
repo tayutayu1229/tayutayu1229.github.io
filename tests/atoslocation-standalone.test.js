@@ -30,6 +30,11 @@ assert.match(monitor, /\.standalone-realtime #nav-tabs \{ display: none; \}/,
   'integrated navigation tabs must be hidden in the standalone monitor');
 assert.match(monitor, /ATOSlocation\.html/,
   'the standalone monitor must create standalone share URLs');
+for (const id of ['standalone-atos-line', 'standalone-atos-trains', 'standalone-atos-delays', 'standalone-atos-stations']) {
+  assert.ok(monitor.includes(`id="${id}"`), `standalone summary is missing: ${id}`);
+}
+assert.match(monitor, /function updateStandaloneAtosSummary\(/,
+  'the standalone summary must update with the selected line');
 assert.match(top, /data-name="ATOS在線モニタ"[^>]+ATOSlocation\.html/,
   'the top-page tile must open the standalone monitor');
 
