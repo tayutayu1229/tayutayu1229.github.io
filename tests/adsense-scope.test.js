@@ -52,4 +52,15 @@ for (const generator of ['JRF_status/scraper.py', 'fetch_jr_freight_data.py']) {
   assert(source.includes(loader) && source.includes(clientId), `${generator} にAdSense設定がありません`);
 }
 
+assert.strictEqual(
+  fs.readFileSync(path.join(root, 'ads.txt'), 'utf8').trim(),
+  'google.com, pub-2192861187044284, DIRECT, f08c47fec0942fa0',
+  'ads.txtのAdSense販売者情報が正しくありません',
+);
+const privacy = fs.readFileSync(path.join(root, 'privacy.html'), 'utf8');
+assert(privacy.includes('Google AdSense') && privacy.includes('Cookie'), 'プライバシーポリシーに広告利用の説明がありません');
+for (const entryPage of ['index.html', 'toppage.html']) {
+  assert(fs.readFileSync(path.join(root, entryPage), 'utf8').includes('/privacy.html'), `${entryPage} からプライバシーポリシーへ移動できません`);
+}
+
 console.log(`adsense-scope: ${allowedPages.length}ページだけに限定されています`);
