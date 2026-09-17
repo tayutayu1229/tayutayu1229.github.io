@@ -243,6 +243,7 @@ def render_site(items: list[Item], output_dir: Path, error_message: str | None =
     .empty{{display:none;text-align:center;padding:60px;color:var(--muted)}} footer{{border-top:1px solid var(--line);padding:26px 16px;text-align:center;color:var(--muted);font-size:.78rem;background:white}}
     @media(max-width:700px){{header{{padding-top:40px}}.controls{{grid-template-columns:1fr}}.filters button{{flex:1;padding:9px 5px;font-size:.8rem}}.card{{padding:17px}}}}
   </style>
+  <script src="/assets/js/back-navigation.js" defer></script>
 </head>
 <body>
   <header><div class="wrap"><div class="eyebrow">EAST JAPAN RAILWAY NEWS</div><h1>新着プレスリリース</h1><p>ニュースリリースとお知らせを、ひとつの場所で。</p></div></header>

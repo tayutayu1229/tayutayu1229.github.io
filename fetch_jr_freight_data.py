@@ -201,6 +201,7 @@ def create_html(data):
             .status-suspended {{ background-color: #5bc0de; }}
             .status-card {{ background:#fff; margin-bottom:1.5rem; padding:1rem; border-radius:0.5rem; box-shadow:0 4px 6px rgba(0,0,0,0.05); }}
         </style>
+        <script src="/assets/js/back-navigation.js" defer></script>
     </head>
     <body>
         <div class="container py-4">
