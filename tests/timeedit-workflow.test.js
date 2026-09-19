@@ -17,7 +17,8 @@ function element(id, value = '') {
 }
 
 [
-  'line', 'origin', 'destination', 'trainNumber', 'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
+  'line', 'origin', 'destination', 'trainNumber', 'type', 'dayType', 'startDate', 'name', 'speed',
+  'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
 ].forEach(id => element(id));
 
 const context = vm.createContext({
@@ -82,23 +83,28 @@ assert.deepEqual(reversed.map(stop => stop.trackN), ['4', '5', '6']);
 assert.equal(elements.get('origin').value, '丙');
 assert.equal(elements.get('destination').value, '甲');
 
-elements.get('trainNumber').value = '101';
+const basicFields = {
+  trainNumber: '101', type: '普通', dayType: '平日', startDate: '2026-09-19',
+  line: 'テスト線', name: 'テスト号', speed: 'A', origin: '甲', destination: '丙',
+};
+Object.entries(basicFields).forEach(([id, value]) => { elements.get(id).value = value; });
 elements.get('tr2').value = '201';
 elements.get('kid2').value = 'K-201';
 elements.get('tt2').value = 'k';
-elements.get('destination').value = '丙';
 vm.runInContext(`
   stops = [{station: '丙', arrival: '10:20', departure: '', trackN: '3'}];
   prepareNextSection();
 `, context);
 const nextStops = JSON.parse(vm.runInContext('JSON.stringify(stops)', context));
-assert.equal(elements.get('trainNumber').value, '201');
+assert.deepEqual(
+  Object.fromEntries(Object.keys(basicFields).map(id => [id, elements.get(id).value])),
+  basicFields,
+  '次区間へ進んでも列車基本情報はすべて保持されること',
+);
 assert.equal(elements.get('tr1').value, '101');
 assert.equal(elements.get('kid1').value, 'K-201');
 assert.equal(elements.get('tt1').value, 'k');
 assert.equal(elements.get('tr2').value, '');
-assert.equal(elements.get('origin').value, '丙');
-assert.equal(elements.get('destination').value, '');
 assert.deepEqual(nextStops, [{station: '丙', arrival: '', departure: '', trackN: '3'}]);
 
 console.log('timeedit workflow: ok');
