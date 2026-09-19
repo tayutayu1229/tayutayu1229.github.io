@@ -23,8 +23,8 @@
             /* ==================================================
              ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
              -------------------------------------------------- */
-            /* ▼ 着時刻・発時刻の「到着/発車」(実績) の幅 */
-            --time-status-width: 20px; 
+            /* ▼ 着時刻・発時刻の「実績」の幅 */
+            --time-status-width: 86px;
             
             /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
             --time-plan-width: 90px;
@@ -98,7 +98,7 @@
             color: var(--error-red); font-weight: bold; padding: 10px; font-size: 16px;
             background-color: var(--bg-white); border-bottom: 1px solid #ccc;
         }
-        #messageArea { display: none !important; }
+        .error-msg.searching { color: #315447; background: #eef7f2; }
         #debugArea { display: none !important; }
 
         /* --- Train Summary --- */
@@ -130,7 +130,7 @@
             overflow: hidden; 
         }
         
-        /* 狭くなった実績列ヘッダーのフォントサイズを調整 */
+        /* 実績時刻が省略されない幅を確保 */
         th.cell-narrow { font-size: 12px; }
 
         td {
@@ -150,7 +150,7 @@
         td:nth-child(5), td:nth-child(7) { 
             text-align: center !important; 
             padding: 0 !important; 
-            font-size: 12px; 
+            font-size: 13px;
         }
         
         /* 時刻列 (時間) */
@@ -164,6 +164,10 @@
 
         /* 番線 */
         td:nth-child(8) { text-align: right !important; padding-right: 5px !important; }
+
+        /* 運休は駅名と時刻だけを白字にする。種別・番線・運用は通常の黒字を維持。 */
+        .cancelled-row td.cancelled-cell { background: #4b5563; color: #fff; }
+        .cancelled-row td.cancelled-equals { color: #000; }
 
 
         .link-text {
@@ -204,7 +208,7 @@
             .filter-group { width: 100%; display: grid; grid-template-columns: 84px minmax(0, 1fr); }
             .filter-group select, .filter-group input { width: 100% !important; min-height: 40px; font-size: 16px; }
             .monitor-table-container { overscroll-behavior-inline: contain; }
-            .monitor-table-container table { width: 820px; min-width: 820px; }
+            .monitor-table-container table { width: 980px; min-width: 980px; }
             .footer-legend { font-size: 13px; }
         }
     </style>
@@ -241,7 +245,7 @@
                 <select id="crownSelect" style="width:50px;" onchange="performSearch()">
                     <option value=""></option><option value="回">回</option><option value="試">試</option><option value="単">単</option><option value="工">工</option><option value="配">配</option><option value="試単">試単</option>
                 </select>
-                <input type="text" id="trainNoInput" value="" oninput="performSearch()">
+                <input type="text" id="trainNoInput" value="" oninput="scheduleSearch()">
             </div>
         </div>
 
@@ -267,10 +271,10 @@
                             <th rowspan="2">運用列番</th>
                         </tr>
                         <tr>
-                            <th>時間</th>
-                            <th class="cell-narrow">到着</th>
-                            <th>時間</th>
-                            <th class="cell-narrow">発車</th>
+                            <th>計画</th>
+                            <th class="cell-narrow">実績</th>
+                            <th>計画</th>
+                            <th class="cell-narrow">実績</th>
                         </tr>
                     </thead>
                     <tbody id="scheduleBody"></tbody>
@@ -286,6 +290,12 @@
     <script src="private-data-client.js"></script>
     <script>
         let rawJsonData = [];
+        const ODPT_BASE = '/api/odpt/challenge/';
+        const HISTORY_API = 'https://history.tayunet-traininfo.com/api/v1/train-history';
+        const odptRailways = new Map();
+        const odptStations = new Map();
+        let searchRevision = 0;
+        let searchTimer;
 
         // 3つの期間を配列で管理
         const PERIODS = [
@@ -314,22 +324,146 @@
             });
             return normalized.toUpperCase().replace(/\s/g, '').trim();
         }
+        function stationKey(value) {
+            return normalizeString(String(value || '').split('.').pop().replace(/^[\$＄]/, ''));
+        }
+        function stationName(id) {
+            return odptStations.get(id) || odptStations.get(stationKey(id)) || String(id || '').split('.').pop() || '不明';
+        }
+        function sameLine(left, right) {
+            const comparable = value => normalizeString(value).replace(/JR東日本|JR|本線|線/g, '');
+            return Boolean(left && right && comparable(left) === comparable(right));
+        }
+        function railwayName(id) {
+            return odptRailways.get(id) || String(id || '').split('.').pop();
+        }
+        function railwayIdForLine(name) {
+            return [...odptRailways].find(([, title]) => sameLine(name, title))?.[0] || '';
+        }
+        async function loadOdptMetadata() {
+            const request = async resource => {
+                const response = await fetch(`${ODPT_BASE}${resource}?odpt:operator=odpt.Operator:JR-East`);
+                if (!response.ok) throw new Error(`ODPT ${resource} HTTP ${response.status}`);
+                return response.json();
+            };
+            const [railwayResult, stationResult] = await Promise.allSettled([request('odpt:Railway'), request('odpt:Station')]);
+            if (railwayResult.status === 'rejected' && stationResult.status === 'rejected') throw railwayResult.reason;
+            const railways = railwayResult.status === 'fulfilled' ? railwayResult.value : [];
+            (Array.isArray(railways) ? railways : []).forEach(railway => {
+                const id = railway['owl:sameAs'];
+                const name = railway['odpt:railwayTitle']?.ja;
+                if (id && name) odptRailways.set(id, name);
+                (railway['odpt:stationOrder'] || []).forEach(stop => {
+                    const stationId = stop['odpt:station'];
+                    const title = stop['odpt:stationTitle']?.ja;
+                    if (stationId && title) {
+                        odptStations.set(stationId, title);
+                        odptStations.set(stationKey(stationId), title);
+                    }
+                });
+            });
+            const stations = stationResult.status === 'fulfilled' ? stationResult.value : [];
+            (Array.isArray(stations) ? stations : []).forEach(station => {
+                const id = station['owl:sameAs'];
+                const title = station['odpt:stationTitle']?.ja;
+                if (id && title) {
+                    odptStations.set(id, title);
+                    odptStations.set(stationKey(id), title);
+                }
+            });
+        }
+        function observedTime(item) {
+            const date = new Date(item?.observedAt || '');
+            if (Number.isNaN(date.getTime())) return '';
+            return new Intl.DateTimeFormat('ja-JP', {timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'}).format(date);
+        }
+        function historyStops(history) {
+            return Object.entries(history?.stations || {}).map(([id, record]) => {
+                const firstSeen = [record?.arrival?.observedAt, record?.departure?.observedAt, record?.observedAt].filter(Boolean).sort()[0] || '';
+                return {station: stationName(id), stationId: id, arrival: '', departure: '',
+                    arrivalActual: observedTime(record?.arrival), departureActual: observedTime(record?.departure),
+                    trackN: '', firstSeen};
+            }).filter(stop => stop.firstSeen).sort((left, right) => left.firstSeen.localeCompare(right.firstSeen));
+        }
+        function historyOnlyRecord(history, selectedLine, trainNumber) {
+            const stops = historyStops(history);
+            if (!stops.length) return null;
+            return {trainNumber, line: selectedLine || railwayName(history.railways?.[0]),
+                type: '—', origin: stops[0].station, destination: stops.at(-1).station, stops, historyOnly: true};
+        }
+        function supplementWithHistory(data, history) {
+            if (!history?.count) return data;
+            const observed = new Map(Object.entries(history.stations || {}).map(([id, record]) => [stationKey(id), record]));
+            return {...data, stops: data.stops.map(stop => {
+                const record = observed.get(stationKey(stop.stationId || stop.station));
+                return {...stop, arrivalActual: observedTime(record?.arrival), departureActual: observedTime(record?.departure)};
+            })};
+        }
+        function odptRecord(data) {
+            const stops = (data['odpt:trainTimetableObject'] || []).map(stop => {
+                const stationId = stop['odpt:departureStation'] || stop['odpt:arrivalStation'] || stop['odpt:station'];
+                return {station: stationName(stationId), stationId,
+                    arrival: stop['odpt:arrivalTime'] || '', departure: stop['odpt:departureTime'] || '',
+                    trackN: stop['odpt:platformNumber'] || ''};
+            }).filter(stop => stop.stationId);
+            if (!stops.length) return null;
+            const typeKey = String(data['odpt:trainType'] || '').split('.').pop();
+            const types = {Local: '普通', Rapid: '快速', SpecialRapid: '特別快速', LimitedExpress: '特急', Express: '急行'};
+            return {trainNumber: data['odpt:trainNumber'], line: railwayName(data['odpt:railway']),
+                type: types[typeKey] || typeKey || '—',
+                origin: data['odpt:originStation']?.[0] ? stationName(data['odpt:originStation'][0]) : stops[0].station,
+                destination: data['odpt:destinationStation']?.[0] ? stationName(data['odpt:destinationStation'][0]) : stops.at(-1).station,
+                stops, odptRailway: data['odpt:railway']};
+        }
+        async function searchOdpt(trainNumber, calendar, selectedLine) {
+            const query = new URLSearchParams({'odpt:operator': 'odpt.Operator:JR-East',
+                'odpt:trainNumber': trainNumber, 'odpt:calendar': `odpt.Calendar:${calendar}`});
+            const response = await fetch(`${ODPT_BASE}odpt:TrainTimetable?${query}`);
+            if (!response.ok) throw new Error(`ODPT列車時刻 HTTP ${response.status}`);
+            const rows = await response.json();
+            const candidates = (Array.isArray(rows) ? rows : []).filter(row => normalizeString(row['odpt:trainNumber']) === normalizeString(trainNumber));
+            const selectedRailway = railwayIdForLine(selectedLine);
+            const match = candidates.find(row => row['odpt:railway'] === selectedRailway || sameLine(railwayName(row['odpt:railway']), selectedLine))
+                || (!selectedRailway && candidates.length === 1 ? candidates[0] : null);
+            return {record: match ? odptRecord(match) : null, relatedRailways: []};
+        }
+        async function searchHistory(date, trainNumber, railway, relatedRailways = []) {
+            const query = new URLSearchParams({date, trainNumber});
+            if (railway) query.set('railway', railway);
+            [...new Set(relatedRailways)].filter(id => id && id !== railway).forEach(id => query.append('relatedRailway', id));
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 6000);
+            try {
+                const response = await fetch(`${HISTORY_API}?${query}`, {signal: controller.signal});
+                if (!response.ok) throw new Error(`Ubuntu履歴 HTTP ${response.status}`);
+                return await response.json();
+            } finally { clearTimeout(timeout); }
+        }
+        function scheduleSearch() {
+            ++searchRevision;
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(performSearch, 250);
+        }
         function isHoliday(date) {
             return window.TayunetCalendar?.isHoliday(date) || date.getDay() === 0 || date.getDay() === 6;
         }
 
         async function loadData() {
-            try {
-                rawJsonData = await TayunetPrivateData.fetchTimetables();
-            } catch (error) {
-                console.error(`Error loading required data:`, error);
+            const [privateData, odptData] = await Promise.allSettled([
+                TayunetPrivateData.fetchTimetables(), loadOdptMetadata()
+            ]);
+            if (privateData.status === 'fulfilled') rawJsonData = privateData.value;
+            else console.warn('登録時刻表を取得できませんでした。ODPTの検索を続けます。', privateData.reason);
+            if (odptData.status === 'rejected') console.warn('ODPT路線情報を取得できませんでした。', odptData.reason);
+            if (privateData.status === 'rejected' && odptData.status === 'rejected') {
                 const msgArea = document.getElementById('messageArea');
-                msgArea.innerText = `データ読み込みエラー: ${error.message}`;
+                msgArea.innerText = '時刻表と路線情報を取得できませんでした。通信状態を確認してください。';
                 msgArea.classList.remove('hidden');
             }
         }
         
-        function performSearch() {
+        async function performSearch() {
+            const revision = ++searchRevision;
             const lineSelect = document.getElementById('lineSelect');
             const dateInput = document.getElementById('dateInput');
             const crownSelect = document.getElementById('crownSelect');
@@ -346,7 +480,7 @@
                  return;
             }
             
-            const searchDate = new Date(selectedDateUI); 
+            const searchDate = new Date(`${selectedDateUI}T12:00:00`);
             const crownPart = crownSelect.value;
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
@@ -354,8 +488,12 @@
 
             contentArea.classList.add('hidden');
             messageArea.classList.add('hidden');
+            messageArea.classList.remove('searching');
             
-            if (targetTrainNoNormalized === "" || selectedLine === "" || rawJsonData.length === 0) return;
+            if (targetTrainNoNormalized === "" || selectedLine === "") return;
+            messageArea.innerText = '列車を検索しています…';
+            messageArea.classList.add('searching');
+            messageArea.classList.remove('hidden');
             
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
@@ -368,16 +506,11 @@
                 d.startDate === selectedDateJSON
             );
             
-            if (result) {
-                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
-                return;
-            }
-
             const activePeriod = PERIODS.find(p => 
                 searchTime >= p.start.getTime() && searchTime <= p.end.getTime()
             );
 
-            if (activePeriod) {
+            if (!result && activePeriod) {
                 result = rawJsonData.find(d => {
                     if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
 
@@ -393,28 +526,54 @@
                 });
             }
 
+            let source = '登録時刻表';
+            let relatedRailways = [];
+            if (!result) {
+                try {
+                    const odpt = await searchOdpt(crownPart + numberPart,
+                        isTargetHoliday ? 'SaturdayHoliday' : 'Weekday', selectedLine);
+                    result = odpt.record;
+                    relatedRailways = odpt.relatedRailways;
+                    if (result) source = 'ODPT列車時刻表（曜日別の基準ダイヤ）';
+                } catch (error) { console.warn('ODPT列車時刻表を取得できませんでした。', error); }
+            }
+            const railway = result?.odptRailway || railwayIdForLine(selectedLine);
+            let history = null;
+            try {
+                history = await searchHistory(selectedDateUI, crownPart + numberPart, railway, relatedRailways);
+            } catch (error) { console.warn('Ubuntu列車運行履歴を取得できませんでした。', error); }
+            if (revision !== searchRevision) return;
+            if (!result && history?.count && (railway || (history.railways || []).some(id => sameLine(railwayName(id), selectedLine)))) {
+                result = historyOnlyRecord(history, selectedLine, crownPart + numberPart);
+                source = 'Ubuntu列車運行履歴（実績）';
+            } else if (result && history?.count) {
+                result = supplementWithHistory(result, history);
+                source += ' ＋ Ubuntu運行履歴';
+            }
             if (result) {
-                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
+                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart, source);
             } else {
                 contentArea.classList.add('hidden');
-                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}) は見つかりませんでした。`;
+                messageArea.classList.remove('searching');
+                messageArea.innerText = `列車番号 (${crownPart}${numberPart}) は登録時刻表・ODPT・Ubuntu運行履歴に見つかりませんでした（${selectedLine}、${selectedDateJSON}）。`;
                 messageArea.classList.remove('hidden');
             }
         }
         
-        function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart) {
+        function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart, source = '登録時刻表') {
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
+            document.getElementById('messageArea').classList.remove('searching');
             const summary = document.getElementById('trainSummary');
             summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
-                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}　資料:${source}`));
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
         
         /**
-         * 時刻文字列を正規化し、通過記号を「…」に統一、または空白を維持する
+         * 計画時刻文字列を正規化し、通過記号を「…」に統一、または空白を維持する
          * @param {string | null | undefined} timeStr 
          * @returns {string} 表示用の文字列
          */
@@ -451,6 +610,8 @@
 
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
+                const cancelled = /^[\$＄]/.test(String(stop.station || '').trimStart());
+                if (cancelled) tr.classList.add('cancelled-row');
                 
                 const typeText = (index === 0) ? data.type : '';
                 
@@ -477,16 +638,18 @@
                 }
 
                 // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
-                const displayArrival = getDisplayTime(stop.arrival);
+                const displayArrival = data.historyOnly ? '' : getDisplayTime(stop.arrival);
                 const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
                 
                 const appendCell = (value, className = '') => {
                     const td = document.createElement('td'); td.className = className;
                     td.textContent = value == null ? '' : String(value); tr.appendChild(td); return td;
                 };
-                appendCell(typeText, 'col-align-left'); appendCell(''); appendCell(stop.station, 'col-station');
-                appendCell(displayArrival, 'col-align-right'); appendCell('', 'col-align-center cell-narrow');
-                appendCell(displayDeparture, 'col-align-right'); appendCell('', 'col-align-center cell-narrow');
+                const timeClass = cancelled ? ' cancelled-cell' : '';
+                appendCell(typeText, 'col-align-left'); appendCell(''); appendCell(stop.station, `col-station${timeClass}`);
+                appendCell(displayArrival, `col-align-right${timeClass}`); appendCell(stop.arrivalActual || '', `col-align-center cell-narrow${timeClass}`);
+                appendCell(displayDeparture, `col-align-right${cancelled && displayDeparture === '=' ? ' cancelled-equals' : timeClass}`);
+                appendCell(stop.departureActual || '', `col-align-center cell-narrow${timeClass}`);
                 appendCell(stop.trackN, 'col-align-right'); appendCell(opInfo);
                 const opCell = appendCell('');
                 if (opTrain) {
@@ -588,8 +751,7 @@
         function populateLines() {
             const select = document.getElementById('lineSelect');
             select.innerHTML = '<option value="">(選択)</option>';
-            if (rawJsonData.length === 0) return;
-            const lines = [...new Set(rawJsonData.map(d => d.line))];
+            const lines = [...new Set([...rawJsonData.map(d => d.line), ...odptRailways.values()].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
             lines.forEach(line => {
                 const option = document.createElement('option');
                 option.value = line;
