@@ -218,6 +218,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<link rel="stylesheet" href="yard-movement.css">
 <script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
@@ -243,7 +244,7 @@
             <div class="filter-group">
                 <span class="filter-label-text">列車番号：</span>
                 <select id="crownSelect" style="width:50px;" onchange="performSearch()">
-                    <option value=""></option><option value="回">回</option><option value="試">試</option><option value="単">単</option><option value="工">工</option><option value="配">配</option><option value="試単">試単</option>
+                    <option value=""></option><option value="回">回</option><option value="試">試</option><option value="単">単</option><option value="工">工</option><option value="配">配</option><option value="試単">試単</option><option value="出">出</option><option value="入">入</option>
                 </select>
                 <input type="text" id="trainNoInput" value="" oninput="scheduleSearch()">
             </div>
@@ -288,6 +289,7 @@
     </div>
 
     <script src="private-data-client.js"></script>
+    <script src="yard-movement.js"></script>
     <script>
         let rawJsonData = [];
         const ODPT_BASE = '/api/odpt/challenge/';
@@ -561,6 +563,7 @@
         }
         
         function updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart, source = '登録時刻表') {
+            if (TayunetYardMovement.open(result, selectedDateJSON)) return;
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
             document.getElementById('messageArea').classList.remove('searching');
@@ -699,6 +702,7 @@
             }
 
             if (match) {
+                if (TayunetYardMovement.open(match, selectedDateJSON)) return;
                 document.getElementById('lineSelect').value = match.line;
                 const trainNum = match.trainNumber;
                 let crown = match.crown || "";
@@ -706,7 +710,7 @@
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);
                 } else {
-                    const potentialCrowns = ["回", "試", "単", "工", "配", "試単"];
+                    const potentialCrowns = ["試単", "回", "試", "単", "工", "配", "出", "入"];
                     for (const pc of potentialCrowns) {
                         if (trainNum.startsWith(pc)) {
                             crown = pc;

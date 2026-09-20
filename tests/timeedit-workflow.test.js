@@ -10,6 +10,7 @@ const mainScript = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g
 assert.ok(mainScript, 'timeedit.html の編集処理が見つかりません');
 
 const elements = new Map();
+const yardInputs = [];
 function element(id, value = '') {
   const item = {id, value, hidden: true, textContent: '', className: '', style: {}};
   elements.set(id, item);
@@ -23,7 +24,7 @@ function element(id, value = '') {
 
 const context = vm.createContext({
   window: {},
-  document: {getElementById: id => elements.get(id)},
+  document: {getElementById: id => elements.get(id), querySelectorAll: selector => selector === '[data-yard-field]' ? yardInputs : []},
   confirm: () => true,
   alert: message => { throw new Error(message); },
   console,
@@ -106,5 +107,26 @@ assert.equal(elements.get('kid1').value, 'K-201');
 assert.equal(elements.get('tt1').value, 'k');
 assert.equal(elements.get('tr2').value, '');
 assert.deepEqual(nextStops, [{station: '丙', arrival: '', departure: '', trackN: '3'}]);
+
+['dayType', 'startDate', 'speed', 'name', 'yardPanel', 'yardCategory', 'jsonOutput'].forEach(id => element(id));
+for (const field of ['category', 'power', 'previousTrainNumber', 'nextTrainNumber', 'departureTime', 'departureTrack', 'viaTime', 'viaTrack', 'arrivalTime', 'arrivalTrack']) {
+  const input = {dataset: {yardField: field}, value: ''};
+  yardInputs.push(input);
+  if (field === 'category') elements.set('yardCategory', input);
+}
+elements.get('trainNumber').value = '出9820M';
+elements.get('type').value = '出区';
+elements.get('line').value = '東海道貨物';
+elements.get('startDate').value = '2026-09-20';
+elements.get('destination').value = '国府津';
+yardInputs.find(input => input.dataset.yardField === 'departureTime').value = '09:00:00';
+yardInputs.find(input => input.dataset.yardField === 'arrivalTime').value = '09:08:00';
+yardInputs.find(input => input.dataset.yardField === 'arrivalTrack').value = '８番';
+vm.runInContext('setYardConnectionStop(); updateJSON()', context);
+const yardRecord = JSON.parse(elements.get('jsonOutput').value);
+assert.equal(yardRecord.yardMovement.category, '出区');
+assert.equal(yardRecord.yardMovement.departureTime, '09:00:00');
+assert.deepEqual(yardRecord.stops, [{station: '国府津', arrival: '09:08:00', departure: '', trackN: '８番'}]);
+assert.equal(elements.get('yardPanel').hidden, false);
 
 console.log('timeedit workflow: ok');
