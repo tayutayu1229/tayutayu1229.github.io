@@ -130,6 +130,12 @@ const operationContext = {
 };
 vm.createContext(operationContext);
 vm.runInContext(
+  sourceBetween('function externalTrainEndpoint', 'function externalTrainVersionsForDate'),
+  operationContext,
+);
+assert.equal(operationContext.externalTrainEndpoint({origin:'東大宮操',stops:[{station:'大　宮'}]},'previous'),'大　宮');
+assert.equal(operationContext.externalTrainEndpoint({destination:'伊豆下田',stops:[{station:'熱　海'}]},'next'),'熱　海');
+vm.runInContext(
   sourceBetween('function findExternalOperationSource', 'async function openAtosOperationTrain'),
   operationContext,
 );
