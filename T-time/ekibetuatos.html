@@ -223,6 +223,15 @@
             ).toUpperCase().replace(/\s/g, '');
         }
 
+        function stationKey(value) {
+            return normalizeString(value);
+        }
+
+        function sameStation(left, right) {
+            const leftKey = stationKey(left);
+            return Boolean(leftKey) && leftKey === stationKey(right);
+        }
+
         function autoDeterminePower(train) {
             const p = safeVal(train.power);
             if (p !== "" && p !== "…") return p;
@@ -269,11 +278,18 @@
             const base = [...lineTrains].sort((a, b) => b.stops.length - a.stops.length)[0];
             const ordered = [];
             const seen = new Set();
-            const add = value => { const station = safeVal(value); if (station && !seen.has(station)) { seen.add(station); ordered.push(station); } };
+            const add = value => {
+                const station = safeVal(value);
+                const key = stationKey(station);
+                if (station && key && !seen.has(key)) { seen.add(key); ordered.push(station); }
+            };
             (base?.stops || []).forEach(stop => add(stop.station));
             lineTrains.forEach(train => train.stops.forEach(stop => add(stop.station)));
             stationSelect.replaceChildren(new Option('(選択)', ''), ...ordered.map(station => new Option(station, station)));
-            if (preferredStation && seen.has(preferredStation)) stationSelect.value = preferredStation;
+            const preferredKey = stationKey(preferredStation);
+            if (preferredKey && seen.has(preferredKey)) {
+                stationSelect.value = ordered.find(station => stationKey(station) === preferredKey) || '';
+            }
         }
 
         function saveSelection() {
@@ -353,7 +369,9 @@
             const targetDateStr = dateVal.replace(/-/g, '/');
             const targetDayType = isHoliday(targetDate) ? "土休日" : "平日";
 
-            const candidates = rawTimetableData.filter(t => t.line === line && t.stops.some(s => s.station === station));
+            const candidates = rawTimetableData.filter(t =>
+                t.line === line && t.stops.some(s => sameStation(s.station, station))
+            );
             const trainMap = new Map();
             const uniqueNos = [...new Set(candidates.map(t => t.trainNumber))];
 
@@ -396,14 +414,14 @@
 
             Object.keys(grouped).sort().forEach((label, groupIdx) => {
                 grouped[label].sort((a, b) => {
-                    const sa = a.stops.find(s => s.station === station);
-                    const sb = b.stops.find(s => s.station === station);
+                    const sa = a.stops.find(s => sameStation(s.station, station));
+                    const sb = b.stops.find(s => sameStation(s.station, station));
                     return (parseTimeValue(sa.arrival) || parseTimeValue(sa.departure) || 0) - (parseTimeValue(sb.arrival) || parseTimeValue(sb.departure) || 0);
                 });
 
                 grouped[label].forEach((train, rowIdx) => {
-                    const s = train.stops.find(st => st.station === station);
-                    const stopIdx = train.stops.findIndex(st => st.station === station);
+                    const s = train.stops.find(st => sameStation(st.station, station));
+                    const stopIdx = train.stops.findIndex(st => sameStation(st.station, station));
                     const isFirst = (stopIdx === 0);
                     const isLast = (stopIdx === train.stops.length - 1);
                     
