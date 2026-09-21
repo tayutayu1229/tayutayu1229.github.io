@@ -486,8 +486,75 @@ h2 {
             const locationStatus = document.getElementById('location-status');
             const WORKBASE_URL = 'https://tayunet-traininfo.com/JREgyoumu/workdata/workbase.json';
             const OUTPUT_LOCATION_KEY = 'atosSelectedOutputLocation';
+            const VIEW_STATE_KEY = 'atosTimetableSelectionView:v1';
+            const CACHE_SESSION_KEY = 'atosTimetableCacheSession:v1';
+            const CACHE_DATABASE = 'tayunetTimetableSelectionCache';
+            const CACHE_STORE = 'bundles';
+            const CACHE_MAX_AGE = 10 * 60 * 1000;
             
             let cachedAllData = [];
+
+            const cacheSessionId = (() => {
+                try {
+                    let value = sessionStorage.getItem(CACHE_SESSION_KEY);
+                    if (!value) {
+                        value = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                        sessionStorage.setItem(CACHE_SESSION_KEY, value);
+                    }
+                    return value;
+                } catch (_error) {
+                    return '';
+                }
+            })();
+
+            const openTimetableCache = () => new Promise((resolve, reject) => {
+                if (!cacheSessionId || !window.indexedDB) { resolve(null); return; }
+                const request = indexedDB.open(CACHE_DATABASE, 1);
+                request.onupgradeneeded = () => {
+                    if (!request.result.objectStoreNames.contains(CACHE_STORE)) {
+                        request.result.createObjectStore(CACHE_STORE);
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+
+            const readTimetableCache = async () => {
+                let database;
+                try {
+                    database = await openTimetableCache();
+                    if (!database) return null;
+                    const record = await new Promise((resolve, reject) => {
+                        const request = database.transaction(CACHE_STORE, 'readonly').objectStore(CACHE_STORE).get(cacheSessionId);
+                        request.onsuccess = () => resolve(request.result || null);
+                        request.onerror = () => reject(request.error);
+                    });
+                    if (!record || !Array.isArray(record.items) || Date.now() - Number(record.savedAt || 0) > CACHE_MAX_AGE) return null;
+                    return record.items;
+                } catch (error) {
+                    console.warn('列車一覧の一時保存を読み込めませんでした。', error);
+                    return null;
+                } finally {
+                    database?.close();
+                }
+            };
+
+            const writeTimetableCache = async (items) => {
+                let database;
+                try {
+                    database = await openTimetableCache();
+                    if (!database) return;
+                    await new Promise((resolve, reject) => {
+                        const request = database.transaction(CACHE_STORE, 'readwrite').objectStore(CACHE_STORE).put({savedAt: Date.now(), items}, cacheSessionId);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (error) {
+                    console.warn('列車一覧を一時保存できませんでした。', error);
+                } finally {
+                    database?.close();
+                }
+            };
 
             const loadOutputLocations = async () => {
                 try {
@@ -532,8 +599,19 @@ h2 {
             // fetchでJSON_PATHからデータを取得する関数
             const loadTimetables = async () => {
                 try {
+                    const cached = await readTimetableCache();
+                    if (cached) {
+                        cachedAllData = cached;
+                        restoreViewState();
+                        applySearchFilter();
+                        restoreScrollPosition();
+                        return;
+                    }
                     cachedAllData = await TayunetPrivateData.fetchTimetables();
-                    renderTimetableList(cachedAllData);
+                    await writeTimetableCache(cachedAllData);
+                    restoreViewState();
+                    applySearchFilter();
+                    restoreScrollPosition();
                 } catch (error) {
                     console.error('Error fetching the timetable data:', error);
                     listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">保護データを読み込めません。TAYUNETログイン後に再読み込みしてください。</td></tr>';
@@ -636,6 +714,7 @@ h2 {
                         }
                         sessionStorage.setItem('selectedTrainData', JSON.stringify(group));
                         sessionStorage.setItem('selectedOutputLocation', outputLocationSelect.value);
+                        saveViewState();
                         try { localStorage.setItem(OUTPUT_LOCATION_KEY, outputLocationSelect.value); } catch (storageError) {
                             console.warn('出力箇所を保存できませんでした。', storageError);
                         }
@@ -672,6 +751,43 @@ h2 {
                 });
                 
                 renderTimetableList(filteredData);
+            };
+
+            const saveViewState = () => {
+                try {
+                    sessionStorage.setItem(VIEW_STATE_KEY, JSON.stringify({
+                        date: searchDateInput.value,
+                        number: searchNumberInput.value,
+                        station: searchStationInput.value,
+                        sortCol,
+                        sortDir,
+                        scrollY: window.scrollY
+                    }));
+                } catch (error) {
+                    console.warn('列車選択画面の位置を保存できませんでした。', error);
+                }
+            };
+
+            const restoreViewState = () => {
+                try {
+                    const state = JSON.parse(sessionStorage.getItem(VIEW_STATE_KEY) || 'null');
+                    if (!state) return;
+                    searchDateInput.value = state.date || '';
+                    searchNumberInput.value = state.number || '';
+                    searchStationInput.value = state.station || '';
+                    sortCol = state.sortCol || null;
+                    sortDir = state.sortDir === 'desc' ? 'desc' : 'asc';
+                } catch (error) {
+                    console.warn('列車選択画面の条件を復元できませんでした。', error);
+                }
+            };
+
+            const restoreScrollPosition = () => {
+                try {
+                    const state = JSON.parse(sessionStorage.getItem(VIEW_STATE_KEY) || 'null');
+                    if (!state || !Number.isFinite(Number(state.scrollY))) return;
+                    requestAnimationFrame(() => window.scrollTo(0, Number(state.scrollY)));
+                } catch (_error) { /* 初期位置を使用 */ }
             };
 
             // 列ヘッダーのソートイベント
@@ -714,6 +830,8 @@ h2 {
                 input.addEventListener('input', applySearchFilter);
 
             });
+
+            window.addEventListener('pagehide', saveViewState);
 
             
             // 初期データのロード
