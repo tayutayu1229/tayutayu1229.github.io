@@ -92,6 +92,7 @@
   <div class="section">
     <h2>1. 列車基本情報</h2>
     <div class="grid-info">
+      <label><span>データ形式</span><select id="dataKind" onchange="handleDataKindChange()"><option value="">通常列車</option><option value="出区">出区</option><option value="入区">入区</option></select></label>
       <label><span>列車番号</span><input id="trainNumber" type="text" oninput="updateJSON()"></label>
       <label><span>列車種別</span><input id="type" type="text" oninput="updateJSON()"></label>
       <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
@@ -120,6 +121,7 @@
         <tr><td><strong>次(2)</strong></td><td><input id="tt2" type="text" oninput="updateJSON()"></td><td><input id="tr2" type="text" oninput="updateJSON()"></td><td><input id="kid2" type="text" oninput="updateJSON()"></td></tr>
       </tbody>
     </table>
+    <label style="display:block; margin-top:8px;"><span style="display:block; font-size:10px; color:#64748b; font-weight:bold; margin-bottom:2px;">継続グループID</span><input id="continuationGroupId" type="text" placeholder="KID-20260921-2240M-入9240M" oninput="updateJSON()"></label>
   </div>
 </div>
 
@@ -474,11 +476,21 @@
   }
 
   function yardCategoryForCurrentTrain() {
+    const selected = document.getElementById('dataKind')?.value || '';
+    if(selected === '出区' || selected === '入区') return selected;
     const type = document.getElementById('type').value.trim();
     const number = document.getElementById('trainNumber').value.trim();
     if(type === '出区' || number.startsWith('出')) return '出区';
     if(type === '入区' || number.startsWith('入')) return '入区';
     return '';
+  }
+
+  function handleDataKindChange() {
+    const selected = document.getElementById('dataKind').value;
+    const type = document.getElementById('type');
+    if(selected === '出区' || selected === '入区') type.value = selected;
+    else if(type.value === '出区' || type.value === '入区') type.value = '';
+    updateJSON();
   }
 
   function setYardConnectionStop() {
@@ -503,7 +515,11 @@
     const category = yardCategoryForCurrentTrain();
     const yardPanel = document.getElementById('yardPanel');
     yardPanel.hidden = !category;
-    if(category) document.getElementById('yardCategory').value = category;
+    document.getElementById('dataKind').value = category || '';
+    if(category) {
+      document.getElementById('yardCategory').value = category;
+      if(!document.getElementById('type').value.trim()) document.getElementById('type').value = category;
+    }
     const data = {
       trainNumber: document.getElementById("trainNumber").value,
       type: document.getElementById("type").value,
@@ -519,8 +535,12 @@
       kid1: document.getElementById("kid1").value, kid2: document.getElementById("kid2").value,
       stops: stops
     };
+    const continuationGroupId = document.getElementById('continuationGroupId').value.trim();
+    if(continuationGroupId) data.continuationGroupId = continuationGroupId;
     if(category) {
       data.yardMovement = Object.fromEntries(yardFields().map(input => [input.dataset.yardField, input.value.trim()]));
+      if(!data.yardMovement.previousTrainNumber) data.yardMovement.previousTrainNumber = data.tr1;
+      if(!data.yardMovement.nextTrainNumber) data.yardMovement.nextTrainNumber = data.tr2;
     }
     document.getElementById("jsonOutput").value = JSON.stringify(data, null, 2);
   }
@@ -575,11 +595,12 @@
           showActionMsg(`💾 ${sourceName}を読込 (${parsed.length}件)。先頭データを編集中`);
         }
         if (!d || typeof d !== 'object') throw new Error('列車データではありません');
-        const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2"];
+        const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2","continuationGroupId"];
         ids.forEach(id => {
             if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
         });
         if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
+        document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
         yardFields().forEach(input => {
           const field = input.dataset.yardField;
           input.value = d.yardMovement?.[field] || (field === 'category' ? '出区' : '');

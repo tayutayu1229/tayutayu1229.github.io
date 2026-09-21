@@ -18,7 +18,7 @@ function element(id, value = '') {
 }
 
 [
-  'line', 'origin', 'destination', 'trainNumber', 'type', 'dayType', 'startDate', 'name', 'speed',
+  'line', 'origin', 'destination', 'trainNumber', 'type', 'dataKind', 'continuationGroupId', 'dayType', 'startDate', 'name', 'speed',
   'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
 ].forEach(id => element(id));
 
@@ -128,5 +128,29 @@ assert.equal(yardRecord.yardMovement.category, '出区');
 assert.equal(yardRecord.yardMovement.departureTime, '09:00:00');
 assert.deepEqual(yardRecord.stops, [{station: '国府津', arrival: '09:08:00', departure: '', trackN: '８番'}]);
 assert.equal(elements.get('yardPanel').hidden, false);
+
+elements.get('dataKind').value = '入区';
+elements.get('trainNumber').value = '入9240M';
+elements.get('origin').value = '池　袋';
+elements.get('destination').value = '';
+elements.get('tr1').value = '回9240M';
+elements.get('kid1').value = 'KID-20260921-回9240M-入9240M-池袋';
+elements.get('continuationGroupId').value = 'KID-20260921-2240M-入9240M';
+for (const input of yardInputs) input.value = input.dataset.yardField === 'category' ? '入区' : '';
+yardInputs.find(input => input.dataset.yardField === 'power').value = 'EC';
+yardInputs.find(input => input.dataset.yardField === 'departureTime').value = '19:09:00';
+yardInputs.find(input => input.dataset.yardField === 'departureTrack').value = '山貨下';
+yardInputs.find(input => input.dataset.yardField === 'viaTime').value = '19:11:00';
+yardInputs.find(input => input.dataset.yardField === 'viaTrack').value = '連';
+yardInputs.find(input => input.dataset.yardField === 'arrivalTime').value = '19:14:00';
+yardInputs.find(input => input.dataset.yardField === 'arrivalTrack').value = '１５番';
+vm.runInContext('handleDataKindChange(); setYardConnectionStop(); updateJSON()', context);
+const inboundRecord = JSON.parse(elements.get('jsonOutput').value);
+assert.equal(inboundRecord.type, '入区');
+assert.equal(inboundRecord.continuationGroupId, 'KID-20260921-2240M-入9240M');
+assert.equal(inboundRecord.yardMovement.previousTrainNumber, '回9240M');
+assert.equal(inboundRecord.yardMovement.viaTrack, '連');
+assert.equal(inboundRecord.yardMovement.arrivalTrack, '１５番');
+assert.deepEqual(inboundRecord.stops, [{station: '池　袋', arrival: '', departure: '19:09:00', trackN: '山貨下'}]);
 
 console.log('timeedit workflow: ok');
