@@ -2,7 +2,7 @@
   "use strict";
   const config = window.INCIDENT_SYSTEM_CONFIG || {};
   const apiBase = String(config.API_BASE_URL || "").replace(/\/$/, "");
-  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", deviceReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "", preparedFilePromise: null, metadataPromise: null, fileGeneration: 0, captureLocation: null, deviceDataUrls: [] };
+  const state = { items: [], selected: null, mediaUrls: new Map(), mediaRequests: new Map(), galleryObserver: null, detailObserver: null, filter: { date: "", query: "" }, columns: 5, uploadReturnMode: "home", settingsReturnMode: "home", deviceReturnMode: "home", pendingCaptureKind: "", pendingAutoCapture: false, uploadKind: "both", uploadFile: null, uploadPreviewUrl: "", preparedFilePromise: null, metadataPromise: null, fileGeneration: 0, captureLocation: null, deviceDataUrls: [], itemsFingerprint: "", itemsLoading: false, liveTimer: 0, liveDelay: 5000 };
   const thumbnailQueue = { active: 0, pending: [], limit: 4 };
   const fullscreenZoom = { scale: 1, x: 0, y: 0, startScale: 1, startDistance: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, pinching: false, lastTap: 0 };
   let viewportSyncTimers = [];
@@ -183,6 +183,25 @@
       URL.revokeObjectURL(url); state.mediaUrls.delete(key);
     });
   }
+  function incidentFingerprint(items) {
+    return JSON.stringify(items.map((item) => [item.id, item.occurredAt, item.device, item.comment, item.mediaKey, item.mediaType, item.thumbnailUrl, item.latitude, item.longitude, item.locationAccuracy, item.updatedAt]));
+  }
+  function applyIncidentItems(items) {
+    const nextItems = Array.isArray(items) ? items : [];
+    const nextFingerprint = incidentFingerprint(nextItems);
+    const changed = nextFingerprint !== state.itemsFingerprint;
+    const selectedId = state.selected?.id;
+    state.items = nextItems;
+    state.itemsFingerprint = nextFingerprint;
+    if (selectedId) state.selected = nextItems.find((item) => item.id === selectedId) || null;
+    if (!changed) return false;
+    if (!$("#galleryScreen").hidden) renderGallery();
+    if (!$("#detailScreen").hidden) {
+      if (!state.selected) { showGallery(); showToast("表示中の共有データは削除されました", true); }
+      else renderDetailStrip();
+    }
+    return true;
+  }
   function visibleItems() {
     const query = state.filter.query.trim().toLowerCase();
     return state.items.filter((item) => {
@@ -233,16 +252,37 @@
       if (state.galleryObserver) state.galleryObserver.observe(card); else loadCard(card);
     });
   }
-  async function loadItems(showNotice = false) {
-    $("#serverStatus").textContent = "取得中";
+  async function loadItems(showNotice = false, background = false) {
+    if (state.itemsLoading) return null;
+    state.itemsLoading = true;
+    if (!background) $("#serverStatus").textContent = "取得中";
     try {
       const response = await authorizedFetch("/api/incidents"); const data = await response.json();
-      state.items = Array.isArray(data.incidents) ? data.incidents : [];
-      $("#serverStatus").textContent = "共有サーバー接続中"; renderGallery();
+      const changed = applyIncidentItems(data.incidents);
+      $("#serverStatus").textContent = "リアルタイム接続中";
       if (showNotice) showToast("最新情報へ更新しました");
+      return changed;
     } catch (error) {
-      $("#serverStatus").textContent = "サーバー未接続"; renderGallery(); showToast(error.message || "共有サーバーに接続できません", true);
+      $("#serverStatus").textContent = navigator.onLine ? "再接続待ち" : "オフライン";
+      if (!background) showToast(error.message || "共有サーバーに接続できません", true);
+      return null;
+    } finally {
+      state.itemsLoading = false;
     }
+  }
+  function scheduleLiveSync(delay = state.liveDelay) {
+    clearTimeout(state.liveTimer);
+    state.liveTimer = setTimeout(runLiveSync, delay);
+  }
+  async function runLiveSync() {
+    if (document.hidden || !navigator.onLine) { scheduleLiveSync(15000); return; }
+    const result = await loadItems(false, true);
+    state.liveDelay = result === null ? Math.min(Math.max(state.liveDelay * 2, 10000), 30000) : 5000;
+    scheduleLiveSync();
+  }
+  function refreshLiveSyncNow() {
+    state.liveDelay = 5000;
+    scheduleLiveSync(0);
   }
   function detailItems() {
     const filtered = visibleItems();
@@ -605,7 +645,10 @@
     if (pending) openUpload(pending, autoCapture); else showToast("端末名を保存しました");
   });
   $("#viewBackButton").addEventListener("click", () => { if (!$("#fullscreenScreen").hidden) closeFullscreen(); else if (!$("#locationScreen").hidden) closeLocation(); else if (!$("#deviceScreen").hidden) closeDeviceData(); else if (!$("#settingsScreen").hidden) closeSettings(); else if (!$("#uploadSheet").hidden) closeUpload(); else if (!$("#detailScreen").hidden) closeDetail(); else showHome(); });
-  window.addEventListener("beforeunload", () => { state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); clearDeviceDataUrls(); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
+  window.addEventListener("beforeunload", () => { clearTimeout(state.liveTimer); state.mediaUrls.forEach((url) => URL.revokeObjectURL(url)); clearDeviceDataUrls(); if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLiveSyncNow(); });
+  window.addEventListener("online", refreshLiveSyncNow);
+  window.addEventListener("offline", () => { $("#serverStatus").textContent = "オフライン"; });
   let resizeTimer;
   let previousLandscape = isLandscapeLayout();
   window.addEventListener("resize", () => { scheduleViewportSync(); clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
@@ -629,7 +672,7 @@
       const result = window.TayunetAuthReady ? await Promise.race([window.TayunetAuthReady, new Promise((_, reject) => setTimeout(() => reject(new Error("認証確認がタイムアウトしました")), 15000))]) : null;
       if (result && result.ok !== true) return;
       await window.TayunetFirebaseDataAuth.currentUser();
-      updateGridShape(); updateDeviceStatus(); await updateUnsentCount(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems();
+      updateGridShape(); updateDeviceStatus(); await updateUnsentCount(); $("#authCover").hidden = true; $("#app").hidden = false; if (isLandscapeLayout()) showGallery(); else showHome(); await loadItems(); scheduleLiveSync();
       if (!deviceName()) showToast("端末名が未設定です。設定画面で登録してください", true);
     } catch (error) { $("#authCover p").textContent = error.message || "ログイン画面へ移動しています"; }
   }
