@@ -12,13 +12,14 @@ assert.ok(mainScript, 'timeedit.html の編集処理が見つかりません');
 const elements = new Map();
 const yardInputs = [];
 function element(id, value = '') {
-  const item = {id, value, hidden: true, textContent: '', className: '', style: {}};
+  const item = {id, value, hidden: true, textContent: '', className: '', style: {}, addEventListener() {}};
   elements.set(id, item);
   return item;
 }
 
 [
   'line', 'origin', 'destination', 'trainNumber', 'type', 'dataKind', 'continuationGroupId', 'dayType', 'startDate', 'name', 'speed',
+  'footnoteEnabled', 'footnote',
   'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
 ].forEach(id => element(id));
 
@@ -71,7 +72,7 @@ elements.get('destination').value = '丙';
 vm.runInContext(`
   stops = [
     {station: '甲', arrival: '', departure: '10:00', trackN: '1'},
-    {station: '乙', arrival: '10:10', departure: '10:11', trackN: '2'},
+    {station: '乙', arrival: '10:10', departure: '10:11', trackN: '2', operationInfo:'分割', operationTrainNumber:'103'},
     {station: '丙', arrival: '10:20', departure: '', trackN: '3'}
   ];
   updateUI = () => {};
@@ -81,8 +82,23 @@ vm.runInContext(`
 const reversed = JSON.parse(vm.runInContext('JSON.stringify(stops)', context));
 assert.deepEqual(reversed.map(stop => stop.station), ['丙', '乙', '甲']);
 assert.deepEqual(reversed.map(stop => stop.trackN), ['4', '5', '6']);
+assert.equal(reversed[1].operationInfo, '分割');
+assert.equal(reversed[1].operationTrainNumber, '103');
 assert.equal(elements.get('origin').value, '丙');
 assert.equal(elements.get('destination').value, '甲');
+
+element('routePattern', '0');
+element('quoteStart', '0');
+element('quoteEnd', '1');
+element('lineQuotePanel');
+elements.get('origin').value = '範囲外始発';
+elements.get('destination').value = '範囲外終着';
+vm.runInContext(`
+  linePatterns = [{stops:[{station:'甲',trackN:'1'},{station:'乙',trackN:'2'}]}];
+  applyLineTemplate();
+`, context);
+assert.equal(elements.get('origin').value, '範囲外始発');
+assert.equal(elements.get('destination').value, '範囲外終着');
 
 const basicFields = {
   trainNumber: '101', type: '普通', dayType: '平日', startDate: '2026-09-19',
@@ -97,11 +113,10 @@ vm.runInContext(`
   prepareNextSection();
 `, context);
 const nextStops = JSON.parse(vm.runInContext('JSON.stringify(stops)', context));
-assert.deepEqual(
-  Object.fromEntries(Object.keys(basicFields).map(id => [id, elements.get(id).value])),
-  basicFields,
-  '次区間へ進んでも列車基本情報はすべて保持されること',
-);
+assert.equal(elements.get('trainNumber').value, '201', '次区間の列車番号へ切り替わること');
+assert.equal(elements.get('origin').value, '丙');
+assert.equal(elements.get('destination').value, '');
+for (const id of ['type','dayType','startDate','line','name','speed']) assert.equal(elements.get(id).value, basicFields[id]);
 assert.equal(elements.get('tr1').value, '101');
 assert.equal(elements.get('kid1').value, 'K-201');
 assert.equal(elements.get('tt1').value, 'k');
@@ -128,6 +143,14 @@ assert.equal(yardRecord.yardMovement.category, '出区');
 assert.equal(yardRecord.yardMovement.departureTime, '09:00:00');
 assert.deepEqual(yardRecord.stops, [{station: '国府津', arrival: '09:08:00', departure: '', trackN: '８番'}]);
 assert.equal(elements.get('yardPanel').hidden, false);
+
+elements.get('footnoteEnabled').value = 'yes';
+elements.get('footnote').value = '列車防護係員省略';
+vm.runInContext(`stops = [{station:'国府津',arrival:'09:08:00',departure:'',trackN:'８番',operationInfo:'分割',operationTrainNumber:'9821M',operationKid:'K-9821'}]; updateJSON()`, context);
+const annotatedRecord = JSON.parse(elements.get('jsonOutput').value);
+assert.equal(annotatedRecord.footnote, '列車防護係員省略');
+assert.equal(annotatedRecord.stops[0].operationInfo, '分割');
+assert.equal(annotatedRecord.stops[0].operationTrainNumber, '9821M');
 
 elements.get('dataKind').value = '入区';
 elements.get('trainNumber').value = '入9240M';

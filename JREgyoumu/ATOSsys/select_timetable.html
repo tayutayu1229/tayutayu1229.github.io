@@ -450,8 +450,10 @@ h2 {
             </div>
 
             <button id="search-button" type="button">検索</button>
+            <button id="refresh-data-button" type="button">最新データに更新</button>
         </div>
         <p class="location-status" id="location-status" aria-live="polite"></p>
+        <p class="location-status" id="data-status" aria-live="polite"></p>
 
         <div class="table-wrapper">
             <table class="select-table" id="timetable-list">
@@ -482,8 +484,10 @@ h2 {
             const searchNumberInput = document.getElementById('search-number');
             const searchStationInput=document.getElementById('search-station');
             const searchButton = document.getElementById('search-button');
+            const refreshDataButton = document.getElementById('refresh-data-button');
             const outputLocationSelect = document.getElementById('output-location');
             const locationStatus = document.getElementById('location-status');
+            const dataStatus = document.getElementById('data-status');
             const WORKBASE_URL = 'https://tayunet-traininfo.com/JREgyoumu/workdata/workbase.json';
             const OUTPUT_LOCATION_KEY = 'atosSelectedOutputLocation';
             const VIEW_STATE_KEY = 'atosTimetableSelectionView:v1';
@@ -597,25 +601,35 @@ h2 {
             let sortDir = 'asc';  // 'asc' or 'desc'
 
             // fetchでJSON_PATHからデータを取得する関数
-            const loadTimetables = async () => {
+            const loadTimetables = async (forceRefresh = false) => {
+                refreshDataButton.disabled = true;
+                if (forceRefresh) dataStatus.textContent = '最新データを取得しています…';
                 try {
-                    const cached = await readTimetableCache();
+                    const cached = forceRefresh ? null : await readTimetableCache();
                     if (cached) {
                         cachedAllData = cached;
                         restoreViewState();
                         applySearchFilter();
                         restoreScrollPosition();
+                        dataStatus.textContent = `保留データ ${cached.length.toLocaleString('ja-JP')}件を表示中。新規登録分は「最新データに更新」で取得できます。`;
                         return;
                     }
                     cachedAllData = await TayunetPrivateData.fetchTimetables();
                     await writeTimetableCache(cachedAllData);
-                    restoreViewState();
+                    if (!forceRefresh) restoreViewState();
                     applySearchFilter();
                     restoreScrollPosition();
+                    dataStatus.textContent = `最新データ ${cachedAllData.length.toLocaleString('ja-JP')}件に更新しました。`;
                 } catch (error) {
                     console.error('Error fetching the timetable data:', error);
-                    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">保護データを読み込めません。TAYUNETログイン後に再読み込みしてください。</td></tr>';
-                    cachedAllData = [];
+                    if (!cachedAllData.length) {
+                        listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">保護データを読み込めません。TAYUNETログイン後に再読み込みしてください。</td></tr>';
+                    }
+                    dataStatus.textContent = cachedAllData.length
+                        ? '最新データを取得できなかったため、保留データの表示を維持しました。'
+                        : '最新データを取得できませんでした。通信状態を確認してください。';
+                } finally {
+                    refreshDataButton.disabled = false;
                 }
             };
 
@@ -807,6 +821,10 @@ h2 {
 
             //検索イベント？？？
             searchButton.addEventListener('click', applySearchFilter);
+            refreshDataButton.addEventListener('click', () => {
+                saveViewState();
+                loadTimetables(true);
+            });
 
             outputLocationSelect.addEventListener('change', () => {
                 if (!outputLocationSelect.value) return;

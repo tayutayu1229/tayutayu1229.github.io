@@ -55,6 +55,8 @@ let captured = null;
 const fetchedUrls = [];
 const context = vm.createContext({
   window: {},
+  TayunetTimetableVersion: require('../assets/js/timetable-version.js'),
+  TayunetTimetableOperations: require('../assets/js/timetable-operations.js'),
   document: {getElementById: id => elements.get(id), createElement: () => new Element(), createTextNode: text => ({textContent: text})},
   fetch: async url => {
     fetchedUrls.push(String(url));

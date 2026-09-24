@@ -435,6 +435,8 @@
 <link rel="stylesheet" href="/assets/css/site-brand.css">
 <link rel="stylesheet" href="yard-movement.css">
 <script src="/assets/js/japanese-calendar.js"></script>
+<script src="/assets/js/timetable-version.js"></script>
+<script src="/assets/js/timetable-operations.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -546,11 +548,6 @@
     <script>
         let rawJsonData = [];
 
-        // 所定ダイヤの運行期間
-        const PERIOD_START = new Date('2025/03/15');
-        const PERIOD_END = new Date('2026/03/13');
-        
-        
         // =======================================================================================
         // <<<<<<<<<<<<<<<<<<<< ユーティリティ関数 >>>>>>>>>>>>>>>>>>>>>>>>>
         // =======================================================================================
@@ -653,43 +650,10 @@
             // 検索パラメータ
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
-            const searchTime = searchDate.getTime();
-            
-            let result = null;
-            
-            // 1. 特定日ダイヤ検索 (startDate 完全一致)
-            result = rawJsonData.find(d => 
-                d.line === selectedLine &&
-                normalizeString(d.trainNumber) === targetTrainNoNormalized &&
-                d.startDate === selectedDateJSON
+            const candidates = rawJsonData.filter(d =>
+                d.line === selectedLine && normalizeString(d.trainNumber) === targetTrainNoNormalized
             );
-            
-            if (result) {
-                updateSummaryAndTable(result, selectedLine, selectedDateJSON, crownPart, numberPart);
-                return;
-            }
-
-            // 2. 所定ダイヤ検索 (dayType / 期間マッチ)
-            const isInPeriod = (searchTime >= PERIOD_START.getTime() && searchTime <= PERIOD_END.getTime());
-            
-            if (isInPeriod) {
-                result = rawJsonData.find(d => {
-                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) {
-                        return false;
-                    }
-                    
-                    const dataDayType = d.dayType || ""; 
-                    const standardStartDates = ['2025/03/15', '2025/03/17', '2026/03/14']; 
-
-                    if (standardStartDates.includes(d.startDate)) {
-                        if (dataDayType === "" || dataDayType === searchDayType) {
-                            return true;
-                        }
-                    }
-                    
-                    return false;
-                });
-            }
+            const result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
 
             // --- 結果表示 ---
             if (result) {
@@ -737,28 +701,11 @@
                 
                 const typeText = (index === 0) ? data.type : '';
                 
-                let opInfo = ""; 
-                let opTrain = null;
-                let currentKid = data.kid || ''; 
-
-                // 運用情報 / 運用列番 の判定ロジック
-                if (index === 0) {
-                    if (data.tt1 === "k") opInfo = "継送";
-                    else if (data.tt1 === "o") opInfo = "折返";
-                    
-                    if (data.tr1) {
-                        const kidToPass = data.kid1 || currentKid; 
-                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev', connectionStation: stop.station };
-                    }
-                } else if (index === totalStops - 1) {
-                    if (data.tt2 === "k") opInfo = "継送";
-                    else if (data.tt2 === "o") opInfo = "折返";
-
-                    if (data.tr2) {
-                        const kidToPass = data.kid2 || currentKid; 
-                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next', connectionStation: stop.station };
-                    }
-                }
+                const operation = TayunetTimetableOperations.forStop(data, stop, index);
+                const opInfo = operation.type;
+                const opTrain = operation.trainNumber
+                    ? {number:operation.trainNumber, kid:operation.kid, direction:operation.direction, connectionStation:stop.station}
+                    : null;
                 
                 const appendCell = (value, className = '') => {
                     const td = document.createElement('td');
@@ -801,6 +748,11 @@
             const stationKey = normalizeString(connectionStation).replace(/[\s　駅]/g, '');
             const connectionCandidates = candidates.filter(d => {
                 const stops = d.stops || [];
+                if(direction === 'either') {
+                    const first = stops[0]?.station || d.origin;
+                    const last = stops[stops.length - 1]?.station || d.destination;
+                    return !stationKey || [first, last].some(value => normalizeString(value).replace(/[\s　駅]/g, '') === stationKey);
+                }
                 const endpoint = direction === 'prev'
                     ? (stops[stops.length - 1]?.station || d.destination)
                     : (stops[0]?.station || d.origin);
@@ -821,7 +773,9 @@
 
             // 2. フォールバック
             if (!match) {
-                 const dated = connectionCandidates.filter(d => d.startDate === selectedDateJSON);
+                 const selectedDate = new Date(`${selectedDateJSON.replace(/\//g, '-')}T12:00:00`);
+                 const selectedDayType = isHoliday(selectedDate) ? '土休日' : '平日';
+                 const dated = TayunetTimetableVersion.versionsForDate(connectionCandidates, selectedDateJSON, selectedDayType);
                  if (dated.length === 1) match = dated[0];
                  else if (connectionCandidates.length === 1) match = connectionCandidates[0];
             }

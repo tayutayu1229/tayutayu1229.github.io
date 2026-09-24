@@ -220,6 +220,8 @@
 <link rel="stylesheet" href="/assets/css/site-brand.css">
 <link rel="stylesheet" href="yard-movement.css">
 <script src="/assets/js/japanese-calendar.js"></script>
+<script src="/assets/js/timetable-version.js"></script>
+<script src="/assets/js/timetable-operations.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -299,13 +301,6 @@
         let searchRevision = 0;
         let searchTimer;
 
-        // 3つの期間を配列で管理
-        const PERIODS = [
-            { start: new Date('2025/03/15'), end: new Date('2026/03/13'), standardDates: ['2025/03/15', '2025/03/17'] },
-            { start: new Date('2026/03/14'), end: new Date('2027/03/12'), standardDates: ['2026/03/14', '2026/03/16'] },
-            { start: new Date('2027/03/13'), end: new Date('2028/03/10'), standardDates: ['2027/03/13', '2027/03/15'] }
-        ];
-        
         function formatDate(date) {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -499,34 +494,10 @@
             
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
-            const searchTime = searchDate.getTime();
-            let result = null;
-            
-            result = rawJsonData.find(d => 
-                d.line === selectedLine &&
-                normalizeString(d.trainNumber) === targetTrainNoNormalized &&
-                d.startDate === selectedDateJSON
+            const candidates = rawJsonData.filter(d =>
+                d.line === selectedLine && normalizeString(d.trainNumber) === targetTrainNoNormalized
             );
-            
-            const activePeriod = PERIODS.find(p => 
-                searchTime >= p.start.getTime() && searchTime <= p.end.getTime()
-            );
-
-            if (!result && activePeriod) {
-                result = rawJsonData.find(d => {
-                    if (d.line !== selectedLine || normalizeString(d.trainNumber) !== targetTrainNoNormalized) return false;
-
-                    // ★ここを書き換え：曜日に応じて standardDates の 0番目(土休日) か 1番目(平日) を選ぶ
-                    const targetDate = isTargetHoliday ? activePeriod.standardDates[0] : activePeriod.standardDates[1];
-
-                    // 基準日が一致し、かつ曜日種別が一致（または指定なし）なら採用
-                    if (d.startDate === targetDate) {
-                        const dataDayType = d.dayType || "";
-                        if (dataDayType === "" || dataDayType === searchDayType) return true;
-                    }
-                    return false;
-                });
-            }
+            let result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
 
             let source = '登録時刻表';
             let relatedRailways = [];
@@ -570,7 +541,7 @@
             const summary = document.getElementById('trainSummary');
             summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
-                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}　資料:${source}`));
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
@@ -618,27 +589,11 @@
                 
                 const typeText = (index === 0) ? data.type : '';
                 
-                let opInfo = ""; 
-                let opTrain = null;
-                let currentKid = data.kid || ''; 
-
-                if (index === 0) {
-                    if (data.tt1 === "k") opInfo = "継送";
-                    else if (data.tt1 === "o") opInfo = "折返";
-                    
-                    if (data.tr1) {
-                        const kidToPass = data.kid1 || currentKid; 
-                        opTrain = { number: data.tr1, kid: kidToPass, direction: 'prev', connectionStation: stop.station };
-                    }
-                } else if (index === totalStops - 1) {
-                    if (data.tt2 === "k") opInfo = "継送";
-                    else if (data.tt2 === "o") opInfo = "折返";
-
-                    if (data.tr2) {
-                        const kidToPass = data.kid2 || currentKid; 
-                        opTrain = { number: data.tr2, kid: kidToPass, direction: 'next', connectionStation: stop.station };
-                    }
-                }
+                const operation = TayunetTimetableOperations.forStop(data, stop, index);
+                const opInfo = operation.type;
+                const opTrain = operation.trainNumber
+                    ? {number:operation.trainNumber, kid:operation.kid, direction:operation.direction, connectionStation:stop.station}
+                    : null;
 
                 // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
                 const displayArrival = data.historyOnly ? '' : getDisplayTime(stop.arrival);
@@ -679,6 +634,11 @@
             const stationKey = normalizeString(connectionStation).replace(/[\s　駅]/g, '');
             const connectionCandidates = candidates.filter(d => {
                 const stops = d.stops || [];
+                if(direction === 'either') {
+                    const first = stops[0]?.station || d.origin;
+                    const last = stops[stops.length - 1]?.station || d.destination;
+                    return !stationKey || [first, last].some(value => normalizeString(value).replace(/[\s　駅]/g, '') === stationKey);
+                }
                 const endpoint = direction === 'prev'
                     ? (stops[stops.length - 1]?.station || d.destination)
                     : (stops[0]?.station || d.origin);
@@ -696,7 +656,9 @@
             }
 
             if (!match) {
-                 const dated = connectionCandidates.filter(d => d.startDate === selectedDateJSON);
+                 const selectedDate = new Date(`${selectedDateJSON.replace(/\//g, '-')}T12:00:00`);
+                 const selectedDayType = isHoliday(selectedDate) ? '土休日' : '平日';
+                 const dated = TayunetTimetableVersion.versionsForDate(connectionCandidates, selectedDateJSON, selectedDayType);
                  if (dated.length === 1) match = dated[0];
                  else if (connectionCandidates.length === 1) match = connectionCandidates[0];
             }

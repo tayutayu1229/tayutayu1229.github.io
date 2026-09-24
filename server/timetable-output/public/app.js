@@ -79,6 +79,17 @@
     return Array.isArray(item.stops) ? item.stops : [];
   }
 
+  function footnoteOf(item) {
+    if (typeof item?.footnote === "string") return item.footnote.trim();
+    if (Array.isArray(item?.footnotes)) return item.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("／");
+    return "";
+  }
+
+  function localDateTimeValue() {
+    const date = new Date();
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+
   function routeOf(item) {
     const stops = stopsOf(item);
     return {
@@ -307,7 +318,11 @@
     view.replaceChildren();
     const route = routeOf(item);
     const outputDate = byId("qOutputDate").value.replace(/-/g, "/") || item.startDate;
-    [["元の施行日", item.startDate], ["PDFの施行日", outputDate], ["線区", item.line], ["列番", item.trainNumber], ["区間", `${route.origin} → ${route.destination}`], ["箇所", byId("qL").value]].forEach(([label, value], index) => {
+    if (!byId("qOutputAt").value) byId("qOutputAt").value = localDateTimeValue();
+    const footnote = footnoteOf(item);
+    byId("qIncludeFootnote").disabled = !footnote;
+    byId("qIncludeFootnote").checked = Boolean(footnote);
+    [["元の施行日", item.startDate], ["PDFの施行日", outputDate], ["出力日時", byId("qOutputAt").value.replace("T", " ")], ["付記", footnote || "なし"], ["線区", item.line], ["列番", item.trainNumber], ["区間", `${route.origin} → ${route.destination}`], ["箇所", byId("qL").value]].forEach(([label, value], index) => {
       if (index) view.appendChild(document.createElement("br"));
       const bold = document.createElement("b");
       bold.textContent = `${label}:`;
@@ -347,6 +362,8 @@
         body: JSON.stringify({
           location,
           outputDate: byId("qOutputDate").value,
+          outputAt: byId("qOutputAt").value,
+          includeFootnote: byId("qIncludeFootnote").checked,
           trainKey: {
             trainNumber: String(item.trainNumber || ""),
             startDate: String(item.startDate || ""),
@@ -365,6 +382,7 @@
   }
 
   const auth = firebase.initializeApp(firebaseConfig).auth();
+  byId("qOutputAt").value = localDateTimeValue();
   auth.languageCode = "ja";
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
   byId("login-form").addEventListener("submit", async (event) => {

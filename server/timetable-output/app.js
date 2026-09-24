@@ -158,6 +158,25 @@ function outputDateFrom(value) {
   return `${year}/${month}/${day}`;
 }
 
+function outputDateTimeFrom(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)));
+  if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() + 1 !== Number(month)
+    || date.getUTCDate() !== Number(day) || date.getUTCHours() !== Number(hour)
+    || date.getUTCMinutes() !== Number(minute) || date.getUTCSeconds() !== Number(second)) return null;
+  return `${year}/${month}/${day} ${hour}:${minute}${match[6] ? `:${second}` : ""}`;
+}
+
+function footnoteFrom(train) {
+  if (typeof train?.footnote === "string") return plainText(train.footnote, 300).trim();
+  if (Array.isArray(train?.footnotes)) return plainText(train.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("／"), 300).trim();
+  return "";
+}
+
 function sameTrain(row, key) {
   return row && String(row.trainNumber || "") === key.trainNumber
     && String(row.startDate || "") === key.startDate
@@ -248,7 +267,10 @@ app.post("/import", requireApprovedUser, limitImports, async (req, res) => {
     const key = trainKeyFrom(req.body);
     const requestedOutputDate = req.body?.outputDate;
     const outputDate = outputDateFrom(requestedOutputDate);
-    if (!location || !key || (requestedOutputDate && !outputDate)) {
+    const requestedOutputAt = req.body?.outputAt;
+    const outputAt = outputDateTimeFrom(requestedOutputAt);
+    const includeFootnote = req.body?.includeFootnote !== false;
+    if (!location || !key || (requestedOutputDate && !outputDate) || (requestedOutputAt && !outputAt)) {
       return res.status(400).json({ status: "error", message: "発行条件が不正です。" });
     }
 
@@ -270,7 +292,7 @@ app.post("/import", requireApprovedUser, limitImports, async (req, res) => {
 
     const safeTrainNumber = plainText(trainData.trainNumber, 40).replace(/[\[\]*?:/\\]/g, "_");
     await generatedSheet.updateProperties({ title: `Export_${safeTrainNumber}_${Date.now()}`.slice(0, 95) });
-    await generatedSheet.loadCells("A1:H100");
+    await generatedSheet.loadCells("A1:H102");
 
     writeText(generatedSheet.getCellByA1("D2"), `【　出 力 箇所　】${location}`, 180);
     writeText(generatedSheet.getCellByA1("A1"), `${trainData.trainNumber} 列車ダイヤ (${trainData.line})`, 180);
@@ -296,8 +318,18 @@ app.post("/import", requireApprovedUser, limitImports, async (req, res) => {
       }
     });
 
-    const footer = generatedSheet.getCell(lastRow + 1, 0);
-    const nowJst = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+    let footerRow = lastRow + 1;
+    const footnote = includeFootnote ? footnoteFrom(trainData) : "";
+    if (footnote) {
+      const noteCell = generatedSheet.getCell(footerRow, 0);
+      writeText(noteCell, footnote, 300);
+      noteCell.textFormat = { fontSize: 9 };
+      noteCell.horizontalAlignment = "LEFT";
+      noteCell.wrapStrategy = "WRAP";
+      footerRow += 1;
+    }
+    const footer = generatedSheet.getCell(footerRow, 0);
+    const nowJst = outputAt || new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
     writeText(footer, `出力日時：${nowJst}`, 100);
     footer.textFormat = { fontSize: 9 };
     await generatedSheet.saveUpdatedCells();
@@ -336,4 +368,4 @@ if (require.main === module) {
   app.listen(PORT, "127.0.0.1", () => console.log(`Timetable output listening on 127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, outputDateFrom, trainKeyFrom, sameTrain, validateString, writeText };
+module.exports = { app, outputDateFrom, outputDateTimeFrom, footnoteFrom, trainKeyFrom, sameTrain, validateString, writeText };

@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { outputDateFrom, sameTrain, trainKeyFrom, validateString, writeText } = require("./app");
+const { outputDateFrom, outputDateTimeFrom, footnoteFrom, sameTrain, trainKeyFrom, validateString, writeText } = require("./app");
 
 assert.equal(validateString("  東京総合指令室  ", 120), "東京総合指令室");
 assert.equal(validateString("bad\nvalue", 120), null);
@@ -28,6 +28,11 @@ assert.equal(outputDateFrom("2026-08-23"), "2026/08/23");
 assert.equal(outputDateFrom(""), null);
 assert.equal(outputDateFrom("2026-02-30"), null);
 assert.equal(outputDateFrom("2026/08/23"), null);
+assert.equal(outputDateTimeFrom("2026-09-25T12:34"), "2026/09/25 12:34");
+assert.equal(outputDateTimeFrom("2026-02-30T12:34"), null);
+assert.equal(outputDateTimeFrom("2026-09-25 12:34"), null);
+assert.equal(footnoteFrom({footnote:" 列車防護係員省略 "}), "列車防護係員省略");
+assert.equal(footnoteFrom({footnotes:["甲", "乙"]}), "甲／乙");
 
 const normalCell = {};
 writeText(normalCell, "9171M", 40);

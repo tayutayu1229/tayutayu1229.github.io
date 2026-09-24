@@ -102,6 +102,8 @@
       <label><span>速度種別</span><input id="speed" type="text" oninput="updateJSON()"></label>
       <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
       <label><span>終着駅</span><input id="destination" type="text" oninput="updateJSON()"></label>
+      <label><span>付記を出力</span><select id="footnoteEnabled"><option value="">なし</option><option value="yes">あり</option></select></label>
+      <label><span>付記</span><input id="footnote" type="text" list="footnoteList" placeholder="例：列車防護係員省略" disabled></label>
     </div>
   </div>
 
@@ -111,14 +113,14 @@
       <thead>
         <tr>
           <th>前後継承</th>
-          <th>tt (k or o)</th>
+          <th>運用情報</th>
           <th>tr (列番)</th>
           <th>kid (ID)</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td><strong>前(1)</strong></td><td><input id="tt1" type="text" oninput="updateJSON()"></td><td><input id="tr1" type="text" oninput="updateJSON()"></td><td><input id="kid1" type="text" oninput="updateJSON()"></td></tr>
-        <tr><td><strong>次(2)</strong></td><td><input id="tt2" type="text" oninput="updateJSON()"></td><td><input id="tr2" type="text" oninput="updateJSON()"></td><td><input id="kid2" type="text" oninput="updateJSON()"></td></tr>
+        <tr><td><strong>前(1)</strong></td><td><input id="tt1" type="text" list="operationTypeList" placeholder="継走・折返など" oninput="updateJSON()"></td><td><input id="tr1" type="text" oninput="updateJSON()"></td><td><input id="kid1" type="text" oninput="updateJSON()"></td></tr>
+        <tr><td><strong>次(2)</strong></td><td><input id="tt2" type="text" list="operationTypeList" placeholder="継走・折返など" oninput="updateJSON()"></td><td><input id="tr2" type="text" oninput="updateJSON()"></td><td><input id="kid2" type="text" oninput="updateJSON()"></td></tr>
       </tbody>
     </table>
     <label style="display:block; margin-top:8px;"><span style="display:block; font-size:10px; color:#64748b; font-weight:bold; margin-bottom:2px;">継続グループID</span><input id="continuationGroupId" type="text" placeholder="KID-20260921-2240M-入9240M" oninput="updateJSON()"></label>
@@ -132,7 +134,7 @@
     <label><span>区分</span><select id="yardCategory" data-yard-field="category" onchange="updateJSON()"><option value="出区">出区</option><option value="入区">入区</option></select></label>
     <label><span>運行</span><input data-yard-field="operation" placeholder="例：運転" oninput="updateJSON()"></label>
     <label><span>前運用列番</span><input data-yard-field="previousTrainNumber" placeholder="例：回9240M" oninput="updateJSON()"></label>
-    <label><span>後運用列番</span><input data-yard-field="nextTrainNumber" placeholder="例：構" oninput="updateJSON()"></label>
+    <label><span>後運用列番</span><input data-yard-field="nextTrainNumber" placeholder="例：回9241M" oninput="updateJSON()"></label>
     <label><span>運休</span><input data-yard-field="cancelled" placeholder="例：運休" oninput="updateJSON()"></label>
     <label><span>抑止</span><input data-yard-field="suspended" placeholder="例：抑止" oninput="updateJSON()"></label>
     <label><span>動力</span><input data-yard-field="power" placeholder="例：EC" oninput="updateJSON()"></label>
@@ -171,10 +173,10 @@
       <button class="btn-gray" type="button" onclick="closeLineTemplate()">閉じる</button>
       <span id="quoteSummary" class="quote-summary"></span>
     </div>
-    <p class="subtle-note">「ここから」と「ここまで」を逆順に選ぶと、逆方向の駅順・番線で引用します。時刻は空欄で追加されます。</p>
+    <p class="subtle-note">「ここから」と「ここまで」を逆順に選ぶと、逆方向の駅順・番線で引用します。時刻は空欄で追加され、列車基本情報の始発駅・終着駅は変更しません。</p>
   </div>
   <table id="mainStopsTable">
-    <thead><tr><th style="width:30%">駅名</th><th style="width:20%">到着</th><th style="width:20%">出発</th><th style="width:20%">番線</th><th style="width:10%">削除</th></tr></thead>
+    <thead><tr><th>駅名</th><th>到着</th><th>出発</th><th>番線</th><th>運用情報</th><th>運用列番</th><th>kid</th><th>削除</th></tr></thead>
     <tbody id="stopsBody"></tbody>
   </table>
   <div style="display: flex; gap: 5px; margin-top: 10px; background: #eff6ff; padding: 10px; border-radius: 6px; border: 1px dashed var(--primary);">
@@ -194,6 +196,8 @@
 <datalist id="stationList"></datalist>
 <datalist id="lineList"></datalist>
 <datalist id="trackSuggestions"></datalist>
+<datalist id="operationTypeList"><option value="k">継走（従来形式）</option><option value="o">折返（従来形式）</option><option value="継走"><option value="折返"><option value="分割"><option value="併合"><option value="入区"><option value="出区"><option value="引上"><option value="据付"><option value="滞泊"><option value="車交"><option value="特発"></datalist>
+<datalist id="footnoteList"><option value="列車防護係員省略"></datalist>
 
 <script src="T-time/private-data-client.js"></script>
 <script>
@@ -201,6 +205,8 @@
   let masterData = [];
   let masterFiles = [];
   let linePatterns = [];
+  document.getElementById('footnoteEnabled').addEventListener('change', handleFootnoteSetting);
+  document.getElementById('footnote').addEventListener('input', updateJSON);
 
   function refreshMasterData() {
     masterData = masterFiles.flatMap(file => file.items);
@@ -357,11 +363,9 @@
       lineName
     );
     stops = quoted;
-    document.getElementById('origin').value = stops[0].station;
-    document.getElementById('destination').value = stops.at(-1).station;
     updateUI();
     closeLineTemplate();
-    showActionMsg(`📋 ${stops[0].station}から${stops.at(-1).station}まで、${stops.length}駅を引用しました`);
+    showActionMsg(`📋 ${stops[0].station}から${stops.at(-1).station}まで、${stops.length}駅を引用しました（始発駅・終着駅は保持）`);
   }
 
   function closeLineTemplate() {
@@ -373,10 +377,12 @@
     if (confirm("駅順を反転させますか？")) {
       const lineName = document.getElementById('line').value.trim();
       const reversed = [...stops].reverse().map(stop => ({
+        ...stop,
         station: stop.station,
         arrival: stop.departure || '',
         departure: stop.arrival || '',
-        trackN: stop.trackN ?? ''
+        trackN: stop.trackN ?? '',
+        operationDirection: stop.operationDirection === 'prev' ? 'next' : stop.operationDirection === 'next' ? 'prev' : stop.operationDirection
       }));
       stops = applyDirectionalTracks(reversed, lineName);
       document.getElementById('origin').value = stops[0].station;
@@ -446,6 +452,14 @@
       const trackList = document.createElement('datalist'); trackList.id = trackDlId;
       trackInput.parentElement.appendChild(trackList);
       trackInput.addEventListener('focus', () => createDynamicDatalist(i, stops[i].station));
+      const operationCell = document.createElement('td');
+      const operationInput = document.createElement('input');
+      operationInput.type = 'text'; operationInput.value = stop.operationInfo || '';
+      operationInput.setAttribute('list', 'operationTypeList');
+      operationInput.addEventListener('input', () => { stops[i].operationInfo = operationInput.value; updateJSON(); });
+      operationCell.appendChild(operationInput); tr.appendChild(operationCell);
+      addInputCell('operationTrainNumber');
+      addInputCell('operationKid');
       const actionCell = document.createElement('td');
       const removeButton = document.createElement('button');
       removeButton.type = 'button'; removeButton.className = 'btn-del'; removeButton.textContent = '×';
@@ -493,6 +507,14 @@
     updateJSON();
   }
 
+  function handleFootnoteSetting() {
+    const enabled = document.getElementById('footnoteEnabled').value === 'yes';
+    const input = document.getElementById('footnote');
+    input.disabled = !enabled;
+    if(enabled && !input.value.trim()) input.value = '列車防護係員省略';
+    updateJSON();
+  }
+
   function setYardConnectionStop() {
     const category = yardCategoryForCurrentTrain();
     if(!category) return;
@@ -537,6 +559,9 @@
     };
     const continuationGroupId = document.getElementById('continuationGroupId').value.trim();
     if(continuationGroupId) data.continuationGroupId = continuationGroupId;
+    const footnote = document.getElementById('footnoteEnabled').value === 'yes'
+      ? document.getElementById('footnote').value.trim() : '';
+    if(footnote) data.footnote = footnote;
     if(category) {
       data.yardMovement = Object.fromEntries(yardFields().map(input => [input.dataset.yardField, input.value.trim()]));
       if(!data.yardMovement.previousTrainNumber) data.yardMovement.previousTrainNumber = data.tr1;
@@ -564,17 +589,23 @@
     const curTr = document.getElementById("trainNumber").value.trim();
     const nextKid1 = document.getElementById("kid2").value;
     const nextTt1 = document.getElementById("tt2").value;
+    const wasYard = !!yardCategoryForCurrentTrain();
     const connectionStop = stops.length ? {...stops.at(-1), arrival: '', departure: ''} : null;
     const connectionStation = connectionStop?.station || document.getElementById('destination').value.trim();
     const detail = connectionStation ? `接続駅「${connectionStation}」を次区間の先頭に残します。` : '停車駅は空の状態で開始します。';
-    if(!confirm(`次区間の停車駅入力へ進みますか？\n列車基本情報は変更しません。${detail}`)) return;
+    if(!confirm(`${nextTr}の編集へ進みますか？\n${detail}`)) return;
+    document.getElementById("trainNumber").value = nextTr;
+    if(wasYard) document.getElementById('type').value = '';
+    yardFields().forEach(input => { if(input.dataset.yardField !== 'category') input.value = ''; });
     document.getElementById("tr1").value = curTr;
     document.getElementById("kid1").value = nextKid1;
     document.getElementById("tt1").value = nextTt1;
     ["tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById('origin').value = connectionStation;
+    document.getElementById('destination').value = '';
     stops = connectionStop ? [connectionStop] : [];
     updateUI();
-    showActionMsg(`➡ 次区間へスライドしました（接続先: ${nextTr}${connectionStation ? `、接続駅: ${connectionStation}` : ''}。列車基本情報は保持）`);
+    showActionMsg(`➡ ${nextTr}へスライドしました${connectionStation ? `（接続駅: ${connectionStation}）` : ''}`);
   }
 
   function handleImport(event) {
@@ -600,6 +631,10 @@
             if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
         });
         if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
+        const footnote = String(d.footnote || (Array.isArray(d.footnotes) ? d.footnotes.join('／') : '') || '');
+        document.getElementById('footnote').value = footnote;
+        document.getElementById('footnoteEnabled').value = footnote ? 'yes' : '';
+        document.getElementById('footnote').disabled = !footnote;
         document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
         yardFields().forEach(input => {
           const field = input.dataset.yardField;

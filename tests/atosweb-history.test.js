@@ -114,6 +114,7 @@ assert.equal(passSupplemented['odpt:trainTimetableObject'][1].__predictionBasis,
 console.log('atosweb history tests: ok');
 
 const operationContext = {
+  TayunetTimetableOperations: require('../assets/js/timetable-operations.js'),
   externalTimetables: [{
     line: '東海道線', trainNumber: '100M', startDate: '2026/08/08',
     origin: '東京', destination: '熱海', tt1: 'k', tr1: '90M', kid1: 'K001',
