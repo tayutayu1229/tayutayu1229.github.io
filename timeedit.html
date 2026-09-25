@@ -606,6 +606,10 @@
     const nextTr = document.getElementById("tr2").value.trim();
     if (!nextTr) { alert("次列車番号を入力してください"); return; }
     const curTr = document.getElementById("trainNumber").value.trim();
+    const normalizedTrainNumber = value => String(value || '').normalize('NFKC').replace(/[\s\u3000]/g, '');
+    const keepsTrainIdentity = normalizedTrainNumber(nextTr) === normalizedTrainNumber(curTr);
+    const currentOrigin = document.getElementById('origin').value;
+    const currentDestination = document.getElementById('destination').value;
     const nextKid1 = document.getElementById("kid2").value;
     const nextTt1 = document.getElementById("tt2").value;
     const wasYard = !!yardCategoryForCurrentTrain();
@@ -621,11 +625,11 @@
     document.getElementById("kid1").value = nextKid1;
     document.getElementById("tt1").value = nextTt1;
     ["tr2", "kid2", "tt2"].forEach(id => document.getElementById(id).value = "");
-    document.getElementById('origin').value = connectionStation;
-    document.getElementById('destination').value = '';
+    document.getElementById('origin').value = keepsTrainIdentity ? currentOrigin : connectionStation;
+    document.getElementById('destination').value = keepsTrainIdentity ? currentDestination : '';
     stops = connectionStop ? [connectionStop] : [];
     updateUI();
-    showActionMsg(`➡ ${nextTr}へスライドしました${connectionStation ? `（接続駅: ${connectionStation}）` : ''}`);
+    showActionMsg(`➡ ${nextTr}へスライドしました${keepsTrainIdentity ? '（同一列番のため始発駅・終着駅を保持）' : connectionStation ? `（接続駅: ${connectionStation}）` : ''}`);
   }
 
   function handleImport(event) {

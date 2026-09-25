@@ -123,6 +123,18 @@ assert.equal(elements.get('tt1').value, 'k');
 assert.equal(elements.get('tr2').value, '');
 assert.deepEqual(nextStops, [{station: '丙', arrival: '', departure: '', trackN: '3'}]);
 
+elements.get('trainNumber').value = '２０１';
+elements.get('tr2').value = '201';
+elements.get('origin').value = '範囲外始発';
+elements.get('destination').value = '範囲外終着';
+vm.runInContext(`
+  stops = [{station: '接続駅', arrival: '10:30', departure: '', trackN: '4'}];
+  prepareNextSection();
+`, context);
+assert.equal(elements.get('trainNumber').value, '201');
+assert.equal(elements.get('origin').value, '範囲外始発', '同一列番なら始発駅を保持すること');
+assert.equal(elements.get('destination').value, '範囲外終着', '同一列番なら終着駅を保持すること');
+
 ['dayType', 'startDate', 'speed', 'name', 'yardPanel', 'yardCategory', 'jsonOutput'].forEach(id => element(id));
 for (const field of ['category', 'power', 'previousTrainNumber', 'nextTrainNumber', 'departureTime', 'departureTrack', 'viaTime', 'viaTrack', 'arrivalTime', 'arrivalTrack']) {
   const input = {dataset: {yardField: field}, value: ''};
