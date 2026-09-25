@@ -7,7 +7,7 @@ for (const file of ['T-time/mobileatos.html', 'T-time/webatos.html', 'atosweb.ht
   assert.match(source, /timetable-lines\.js\?v=20260925-2/, `${file} must cache-bust the shared line resolver`);
 }
 
-const resolver = lines.create({version: 1, lines: [
+const resolver = lines.create({version: 1, displayOrder: ['武蔵野', '京葉', '中央'], lines: [
   {canonical: '横須賀・総武快速', aliases: ['横須賀線', '総武快速線'], odpt: [
     'odpt.Railway:JR-East.Yokosuka', 'odpt.Railway:JR-East.SobuRapid'
   ]},
@@ -39,10 +39,10 @@ test('related lines expand search without collapsing their displayed names', () 
   ]);
 });
 
-test('line choices come only from timetable records and use canonical labels', () => {
+test('line choices follow configured order and keep additional timetable labels', () => {
   assert.deepEqual(resolver.canonicalOptions([
-    {line: '横須賀線'}, {line: '中央'}, {line: '中央本線'}
-  ]), ['横須賀・総武快速', '中央'].sort((a, b) => a.localeCompare(b, 'ja')));
+    {line: '横須賀線'}, {line: '中央'}, {line: '独自線区'}
+  ]), ['武蔵野', '京葉', '中央', '横須賀・総武快速', '独自線区']);
 });
 
 test('unknown names remain usable when the private mapping is unavailable', () => {

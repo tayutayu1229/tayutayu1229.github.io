@@ -19,10 +19,12 @@
     const odptToCanonical = new Map();
     const canonicalToOdpt = new Map();
     const canonicalToRelated = new Map();
+    const configuredCanonicals = [];
 
     entries.forEach(entry => {
       const canonical = clean(entry?.canonical);
       if (!canonical) return;
+      if (!configuredCanonicals.includes(canonical)) configuredCanonicals.push(canonical);
       [canonical, ...(Array.isArray(entry.aliases) ? entry.aliases : [])].forEach(name => {
         const lookup = key(name);
         if (lookup) names.set(lookup, canonical);
@@ -72,9 +74,13 @@
     }
 
     function canonicalOptions(trains) {
-      return [...new Set((Array.isArray(trains) ? trains : [])
-        .map(train => canonical(train?.line))
-        .filter(Boolean))].sort((left, right) => left.localeCompare(right, "ja"));
+      const preferred = [...new Set((Array.isArray(payload?.displayOrder) ? payload.displayOrder : [])
+        .map(canonical).filter(name => configuredCanonicals.includes(name)))];
+      const configured = [...preferred, ...configuredCanonicals.filter(name => !preferred.includes(name))];
+      const additional = [...new Set((Array.isArray(trains) ? trains : [])
+        .map(train => canonical(train?.line)).filter(name => name && !configured.includes(name)))]
+        .sort((left, right) => left.localeCompare(right, "ja"));
+      return [...configured, ...additional];
     }
 
     return Object.freeze({ canonical, searchCanonicals, odptIds, matches, matchesForSearch, canonicalOptions });

@@ -23,11 +23,11 @@
             /* ==================================================
              ★★★ 幅・高さ調整エリア (ここで数値を変更可能) ★★★
              -------------------------------------------------- */
-            /* ▼ 着時刻・発時刻の「実績」の幅 */
-            --time-status-width: 86px;
+            /* ▼ 着時刻・発時刻の「到着／発車」印の幅 */
+            --time-status-width: 30px;
             
             /* ▼ 着時刻・発時刻の「時間」(計画) の幅 */
-            --time-plan-width: 90px;
+            --time-plan-width: 82px;
 
             /* ▼ テーブルの行の高さ (縦幅) */
             --atos-row-height: 26px;
@@ -150,24 +150,21 @@
         .col-align-left { text-align: left !important; padding-left: 8px !important; }
         .col-align-right { text-align: right !important; padding-right: 5px !important; }
         
-        /* 実績列 (到着/発車) */
-        td:nth-child(5), td:nth-child(7) { 
-            text-align: center !important; 
-            padding: 0 !important; 
-            font-size: 13px;
-        }
-        
-        /* 時刻列 (時間) */
-        td:nth-child(4), td:nth-child(6) {
+        /* 計画・予測時刻 */
+        td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8) {
             text-align: right !important;
             padding-right: 5px !important;
         }
+        td.prediction-cell { color: #0000ee; }
+        td.marker-cell { padding: 0 !important; text-align: center !important; }
+        td.delay-positive { color: #d7192d; }
+        td.delay-zero { color: #111; }
         
         /* 駅名 */
         td:nth-child(3) { text-align: left !important; padding-left: 10px !important; }
 
         /* 番線 */
-        td:nth-child(8) { text-align: right !important; padding-right: 5px !important; }
+        td:nth-child(10) { text-align: right !important; padding-right: 5px !important; }
 
         /* 運休は駅名と時刻だけを白字にする。種別・番線・運用は通常の黒字を維持。 */
         .cancelled-row td.cancelled-cell { background: #4b5563; color: #fff; }
@@ -265,24 +262,31 @@
             <div class="monitor-table-container">
                 <table>
                     <colgroup>
-                        <col style="width: 70px;"> <col style="width: 30px;"> <col style="width: 100px;"> <col class="col-wide">   <col class="col-narrow"> <col class="col-wide">   <col class="col-narrow"> <col style="width: 70px;"> <col style="width: 40px;"> <col style="width: 70px;"> </colgroup>
+                        <col style="width:70px"><col style="width:30px"><col style="width:110px">
+                        <col class="col-wide"><col class="col-wide"><col class="col-narrow">
+                        <col class="col-wide"><col class="col-wide"><col class="col-narrow">
+                        <col style="width:65px"><col style="width:55px"><col style="width:65px"><col style="width:70px">
+                    </colgroup>
                     
                     <thead>
                         <tr>
                             <th rowspan="2">列車種別</th>
                             <th rowspan="2">抑止</th>
                             <th rowspan="2">駅名</th>
-                            <th colspan="2">着時刻</th>
-                            <th colspan="2">発時刻</th>
+                            <th colspan="3">着時刻</th>
+                            <th colspan="3">発時刻</th>
                             <th rowspan="2">番線</th>
+                            <th rowspan="2">遅延<br>(分)</th>
                             <th rowspan="2">運用<br>情報</th>
                             <th rowspan="2">運用列番</th>
                         </tr>
                         <tr>
                             <th>計画</th>
-                            <th class="cell-narrow">実績</th>
+                            <th>予測</th>
+                            <th class="cell-narrow">到着</th>
                             <th>計画</th>
-                            <th class="cell-narrow">実績</th>
+                            <th>予測</th>
+                            <th class="cell-narrow">発車</th>
                         </tr>
                     </thead>
                     <tbody id="scheduleBody"></tbody>
@@ -387,12 +391,34 @@
             if (Number.isNaN(date.getTime())) return '';
             return new Intl.DateTimeFormat('ja-JP', {timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'}).format(date);
         }
+        function offsetTimeSeconds(value, seconds) {
+            const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (!match || !Number.isFinite(Number(seconds))) return '';
+            const total = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0) + Math.max(0, Number(seconds));
+            const hours = Math.floor(total / 3600) % 24;
+            const minutes = Math.floor(total / 60) % 60;
+            const secs = Math.floor(total) % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        function historyByStation(records) {
+            const index = new Map();
+            Object.entries(records || {}).forEach(([id, record]) => {
+                index.set(stationKey(id), record);
+                index.set(stationKey(stationName(id)), record);
+            });
+            return index;
+        }
         function historyStops(history) {
             return Object.entries(history?.stations || {}).map(([id, record]) => {
                 const firstSeen = [record?.arrival?.observedAt, record?.departure?.observedAt, record?.observedAt].filter(Boolean).sort()[0] || '';
+                const prediction = history?.predictions?.[id] || {};
                 return {station: stationName(id), stationId: id, arrival: '', departure: '',
                     arrivalActual: observedTime(record?.arrival), departureActual: observedTime(record?.departure),
-                    trackN: '', firstSeen};
+                    arrivalDelaySeconds: record?.arrival?.delaySeconds,
+                    departureDelaySeconds: record?.departure?.delaySeconds,
+                    historyDelaySeconds: record?.delaySeconds,
+                    predictionDelaySeconds: prediction?.expectedDelaySeconds,
+                    hasHistory: true, trackN: '', firstSeen};
             }).filter(stop => stop.firstSeen).sort((left, right) => left.firstSeen.localeCompare(right.firstSeen));
         }
         function historyOnlyRecord(history, selectedLine, trainNumber) {
@@ -403,10 +429,18 @@
         }
         function supplementWithHistory(data, history) {
             if (!history?.count) return data;
-            const observed = new Map(Object.entries(history.stations || {}).map(([id, record]) => [stationKey(id), record]));
+            const observed = historyByStation(history.stations);
+            const predictions = historyByStation(history.predictions);
             return {...data, stops: data.stops.map(stop => {
                 const record = observed.get(stationKey(stop.stationId || stop.station));
-                return {...stop, arrivalActual: observedTime(record?.arrival), departureActual: observedTime(record?.departure)};
+                const prediction = predictions.get(stationKey(stop.stationId || stop.station));
+                return {...stop,
+                    arrivalActual: observedTime(record?.arrival), departureActual: observedTime(record?.departure),
+                    arrivalDelaySeconds: record?.arrival?.delaySeconds,
+                    departureDelaySeconds: record?.departure?.delaySeconds,
+                    historyDelaySeconds: record?.delaySeconds,
+                    predictionDelaySeconds: prediction?.expectedDelaySeconds,
+                    hasHistory: Boolean(record || prediction)};
             })};
         }
         function odptRecord(data) {
@@ -601,8 +635,6 @@
         function renderTable(data) {
             const tbody = document.getElementById('scheduleBody');
             tbody.innerHTML = '';
-            const totalStops = data.stops.length;
-
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
                 const cancelled = /^[\$＄]/.test(String(stop.station || '').trimStart());
@@ -619,6 +651,21 @@
                 // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
                 const displayArrival = data.historyOnly ? '' : getDisplayTime(stop.arrival);
                 const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
+                const arrivalDone = Boolean(stop.arrivalActual);
+                const departureDone = Boolean(stop.departureActual);
+                const arrivalDelay = Number.isFinite(Number(stop.arrivalDelaySeconds))
+                    ? Number(stop.arrivalDelaySeconds) : Number(stop.predictionDelaySeconds);
+                const departureDelay = Number.isFinite(Number(stop.departureDelaySeconds))
+                    ? Number(stop.departureDelaySeconds) : Number(stop.predictionDelaySeconds);
+                const arrivalPrediction = arrivalDone ? stop.arrivalActual
+                    : (stop.hasHistory ? offsetTimeSeconds(stop.arrival, arrivalDelay) : '');
+                const departurePrediction = departureDone ? stop.departureActual
+                    : (stop.hasHistory ? offsetTimeSeconds(stop.departure, departureDelay) : '');
+                const rowDelaySeconds = [stop.departureDelaySeconds, stop.arrivalDelaySeconds,
+                    stop.historyDelaySeconds, stop.predictionDelaySeconds]
+                    .map(Number).find(Number.isFinite);
+                const rowDelay = rowDelaySeconds === undefined ? null : Math.max(0, Math.floor(rowDelaySeconds / 60));
+                const delayText = rowDelay === null ? '---' : String(rowDelay).padStart(3, '0');
                 
                 const appendCell = (value, className = '') => {
                     const td = document.createElement('td'); td.className = className;
@@ -626,10 +673,15 @@
                 };
                 const timeClass = cancelled ? ' cancelled-cell' : '';
                 appendCell(typeText, 'col-align-left'); appendCell(''); appendCell(stop.station, `col-station${timeClass}`);
-                appendCell(displayArrival, `col-align-right${timeClass}`); appendCell(stop.arrivalActual || '', `col-align-center cell-narrow${timeClass}`);
+                appendCell(displayArrival, `col-align-right${timeClass}`);
+                appendCell(arrivalPrediction, `col-align-right prediction-cell${timeClass}`);
+                appendCell(arrivalDone ? '*' : '', `marker-cell${timeClass}`);
                 appendCell(displayDeparture, `col-align-right${cancelled && displayDeparture === '=' ? ' cancelled-equals' : timeClass}`);
-                appendCell(stop.departureActual || '', `col-align-center cell-narrow${timeClass}`);
-                appendCell(stop.trackN, 'col-align-right'); appendCell(opInfo);
+                appendCell(departurePrediction, `col-align-right prediction-cell${timeClass}`);
+                appendCell(departureDone ? '*' : '', `marker-cell${timeClass}`);
+                appendCell(stop.trackN, 'col-align-right');
+                appendCell(delayText, rowDelay > 0 ? 'delay-positive' : 'delay-zero');
+                appendCell(opInfo);
                 const opCell = appendCell('');
                 if (opTrain) {
                     const link = document.createElement('button'); link.type = 'button';

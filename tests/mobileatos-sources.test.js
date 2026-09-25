@@ -107,13 +107,19 @@ vm.runInContext('updateSummaryAndTable = (...args) => { window.captured = args; 
   assert.match(captured[5], /Ubuntu列車運行履歴（実績）/);
 
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '$取手', arrival: '20:00',
-    arrivalActual: '20:01:00', departure: '=', departureActual: '20:02:00', trackN: '1', trainType:'快速'}]})`, context);
+    arrivalActual: '20:01:00', arrivalDelaySeconds: 60, departure: '=', departureActual: '20:02:00',
+    departureDelaySeconds: 120, hasHistory: true, trackN: '1', trainType:'快速'}]})`, context);
   const row = elements.get('scheduleBody').children[0];
   assert.equal(row.classes.has('cancelled-row'), true);
-  for (const index of [2, 3, 4, 6]) assert.match(row.children[index].className, /cancelled-cell/);
-  assert.match(row.children[5].className, /cancelled-equals/);
-  for (const index of [0, 7, 8, 9]) assert.doesNotMatch(row.children[index].className, /cancelled-cell/);
+  for (const index of [2, 3, 4, 5, 7, 8]) assert.match(row.children[index].className, /cancelled-cell/);
+  assert.match(row.children[6].className, /cancelled-equals/);
+  for (const index of [0, 9, 10, 11, 12]) assert.doesNotMatch(row.children[index].className, /cancelled-cell/);
   assert.equal(row.children[0].textContent, '快速');
+  assert.equal(row.children[4].textContent, '20:01:00');
+  assert.equal(row.children[5].textContent, '*');
+  assert.equal(row.children[7].textContent, '20:02:00');
+  assert.equal(row.children[8].textContent, '*');
+  assert.equal(row.children[10].textContent, '002');
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '＄上野', arrival: '20:00', departure: '20:02'}]})`, context);
   assert.equal(elements.get('scheduleBody').children[0].classes.has('cancelled-row'), true);
   console.log('mobileatos source and cancellation display: ok');
