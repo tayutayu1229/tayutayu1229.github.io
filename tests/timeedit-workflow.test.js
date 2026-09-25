@@ -19,7 +19,7 @@ function element(id, value = '') {
 
 [
   'line', 'origin', 'destination', 'trainNumber', 'type', 'dataKind', 'continuationGroupId', 'dayType', 'startDate', 'name', 'speed',
-  'footnote',
+  'footnote', 'openJsonPasteButton', 'cancelJsonPasteButton', 'applyJsonPasteButton',
   'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
 ].forEach(id => element(id));
 
@@ -59,6 +59,11 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(patterns.map(pattern => pattern.stops.map(stop => stop.station)))),
   [['甲', '乙', '丙'], ['丙', '乙', '甲']],
 );
+
+context.pastedSource = '```json\n{"trainNumber":"回9131M","stops":[{"station":"幕　張"}]},\n```';
+const pastedSnippet = vm.runInContext('parsePastedTrainJson(pastedSource)', context);
+assert.equal(pastedSnippet.train.trainNumber, '回9131M');
+assert.equal(pastedSnippet.train.stops[0].station, '幕　張');
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(vm.runInContext('directionalTrackCandidates("乙", "丙", "甲", "テスト線")', context))),

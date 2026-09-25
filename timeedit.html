@@ -60,6 +60,13 @@
     .stop-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 8px; }
     .stop-detail-grid label span { display: block; margin-bottom: 3px; color: #64748b; font-size: 10px; font-weight: bold; }
     .btn-detail { padding: 5px 9px; background: #475569; color: #fff; }
+    .paste-dialog { width: min(760px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 10px; box-shadow: 0 20px 55px rgba(15,23,42,.3); }
+    .paste-dialog::backdrop { background: rgba(15,23,42,.55); }
+    .paste-dialog-content { padding: 18px; }
+    .paste-dialog h2 { margin-bottom: 6px; }
+    .paste-dialog p { margin: 0 0 10px; color: #64748b; line-height: 1.5; }
+    .paste-textarea { height: 360px; min-height: 220px; margin: 0; box-sizing: border-box; }
+    .paste-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
     @media (max-width: 720px) {
       .quote-grid { grid-template-columns: 1fr; }
@@ -84,6 +91,7 @@
 <div class="btn-group">
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
   <button class="btn-gray" onclick="document.getElementById('importFile').click()">💾 インポート</button>
+  <button class="btn-gray" type="button" id="openJsonPasteButton">📝 JSON貼り付け</button>
   <button class="btn-blue" onclick="copyJson()">📋 JSONコピー</button>
   <button class="btn-green" onclick="downloadTargetFile()">⬇ 対象JSONを保存</button>
   <label><b>新規列車の保存先</b> <select id="targetFile" aria-label="新規列車の保存先JSON"></select></label>
@@ -95,6 +103,18 @@
   <span id="actionMessage"></span>
   <span id="loadStatus" class="status-badge" style="background:#fee2e2; color:#ef4444;">Master: Waiting...</span>
 </div>
+
+<dialog class="paste-dialog" id="jsonPasteDialog" aria-labelledby="jsonPasteTitle">
+  <div class="paste-dialog-content">
+    <h2 id="jsonPasteTitle">列車JSONを貼り付け</h2>
+    <p>列車1件のJSONを貼り付けてください。配列の場合は先頭の列車を開き、末尾のカンマが付いた断片にも対応します。</p>
+    <textarea class="paste-textarea" id="jsonPasteInput" spellcheck="false" placeholder="{&#10;  &quot;trainNumber&quot;: &quot;回9131M&quot;,&#10;  ...&#10;}"></textarea>
+    <div class="paste-actions">
+      <button class="btn-gray" type="button" id="cancelJsonPasteButton">キャンセル</button>
+      <button class="btn-blue" type="button" id="applyJsonPasteButton">編集画面へ読み込む</button>
+    </div>
+  </div>
+</dialog>
 
 <div class="flex-container">
   <div class="section">
@@ -212,6 +232,9 @@
   let masterFiles = [];
   let linePatterns = [];
   document.getElementById('footnote').addEventListener('input', updateJSON);
+  document.getElementById('openJsonPasteButton').addEventListener('click', openJsonPasteDialog);
+  document.getElementById('cancelJsonPasteButton').addEventListener('click', closeJsonPasteDialog);
+  document.getElementById('applyJsonPasteButton').addEventListener('click', applyPastedJson);
 
   function refreshMasterData() {
     masterData = masterFiles.flatMap(file => file.items);
@@ -632,6 +655,58 @@
     showActionMsg(`➡ ${nextTr}へスライドしました${keepsTrainIdentity ? '（同一列番のため始発駅・終着駅を保持）' : connectionStation ? `（接続駅: ${connectionStation}）` : ''}`);
   }
 
+  function applyImportedTrain(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('列車1件のJSONではありません');
+    const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2","continuationGroupId"];
+    ids.forEach(id => {
+      if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
+    });
+    document.getElementById("startDate").value = d.startDate ? String(d.startDate).replace(/\//g, '-') : '';
+    const footnotes = Array.isArray(d.footnotes) ? d.footnotes : String(d.footnote || '').split(/\r?\n/);
+    document.getElementById('footnote').value = footnotes.map(value => String(value || '').trim()).filter(Boolean).join('\n');
+    document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
+    yardFields().forEach(input => {
+      const field = input.dataset.yardField;
+      input.value = d.yardMovement?.[field] || (field === 'category' ? '出区' : '');
+    });
+    stops = Array.isArray(d.stops) ? d.stops : [];
+    updateUI();
+  }
+
+  function parsePastedTrainJson(source) {
+    let text = String(source || '').replace(/^\uFEFF/, '').trim();
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    text = text.replace(/,\s*$/, '');
+    if (!text) throw new Error('JSONを貼り付けてください');
+    const parsed = JSON.parse(text);
+    const train = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!train || typeof train !== 'object' || Array.isArray(train)) throw new Error('列車1件のJSONではありません');
+    return {parsed, train};
+  }
+
+  function openJsonPasteDialog() {
+    const dialog = document.getElementById('jsonPasteDialog');
+    const input = document.getElementById('jsonPasteInput');
+    input.value = '';
+    dialog.showModal();
+    input.focus();
+  }
+
+  function closeJsonPasteDialog() {
+    document.getElementById('jsonPasteDialog').close();
+  }
+
+  function applyPastedJson() {
+    try {
+      const {train} = parsePastedTrainJson(document.getElementById('jsonPasteInput').value);
+      applyImportedTrain(train);
+      closeJsonPasteDialog();
+      showActionMsg('📝 貼り付けたJSONを編集画面へ読み込みました');
+    } catch (error) {
+      alert(`JSON解析エラー：${error.message}`);
+    }
+  }
+
   function handleImport(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -649,23 +724,10 @@
           renderTargetFiles(sourceName);
           showActionMsg(`💾 ${sourceName}を読込 (${parsed.length}件)。先頭データを編集中`);
         }
-        if (!d || typeof d !== 'object') throw new Error('列車データではありません');
-        const ids = ["trainNumber","type","dayType","line","name","speed","origin","destination","tt1","tt2","tr1","tr2","kid1","kid2","continuationGroupId"];
-        ids.forEach(id => {
-            if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
-        });
-        if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
-        const footnotes = Array.isArray(d.footnotes) ? d.footnotes : String(d.footnote || '').split(/\r?\n/);
-        document.getElementById('footnote').value = footnotes.map(value => String(value || '').trim()).filter(Boolean).join('\n');
-        document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
-        yardFields().forEach(input => {
-          const field = input.dataset.yardField;
-          input.value = d.yardMovement?.[field] || (field === 'category' ? '出区' : '');
-        });
-        stops = Array.isArray(d.stops) ? d.stops : [];
-        updateUI();
+        applyImportedTrain(d);
         if (!Array.isArray(parsed)) showActionMsg("💾 1件JSONをインポートしました");
-      } catch (err) { alert("JSON解析エラー"); }
+      } catch (err) { alert(`JSON解析エラー：${err.message}`); }
+      event.target.value = '';
     };
     reader.readAsText(file);
   }

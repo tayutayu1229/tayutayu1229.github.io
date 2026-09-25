@@ -6,6 +6,9 @@ const fs = require('node:fs');
 const editor = fs.readFileSync('timeedit.html', 'utf8');
 assert.doesNotMatch(editor, /footnoteEnabled|付記を出力/, '作成時の付記有無スイッチを残さないこと');
 assert.match(editor, /<textarea id="footnote"/, '付記を複数行入力できること');
+assert.match(editor, /JSON貼り付け/);
+assert.match(editor, /id="jsonPasteDialog"/);
+assert.match(editor, /parsePastedTrainJson/);
 assert.match(editor, /addDetailInput\('この駅からの列車種別', 'trainType'\)/);
 assert.match(editor, /detailButton\.textContent = '別項を編集'/);
 
