@@ -548,10 +548,12 @@
             </div>
         </div>
     </div>
+    <script src="../assets/js/timetable-lines.js"></script>
     <script src="private-data-client.js"></script>
     <script src="yard-movement.js"></script>
     <script>
         let rawJsonData = [];
+        let lineResolver = TayunetTimetableLines.create();
 
         // =======================================================================================
         // <<<<<<<<<<<<<<<<<<<< ユーティリティ関数 >>>>>>>>>>>>>>>>>>>>>>>>>
@@ -604,7 +606,15 @@
         // ==========================================
         async function loadData() {
             try {
-                rawJsonData = await TayunetPrivateData.fetchTimetables();
+                const [trains, aliases] = await Promise.all([
+                    TayunetPrivateData.fetchTimetables(),
+                    TayunetPrivateData.fetchLineAliases().catch(error => {
+                        console.warn('線区名称変換表を取得できませんでした。', error);
+                        return null;
+                    })
+                ]);
+                rawJsonData = trains;
+                lineResolver = TayunetTimetableLines.create(aliases);
                 
             } catch (error) {
                 console.error(`Error loading required data:`, error);
@@ -658,7 +668,7 @@
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
             const candidates = rawJsonData.filter(d =>
-                d.line === selectedLine && normalizeString(d.trainNumber) === targetTrainNoNormalized
+                lineResolver.matches(d.line, selectedLine) && normalizeString(d.trainNumber) === targetTrainNoNormalized
             );
             const result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
 
@@ -875,7 +885,7 @@
 
             if (rawJsonData.length === 0) return;
 
-            const lines = [...new Set(rawJsonData.map(d => d.line))].sort();
+            const lines = lineResolver.canonicalOptions(rawJsonData);
             
             lines.forEach(line => {
                 const option = document.createElement('option');

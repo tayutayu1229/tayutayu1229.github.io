@@ -8,6 +8,7 @@ const payloads = {
   '/api/timetables/timetables.json': {items: [{trainNumber: '1M'}]},
   '/api/timetables/timetables-2.json': {items: [{trainNumber: '2M'}]},
   '/api/timetables/timetables-3.json': {items: [{trainNumber: '3M'}]},
+  '/api/line-aliases': {version: 1, lines: [{canonical: '中央', aliases: ['中央線'], odpt: []}]},
 };
 const context = {
   URL,
@@ -49,6 +50,10 @@ context.window.TayunetPrivateData.fetchTimetableBundle().then(bundle => {
   return context.window.TayunetPrivateData.fetchTimetables();
 }).then(items => {
   assert.deepEqual(Array.from(items, item => item.trainNumber), ['1M', '2M', '3M']);
+  return context.window.TayunetPrivateData.fetchLineAliases();
+}).then(aliases => {
+  assert.equal(aliases.lines[0].canonical, '中央');
+  assert.equal(requested.at(-1), '/api/line-aliases');
   console.log('private data multi-file bundle test: ok');
 }).catch(error => {
   console.error(error);

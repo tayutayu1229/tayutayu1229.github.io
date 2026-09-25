@@ -58,6 +58,7 @@ const context = vm.createContext({
   TayunetTimetableVersion: require('../assets/js/timetable-version.js'),
   TayunetTimetableOperations: require('../assets/js/timetable-operations.js'),
   TayunetTimetableFields: require('../assets/js/timetable-fields.js'),
+  TayunetTimetableLines: require('../assets/js/timetable-lines.js'),
   document: {getElementById: id => elements.get(id), createElement: () => new Element(), createTextNode: text => ({textContent: text})},
   fetch: async url => {
     fetchedUrls.push(String(url));

@@ -1194,6 +1194,7 @@ if(new URLSearchParams(location.search).get('standalone')==='1') document.body.c
   </div>
 </div>
 
+<script src="assets/js/timetable-lines.js"></script>
 <script src="T-time/private-data-client.js"></script>
 <script src="T-time/yard-movement.js"></script>
 <script>
@@ -1662,6 +1663,8 @@ function getDirText(rd, rwId){
   }
 }
 function getLineTitle(lineId){
+  const canonical=typeof timetableLineResolver!=='undefined'?timetableLineResolver.canonical(lineId):'';
+  if(canonical&&canonical!==String(lineId||'')) return canonical;
   for(const[g,ls]of Object.entries(lineGroups)) if(ls.includes(lineId)) return g;
   const l=atosRailwayData.find(r=>r["owl:sameAs"]===lineId);
   return l?.["odpt:railwayTitle"]?.ja||externalRailwayNames[lineId]||rn(String(lineId||'').replace("odpt.Railway:",""));
@@ -3039,6 +3042,7 @@ async function openTrainByNumberFromStation(number,lineId){
 // ===== 時刻表タブ =====
 // =====================================================
 let externalTimetables=[], externalTimetablePromise=null;
+let timetableLineResolver=TayunetTimetableLines.create();
 function normalizeTrainKey(value){return String(value||'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,s=>String.fromCharCode(s.charCodeAt(0)-0xFEE0)).toUpperCase().replace(/\s/g,'').trim();}
 function localInputDate(date=new Date()){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const get=t=>parts.find(p=>p.type===t)?.value;return `${get('year')}-${get('month')}-${get('day')}`;}
 function switchTrainSearchSource(name,button){
@@ -3046,16 +3050,28 @@ function switchTrainSearchSource(name,button){
   document.getElementById('train-search-json').style.display=name==='json'?'':'none';
   document.getElementById('train-search-odpt').style.display=name==='odpt'?'':'none';
 }
+function populateUnifiedTrainLineOptions(){
+  const lines=timetableLineResolver.canonicalOptions(externalTimetables);
+  ['json-tt-line','ttt-line'].forEach(id=>{
+    const select=document.getElementById(id),current=select.value;
+    select.innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${diagEscape(line)}">${diagEscape(line)}</option>`).join('');
+    if(lines.includes(current)) select.value=current;
+  });
+  return lines;
+}
 function loadExternalTimetables(){
   if(!document.getElementById('json-tt-date').value) document.getElementById('json-tt-date').value=localInputDate();
   if(externalTimetables.length) return Promise.resolve(externalTimetables);
   if(externalTimetablePromise) return externalTimetablePromise;
   const status=document.getElementById('json-tt-status');
-  externalTimetablePromise=TayunetPrivateData.fetchTimetables().then(data=>{
+  externalTimetablePromise=Promise.all([
+    TayunetPrivateData.fetchTimetables(),
+    TayunetPrivateData.fetchLineAliases().catch(error=>{addDiagnostic('warn','線区名称変換表を取得できませんでした',{message:error.message},'timetable-api');return null;})
+  ]).then(([data,aliases])=>{
     if(!Array.isArray(data)) throw new Error('保護時刻表JSONの結合結果が配列ではありません');
+    timetableLineResolver=TayunetTimetableLines.create(aliases);
     externalTimetables=data;
-    const lines=[...new Set(data.map(x=>x.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
-    document.getElementById('json-tt-line').innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${diagEscape(line)}">${diagEscape(line)}</option>`).join('');
+    const lines=populateUnifiedTrainLineOptions();
     status.textContent=`保護時刻表 ${data.length.toLocaleString('ja-JP')}列車・${lines.length}線区を読込済み`;
     addDiagnostic('info','保護時刻表データ読込完了',{records:data.length,lines:lines.length},'timetable-api');
     return data;
@@ -3090,7 +3106,7 @@ function findExternalOperationSource(trainNumber,railway,stops=[],dateValue='',h
   if(!candidates.length) return fallback;
   const lineTitle=getLineTitle(railway),firstKey=operationStationKey(firstStation),lastKey=operationStationKey(lastStation);
   const scored=candidates.map(train=>({train,score:
-    (train.line&&(lineTitle.includes(train.line)||train.line.includes(lineTitle))?4:0)+
+    (train.line&&timetableLineResolver.matches(train.line,lineTitle)?4:0)+
     (operationStationKey(externalTrainEndpoint(train,'previous'))===firstKey?3:0)+
     (operationStationKey(externalTrainEndpoint(train,'next'))===lastKey?3:0)
   })).sort((a,b)=>b.score-a.score);
@@ -3159,7 +3175,7 @@ async function searchJsonTrainTimetable(){
   const result=document.getElementById('ttt-result');
   if(!line||!dateValue||!number){result.innerHTML='<div class="loading-box">線区・施行日・列車番号を指定してください。</div>';return;}
   const dayType=externalDayType(dateValue);
-  const candidates=externalTimetables.filter(x=>x.line===line&&normalizeTrainKey(x.trainNumber)===number);
+  const candidates=externalTimetables.filter(x=>timetableLineResolver.matches(x.line,line)&&normalizeTrainKey(x.trainNumber)===number);
   const selected=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
   if(!selected){result.innerHTML='<div class="train-not-found">指定された列車番号は存在しません。</div>';return;}
   showExternalTrainTimetable(selected,dateValue,true);
@@ -3180,21 +3196,22 @@ async function searchUnifiedTrainTimetable(){
   result.innerHTML='<div class="loading-box"><div class="h-spinner"></div>2つの時刻表を検索中...</div>';
 
   const dayType=externalDayType(dateValue);
-  const candidates=externalTimetables.filter(x=>(!line||x.line===line)&&normalizeTrainKey(x.trainNumber)===number);
+  const selectedLine=line||document.getElementById('ttt-line').value;
+  const candidates=externalTimetables.filter(x=>(!selectedLine||timetableLineResolver.matches(x.line,selectedLine))&&normalizeTrainKey(x.trainNumber)===number);
   const external=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
 
-  const selectedLine=document.getElementById('ttt-line').value;
+  const selectedRailways=timetableLineResolver.odptIds(selectedLine);
   const calendar=externalDayType(dateValue)==='土休日'?'SaturdayHoliday':'Weekday';
   document.getElementById('ttt-cal').value=calendar;
   const calendarId=`odpt.Calendar:${calendar}`;
-  const cachedOdptMatch=t=>normalizeTrainKey(t['odpt:trainNumber'])===number&&(!selectedLine||t['odpt:railway']===`odpt.Railway:${selectedLine}`)&&(!t['odpt:calendar']||t['odpt:calendar']===calendarId);
+  const cachedOdptMatch=t=>normalizeTrainKey(t['odpt:trainNumber'])===number&&(!selectedLine||selectedRailways.includes(t['odpt:railway'])||timetableLineResolver.matches(t['odpt:railway'],selectedLine))&&(!t['odpt:calendar']||t['odpt:calendar']===calendarId);
   let odpt=tttTrainData.find(cachedOdptMatch)||atosTimetableData.find(cachedOdptMatch);
   if(!odpt){
     try{
       let url=`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:trainNumber=${encodeURIComponent(number)}&odpt:calendar=odpt.Calendar:${calendar}&${K}`;
-      if(selectedLine) url+=`&odpt:railway=odpt.Railway:${encodeURIComponent(selectedLine)}`;
+      if(selectedRailways.length===1) url+=`&odpt:railway=${encodeURIComponent(selectedRailways[0])}`;
       const response=await fetch(url);
-      if(response.ok) odpt=(await response.json())[0]||null;
+      if(response.ok){const rows=await response.json();odpt=rows.find(cachedOdptMatch)||null;}
     }catch(error){addDiagnostic('warn','ODPT列車番号検索に失敗しました',{number,message:error.message},'train-search');}
   }
   if(odpt) odpt={...odpt,__serviceDate:dateValue};
@@ -3272,7 +3289,7 @@ async function loadRailwayList(){
     })).sort((a,b)=>a.label.localeCompare(b.label,'ja'));
     const opts=sorted.map(r=>`<option value="${diagEscape(r.id)}">${diagEscape(r.label)}</option>`).join('');
     document.getElementById('stt-line').innerHTML='<option value="">路線を選択</option>'+opts;
-    document.getElementById('ttt-line').innerHTML='<option value="">路線を選択</option>'+opts;
+    if(externalTimetables.length) populateUnifiedTrainLineOptions();
   } catch(e){ console.error(e); }
 }
 async function loadSttStations(){
@@ -3319,8 +3336,14 @@ async function loadTttTrains(){
   if(!line){ document.getElementById('ttt-train').style.display='none'; return; }
   const sel=document.getElementById('ttt-train'); sel.innerHTML='<option value="">取得中...</option>'; sel.style.display='';
   try{
-    const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=odpt.Railway:${line}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
-    tttTrainData=await r.json();
+    const railwayIds=timetableLineResolver.odptIds(line);
+    if(!railwayIds.length){sel.innerHTML='<option value="">ODPT対象外の線区</option>';return;}
+    const rows=await Promise.all(railwayIds.map(async railway=>{
+      const r=await fetch(`${BASE}/odpt:TrainTimetable?odpt:operator=odpt.Operator:JR-East&odpt:railway=${encodeURIComponent(railway)}&odpt:calendar=odpt.Calendar:${cal}&${K}`);
+      if(!r.ok) throw new Error(`ODPT HTTP ${r.status}`);
+      return r.json();
+    }));
+    tttTrainData=rows.flat();
     tttTrainData.forEach(t=>{ (t["odpt:trainTimetableObject"]||[]).forEach(s=>{ const id=s["odpt:departureStation"]||s["odpt:arrivalStation"]||s["odpt:station"]; if(id&&!atosStationTitles[id]){const code=id.split('.').pop();atosStationTitles[id]=externalStationNameMap[code]||code;} }); });
     const trains=[...new Set(tttTrainData.map(t=>t['odpt:trainNumber']))].sort();
     sel.innerHTML='<option value="">列番を選択</option>'+trains.map(t=>`<option value="${diagEscape(t)}">${diagEscape(t)}</option>`).join('');

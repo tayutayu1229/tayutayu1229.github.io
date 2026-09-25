@@ -116,6 +116,9 @@ console.log('atosweb history tests: ok');
 const operationContext = {
   TayunetTimetableOperations: require('../assets/js/timetable-operations.js'),
   TayunetTimetableFields: require('../assets/js/timetable-fields.js'),
+  timetableLineResolver: require('../assets/js/timetable-lines.js').create({lines: [
+    {canonical: '東海道', aliases: ['東海道線'], odpt: ['odpt.Railway:JR-East.Tokaido']},
+  ]}),
   externalTimetables: [{
     line: '東海道線', trainNumber: '100M', startDate: '2026/08/08',
     origin: '東京', destination: '熱海', tt1: 'k', tr1: '90M', kid1: 'K001',

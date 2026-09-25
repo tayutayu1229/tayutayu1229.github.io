@@ -6,6 +6,7 @@
   const LOGIN_URL = `/index.html?return=${encodeURIComponent(returnTo)}&reason=login_required`;
   const AUTH_HELPER_URL = "/T-time/firebase-data-auth.js";
   const TIMETABLE_MANIFEST_PATH = "/api/timetable-files";
+  const LINE_ALIASES_PATH = "/api/line-aliases";
   let authHelperPromise;
 
   class PrivateDataError extends Error {
@@ -149,6 +150,10 @@
     return fetchJson("/api/stations");
   }
 
+  async function fetchLineAliases() {
+    return fetchJson(LINE_ALIASES_PATH);
+  }
+
   function openLogin() {
     window.location.href = LOGIN_URL;
   }
@@ -158,9 +163,11 @@
     LOGIN_URL,
     PrivateDataError,
     TIMETABLE_MANIFEST_PATH,
+    LINE_ALIASES_PATH,
     fetchTimetableBundle,
     fetchTimetables,
     fetchStations,
+    fetchLineAliases,
     openLogin,
     showLoginNotice
   });

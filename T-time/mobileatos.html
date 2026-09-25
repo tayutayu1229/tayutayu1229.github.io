@@ -295,6 +295,7 @@
         </div>
     </div>
 
+    <script src="../assets/js/timetable-lines.js"></script>
     <script src="private-data-client.js"></script>
     <script src="yard-movement.js"></script>
     <script>
@@ -303,6 +304,7 @@
         const HISTORY_API = 'https://history.tayunet-traininfo.com/api/v1/train-history';
         const odptRailways = new Map();
         const odptStations = new Map();
+        let lineResolver = TayunetTimetableLines.create();
         let searchRevision = 0;
         let searchTimer;
 
@@ -333,14 +335,20 @@
             return odptStations.get(id) || odptStations.get(stationKey(id)) || String(id || '').split('.').pop() || '不明';
         }
         function sameLine(left, right) {
-            const comparable = value => normalizeString(value).replace(/JR東日本|JR|本線|線/g, '');
-            return Boolean(left && right && comparable(left) === comparable(right));
+            return lineResolver.matches(left, right);
         }
         function railwayName(id) {
-            return odptRailways.get(id) || String(id || '').split('.').pop();
+            const mapped = lineResolver.canonical(id);
+            if (mapped && mapped !== String(id || '')) return mapped;
+            return lineResolver.canonical(odptRailways.get(id) || String(id || '').split('.').pop());
+        }
+        function railwayIdsForLine(name) {
+            const configured = lineResolver.odptIds(name);
+            if (configured.length) return configured;
+            return [...odptRailways].filter(([, title]) => sameLine(name, title)).map(([id]) => id);
         }
         function railwayIdForLine(name) {
-            return [...odptRailways].find(([, title]) => sameLine(name, title))?.[0] || '';
+            return railwayIdsForLine(name)[0] || '';
         }
         async function loadOdptMetadata() {
             const request = async resource => {
@@ -424,10 +432,11 @@
             if (!response.ok) throw new Error(`ODPT列車時刻 HTTP ${response.status}`);
             const rows = await response.json();
             const candidates = (Array.isArray(rows) ? rows : []).filter(row => normalizeString(row['odpt:trainNumber']) === normalizeString(trainNumber));
-            const selectedRailway = railwayIdForLine(selectedLine);
-            const match = candidates.find(row => row['odpt:railway'] === selectedRailway || sameLine(railwayName(row['odpt:railway']), selectedLine))
-                || (!selectedRailway && candidates.length === 1 ? candidates[0] : null);
-            return {record: match ? odptRecord(match) : null, relatedRailways: []};
+            const selectedRailways = railwayIdsForLine(selectedLine);
+            const match = candidates.find(row => selectedRailways.includes(row['odpt:railway']) || sameLine(row['odpt:railway'], selectedLine))
+                || (!selectedRailways.length && candidates.length === 1 ? candidates[0] : null);
+            return {record: match ? odptRecord(match) : null,
+                relatedRailways: selectedRailways.filter(id => id !== match?.['odpt:railway'])};
         }
         async function searchHistory(date, trainNumber, railway, relatedRailways = []) {
             const query = new URLSearchParams({date, trainNumber});
@@ -451,9 +460,11 @@
         }
 
         async function loadData() {
-            const [privateData, odptData] = await Promise.allSettled([
-                TayunetPrivateData.fetchTimetables(), loadOdptMetadata()
+            const [privateData, odptData, aliases] = await Promise.allSettled([
+                TayunetPrivateData.fetchTimetables(), loadOdptMetadata(), TayunetPrivateData.fetchLineAliases()
             ]);
+            if (aliases.status === 'fulfilled') lineResolver = TayunetTimetableLines.create(aliases.value);
+            else console.warn('線区名称変換表を取得できませんでした。時刻表JSONの名称をそのまま使用します。', aliases.reason);
             if (privateData.status === 'fulfilled') rawJsonData = privateData.value;
             else console.warn('登録時刻表を取得できませんでした。ODPTの検索を続けます。', privateData.reason);
             if (odptData.status === 'rejected') console.warn('ODPT路線情報を取得できませんでした。', odptData.reason);
@@ -501,7 +512,7 @@
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
             const candidates = rawJsonData.filter(d =>
-                d.line === selectedLine && normalizeString(d.trainNumber) === targetTrainNoNormalized
+                sameLine(d.line, selectedLine) && normalizeString(d.trainNumber) === targetTrainNoNormalized
             );
             let result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
 
@@ -730,7 +741,7 @@
         function populateLines() {
             const select = document.getElementById('lineSelect');
             select.innerHTML = '<option value="">(選択)</option>';
-            const lines = [...new Set([...rawJsonData.map(d => d.line), ...odptRailways.values()].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
+            const lines = lineResolver.canonicalOptions(rawJsonData);
             lines.forEach(line => {
                 const option = document.createElement('option');
                 option.value = line;
