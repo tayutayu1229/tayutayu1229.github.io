@@ -4,7 +4,7 @@ const lines = require('../assets/js/timetable-lines.js');
 
 for (const file of ['T-time/mobileatos.html', 'T-time/webatos.html', 'atosweb.html']) {
   const source = require('node:fs').readFileSync(file, 'utf8');
-  assert.match(source, /timetable-lines\.js\?v=20260925-2/, `${file} must cache-bust the shared line resolver`);
+  assert.match(source, /timetable-lines\.js\?v=20260925-3/, `${file} must cache-bust the shared line resolver`);
 }
 
 const resolver = lines.create({version: 1, displayOrder: ['武蔵野', '京葉', '中央'], lines: [
