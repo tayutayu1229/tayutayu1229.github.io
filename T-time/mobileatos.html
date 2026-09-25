@@ -460,17 +460,19 @@
         }
 
         async function loadData() {
-            const [privateData, odptData, aliases] = await Promise.allSettled([
-                TayunetPrivateData.fetchTimetables(), loadOdptMetadata(), TayunetPrivateData.fetchLineAliases()
+            void loadOdptMetadata().catch(error => {
+                console.warn('ODPT路線情報を取得できませんでした。', error);
+            });
+            const [privateData, aliases] = await Promise.allSettled([
+                TayunetPrivateData.fetchTimetables(), TayunetPrivateData.fetchLineAliases()
             ]);
             if (aliases.status === 'fulfilled') lineResolver = TayunetTimetableLines.create(aliases.value);
             else console.warn('線区名称変換表を取得できませんでした。時刻表JSONの名称をそのまま使用します。', aliases.reason);
             if (privateData.status === 'fulfilled') rawJsonData = privateData.value;
-            else console.warn('登録時刻表を取得できませんでした。ODPTの検索を続けます。', privateData.reason);
-            if (odptData.status === 'rejected') console.warn('ODPT路線情報を取得できませんでした。', odptData.reason);
-            if (privateData.status === 'rejected' && odptData.status === 'rejected') {
+            else {
+                console.warn('登録時刻表を取得できませんでした。ODPTの検索を続けます。', privateData.reason);
                 const msgArea = document.getElementById('messageArea');
-                msgArea.innerText = '時刻表と路線情報を取得できませんでした。通信状態を確認してください。';
+                msgArea.innerText = '時刻表を取得できませんでした。通信状態とログイン状態を確認してください。';
                 msgArea.classList.remove('hidden');
             }
         }

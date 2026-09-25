@@ -8,6 +8,8 @@ const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
   .find(source => source.includes('function renderTable(data)'));
 assert.ok(script, 'mobileatos の検索処理が見つかりません');
 assert.match(html, /\.cancelled-row td\.cancelled-cell \{ background: #4b5563; color: #fff; \}/);
+assert.doesNotMatch(script, /Promise\.allSettled\(\[\s*\n\s*TayunetPrivateData\.fetchTimetables\(\),\s*loadOdptMetadata\(\)/,
+  '線区一覧の表示をODPTメタデータ取得待ちにしないこと');
 
 class Element {
   constructor(value = '') {
