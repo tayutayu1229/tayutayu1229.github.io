@@ -18,6 +18,7 @@
     const names = new Map();
     const odptToCanonical = new Map();
     const canonicalToOdpt = new Map();
+    const canonicalToRelated = new Map();
 
     entries.forEach(entry => {
       const canonical = clean(entry?.canonical);
@@ -28,6 +29,8 @@
       });
       const ids = [...new Set((Array.isArray(entry.odpt) ? entry.odpt : []).map(clean).filter(Boolean))];
       canonicalToOdpt.set(canonical, ids);
+      canonicalToRelated.set(canonical,
+        [...new Set((Array.isArray(entry.related) ? entry.related : []).map(clean).filter(Boolean))]);
       ids.forEach(id => odptToCanonical.set(id, canonical));
     });
 
@@ -37,8 +40,24 @@
       return odptToCanonical.get(original) || names.get(key(original)) || original;
     }
 
+    function searchCanonicals(value) {
+      const first = canonical(value);
+      if (!first) return [];
+      const result = [];
+      const pending = [first];
+      const visited = new Set();
+      while (pending.length) {
+        const current = canonical(pending.shift());
+        if (!current || visited.has(current)) continue;
+        visited.add(current);
+        result.push(current);
+        (canonicalToRelated.get(current) || []).forEach(name => pending.push(name));
+      }
+      return result;
+    }
+
     function odptIds(value) {
-      return [...(canonicalToOdpt.get(canonical(value)) || [])];
+      return [...new Set(searchCanonicals(value).flatMap(name => canonicalToOdpt.get(name) || []))];
     }
 
     function matches(left, right) {
@@ -47,13 +66,18 @@
       return Boolean(leftName && rightName && key(leftName) === key(rightName));
     }
 
+    function matchesForSearch(candidate, selected) {
+      const candidateName = canonical(candidate);
+      return Boolean(candidateName && searchCanonicals(selected).some(name => key(name) === key(candidateName)));
+    }
+
     function canonicalOptions(trains) {
       return [...new Set((Array.isArray(trains) ? trains : [])
         .map(train => canonical(train?.line))
         .filter(Boolean))].sort((left, right) => left.localeCompare(right, "ja"));
     }
 
-    return Object.freeze({ canonical, odptIds, matches, canonicalOptions });
+    return Object.freeze({ canonical, searchCanonicals, odptIds, matches, matchesForSearch, canonicalOptions });
   }
 
   return Object.freeze({ create, normalize: key });

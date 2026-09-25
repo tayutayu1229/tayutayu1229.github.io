@@ -6,7 +6,9 @@ const resolver = lines.create({version: 1, lines: [
   {canonical: '横須賀・総武快速', aliases: ['横須賀線', '総武快速線'], odpt: [
     'odpt.Railway:JR-East.Yokosuka', 'odpt.Railway:JR-East.SobuRapid'
   ]},
-  {canonical: '中央', aliases: ['中央線', '中央本線'], odpt: ['odpt.Railway:JR-East.Chuo']}
+  {canonical: '中央', aliases: ['中央線', '中央本線'], odpt: ['odpt.Railway:JR-East.Chuo']},
+  {canonical: '京葉', aliases: ['京葉線'], odpt: ['odpt.Railway:JR-East.Keiyo'], related: ['武蔵野']},
+  {canonical: '武蔵野', aliases: ['武蔵野線'], odpt: ['odpt.Railway:JR-East.Musashino'], related: ['京葉']}
 ]});
 
 test('aliases and ODPT identifiers resolve to timetable JSON names', () => {
@@ -20,6 +22,16 @@ test('one timetable line can search multiple ODPT railways', () => {
     'odpt.Railway:JR-East.Yokosuka', 'odpt.Railway:JR-East.SobuRapid'
   ]);
   assert.equal(resolver.matches('横須賀線', '横須賀・総武快速'), true);
+});
+
+test('related lines expand search without collapsing their displayed names', () => {
+  assert.equal(resolver.canonical('武蔵野線'), '武蔵野');
+  assert.equal(resolver.matches('京葉', '武蔵野'), false);
+  assert.equal(resolver.matchesForSearch('武蔵野', '京葉'), true);
+  assert.deepEqual(resolver.searchCanonicals('京葉'), ['京葉', '武蔵野']);
+  assert.deepEqual(resolver.odptIds('京葉'), [
+    'odpt.Railway:JR-East.Keiyo', 'odpt.Railway:JR-East.Musashino'
+  ]);
 });
 
 test('line choices come only from timetable records and use canonical labels', () => {

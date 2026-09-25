@@ -3106,7 +3106,7 @@ function findExternalOperationSource(trainNumber,railway,stops=[],dateValue='',h
   if(!candidates.length) return fallback;
   const lineTitle=getLineTitle(railway),firstKey=operationStationKey(firstStation),lastKey=operationStationKey(lastStation);
   const scored=candidates.map(train=>({train,score:
-    (train.line&&timetableLineResolver.matches(train.line,lineTitle)?4:0)+
+    (train.line&&timetableLineResolver.matchesForSearch(train.line,lineTitle)?4:0)+
     (operationStationKey(externalTrainEndpoint(train,'previous'))===firstKey?3:0)+
     (operationStationKey(externalTrainEndpoint(train,'next'))===lastKey?3:0)
   })).sort((a,b)=>b.score-a.score);
@@ -3175,7 +3175,7 @@ async function searchJsonTrainTimetable(){
   const result=document.getElementById('ttt-result');
   if(!line||!dateValue||!number){result.innerHTML='<div class="loading-box">線区・施行日・列車番号を指定してください。</div>';return;}
   const dayType=externalDayType(dateValue);
-  const candidates=externalTimetables.filter(x=>timetableLineResolver.matches(x.line,line)&&normalizeTrainKey(x.trainNumber)===number);
+  const candidates=externalTimetables.filter(x=>timetableLineResolver.matchesForSearch(x.line,line)&&normalizeTrainKey(x.trainNumber)===number);
   const selected=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
   if(!selected){result.innerHTML='<div class="train-not-found">指定された列車番号は存在しません。</div>';return;}
   showExternalTrainTimetable(selected,dateValue,true);
@@ -3197,7 +3197,7 @@ async function searchUnifiedTrainTimetable(){
 
   const dayType=externalDayType(dateValue);
   const selectedLine=line||document.getElementById('ttt-line').value;
-  const candidates=externalTimetables.filter(x=>(!selectedLine||timetableLineResolver.matches(x.line,selectedLine))&&normalizeTrainKey(x.trainNumber)===number);
+  const candidates=externalTimetables.filter(x=>(!selectedLine||timetableLineResolver.matchesForSearch(x.line,selectedLine))&&normalizeTrainKey(x.trainNumber)===number);
   const external=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
 
   const selectedRailways=timetableLineResolver.odptIds(selectedLine);
