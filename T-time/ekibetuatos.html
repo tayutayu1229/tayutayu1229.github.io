@@ -74,14 +74,8 @@
             background: var(--bg-white); width: 100vw; height: 100vh; max-width: none; max-height: none;
             overflow-y: auto; overflow-x: hidden; border: 0; position: relative; padding: 0;
         }
-        .modal-header {
-            background: linear-gradient(to bottom, #f0f0f0, #d0d0d0); color: #333; padding: 8px 10px;
-            display: grid; grid-template-columns: 70px 1fr 70px; align-items: center;
-            height: 30px; font-size: 16px; border-bottom: 1px solid #999;
-        }
-        .modal-title { text-align: center; }
-        .close-btn { appearance: none; justify-self: end; width: 60px; height: 22px; padding: 0; border: 1px solid #a66b00; border-radius: 2px; background: #e79418; color: #241600; cursor: pointer; font: inherit; font-size: 12px; font-weight: bold; line-height: 20px; }
-        .modal-clock-row { min-height: 30px; padding: 4px 12px; box-sizing: border-box; text-align: right; border-bottom: 1px solid #ddd; font-size: 15px; }
+        .close-btn { appearance: none; position: fixed; z-index: 2; top: 8px; right: 10px; width: 70px; height: 28px; padding: 0; border: 1px solid #a66b00; border-radius: 2px; background: #e79418; color: #241600; cursor: pointer; font: inherit; font-size: 12px; font-weight: bold; line-height: 26px; }
+        .modal-clock-row { min-height: 42px; padding: 10px 92px 4px 12px; box-sizing: border-box; text-align: right; border-bottom: 1px solid #ddd; font-size: 15px; }
         .modal-body { padding: 38px 5px 0; }
         .modal-train-info { padding: 0 5px 7px; font-size: 15px; line-height: 1.5; background: #fff; }
         .modal-content table { width: 100%; min-width: 900px; }
@@ -117,6 +111,7 @@
 <script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/timetable-version.js"></script>
 <script src="/assets/js/timetable-operations.js"></script>
+<script src="/assets/js/timetable-fields.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -163,13 +158,9 @@
         </div>
     </div>
 
-    <div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div id="modalOverlay" role="dialog" aria-modal="true" aria-label="列車別ダイヤモニタ">
         <div class="modal-content">
-            <div class="modal-header">
-                <span aria-hidden="true"></span>
-                <span class="modal-title" id="modalTitle">モバイル ATOS アプリ　Ver2.4.0</span>
-                <button class="close-btn" type="button" onclick="closeModal()">閉じる</button>
-            </div>
+            <button class="close-btn" type="button" onclick="closeModal()">閉じる</button>
             <div class="modal-clock-row" id="modalClockDisplay">----/--/-- --:--:-- 現在</div>
             <div class="modal-body">
                 <div class="modal-train-info" id="modalTrainInfo"></div>
@@ -402,9 +393,6 @@
                 grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => sameStation(st.station, station));
                     const stopIdx = train.stops.findIndex(st => sameStation(st.station, station));
-                    const isFirst = (stopIdx === 0);
-                    const isLast = (stopIdx === train.stops.length - 1);
-                    
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
 
@@ -417,7 +405,7 @@
                     }
 
                     appendLinkCell(tr, train.trainNumber, () => showOverlay(train));
-                    const typeCell = appendCell(tr, safeVal(train.type));
+                    const typeCell = appendCell(tr, TayunetTimetableFields.typeAtStop(train, stopIdx));
                     typeCell.style.textAlign = 'left';
                     typeCell.style.paddingLeft = '4px';
                     appendCell(tr, autoDeterminePower(train));
@@ -428,7 +416,7 @@
                     appendCell(tr, safeVal(s.trackN), 'col-trk');
                     const operation = getStopOperation(train, s, stopIdx);
                     appendCell(tr, operation.type);
-                    appendLinkCell(tr, operation.trainNumber, () => showConnectedTrain(operation.trainNumber, train, operation.direction));
+                    appendLinkCell(tr, operation.trainNumber, () => showConnectedTrain(operation.trainNumber, train, operation.direction, s.station, operation.kid));
                     const destinationCell = appendCell(tr, safeVal(train.destination));
                     destinationCell.style.textAlign = 'left';
                     destinationCell.style.paddingLeft = '4px';
@@ -449,10 +437,11 @@
         function connectionKey(train, direction) {
             if (!train) return '';
             if (direction === 'prev') return normalizeString(train.kid1 || train.kid || '');
-            return normalizeString(train.kid2 || train.kid || '');
+            if (direction === 'next') return normalizeString(train.kid2 || train.kid || '');
+            return '';
         }
 
-        function findConnectedTrain(trainNumber, sourceTrain, direction) {
+        function findConnectedTrain(trainNumber, sourceTrain, direction, connectionStation = '', connectionKid = '') {
             const number = safeVal(trainNumber);
             if (!number) return null;
             const selectedDate = document.getElementById('dateInput').value.replace(/-/g, '/');
@@ -462,15 +451,17 @@
                 normalizeString(train.trainNumber) === normalizeString(number) &&
                 timetableMatchesSelectedDay(train, selectedDate, targetDate, targetDayType)
             );
-            const key = connectionKey(sourceTrain, direction);
+            const key = normalizeString(connectionKid) || connectionKey(sourceTrain, direction);
             let match = null;
             if (key) {
                 match = candidates.find(train => direction === 'prev'
-                    ? normalizeString(train.kid2 || '') === key
-                    : normalizeString(train.kid1 || '') === key);
+                    ? normalizeString(train.kid2 || train.kid || '') === key
+                    : direction === 'next'
+                        ? normalizeString(train.kid1 || train.kid || '') === key
+                        : [train.kid1, train.kid2, train.kid].some(value => normalizeString(value) === key));
             }
             if (!match && sourceTrain) {
-                const connectingStation = direction === 'prev' ? safeVal(sourceTrain.origin) : safeVal(sourceTrain.destination);
+                const connectingStation = safeVal(connectionStation) || (direction === 'prev' ? safeVal(sourceTrain.origin) : safeVal(sourceTrain.destination));
                 match = candidates.find(train => direction === 'prev'
                     ? safeVal(train.destination) === connectingStation
                     : direction === 'next'
@@ -484,10 +475,10 @@
             return match;
         }
 
-        function showConnectedTrain(trainNumber, sourceTrain, direction) {
+        function showConnectedTrain(trainNumber, sourceTrain, direction, connectionStation = '', connectionKid = '') {
             const number = safeVal(trainNumber);
             if (!number) return;
-            const match = findConnectedTrain(number, sourceTrain, direction);
+            const match = findConnectedTrain(number, sourceTrain, direction, connectionStation, connectionKid);
             if (match) showOverlay(match);
             else showMessage(`接続列車 ${number} の時刻表が見つかりません。`);
         }
@@ -502,7 +493,6 @@
 
             lastModalFocus = document.activeElement;
             const selectedDate = document.getElementById('dateInput').value.replace(/-/g, '/');
-            document.getElementById('modalTitle').textContent = 'モバイル ATOS アプリ　Ver2.4.0';
             const summary = document.getElementById('modalTrainInfo');
             summary.replaceChildren(
                 document.createTextNode(`■${safeVal(train.line)} 施行日:${selectedDate}`),
@@ -536,10 +526,8 @@
             serviceRows.forEach((serviceRow, index) => {
                 const s = serviceRow.stop;
                 const row = document.createElement('tr');
-                const isFirst = index === 0;
-                const isLast = index === serviceRows.length - 1;
-                const connectedNumber = isFirst ? safeVal(train.tr1) : (isLast ? safeVal(train.tr2) : '');
-                appendCell(row, isFirst ? safeVal(train.type) : '');
+                const operation = getStopOperation(train, s, index);
+                appendCell(row, TayunetTimetableFields.displayedType(train, s, index));
                 appendCell(row, '');
                 appendCell(row, safeVal(s.station));
                 appendCell(row, formatDisplayTime(s.arrival), 'col-time');
@@ -547,8 +535,8 @@
                 appendCell(row, safeVal(s.departure) ? formatDisplayTime(s.departure) : '', 'col-time');
                 appendCell(row, '');
                 appendCell(row, safeVal(s.trackN), 'col-trk');
-                appendCell(row, getUnyouStatus(train, isFirst, isLast));
-                appendLinkCell(row, connectedNumber, () => showConnectedTrain(connectedNumber, train, isFirst ? 'prev' : 'next'));
+                appendCell(row, operation.type);
+                appendLinkCell(row, operation.trainNumber, () => showConnectedTrain(operation.trainNumber, train, operation.direction, s.station, operation.kid));
                 modalBody.appendChild(row);
             });
             table.appendChild(modalBody);

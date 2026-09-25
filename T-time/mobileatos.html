@@ -99,6 +99,10 @@
             background-color: var(--bg-white); border-bottom: 1px solid #ccc;
         }
         .error-msg.searching { color: #315447; background: #eef7f2; }
+        .error-msg.not-found {
+            min-height: 330px; padding: 170px 7vw 30px; border: 0; box-sizing: border-box;
+            text-align: right; font-size: clamp(23px, 3vw, 34px); line-height: 1.35;
+        }
         #debugArea { display: none !important; }
 
         /* --- Train Summary --- */
@@ -222,6 +226,7 @@
 <script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/timetable-version.js"></script>
 <script src="/assets/js/timetable-operations.js"></script>
+<script src="/assets/js/timetable-fields.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -486,6 +491,7 @@
             contentArea.classList.add('hidden');
             messageArea.classList.add('hidden');
             messageArea.classList.remove('searching');
+            messageArea.classList.remove('not-found');
             
             if (targetTrainNoNormalized === "" || selectedLine === "") return;
             messageArea.innerText = '列車を検索しています…';
@@ -528,7 +534,8 @@
             } else {
                 contentArea.classList.add('hidden');
                 messageArea.classList.remove('searching');
-                messageArea.innerText = `列車番号 (${crownPart}${numberPart}) は登録時刻表・ODPT・Ubuntu運行履歴に見つかりませんでした（${selectedLine}、${selectedDateJSON}）。`;
+                messageArea.innerText = '指定された列車番号は存在しません。';
+                messageArea.classList.add('not-found');
                 messageArea.classList.remove('hidden');
             }
         }
@@ -538,6 +545,7 @@
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
             document.getElementById('messageArea').classList.remove('searching');
+            document.getElementById('messageArea').classList.remove('not-found');
             const summary = document.getElementById('trainSummary');
             summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
@@ -587,7 +595,7 @@
                 const cancelled = /^[\$＄]/.test(String(stop.station || '').trimStart());
                 if (cancelled) tr.classList.add('cancelled-row');
                 
-                const typeText = (index === 0) ? data.type : '';
+                const typeText = TayunetTimetableFields.displayedType(data, stop, index);
                 
                 const operation = TayunetTimetableOperations.forStop(data, stop, index);
                 const opInfo = operation.type;
@@ -653,6 +661,10 @@
                     const matches = connectionCandidates.filter(d => normalizeString(d.kid1 || d.kid || '') === currentKidNormalized);
                     if (matches.length === 1) match = matches[0];
                 }
+                else {
+                    const matches = connectionCandidates.filter(d => [d.kid1, d.kid2, d.kid].some(value => normalizeString(value || '') === currentKidNormalized));
+                    if (matches.length === 1) match = matches[0];
+                }
             }
 
             if (!match) {
@@ -687,7 +699,8 @@
                 performSearch();
             } else {
                 const msgArea = document.getElementById('messageArea');
-                msgArea.innerText = `リンク先の列車番号 (${targetTrainNum}) のデータが見つかりません。`;
+                msgArea.innerText = '指定された列車番号は存在しません。';
+                msgArea.classList.add('not-found');
                 msgArea.classList.remove('hidden');
                 document.getElementById('contentArea').classList.add('hidden');
             }

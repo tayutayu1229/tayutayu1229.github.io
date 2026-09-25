@@ -172,8 +172,8 @@ function outputDateTimeFrom(value) {
 }
 
 function footnoteFrom(train) {
-  if (typeof train?.footnote === "string") return plainText(train.footnote, 300).trim();
-  if (Array.isArray(train?.footnotes)) return plainText(train.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("／"), 300).trim();
+  if (typeof train?.footnote === "string") return plainMultilineText(train.footnote, 600).trim();
+  if (Array.isArray(train?.footnotes)) return plainMultilineText(train.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("\n"), 600).trim();
   return "";
 }
 
@@ -229,11 +229,21 @@ function plainText(value, maximum = 300) {
   return String(value ?? "").normalize("NFC").replace(/[\0\r\n]/g, " ").slice(0, maximum);
 }
 
+function plainMultilineText(value, maximum = 600) {
+  return String(value ?? "").normalize("NFC").replace(/\0/g, "").replace(/\r\n?/g, "\n").slice(0, maximum);
+}
+
 function writeText(cell, value, maximum) {
   const text = plainText(value, maximum);
   cell.value = text;
   // google-spreadsheetは「=」始まりの文字列を数式型にするため、
   // 更新対象の型だけをSheets APIの文字列型へ戻す。
+  if (text.startsWith("=") && cell._draftData) cell._draftData.valueType = "stringValue";
+}
+
+function writeMultilineText(cell, value, maximum) {
+  const text = plainMultilineText(value, maximum);
+  cell.value = text;
   if (text.startsWith("=") && cell._draftData) cell._draftData.valueType = "stringValue";
 }
 
@@ -322,7 +332,7 @@ app.post("/import", requireApprovedUser, limitImports, async (req, res) => {
     const footnote = includeFootnote ? footnoteFrom(trainData) : "";
     if (footnote) {
       const noteCell = generatedSheet.getCell(footerRow, 0);
-      writeText(noteCell, footnote, 300);
+      writeMultilineText(noteCell, footnote, 600);
       noteCell.textFormat = { fontSize: 9 };
       noteCell.horizontalAlignment = "LEFT";
       noteCell.wrapStrategy = "WRAP";
@@ -368,4 +378,4 @@ if (require.main === module) {
   app.listen(PORT, "127.0.0.1", () => console.log(`Timetable output listening on 127.0.0.1:${PORT}`));
 }
 
-module.exports = { app, outputDateFrom, outputDateTimeFrom, footnoteFrom, trainKeyFrom, sameTrain, validateString, writeText };
+module.exports = { app, outputDateFrom, outputDateTimeFrom, footnoteFrom, trainKeyFrom, sameTrain, validateString, writeText, writeMultilineText };

@@ -10,7 +10,8 @@ Production source for `https://train.tayunet-traininfo.com/`.
 
 Private timetable JSON may include the following optional display fields:
 
-- `footnote`: text printed unchanged at the lower-left of the timetable, for example `列車防護係員省略`.
+- `footnotes`: an array of lines printed unchanged at the lower-left of the timetable, for example `["列車防護係員省略", "その他の付記"]`. The legacy multiline `footnote` string is also accepted.
+- Each `stops[]` item may include `trainType` when the train type changes at that station.
 - Each `stops[]` item may include `operationInfo`, `operationTrainNumber`, and `operationKid`. This allows operation information at intermediate stations as well as the legacy endpoint fields `tt1/tr1/kid1` and `tt2/tr2/kid2`.
 - `operationInfo` accepts the legacy values `k` and `o`, plus `継走`, `折返`, `分割`, `併合`, `入区`, `出区`, `引上`, `据付`, `滞泊`, `車交`, and `特発`.
 

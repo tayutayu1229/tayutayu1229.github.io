@@ -32,7 +32,7 @@ assert.equal(outputDateTimeFrom("2026-09-25T12:34"), "2026/09/25 12:34");
 assert.equal(outputDateTimeFrom("2026-02-30T12:34"), null);
 assert.equal(outputDateTimeFrom("2026-09-25 12:34"), null);
 assert.equal(footnoteFrom({footnote:" 列車防護係員省略 "}), "列車防護係員省略");
-assert.equal(footnoteFrom({footnotes:["甲", "乙"]}), "甲／乙");
+assert.equal(footnoteFrom({footnotes:["甲", "乙"]}), "甲\n乙");
 
 const normalCell = {};
 writeText(normalCell, "9171M", 40);

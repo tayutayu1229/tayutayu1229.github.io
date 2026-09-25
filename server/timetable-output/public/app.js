@@ -81,7 +81,7 @@
 
   function footnoteOf(item) {
     if (typeof item?.footnote === "string") return item.footnote.trim();
-    if (Array.isArray(item?.footnotes)) return item.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("／");
+    if (Array.isArray(item?.footnotes)) return item.footnotes.map(value => String(value || "").trim()).filter(Boolean).join("\n");
     return "";
   }
 

@@ -57,6 +57,7 @@ const context = vm.createContext({
   window: {},
   TayunetTimetableVersion: require('../assets/js/timetable-version.js'),
   TayunetTimetableOperations: require('../assets/js/timetable-operations.js'),
+  TayunetTimetableFields: require('../assets/js/timetable-fields.js'),
   document: {getElementById: id => elements.get(id), createElement: () => new Element(), createTextNode: text => ({textContent: text})},
   fetch: async url => {
     fetchedUrls.push(String(url));
@@ -103,12 +104,13 @@ vm.runInContext('updateSummaryAndTable = (...args) => { window.captured = args; 
   assert.match(captured[5], /Ubuntu列車運行履歴（実績）/);
 
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '$取手', arrival: '20:00',
-    arrivalActual: '20:01:00', departure: '=', departureActual: '20:02:00', trackN: '1'}]})`, context);
+    arrivalActual: '20:01:00', departure: '=', departureActual: '20:02:00', trackN: '1', trainType:'快速'}]})`, context);
   const row = elements.get('scheduleBody').children[0];
   assert.equal(row.classes.has('cancelled-row'), true);
   for (const index of [2, 3, 4, 6]) assert.match(row.children[index].className, /cancelled-cell/);
   assert.match(row.children[5].className, /cancelled-equals/);
   for (const index of [0, 7, 8, 9]) assert.doesNotMatch(row.children[index].className, /cancelled-cell/);
+  assert.equal(row.children[0].textContent, '快速');
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '＄上野', arrival: '20:00', departure: '20:02'}]})`, context);
   assert.equal(elements.get('scheduleBody').children[0].classes.has('cancelled-row'), true);
   console.log('mobileatos source and cancellation display: ok');

@@ -19,7 +19,7 @@ function element(id, value = '') {
 
 [
   'line', 'origin', 'destination', 'trainNumber', 'type', 'dataKind', 'continuationGroupId', 'dayType', 'startDate', 'name', 'speed',
-  'footnoteEnabled', 'footnote',
+  'footnote',
   'tr1', 'tr2', 'kid1', 'kid2', 'tt1', 'tt2'
 ].forEach(id => element(id));
 
@@ -144,11 +144,11 @@ assert.equal(yardRecord.yardMovement.departureTime, '09:00:00');
 assert.deepEqual(yardRecord.stops, [{station: '国府津', arrival: '09:08:00', departure: '', trackN: '８番'}]);
 assert.equal(elements.get('yardPanel').hidden, false);
 
-elements.get('footnoteEnabled').value = 'yes';
-elements.get('footnote').value = '列車防護係員省略';
-vm.runInContext(`stops = [{station:'国府津',arrival:'09:08:00',departure:'',trackN:'８番',operationInfo:'分割',operationTrainNumber:'9821M',operationKid:'K-9821'}]; updateJSON()`, context);
+elements.get('footnote').value = '列車防護係員省略\n乗務員へ通告';
+vm.runInContext(`stops = [{station:'国府津',arrival:'09:08:00',departure:'',trackN:'８番',trainType:'快速',operationInfo:'分割',operationTrainNumber:'9821M',operationKid:'K-9821'}]; updateJSON()`, context);
 const annotatedRecord = JSON.parse(elements.get('jsonOutput').value);
-assert.equal(annotatedRecord.footnote, '列車防護係員省略');
+assert.deepEqual(annotatedRecord.footnotes, ['列車防護係員省略', '乗務員へ通告']);
+assert.equal(annotatedRecord.stops[0].trainType, '快速');
 assert.equal(annotatedRecord.stops[0].operationInfo, '分割');
 assert.equal(annotatedRecord.stops[0].operationTrainNumber, '9821M');
 

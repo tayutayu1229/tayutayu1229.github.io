@@ -313,7 +313,7 @@
             top: 45px;
             right: 0;
             display: none;
-            width: 176px;
+            width: 260px;
             padding: 8px;
             border: 1px solid #333;
             border-radius: 4px;
@@ -348,6 +348,13 @@
         .settings-menu button:hover {
             background: var(--header-fill);
         }
+        .settings-field { display:block; margin:0 0 9px; font-size:12px; line-height:1.35; }
+        .settings-field span { display:block; margin-bottom:4px; }
+        .settings-field input[type="datetime-local"] { width:100%; min-height:32px; font:inherit; }
+        .settings-check { display:flex; align-items:flex-start; gap:6px; margin:0 0 9px; font-size:12px; line-height:1.35; }
+        .settings-check input { margin:1px 0 0; }
+        .timetable-footnotes { min-height:0; margin-top:7px; font-size:13.2px; font-weight:500; line-height:1.35; text-align:left; white-space:pre-wrap; }
+        .timetable-footnotes:empty { display:none; }
 
         .print-pages {
             display: none;
@@ -454,6 +461,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
+<script src="/assets/js/timetable-fields.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -469,6 +477,9 @@
         >⚙</button>
 
         <div class="settings-menu" id="settings-menu">
+            <label class="settings-field"><span>作成・出力日時</span><input id="output-datetime" type="datetime-local" step="60"></label>
+            <label class="settings-field"><span>施行日</span><input id="execution-date" type="date"></label>
+            <label class="settings-check"><input id="include-footnotes" type="checkbox" checked><span>JSONの付記を表下部へ表示・印刷</span></label>
             <button id="export-excel-btn" type="button">Excelで出力</button>
             <button id="print-pdf-btn" type="button">印刷（PDF／紙）</button>
         </div>
@@ -511,6 +522,7 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <div class="timetable-footnotes" id="timetable-footnotes"></div>
 
         </div>
     </div>
@@ -629,6 +641,9 @@ if (parts.length === 2) {
 
             const settingsWrapper = document.getElementById('settings-wrapper');
             const settingsToggle = document.getElementById('settings-toggle');
+            const outputDateTimeInput = document.getElementById('output-datetime');
+            const executionDateInput = document.getElementById('execution-date');
+            const includeFootnotesInput = document.getElementById('include-footnotes');
 
             settingsToggle.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -643,15 +658,18 @@ if (parts.length === 2) {
                 }
             });
 
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-
-            document.getElementById('created-date').textContent =
-                `${year}年${month}月${day}日 ${hours}時${minutes}分`;
+            const localDateTimeValue = (date = new Date()) =>
+                new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            const applyOutputDateTime = () => {
+                const value = outputDateTimeInput.value || localDateTimeValue();
+                outputDateTimeInput.value = value;
+                const [datePart, timePart = ''] = value.split('T');
+                const [year, month, day] = datePart.split('-');
+                const [hours = '00', minutes = '00'] = timePart.split(':');
+                document.getElementById('created-date').textContent = `${year}年${month}月${day}日 ${hours}時${minutes}分`;
+            };
+            outputDateTimeInput.value = localDateTimeValue();
+            applyOutputDateTime();
             document.getElementById('output-location').textContent =
                 sessionStorage.getItem('selectedOutputLocation') || '東京総合指令室';
 
@@ -680,6 +698,22 @@ if (parts.length === 2) {
             }
 
             const targetTrainData = allTrainData[0];
+            const initialExecutionDate = String(targetTrainData.startDate || '').replace(/\//g, '-');
+            executionDateInput.value = /^\d{4}-\d{2}-\d{2}$/.test(initialExecutionDate) ? initialExecutionDate : '';
+            const applyExecutionDate = () => {
+                document.getElementById('start-date-val').textContent = executionDateInput.value.replace(/-/g, '/');
+            };
+            const footnotes = [...new Set(allTrainData.flatMap(train => TayunetTimetableFields.footnotes(train)))];
+            includeFootnotesInput.disabled = footnotes.length === 0;
+            includeFootnotesInput.checked = footnotes.length > 0;
+            const renderFootnotes = (container) => {
+                container.replaceChildren();
+                if (!includeFootnotesInput.checked) return;
+                footnotes.forEach(note => {
+                    const line = document.createElement('div'); line.textContent = note; container.appendChild(line);
+                });
+            };
+            renderFootnotes(document.getElementById('timetable-footnotes'));
             let trainType = targetTrainData.type || '';
 
             if (trainType === '選択なし') {
@@ -738,8 +772,7 @@ if (parts.length === 2) {
                 showTravelSection
                     ? `${targetTrainData.origin || '...'} ～ ${targetTrainData.destination || '...'}`
                     : '';
-            document.getElementById('start-date-val').textContent =
-                targetTrainData.startDate || '';
+            applyExecutionDate();
 
             const allStops = [];
             const lineSegments = [];
@@ -1002,11 +1035,24 @@ if (parts.length === 2) {
                         range.end
                     );
 
+                    if (pageIndex === pageRanges.length - 1) {
+                        const notes = document.createElement('div');
+                        notes.className = 'timetable-footnotes';
+                        renderFootnotes(notes);
+                        page.appendChild(notes);
+                    }
+
                     printPages.appendChild(page);
                 });
             };
 
             buildPrintPages();
+            outputDateTimeInput.addEventListener('change', () => { applyOutputDateTime(); buildPrintPages(); });
+            executionDateInput.addEventListener('change', () => { applyExecutionDate(); buildPrintPages(); });
+            includeFootnotesInput.addEventListener('change', () => {
+                renderFootnotes(document.getElementById('timetable-footnotes'));
+                buildPrintPages();
+            });
 
             document
                 .getElementById('export-excel-btn')
@@ -1032,6 +1078,10 @@ if (parts.length === 2) {
                         });
 
                     csvContent += '\n';
+                    if (includeFootnotesInput.checked && footnotes.length) {
+                        footnotes.forEach(note => { csvContent += `付記,${note.replace(/,/g, '、')}\n`; });
+                        csvContent += '\n';
+                    }
                     csvContent +=
                         ['線区', '駅', '着時刻', '発時刻', '着発線'].join(',') +
                         '\n';

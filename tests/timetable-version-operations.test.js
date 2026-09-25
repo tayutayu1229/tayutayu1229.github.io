@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const versions = require('../assets/js/timetable-version.js');
 const operations = require('../assets/js/timetable-operations.js');
+const fields = require('../assets/js/timetable-fields.js');
 
 const rows = [
   {startDate:'2026/03/16', dayType:'平日', marker:'base-weekday'},
@@ -28,5 +29,14 @@ assert.deepEqual(operations.forStop(train, train.stops[0], 0), {type:'継走', t
 assert.deepEqual(operations.forStop(train, train.stops[1], 1), {type:'分割', trainNumber:'101M', kid:'C', direction:'either'});
 assert.deepEqual(operations.forStop(train, train.stops[2], 2), {type:'折返', trainNumber:'200M', kid:'B', direction:'next'});
 for (const value of ['分割','併合','入区','出区','引上','据付','滞泊','車交','特発']) assert.equal(operations.label(value), value);
+
+const typeTrain = {type:'普通', footnotes:['列車防護係員省略','乗務員へ通告'], stops:[
+  {station:'甲'}, {station:'乙', trainType:'快速'}, {station:'丙'}
+]};
+assert.equal(fields.displayedType(typeTrain, typeTrain.stops[0], 0), '普通');
+assert.equal(fields.displayedType(typeTrain, typeTrain.stops[1], 1), '快速');
+assert.equal(fields.displayedType(typeTrain, typeTrain.stops[2], 2), '');
+assert.equal(fields.typeAtStop(typeTrain, 2), '快速');
+assert.deepEqual(fields.footnotes(typeTrain), ['列車防護係員省略','乗務員へ通告']);
 
 console.log('timetable version and operation tests: ok');

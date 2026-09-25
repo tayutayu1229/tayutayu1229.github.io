@@ -274,6 +274,10 @@
             background-color: var(--bg-white);
             border-bottom: 1px solid #ccc;
         }
+        .error-msg.not-found {
+            min-height: 330px; padding: 170px 7vw 30px; border: 0; box-sizing: border-box;
+            text-align: right; font-size: clamp(23px, 3vw, 34px); line-height: 1.35;
+        }
 
         .info-msg {
             color: var(--atos-blue);
@@ -437,6 +441,7 @@
 <script src="/assets/js/japanese-calendar.js"></script>
 <script src="/assets/js/timetable-version.js"></script>
 <script src="/assets/js/timetable-operations.js"></script>
+<script src="/assets/js/timetable-fields.js"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -585,6 +590,7 @@
             const messageArea = document.getElementById('messageArea');
             messageArea.textContent = '線区と施行日を選び、列車番号を入力すると検索します。回送・試運転などは列車番号左側の種別も選択してください。';
             messageArea.classList.remove('hidden', 'error-msg');
+            messageArea.classList.remove('not-found');
             messageArea.classList.add('info-msg');
         }
         document.getElementById('searchHelp').addEventListener('click', showSearchHelp);
@@ -619,6 +625,7 @@
             const messageArea = document.getElementById('messageArea'); 
             const contentArea = document.getElementById('contentArea');
             messageArea.classList.remove('info-msg');
+            messageArea.classList.remove('not-found');
             messageArea.classList.add('error-msg');
 
             const selectedLine = lineSelect.value;
@@ -661,7 +668,8 @@
             } else {
                 contentArea.classList.add('hidden');
                 
-                messageArea.innerText = `検索した列車番号 (${crownPart}${numberPart}) のダイヤ (${selectedLine}, 施行日:${selectedDateJSON}, 曜日:${searchDayType}) は見つかりませんでした。`;
+                messageArea.innerText = '指定された列車番号は存在しません。';
+                messageArea.classList.add('not-found');
                 messageArea.classList.remove('hidden');
             }
         }
@@ -673,6 +681,7 @@
             if (TayunetYardMovement.open(result, selectedDateJSON)) return;
             document.getElementById('contentArea').classList.remove('hidden');
             document.getElementById('messageArea').classList.add('hidden');
+            document.getElementById('messageArea').classList.remove('not-found');
 
             // Summary表示の修正
             const summary = document.getElementById('trainSummary');
@@ -699,7 +708,7 @@
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
                 
-                const typeText = (index === 0) ? data.type : '';
+                const typeText = TayunetTimetableFields.displayedType(data, stop, index);
                 
                 const operation = TayunetTimetableOperations.forStop(data, stop, index);
                 const opInfo = operation.type;
@@ -769,6 +778,10 @@
                     const matches = connectionCandidates.filter(d => normalizeString(d.kid1 || d.kid || '') === currentKidNormalized);
                     if (matches.length === 1) match = matches[0];
                 }
+                else {
+                    const matches = connectionCandidates.filter(d => [d.kid1, d.kid2, d.kid].some(value => normalizeString(value || '') === currentKidNormalized));
+                    if (matches.length === 1) match = matches[0];
+                }
             }
 
             // 2. フォールバック
@@ -807,7 +820,8 @@
                 performSearch();
 
             } else {
-                document.getElementById('messageArea').innerText = `リンク先の列車番号 (${targetTrainNum}) に対応するデータが見つかりませんでした。`;
+                document.getElementById('messageArea').innerText = '指定された列車番号は存在しません。';
+                document.getElementById('messageArea').classList.add('not-found');
                 document.getElementById('messageArea').classList.remove('hidden');
                 document.getElementById('contentArea').classList.add('hidden');
             }

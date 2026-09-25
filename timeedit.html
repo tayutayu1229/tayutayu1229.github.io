@@ -53,11 +53,19 @@
     .yard-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; }
     .yard-grid label span { display: block; margin-bottom: 3px; color: #64748b; font-size: 10px; font-weight: bold; }
     #yardPanel[hidden] { display: none; }
+    #footnote { height: 78px; min-height: 78px; margin: 0; padding: 7px 10px; font-family: inherit; line-height: 1.45; }
+    .footnote-field { grid-column: 1 / -1; }
+    .stop-detail-row[hidden] { display: none; }
+    .stop-detail-row td { padding: 10px; background: #f8fafc; }
+    .stop-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 8px; }
+    .stop-detail-grid label span { display: block; margin-bottom: 3px; color: #64748b; font-size: 10px; font-weight: bold; }
+    .btn-detail { padding: 5px 9px; background: #475569; color: #fff; }
 
     @media (max-width: 720px) {
       .quote-grid { grid-template-columns: 1fr; }
       .section { min-width: 0; }
       .yard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stop-detail-grid { grid-template-columns: 1fr; }
     }
   </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -102,8 +110,7 @@
       <label><span>速度種別</span><input id="speed" type="text" oninput="updateJSON()"></label>
       <label><span>始発駅</span><input id="origin" type="text" oninput="updateJSON()"></label>
       <label><span>終着駅</span><input id="destination" type="text" oninput="updateJSON()"></label>
-      <label><span>付記を出力</span><select id="footnoteEnabled"><option value="">なし</option><option value="yes">あり</option></select></label>
-      <label><span>付記</span><input id="footnote" type="text" list="footnoteList" placeholder="例：列車防護係員省略" disabled></label>
+      <label class="footnote-field"><span>付記（1行に1項目）</span><textarea id="footnote" placeholder="例：&#10;列車防護係員省略&#10;その他の付記"></textarea></label>
     </div>
   </div>
 
@@ -176,7 +183,7 @@
     <p class="subtle-note">「ここから」と「ここまで」を逆順に選ぶと、逆方向の駅順・番線で引用します。時刻は空欄で追加され、列車基本情報の始発駅・終着駅は変更しません。</p>
   </div>
   <table id="mainStopsTable">
-    <thead><tr><th>駅名</th><th>到着</th><th>出発</th><th>番線</th><th>運用情報</th><th>運用列番</th><th>kid</th><th>削除</th></tr></thead>
+    <thead><tr><th>駅名</th><th>到着</th><th>出発</th><th>番線</th><th>変更項目</th><th>削除</th></tr></thead>
     <tbody id="stopsBody"></tbody>
   </table>
   <div style="display: flex; gap: 5px; margin-top: 10px; background: #eff6ff; padding: 10px; border-radius: 6px; border: 1px dashed var(--primary);">
@@ -197,7 +204,6 @@
 <datalist id="lineList"></datalist>
 <datalist id="trackSuggestions"></datalist>
 <datalist id="operationTypeList"><option value="k">継走（従来形式）</option><option value="o">折返（従来形式）</option><option value="継走"><option value="折返"><option value="分割"><option value="併合"><option value="入区"><option value="出区"><option value="引上"><option value="据付"><option value="滞泊"><option value="車交"><option value="特発"></datalist>
-<datalist id="footnoteList"><option value="列車防護係員省略"></datalist>
 
 <script src="T-time/private-data-client.js"></script>
 <script>
@@ -205,7 +211,6 @@
   let masterData = [];
   let masterFiles = [];
   let linePatterns = [];
-  document.getElementById('footnoteEnabled').addEventListener('change', handleFootnoteSetting);
   document.getElementById('footnote').addEventListener('input', updateJSON);
 
   function refreshMasterData() {
@@ -452,14 +457,10 @@
       const trackList = document.createElement('datalist'); trackList.id = trackDlId;
       trackInput.parentElement.appendChild(trackList);
       trackInput.addEventListener('focus', () => createDynamicDatalist(i, stops[i].station));
-      const operationCell = document.createElement('td');
-      const operationInput = document.createElement('input');
-      operationInput.type = 'text'; operationInput.value = stop.operationInfo || '';
-      operationInput.setAttribute('list', 'operationTypeList');
-      operationInput.addEventListener('input', () => { stops[i].operationInfo = operationInput.value; updateJSON(); });
-      operationCell.appendChild(operationInput); tr.appendChild(operationCell);
-      addInputCell('operationTrainNumber');
-      addInputCell('operationKid');
+      const detailCell = document.createElement('td');
+      const detailButton = document.createElement('button');
+      detailButton.type = 'button'; detailButton.className = 'btn-detail'; detailButton.textContent = '別項を編集';
+      detailCell.appendChild(detailButton); tr.appendChild(detailCell);
       const actionCell = document.createElement('td');
       const removeButton = document.createElement('button');
       removeButton.type = 'button'; removeButton.className = 'btn-del'; removeButton.textContent = '×';
@@ -467,6 +468,27 @@
       removeButton.addEventListener('click', () => { stops.splice(i, 1); updateUI(); });
       actionCell.appendChild(removeButton); tr.appendChild(actionCell);
       tbody.appendChild(tr);
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'stop-detail-row'; detailRow.hidden = true;
+      const detailPanel = document.createElement('td'); detailPanel.colSpan = 6;
+      const detailGrid = document.createElement('div'); detailGrid.className = 'stop-detail-grid';
+      const addDetailInput = (label, field, listId = '') => {
+        const wrapper = document.createElement('label');
+        const title = document.createElement('span'); title.textContent = label;
+        const input = document.createElement('input'); input.type = 'text'; input.value = stop[field] || '';
+        if(listId) input.setAttribute('list', listId);
+        input.addEventListener('input', () => { stops[i][field] = input.value; updateJSON(); });
+        wrapper.append(title, input); detailGrid.appendChild(wrapper);
+      };
+      addDetailInput('この駅からの列車種別', 'trainType');
+      addDetailInput('運用情報', 'operationInfo', 'operationTypeList');
+      addDetailInput('運用列番', 'operationTrainNumber');
+      addDetailInput('kid', 'operationKid');
+      detailPanel.appendChild(detailGrid); detailRow.appendChild(detailPanel); tbody.appendChild(detailRow);
+      detailButton.addEventListener('click', () => {
+        detailRow.hidden = !detailRow.hidden;
+        detailButton.textContent = detailRow.hidden ? '別項を編集' : '別項を閉じる';
+      });
     });
     updateJSON();
   }
@@ -504,14 +526,6 @@
     const type = document.getElementById('type');
     if(selected === '出区' || selected === '入区') type.value = selected;
     else if(type.value === '出区' || type.value === '入区') type.value = '';
-    updateJSON();
-  }
-
-  function handleFootnoteSetting() {
-    const enabled = document.getElementById('footnoteEnabled').value === 'yes';
-    const input = document.getElementById('footnote');
-    input.disabled = !enabled;
-    if(enabled && !input.value.trim()) input.value = '列車防護係員省略';
     updateJSON();
   }
 
@@ -555,13 +569,18 @@
       tt1: document.getElementById("tt1").value, tt2: document.getElementById("tt2").value,
       tr1: document.getElementById("tr1").value, tr2: document.getElementById("tr2").value,
       kid1: document.getElementById("kid1").value, kid2: document.getElementById("kid2").value,
-      stops: stops
+      stops: stops.map(stop => {
+        const clean = {...stop};
+        ['trainType', 'operationInfo', 'operationTrainNumber', 'operationKid', 'operationDirection'].forEach(field => {
+          if(!String(clean[field] || '').trim()) delete clean[field];
+        });
+        return clean;
+      })
     };
     const continuationGroupId = document.getElementById('continuationGroupId').value.trim();
     if(continuationGroupId) data.continuationGroupId = continuationGroupId;
-    const footnote = document.getElementById('footnoteEnabled').value === 'yes'
-      ? document.getElementById('footnote').value.trim() : '';
-    if(footnote) data.footnote = footnote;
+    const footnotes = document.getElementById('footnote').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    if(footnotes.length) data.footnotes = footnotes;
     if(category) {
       data.yardMovement = Object.fromEntries(yardFields().map(input => [input.dataset.yardField, input.value.trim()]));
       if(!data.yardMovement.previousTrainNumber) data.yardMovement.previousTrainNumber = data.tr1;
@@ -591,6 +610,7 @@
     const nextTt1 = document.getElementById("tt2").value;
     const wasYard = !!yardCategoryForCurrentTrain();
     const connectionStop = stops.length ? {...stops.at(-1), arrival: '', departure: ''} : null;
+    if(connectionStop) delete connectionStop.trainType;
     const connectionStation = connectionStop?.station || document.getElementById('destination').value.trim();
     const detail = connectionStation ? `接続駅「${connectionStation}」を次区間の先頭に残します。` : '停車駅は空の状態で開始します。';
     if(!confirm(`${nextTr}の編集へ進みますか？\n${detail}`)) return;
@@ -631,10 +651,8 @@
             if(document.getElementById(id)) document.getElementById(id).value = d[id] || "";
         });
         if (d.startDate) document.getElementById("startDate").value = d.startDate.replace(/\//g, '-');
-        const footnote = String(d.footnote || (Array.isArray(d.footnotes) ? d.footnotes.join('／') : '') || '');
-        document.getElementById('footnote').value = footnote;
-        document.getElementById('footnoteEnabled').value = footnote ? 'yes' : '';
-        document.getElementById('footnote').disabled = !footnote;
+        const footnotes = Array.isArray(d.footnotes) ? d.footnotes : String(d.footnote || '').split(/\r?\n/);
+        document.getElementById('footnote').value = footnotes.map(value => String(value || '').trim()).filter(Boolean).join('\n');
         document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
         yardFields().forEach(input => {
           const field = input.dataset.yardField;
