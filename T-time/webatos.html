@@ -50,9 +50,11 @@
         
         /* 左右余白を持たせ、幅によって調整するためのコンテナ */
         #appContainer {
-            max-width: 1200px; 
+            width: 80vw;
+            max-width: none;
             margin: 0 auto; 
-            padding: 0 5px; 
+            padding: 0;
+            box-sizing: border-box;
         }
         
         /* --- 1. Header & Tabs --- */
@@ -306,8 +308,14 @@
 
 
         /* --- 4. Main Table --- */
+        .monitor-table-container {
+            width: 100%;
+            overflow-x: auto;
+            overscroll-behavior-inline: contain;
+        }
         table {
             width: 100%;
+            min-width: 980px;
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
@@ -430,6 +438,10 @@
             display: block;
             height: 150px; 
         }
+
+        @media (orientation: portrait), (max-width: 700px) {
+            #appContainer { width: 100%; margin: 0; padding: 0; }
+        }
     </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -548,7 +560,7 @@
             </div>
         </div>
     </div>
-    <script src="../assets/js/timetable-lines.js?v=20260926-1"></script>
+    <script src="../assets/js/timetable-lines.js?v=20260926-2"></script>
     <script src="private-data-client.js"></script>
     <script src="yard-movement.js"></script>
     <script>
@@ -667,7 +679,7 @@
             // 検索パラメータ
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
-            const candidates = lineResolver.preferredForSearch(
+            const candidates = lineResolver.timetableCandidates(
                 rawJsonData.filter(d => normalizeString(d.trainNumber) === targetTrainNoNormalized), selectedLine
             );
             const result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);

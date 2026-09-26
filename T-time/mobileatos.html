@@ -47,9 +47,11 @@
         
         /* 全体コンテンツの最大幅 (1000px: iPadmini対応) */
         #appContainer {
-            max-width: 1000px; 
+            width: 80vw;
+            max-width: none;
             margin: 0 auto; 
-            padding: 0 5px; 
+            padding: 0;
+            box-sizing: border-box;
             font-size: 15px;
             font-weight: bold;
         }
@@ -116,6 +118,7 @@
         
         table {
             width: 100%;
+            min-width: 980px;
             border-collapse: collapse;
             font-size: 15px;
             color: #000;
@@ -200,11 +203,11 @@
         .footer-legend::after { content: ""; display: block; height: 150px; }
         .hidden { display: none !important; }
 
-        @media (max-width: 700px) {
+        @media (orientation: portrait), (max-width: 700px) {
             .system-header { height: auto; min-height: 46px; padding: 8px 10px; gap: 8px; }
             .header-title { min-width: 0; text-align: left; font-size: 14px; line-height: 1.25; }
             .clock-area { min-width: 116px; width: 116px; padding: 2px 0; font-size: 12px; }
-            #appContainer { padding: 0; }
+            #appContainer { width: 100%; margin: 0; padding: 0; }
             .filter-bar { display: grid; grid-template-columns: 1fr; gap: 8px; overflow: visible; white-space: normal; }
             .filter-group { width: 100%; display: grid; grid-template-columns: 84px minmax(0, 1fr); }
             .filter-group select, .filter-group input { width: 100% !important; min-height: 40px; font-size: 16px; }
@@ -299,7 +302,7 @@
         </div>
     </div>
 
-    <script src="../assets/js/timetable-lines.js?v=20260926-1"></script>
+    <script src="../assets/js/timetable-lines.js?v=20260926-2"></script>
     <script src="private-data-client.js"></script>
     <script src="yard-movement.js"></script>
     <script>
@@ -547,7 +550,7 @@
             
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
-            const candidates = lineResolver.preferredForSearch(
+            const candidates = lineResolver.timetableCandidates(
                 rawJsonData.filter(d => normalizeString(d.trainNumber) === targetTrainNoNormalized), selectedLine
             );
             let result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
