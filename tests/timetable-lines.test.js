@@ -4,7 +4,9 @@ const lines = require('../assets/js/timetable-lines.js');
 
 for (const file of ['T-time/mobileatos.html', 'T-time/webatos.html', 'atosweb.html']) {
   const source = require('node:fs').readFileSync(file, 'utf8');
-  assert.match(source, /timetable-lines\.js\?v=20260925-3/, `${file} must cache-bust the shared line resolver`);
+  assert.match(source, /timetable-lines\.js\?v=20260926-1/, `${file} must cache-bust the shared line resolver`);
+  assert.match(source, /preferredForSearch/, `${file} must prefer the selected JSON line before aliases`);
+  assert.match(source, /timetableOptions/, `${file} must keep timetable JSON line labels in its choices`);
 }
 
 const resolver = lines.create({version: 1, displayOrder: ['武蔵野', '京葉', '中央'], lines: [
@@ -39,10 +41,30 @@ test('related lines expand search without collapsing their displayed names', () 
   ]);
 });
 
+test('an exact JSON line wins over aliases and related lines', () => {
+  const aliasResolver = lines.create({lines: [
+    {canonical: '東北', aliases: ['東北本線', '東北貨物']}
+  ]});
+  const records = [{line: '東北', id: 'main'}, {line: '東北貨物', id: 'freight'}];
+  assert.deepEqual(aliasResolver.preferredForSearch(records, '東北貨物').map(item => item.id), ['freight']);
+  assert.deepEqual(aliasResolver.preferredForSearch(records.slice(0, 1), '東北貨物').map(item => item.id), ['main']);
+  assert.equal(aliasResolver.searchPriority('東北貨物', '東北貨物'), 3);
+  assert.equal(aliasResolver.searchPriority('東北', '東北貨物'), 2);
+});
+
+test('related lines are fallback only when the selected JSON line is absent', () => {
+  const records = [{line: '武蔵野', id: 'related'}, {line: '京葉', id: 'exact'}];
+  assert.deepEqual(resolver.preferredForSearch(records, '京葉').map(item => item.id), ['exact']);
+  assert.deepEqual(resolver.preferredForSearch(records.slice(0, 1), '京葉').map(item => item.id), ['related']);
+});
+
 test('line choices follow configured order and keep additional timetable labels', () => {
   assert.deepEqual(resolver.canonicalOptions([
     {line: '横須賀線'}, {line: '中央'}, {line: '独自線区'}
   ]), ['武蔵野', '京葉', '中央', '横須賀・総武快速', '独自線区']);
+  assert.deepEqual(resolver.timetableOptions([
+    {line: '横須賀線'}, {line: '総武快速線'}, {line: '中央'}, {line: '独自線区'}
+  ]), ['中央', '横須賀線', '総武快速線', '独自線区']);
 });
 
 test('unknown names remain usable when the private mapping is unavailable', () => {

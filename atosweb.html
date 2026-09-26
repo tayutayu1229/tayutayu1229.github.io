@@ -1194,7 +1194,7 @@ if(new URLSearchParams(location.search).get('standalone')==='1') document.body.c
   </div>
 </div>
 
-<script src="assets/js/timetable-lines.js?v=20260925-3"></script>
+<script src="assets/js/timetable-lines.js?v=20260926-1"></script>
 <script src="T-time/private-data-client.js"></script>
 <script src="T-time/yard-movement.js"></script>
 <script>
@@ -3051,13 +3051,14 @@ function switchTrainSearchSource(name,button){
   document.getElementById('train-search-odpt').style.display=name==='odpt'?'':'none';
 }
 function populateUnifiedTrainLineOptions(){
-  const lines=timetableLineResolver.canonicalOptions(externalTimetables);
-  ['json-tt-line','ttt-line'].forEach(id=>{
+  const timetableLines=timetableLineResolver.timetableOptions(externalTimetables);
+  const odptLines=timetableLineResolver.canonicalOptions(externalTimetables);
+  [{id:'json-tt-line',lines:timetableLines},{id:'ttt-line',lines:odptLines}].forEach(({id,lines})=>{
     const select=document.getElementById(id),current=select.value;
     select.innerHTML='<option value="">線区を選択</option>'+lines.map(line=>`<option value="${diagEscape(line)}">${diagEscape(line)}</option>`).join('');
     if(lines.includes(current)) select.value=current;
   });
-  return lines;
+  return timetableLines;
 }
 function loadExternalTimetables(){
   if(!document.getElementById('json-tt-date').value) document.getElementById('json-tt-date').value=localInputDate();
@@ -3175,7 +3176,7 @@ async function searchJsonTrainTimetable(){
   const result=document.getElementById('ttt-result');
   if(!line||!dateValue||!number){result.innerHTML='<div class="loading-box">線区・施行日・列車番号を指定してください。</div>';return;}
   const dayType=externalDayType(dateValue);
-  const candidates=externalTimetables.filter(x=>timetableLineResolver.matchesForSearch(x.line,line)&&normalizeTrainKey(x.trainNumber)===number);
+  const candidates=timetableLineResolver.preferredForSearch(externalTimetables.filter(x=>normalizeTrainKey(x.trainNumber)===number),line);
   const selected=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
   if(!selected){result.innerHTML='<div class="train-not-found">指定された列車番号は存在しません。</div>';return;}
   showExternalTrainTimetable(selected,dateValue,true);
@@ -3197,7 +3198,8 @@ async function searchUnifiedTrainTimetable(){
 
   const dayType=externalDayType(dateValue);
   const selectedLine=line||document.getElementById('ttt-line').value;
-  const candidates=externalTimetables.filter(x=>(!selectedLine||timetableLineResolver.matchesForSearch(x.line,selectedLine))&&normalizeTrainKey(x.trainNumber)===number);
+  const numberCandidates=externalTimetables.filter(x=>normalizeTrainKey(x.trainNumber)===number);
+  const candidates=selectedLine?timetableLineResolver.preferredForSearch(numberCandidates,selectedLine):numberCandidates;
   const external=TayunetTimetableVersion.selectForDate(candidates,dateValue,dayType);
 
   const selectedRailways=timetableLineResolver.odptIds(selectedLine);

@@ -299,7 +299,7 @@
         </div>
     </div>
 
-    <script src="../assets/js/timetable-lines.js?v=20260925-3"></script>
+    <script src="../assets/js/timetable-lines.js?v=20260926-1"></script>
     <script src="private-data-client.js"></script>
     <script src="yard-movement.js"></script>
     <script>
@@ -547,8 +547,8 @@
             
             const isTargetHoliday = isHoliday(searchDate);
             const searchDayType = isTargetHoliday ? "土休日" : "平日";
-            const candidates = rawJsonData.filter(d =>
-                lineResolver.matchesForSearch(d.line, selectedLine) && normalizeString(d.trainNumber) === targetTrainNoNormalized
+            const candidates = lineResolver.preferredForSearch(
+                rawJsonData.filter(d => normalizeString(d.trainNumber) === targetTrainNoNormalized), selectedLine
             );
             let result = TayunetTimetableVersion.selectForDate(candidates, selectedDateJSON, searchDayType);
 
@@ -795,7 +795,7 @@
         function populateLines() {
             const select = document.getElementById('lineSelect');
             select.innerHTML = '<option value="">(選択)</option>';
-            const lines = lineResolver.canonicalOptions(rawJsonData);
+            const lines = lineResolver.timetableOptions(rawJsonData);
             lines.forEach(line => {
                 const option = document.createElement('option');
                 option.value = line;

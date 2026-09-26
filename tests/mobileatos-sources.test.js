@@ -108,6 +108,20 @@ vm.runInContext('updateSummaryAndTable = (...args) => { window.captured = args; 
   assert.equal(captured[0].stops[0].departureActual, '19:29:00');
   assert.match(captured[5], /Ubuntu列車運行履歴（実績）/);
 
+  elements.get('lineSelect').value = '東北貨物';
+  elements.get('trainNoInput').value = '4074';
+  vm.runInContext(`
+    lineResolver = TayunetTimetableLines.create({lines:[{canonical:'東北',aliases:['東北貨物']}]});
+    rawJsonData = [
+      {line:'東北',trainNumber:'4074',startDate:'2026/09/19',dayType:'土休日',origin:'上野',destination:'大宮',stops:[{station:'上野',departure:'10:00'}]},
+      {line:'東北貨物',trainNumber:'4074',startDate:'2026/09/19',dayType:'土休日',origin:'倉賀野',destination:'川崎貨物',stops:[{station:'倉賀野',departure:'10:35'}]}
+    ];
+  `, context);
+  await vm.runInContext('performSearch()', context);
+  captured = context.window.captured;
+  assert.equal(captured[0].line, '東北貨物');
+  assert.equal(captured[0].origin, '倉賀野');
+
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '$取手', arrival: '20:00',
     arrivalActual: '20:01:00', arrivalDelaySeconds: 60, departure: '=', departureActual: '20:02:00',
     departureDelaySeconds: 120, hasHistory: true, trackN: '1', trainType:'快速'}]})`, context);

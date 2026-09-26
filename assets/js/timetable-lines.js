@@ -73,6 +73,26 @@
       return Boolean(candidateName && searchCanonicals(selected).some(name => key(name) === key(candidateName)));
     }
 
+    function searchPriority(candidate, selected) {
+      const candidateRaw = clean(candidate);
+      const selectedRaw = clean(selected);
+      if (!candidateRaw || !selectedRaw) return 0;
+      if (key(candidateRaw) === key(selectedRaw)) return 3;
+      const candidateName = canonical(candidateRaw);
+      const selectedName = canonical(selectedRaw);
+      if (candidateName && selectedName && key(candidateName) === key(selectedName)) return 2;
+      return searchCanonicals(selectedRaw).some(name => key(name) === key(candidateName)) ? 1 : 0;
+    }
+
+    function preferredForSearch(items, selected, lineOf = item => item?.line) {
+      const source = Array.isArray(items) ? items : [];
+      if (!clean(selected)) return [...source];
+      const ranked = source.map((item, index) => ({ item, index, priority: searchPriority(lineOf(item), selected) }))
+        .filter(entry => entry.priority > 0);
+      const best = ranked.reduce((value, entry) => Math.max(value, entry.priority), 0);
+      return ranked.filter(entry => entry.priority === best).sort((left, right) => left.index - right.index).map(entry => entry.item);
+    }
+
     function canonicalOptions(trains) {
       const preferred = [...new Set((Array.isArray(payload?.displayOrder) ? payload.displayOrder : [])
         .map(canonical).filter(name => configuredCanonicals.includes(name)))];
@@ -83,7 +103,20 @@
       return [...configured, ...additional];
     }
 
-    return Object.freeze({ canonical, searchCanonicals, odptIds, matches, matchesForSearch, canonicalOptions });
+    function timetableOptions(trains) {
+      const rawNames = [...new Set((Array.isArray(trains) ? trains : []).map(train => clean(train?.line)).filter(Boolean))];
+      const configuredOrder = [...new Set([
+        ...(Array.isArray(payload?.displayOrder) ? payload.displayOrder : []),
+        ...configuredCanonicals
+      ].map(canonical).filter(Boolean))];
+      const rank = value => {
+        const index = configuredOrder.indexOf(canonical(value));
+        return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+      };
+      return rawNames.sort((left, right) => rank(left) - rank(right) || left.localeCompare(right, "ja"));
+    }
+
+    return Object.freeze({ canonical, searchCanonicals, odptIds, matches, matchesForSearch, searchPriority, preferredForSearch, canonicalOptions, timetableOptions });
   }
 
   return Object.freeze({ create, normalize: key });
