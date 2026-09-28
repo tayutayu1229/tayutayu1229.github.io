@@ -321,6 +321,14 @@ h2 {
     font: inherit;
 }
 
+.date-search-controls {
+    display: grid;
+    grid-template-columns: minmax(145px, .9fr) minmax(170px, 1.1fr);
+    gap: 8px;
+}
+
+.mobile-sort-field { display: none; }
+
 .search-form input:focus,
 .search-form select:focus {
     outline: 3px solid rgba(23, 107, 77, .16);
@@ -377,6 +385,8 @@ h2 {
     .back-button { min-height: 40px; }
     .search-form { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px; }
     .search-form button { grid-column: auto; width: 100%; }
+    .date-search-controls { grid-template-columns: 1fr; }
+    .mobile-sort-field { display: block; }
     .location-status { margin-top: -12px; }
 
     .table-wrapper { border: 0; overflow: visible; }
@@ -438,7 +448,10 @@ h2 {
             </div>
             <div class="field">
                 <label for="search-date">施行日</label>
-                <input type="search" id="search-date" placeholder="例：2025/11/21">
+                <div class="date-search-controls">
+                    <input type="date" id="search-date-picker" aria-label="カレンダーから施行日を選択">
+                    <input type="search" id="search-date" inputmode="numeric" placeholder="YYYY/MM/DDを入力" aria-label="施行日を直接入力">
+                </div>
             </div>
             <div class="field">
                 <label for="search-number">列車番号</label>
@@ -447,6 +460,20 @@ h2 {
             <div class="field">
                 <label for="search-station">駅名</label>
                 <input type="search" id="search-station" placeholder="始発・終着駅">
+            </div>
+            <div class="field mobile-sort-field">
+                <label for="mobile-sort">並び順</label>
+                <select id="mobile-sort">
+                    <option value="default">登録順（新しい順）</option>
+                    <option value="startDate:asc">施行日（昇順）</option>
+                    <option value="startDate:desc">施行日（降順）</option>
+                    <option value="type:asc">列車種別（昇順）</option>
+                    <option value="type:desc">列車種別（降順）</option>
+                    <option value="trainNumber:asc">列車番号（昇順）</option>
+                    <option value="trainNumber:desc">列車番号（降順）</option>
+                    <option value="section:asc">区間（昇順）</option>
+                    <option value="section:desc">区間（降順）</option>
+                </select>
             </div>
 
             <button id="search-button" type="button">検索</button>
@@ -481,6 +508,7 @@ h2 {
         document.addEventListener('DOMContentLoaded', () => {
             const listBody = document.querySelector('#timetable-list tbody');
             const searchDateInput = document.getElementById('search-date');
+            const searchDatePicker = document.getElementById('search-date-picker');
             const searchNumberInput = document.getElementById('search-number');
             const searchStationInput=document.getElementById('search-station');
             const searchButton = document.getElementById('search-button');
@@ -488,6 +516,7 @@ h2 {
             const outputLocationSelect = document.getElementById('output-location');
             const locationStatus = document.getElementById('location-status');
             const dataStatus = document.getElementById('data-status');
+            const mobileSortSelect = document.getElementById('mobile-sort');
             const WORKBASE_URL = 'https://tayunet-traininfo.com/JREgyoumu/workdata/workbase.json';
             const OUTPUT_LOCATION_KEY = 'atosSelectedOutputLocation';
             const VIEW_STATE_KEY = 'atosTimetableSelectionView:v1';
@@ -600,6 +629,15 @@ h2 {
             let sortCol = null;   // 現在のソート列キー
             let sortDir = 'asc';  // 'asc' or 'desc'
 
+            const syncDatePickerFromInput = () => {
+                const date = searchDateInput.value.trim().replace(/\//g, '-');
+                searchDatePicker.value = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+            };
+
+            const syncMobileSortSelect = () => {
+                mobileSortSelect.value = sortCol ? `${sortCol}:${sortDir}` : 'default';
+            };
+
             // fetchでJSON_PATHからデータを取得する関数
             const loadTimetables = async (forceRefresh = false) => {
                 refreshDataButton.disabled = true;
@@ -644,6 +682,7 @@ h2 {
                         icon.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
                     }
                 });
+                syncMobileSortSelect();
             };
 
             // グループ化済みデータのリストをソートする関数
@@ -671,6 +710,7 @@ h2 {
 
                 if (data.length === 0) {
                      listBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">該当するデータがありません。</td></tr>';
+                     updateSortIcons();
                      return;
                 }
                 
@@ -741,7 +781,7 @@ h2 {
             
             // 検索実行関数
             const applySearchFilter = () => {
-                const dateFilter = searchDateInput.value.trim().toLowerCase();
+                const dateFilter = searchDateInput.value.trim().toLowerCase().replace(/-/g, '/');
                 const numberFilter = searchNumberInput.value.trim().toLowerCase();
                 const stationFilter=searchStationInput.value.trim().toLowerCase();
                 
@@ -787,6 +827,7 @@ h2 {
                     const state = JSON.parse(sessionStorage.getItem(VIEW_STATE_KEY) || 'null');
                     if (!state) return;
                     searchDateInput.value = state.date || '';
+                    syncDatePickerFromInput();
                     searchNumberInput.value = state.number || '';
                     searchStationInput.value = state.station || '';
                     sortCol = state.sortCol || null;
@@ -821,6 +862,21 @@ h2 {
                 });
             });
 
+            mobileSortSelect.addEventListener('change', () => {
+                if (mobileSortSelect.value === 'default') {
+                    sortCol = null;
+                    sortDir = 'asc';
+                } else {
+                    [sortCol, sortDir] = mobileSortSelect.value.split(':');
+                }
+                applySearchFilter();
+            });
+
+            searchDatePicker.addEventListener('change', () => {
+                searchDateInput.value = searchDatePicker.value.replace(/-/g, '/');
+                applySearchFilter();
+            });
+
 
             //検索イベント？？？
             searchButton.addEventListener('click', applySearchFilter);
@@ -849,6 +905,10 @@ h2 {
                     }
                 });
                 input.addEventListener('input', applySearchFilter);
+
+                if (input === searchDateInput) {
+                    input.addEventListener('input', syncDatePickerFromInput);
+                }
 
             });
 
