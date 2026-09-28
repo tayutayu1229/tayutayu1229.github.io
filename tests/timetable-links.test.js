@@ -12,12 +12,14 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
     ['crownSelect', {value: ''}], ['trainNoInput', {value: ''}],
   ]);
   let searched = false;
+  let displayed = null;
   const context = vm.createContext({
     rawJsonData: [],
     normalizeString: value => String(value || '').toUpperCase().replace(/\s/g, ''),
     document: {getElementById: id => values.get(id)},
     TayunetYardMovement: {open: () => false},
     performSearch: () => { searched = true; },
+    updateSummaryAndTable: (...args) => { displayed = args; },
   });
   vm.runInContext(html.slice(start, end), context, {filename: file});
 
@@ -29,7 +31,10 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   context.jumpToTrain('回3101M', 'K-3101', 'next', '大　宮');
   assert.equal(values.get('lineSelect').value, '東北', `${file}: 区間先頭の大宮へ継走できる`);
   assert.equal(values.get('trainNoInput').value, '3101M');
-  assert.equal(searched, true);
+  assert.equal(searched, false, `${file}: 特定済みの継走先を再検索しない`);
+  assert.equal(displayed[0].trainNumber, '回3101M');
+  assert.equal(displayed[1], '東北');
+  assert.equal(displayed[2], '2026/09/20');
 
   searched = false;
   context.rawJsonData = [{
@@ -39,6 +44,7 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   }];
   context.jumpToTrain('回3101M', 'K-3101', 'prev', '大　宮');
   assert.equal(values.get('lineSelect').value, '東北回', `${file}: 区間末尾の大宮へ戻れる`);
-  assert.equal(searched, true);
+  assert.equal(searched, false, `${file}: 戻り方向も特定済みの継走先を再検索しない`);
+  assert.equal(displayed[0].line, '東北回');
 }
 console.log('timetable segment links: ok');
