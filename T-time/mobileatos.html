@@ -335,6 +335,10 @@
             });
             return normalized.toUpperCase().replace(/\s/g, '').trim();
         }
+        function normalizeTrainCrown(value) {
+            const crown = String(value || '').trim();
+            return ["試単", "回", "試", "単", "工", "配", "出", "入"].includes(crown) ? crown : '';
+        }
         function stationKey(value) {
             return normalizeString(String(value || '').split('.').pop().replace(/^[\$＄]/, ''));
         }
@@ -533,7 +537,7 @@
             }
             
             const searchDate = new Date(`${selectedDateUI}T12:00:00`);
-            const crownPart = crownSelect.value;
+            const crownPart = normalizeTrainCrown(crownSelect.value);
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate); 
@@ -597,9 +601,10 @@
             document.getElementById('messageArea').classList.remove('searching');
             document.getElementById('messageArea').classList.remove('not-found');
             const summary = document.getElementById('trainSummary');
+            const displayedCrown = normalizeTrainCrown(crownPart);
             summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
-                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${displayedCrown}${numberPart}`));
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
@@ -706,7 +711,7 @@
             const currentGroupNormalized = normalizeString(currentContinuationGroupId);
             const currentLineNormalized = normalizeString(document.getElementById('lineSelect').value);
             const currentTrainNumNormalized = normalizeString(
-                document.getElementById('crownSelect').value + document.getElementById('trainNoInput').value
+                normalizeTrainCrown(document.getElementById('crownSelect').value) + document.getElementById('trainNoInput').value
             );
             const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
 
@@ -771,7 +776,7 @@
                 if (TayunetYardMovement.open(match, selectedDateJSON)) return;
                 document.getElementById('lineSelect').value = match.line;
                 const trainNum = match.trainNumber;
-                let crown = match.crown || "";
+                let crown = normalizeTrainCrown(match.crown);
                 let numOnly = trainNum;
                 if (crown && trainNum.startsWith(crown)) {
                     numOnly = trainNum.substring(crown.length);

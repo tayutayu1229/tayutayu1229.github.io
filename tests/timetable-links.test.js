@@ -18,6 +18,8 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   const context = vm.createContext({
     rawJsonData: [],
     normalizeString: value => String(value || '').toUpperCase().replace(/\s/g, ''),
+    normalizeTrainCrown: value => ['試単','回','試','単','工','配','出','入'].includes(String(value || '').trim())
+      ? String(value).trim() : '',
     document: {getElementById: id => values.get(id)},
     TayunetYardMovement: {open: () => false},
     TayunetTimetableVersion: require('../assets/js/timetable-version.js'),
@@ -67,5 +69,17 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   context.jumpToTrain('9571', '', 'either', '割　畑', 'KID-20260928-9571');
   assert.equal(displayed[0].line, '東海道貨物', `${file}: 同一列番の継送先は別線区を開く`);
   assert.equal(values.get('lineSelect').value, '東海道貨物');
+
+  values.get('lineSelect').value = '東海道貨物';
+  values.get('trainNoInput').value = '9571';
+  context.rawJsonData = [{
+    trainNumber: '8571', crown: '選択なし', line: '武蔵野', startDate: '2026/09/28', dayType: '平日',
+    continuationGroupId: 'KID-20260928-9571',
+    stops: [{station: '新鶴見'}, {station: '宇都宮タ'}],
+  }];
+  context.jumpToTrain('8571', '', 'either', '新鶴見', 'KID-20260928-9571');
+  assert.equal(displayed[3], '', `${file}: 「選択なし」を冠字として表示しない`);
+  assert.equal(displayed[4], '8571');
+  assert.equal(values.get('trainNoInput').value, '8571');
 }
 console.log('timetable segment links: ok');
