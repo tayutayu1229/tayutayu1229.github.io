@@ -28,6 +28,9 @@ const train = {tt1:'k', tr1:'100M', kid1:'A', tt2:'o', tr2:'200M', kid2:'B', sto
 assert.deepEqual(operations.forStop(train, train.stops[0], 0), {type:'継走', trainNumber:'100M', kid:'A', direction:'prev'});
 assert.deepEqual(operations.forStop(train, train.stops[1], 1), {type:'分割', trainNumber:'101M', kid:'C', direction:'either'});
 assert.deepEqual(operations.forStop(train, train.stops[2], 2), {type:'折返', trainNumber:'200M', kid:'B', direction:'next'});
+assert.deepEqual(operations.forStop({stops:[{}]}, {
+  operationInfo:'継送', operationTrainNumber:'9571'
+}, 0), {type:'継走', trainNumber:'9571', kid:'', direction:'either'});
 for (const value of ['分割','併合','入区','出区','引上','据付','滞泊','車交','特発']) assert.equal(operations.label(value), value);
 
 const typeTrain = {type:'普通', footnotes:['列車防護係員省略','乗務員へ通告'], stops:[

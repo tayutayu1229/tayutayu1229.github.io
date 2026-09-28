@@ -735,7 +735,8 @@
                 const operation = TayunetTimetableOperations.forStop(data, stop, index);
                 const opInfo = operation.type;
                 const opTrain = operation.trainNumber
-                    ? {number:operation.trainNumber, kid:operation.kid, direction:operation.direction, connectionStation:stop.station}
+                    ? {number:operation.trainNumber, kid:operation.kid, direction:operation.direction,
+                        connectionStation:stop.station, continuationGroupId:data.continuationGroupId || ''}
                     : null;
                 
                 const appendCell = (value, className = '') => {
@@ -753,7 +754,8 @@
                 if (opTrain) {
                     const link = document.createElement('button');
                     link.type = 'button'; link.className = 'link-text'; link.textContent = opTrain.number;
-                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction, opTrain.connectionStation));
+                    link.addEventListener('click', () => jumpToTrain(opTrain.number, opTrain.kid, opTrain.direction,
+                        opTrain.connectionStation, opTrain.continuationGroupId));
                     opCell.appendChild(link);
                 }
 
@@ -764,18 +766,29 @@
         /**
          * 運用列番のリンクジャンプ処理 (変更なし)
          */
-        function jumpToTrain(targetTrainNum, currentKid, direction, connectionStation = '') {
+        function jumpToTrain(targetTrainNum, currentKid, direction, connectionStation = '', currentContinuationGroupId = '') {
             if (rawJsonData.length === 0) return;
 
             const targetTrainNumNormalized = normalizeString(targetTrainNum);
             const currentKidNormalized = normalizeString(currentKid);
+            const currentGroupNormalized = normalizeString(currentContinuationGroupId);
+            const currentLineNormalized = normalizeString(document.getElementById('lineSelect').value);
+            const currentTrainNumNormalized = normalizeString(
+                document.getElementById('crownSelect').value + document.getElementById('trainNoInput').value
+            );
             const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
 
             let match = null;
             
-            const candidates = rawJsonData.filter(d => 
+            let candidates = rawJsonData.filter(d =>
                 normalizeString(d.trainNumber) === targetTrainNumNormalized
             );
+            if (currentGroupNormalized) {
+                const grouped = candidates.filter(d =>
+                    normalizeString(d.continuationGroupId) === currentGroupNormalized
+                );
+                if (grouped.length) candidates = grouped;
+            }
             const stationKey = normalizeString(connectionStation).replace(/[\s　駅]/g, '');
             const connectionCandidates = candidates.filter(d => {
                 const stops = d.stops || [];
@@ -789,19 +802,30 @@
                     : (stops[0]?.station || d.origin);
                 return !stationKey || normalizeString(endpoint).replace(/[\s　駅]/g, '') === stationKey;
             });
+            let selectionCandidates = connectionCandidates;
+            if (currentGroupNormalized && targetTrainNumNormalized === currentTrainNumNormalized) {
+                const differentLineAtConnection = connectionCandidates.filter(d =>
+                    normalizeString(d.line) !== currentLineNormalized
+                );
+                const differentLineInGroup = candidates.filter(d =>
+                    normalizeString(d.line) !== currentLineNormalized
+                );
+                if (differentLineAtConnection.length) selectionCandidates = differentLineAtConnection;
+                else if (differentLineInGroup.length) selectionCandidates = differentLineInGroup;
+            }
             
             // 1. kid マッチング
             if (currentKidNormalized !== "") {
                 if (direction === 'prev') {
-                    const matches = connectionCandidates.filter(d => normalizeString(d.kid2 || d.kid || '') === currentKidNormalized);
+                    const matches = selectionCandidates.filter(d => normalizeString(d.kid2 || d.kid || '') === currentKidNormalized);
                     if (matches.length === 1) match = matches[0];
                 } 
                 else if (direction === 'next') {
-                    const matches = connectionCandidates.filter(d => normalizeString(d.kid1 || d.kid || '') === currentKidNormalized);
+                    const matches = selectionCandidates.filter(d => normalizeString(d.kid1 || d.kid || '') === currentKidNormalized);
                     if (matches.length === 1) match = matches[0];
                 }
                 else {
-                    const matches = connectionCandidates.filter(d => [d.kid1, d.kid2, d.kid].some(value => normalizeString(value || '') === currentKidNormalized));
+                    const matches = selectionCandidates.filter(d => [d.kid1, d.kid2, d.kid].some(value => normalizeString(value || '') === currentKidNormalized));
                     if (matches.length === 1) match = matches[0];
                 }
             }
@@ -810,9 +834,9 @@
             if (!match) {
                  const selectedDate = new Date(`${selectedDateJSON.replace(/\//g, '-')}T12:00:00`);
                  const selectedDayType = isHoliday(selectedDate) ? '土休日' : '平日';
-                 const dated = TayunetTimetableVersion.versionsForDate(connectionCandidates, selectedDateJSON, selectedDayType);
+                 const dated = TayunetTimetableVersion.versionsForDate(selectionCandidates, selectedDateJSON, selectedDayType);
                  if (dated.length === 1) match = dated[0];
-                 else if (connectionCandidates.length === 1) match = connectionCandidates[0];
+                 else if (selectionCandidates.length === 1) match = selectionCandidates[0];
             }
 
 
