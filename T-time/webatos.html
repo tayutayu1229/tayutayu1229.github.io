@@ -600,11 +600,6 @@
             return normalized;
         }
 
-        function normalizeTrainCrown(value) {
-            const crown = String(value || '').trim();
-            return ["試単", "回", "試", "単", "工", "配", "出", "入"].includes(crown) ? crown : '';
-        }
-
         function showSearchHelp() {
             const messageArea = document.getElementById('messageArea');
             messageArea.textContent = '線区と施行日を選び、列車番号を入力すると検索します。回送・試運転などは列車番号左側の種別も選択してください。';
@@ -666,7 +661,7 @@
             
             const searchDate = new Date(selectedDateUI); 
             
-            const crownPart = normalizeTrainCrown(crownSelect.value);
+            const crownPart = crownSelect.value;
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate);
@@ -712,13 +707,12 @@
 
             // Summary表示の修正
             const summary = document.getElementById('trainSummary');
-            const displayedCrown = normalizeTrainCrown(crownPart);
             const firstLine = document.createElement('span');
             firstLine.className = 'summary-line';
             firstLine.textContent = `■${selectedLine}`;
             summary.replaceChildren(firstLine, document.createTextNode(` 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
-                    `運転区間:${result.origin}～${result.destination} 列車番号:${displayedCrown}${numberPart}`));
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
 
             updateSystemClock(selectedDateJSON);
             renderTable(result);
@@ -780,7 +774,7 @@
             const currentGroupNormalized = normalizeString(currentContinuationGroupId);
             const currentLineNormalized = normalizeString(document.getElementById('lineSelect').value);
             const currentTrainNumNormalized = normalizeString(
-                normalizeTrainCrown(document.getElementById('crownSelect').value) + document.getElementById('trainNoInput').value
+                document.getElementById('crownSelect').value + document.getElementById('trainNoInput').value
             );
             const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
 
@@ -851,27 +845,15 @@
                 document.getElementById('lineSelect').value = match.line;
                 
                 const trainNum = match.trainNumber;
-                let crown = normalizeTrainCrown(match.crown);
-                let numOnly = trainNum;
-
-                if (crown && trainNum.startsWith(crown)) {
-                    numOnly = trainNum.substring(crown.length);
-                } else {
-                    const potentialCrowns = ["試単", "回", "試", "単", "工", "配", "出", "入"];
-                    for (const pc of potentialCrowns) {
-                        if (trainNum.startsWith(pc)) {
-                            crown = pc;
-                            numOnly = trainNum.substring(pc.length);
-                            break;
-                        }
-                    }
-                }
+                const potentialCrowns = ["試単", "回", "試", "単", "工", "配", "出", "入"];
+                const crown = potentialCrowns.find(pc => trainNum.startsWith(pc)) || "";
+                const numOnly = crown ? trainNum.substring(crown.length) : trainNum;
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
 
                 // 継走先は kid・接続駅・施行日で特定済みなので、検索条件へ戻して
                 // 再検索せず、そのJSONレコードを直接表示する。
-                updateSummaryAndTable(match, match.line, selectedDateJSON, crown, numOnly);
+                updateSummaryAndTable(match, match.line, selectedDateJSON, '', trainNum);
 
             } else {
                 document.getElementById('messageArea').innerText = '指定された列車番号は存在しません。';

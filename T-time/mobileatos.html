@@ -335,10 +335,6 @@
             });
             return normalized.toUpperCase().replace(/\s/g, '').trim();
         }
-        function normalizeTrainCrown(value) {
-            const crown = String(value || '').trim();
-            return ["試単", "回", "試", "単", "工", "配", "出", "入"].includes(crown) ? crown : '';
-        }
         function stationKey(value) {
             return normalizeString(String(value || '').split('.').pop().replace(/^[\$＄]/, ''));
         }
@@ -537,7 +533,7 @@
             }
             
             const searchDate = new Date(`${selectedDateUI}T12:00:00`);
-            const crownPart = normalizeTrainCrown(crownSelect.value);
+            const crownPart = crownSelect.value;
             const numberPart = noInput.value;
             const targetTrainNoNormalized = normalizeString(crownPart + numberPart);
             const selectedDateJSON = formatJsonDate(searchDate); 
@@ -601,10 +597,9 @@
             document.getElementById('messageArea').classList.remove('searching');
             document.getElementById('messageArea').classList.remove('not-found');
             const summary = document.getElementById('trainSummary');
-            const displayedCrown = normalizeTrainCrown(crownPart);
             summary.replaceChildren(document.createTextNode(`■${selectedLine} 施行日:${selectedDateJSON}`),
                 document.createElement('br'), document.createTextNode(
-                    `運転区間:${result.origin}～${result.destination} 列車番号:${displayedCrown}${numberPart}`));
+                    `運転区間:${result.origin}～${result.destination} 列車番号:${crownPart}${numberPart}`));
             updateSystemClock(selectedDateJSON);
             renderTable(result);
         }
@@ -711,7 +706,7 @@
             const currentGroupNormalized = normalizeString(currentContinuationGroupId);
             const currentLineNormalized = normalizeString(document.getElementById('lineSelect').value);
             const currentTrainNumNormalized = normalizeString(
-                normalizeTrainCrown(document.getElementById('crownSelect').value) + document.getElementById('trainNoInput').value
+                document.getElementById('crownSelect').value + document.getElementById('trainNoInput').value
             );
             const selectedDateJSON = document.getElementById('dateInput').value.replace(/-/g, '/');
 
@@ -776,26 +771,15 @@
                 if (TayunetYardMovement.open(match, selectedDateJSON)) return;
                 document.getElementById('lineSelect').value = match.line;
                 const trainNum = match.trainNumber;
-                let crown = normalizeTrainCrown(match.crown);
-                let numOnly = trainNum;
-                if (crown && trainNum.startsWith(crown)) {
-                    numOnly = trainNum.substring(crown.length);
-                } else {
-                    const potentialCrowns = ["試単", "回", "試", "単", "工", "配", "出", "入"];
-                    for (const pc of potentialCrowns) {
-                        if (trainNum.startsWith(pc)) {
-                            crown = pc;
-                            numOnly = trainNum.substring(pc.length);
-                            break;
-                        }
-                    }
-                }
+                const potentialCrowns = ["試単", "回", "試", "単", "工", "配", "出", "入"];
+                const crown = potentialCrowns.find(pc => trainNum.startsWith(pc)) || "";
+                const numOnly = crown ? trainNum.substring(crown.length) : trainNum;
                 document.getElementById('crownSelect').value = crown;
                 document.getElementById('trainNoInput').value = numOnly;
                 
                 // 継走先は kid・接続駅・施行日で特定済みなので、検索条件へ戻して
                 // 再検索せず、そのJSONレコードを直接表示する。
-                updateSummaryAndTable(match, match.line, selectedDateJSON, crown, numOnly, '登録時刻表（継走）');
+                updateSummaryAndTable(match, match.line, selectedDateJSON, '', trainNum, '登録時刻表（継走）');
             } else {
                 const msgArea = document.getElementById('messageArea');
                 msgArea.innerText = '指定された列車番号は存在しません。';

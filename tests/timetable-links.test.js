@@ -18,8 +18,6 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   const context = vm.createContext({
     rawJsonData: [],
     normalizeString: value => String(value || '').toUpperCase().replace(/\s/g, ''),
-    normalizeTrainCrown: value => ['試単','回','試','単','工','配','出','入'].includes(String(value || '').trim())
-      ? String(value).trim() : '',
     document: {getElementById: id => values.get(id)},
     TayunetYardMovement: {open: () => false},
     TayunetTimetableVersion: require('../assets/js/timetable-version.js'),
@@ -41,6 +39,8 @@ for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   assert.equal(displayed[0].trainNumber, '回3101M');
   assert.equal(displayed[1], '東北');
   assert.equal(displayed[2], '2026/09/20');
+  assert.equal(displayed[3], '', `${file}: 継走表示は別の冠字項目を連結しない`);
+  assert.equal(displayed[4], '回3101M', `${file}: JSONのtrainNumberをそのまま表示する`);
 
   searched = false;
   context.rawJsonData = [{
