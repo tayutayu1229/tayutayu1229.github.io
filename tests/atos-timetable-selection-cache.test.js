@@ -18,6 +18,8 @@ assert.match(source, /<select id="mobile-sort">[\s\S]*startDate:asc[\s\S]*trainN
 assert.match(source, /mobileSortSelect\.addEventListener\('change',[\s\S]*sortCol, sortDir[\s\S]*applySearchFilter\(\)/, 'スマホの並び順選択を一覧へ反映すること');
 assert.match(source, /<input type="date" id="search-date-picker"/, '施行日をカレンダーから選択できること');
 assert.match(source, /<input type="search" id="search-date"[\s\S]*YYYY\/MM\/DDを入力/, '施行日を直接入力できること');
+assert.match(source, /#search-date \{ display: none; \}[\s\S]*@media \(max-width: 600px\)[\s\S]*#search-date \{ display: block; \}/, '施行日の直接入力欄はスマホだけに表示すること');
+assert.match(source, /<div class="search-actions">[\s\S]*id="search-button"[\s\S]*id="refresh-data-button"/, '検索と更新の操作を同じ欄にまとめること');
 assert.match(source, /searchDateInput\.value\.trim\(\)\.toLowerCase\(\)\.replace\(\/-\/g, '\/'\)/, '直接入力したハイフン区切りの日付でも検索できること');
 assert.doesNotMatch(source, /localStorage\.setItem\([^\n]*TimetableCache/i, '保護時刻表を永続保存しないこと');
 
