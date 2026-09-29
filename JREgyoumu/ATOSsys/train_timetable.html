@@ -461,7 +461,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/css/site-brand.css">
-<script src="/assets/js/timetable-fields.js"></script>
+<script src="/assets/js/timetable-fields.js?v=20260929-1"></script>
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
 </head>
@@ -548,6 +548,14 @@
             }
 
             return String(time);
+        };
+
+        const pairedStopTimes = (stop) => {
+            const arrival = String(stop?.arrival ?? '');
+            const departure = String(stop?.departure ?? '');
+            const markers = ['||', '｜｜', 'Ⅱ', '∥'];
+            const marker = [arrival, departure].find(value => markers.includes(value.trim()));
+            return marker ? {...stop, arrival: marker, departure: marker} : stop;
         };
 
         const setFormattedTime = (element, time) => {
@@ -794,7 +802,7 @@ if (parts.length === 2) {
                         allStops.push({
                             line: segment.line,
                             segmentIndex,
-                            ...stops[index]
+                            ...pairedStopTimes(stops[index])
                         });
                     }
                 } else {
@@ -804,7 +812,7 @@ if (parts.length === 2) {
                         allStops.push({
                             line: segment.line,
                             segmentIndex,
-                            ...stop
+                            ...pairedStopTimes(stop)
                         });
                     });
                 }
@@ -878,7 +886,6 @@ if (parts.length === 2) {
             };
 
             const appendStopCells = (row, stop, globalRowIndex) => {
-                const displayedTimes = TayunetTimetableFields.displayedTimes(stop);
                 const stationCell = row.insertCell();
                 stationCell.className = 'station-name';
                 const stationName = stop.station || '...';
@@ -927,14 +934,14 @@ if (parts.length === 2) {
 
                 createTimeCell(
                     row,
-                    displayedTimes.arrival,
+                    stop.arrival,
                     stop.trackN || '',
                     showArrivalTrack,
                     isActualOriginRow
                 );
                 createTimeCell(
                     row,
-                    displayedTimes.departure,
+                    stop.departure,
                     stop.trackN || '',
                     showDepartureTrack
                 );
@@ -1088,12 +1095,11 @@ if (parts.length === 2) {
                         '\n';
 
                     allStops.forEach((stop) => {
-                        const displayedTimes = TayunetTimetableFields.displayedTimes(stop);
                         const rowData = [
                             stop.line || '...',
                             stop.station || '...',
-                            formatTime(displayedTimes.arrival),
-                            formatTime(displayedTimes.departure),
+                            formatTime(stop.arrival),
+                            formatTime(stop.departure),
                             stop.trackN || '...'
                         ];
 

@@ -19,7 +19,8 @@ assert.match(viewer, /applyExecutionDate/);
 assert.match(viewer, /id="include-footnotes"/);
 assert.match(viewer, /class="timetable-footnotes" id="timetable-footnotes"/);
 assert.match(viewer, /TayunetTimetableFields\.footnotes/);
-assert.match(viewer, /TayunetTimetableFields\.displayedTimes/);
+assert.match(viewer, /pairedStopTimes/);
+assert.doesNotMatch(viewer, /const appendStopCells[\s\S]*TayunetTimetableFields\.displayedTimes/, 'PDF画面の行描画は従来どおり単独で動くこと');
 
 const station = fs.readFileSync('T-time/ekibetuatos.html', 'utf8');
 assert.match(station, /appendLinkCell\(tr, train\.trainNumber, \(\) => showOverlay\(train\)\)/);
