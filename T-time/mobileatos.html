@@ -640,6 +640,7 @@
             tbody.innerHTML = '';
             data.stops.forEach((stop, index) => {
                 const tr = document.createElement('tr');
+                const displayedTimes = TayunetTimetableFields.displayedTimes(stop);
                 const cancelled = /^[\$＄]/.test(String(stop.station || '').trimStart());
                 if (cancelled) tr.classList.add('cancelled-row');
                 
@@ -653,8 +654,8 @@
                     : null;
 
                 // ★★★ 修正箇所: 着時刻の表示を正規化関数で処理 ★★★
-                const displayArrival = data.historyOnly ? '' : getDisplayTime(stop.arrival);
-                const displayDeparture = stop.departure || ''; // 発時刻は空なら空文字列（始発/終着）
+                const displayArrival = data.historyOnly ? '' : getDisplayTime(displayedTimes.arrival);
+                const displayDeparture = displayedTimes.departure || ''; // 発時刻は空なら空文字列（始発/終着）
                 const arrivalDone = Boolean(stop.arrivalActual);
                 const departureDone = Boolean(stop.departureActual);
                 const arrivalDelay = Number.isFinite(Number(stop.arrivalDelaySeconds))
@@ -662,9 +663,9 @@
                 const departureDelay = Number.isFinite(Number(stop.departureDelaySeconds))
                     ? Number(stop.departureDelaySeconds) : Number(stop.predictionDelaySeconds);
                 const arrivalPrediction = arrivalDone ? stop.arrivalActual
-                    : (stop.hasHistory ? offsetTimeSeconds(stop.arrival, arrivalDelay) : '');
+                    : (stop.hasHistory ? offsetTimeSeconds(displayedTimes.arrival, arrivalDelay) : '');
                 const departurePrediction = departureDone ? stop.departureActual
-                    : (stop.hasHistory ? offsetTimeSeconds(stop.departure, departureDelay) : '');
+                    : (stop.hasHistory ? offsetTimeSeconds(displayedTimes.departure, departureDelay) : '');
                 const rowDelaySeconds = [stop.departureDelaySeconds, stop.arrivalDelaySeconds,
                     stop.historyDelaySeconds, stop.predictionDelaySeconds]
                     .map(Number).find(Number.isFinite);

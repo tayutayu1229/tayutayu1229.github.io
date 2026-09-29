@@ -19,16 +19,23 @@ assert.match(viewer, /applyExecutionDate/);
 assert.match(viewer, /id="include-footnotes"/);
 assert.match(viewer, /class="timetable-footnotes" id="timetable-footnotes"/);
 assert.match(viewer, /TayunetTimetableFields\.footnotes/);
+assert.match(viewer, /TayunetTimetableFields\.displayedTimes/);
 
 const station = fs.readFileSync('T-time/ekibetuatos.html', 'utf8');
 assert.match(station, /appendLinkCell\(tr, train\.trainNumber, \(\) => showOverlay\(train\)\)/);
 assert.doesNotMatch(station, /class="modal-header"/, '駅別から開く列車モーダルにヘッダーを表示しないこと');
 assert.match(station, /class="close-btn"[^>]*>閉じる/);
+assert.match(station, /TayunetTimetableFields\.displayedTimes/);
 
 for (const file of ['T-time/webatos.html', 'T-time/mobileatos.html']) {
   const source = fs.readFileSync(file, 'utf8');
   assert.match(source, /指定された列車番号は存在しません。/);
   assert.match(source, /TayunetTimetableFields\.displayedType/);
+  assert.match(source, /TayunetTimetableFields\.displayedTimes/);
+}
+
+for (const file of ['T-time/T-time.html', 'atosweb.html', 'JREgyoumu/ATOSsys/GD/diagram.html']) {
+  assert.match(fs.readFileSync(file, 'utf8'), /TayunetTimetableFields\.displayedTimes/, `${file}: 着発の||表示をそろえること`);
 }
 
 console.log('timetable optional fields UI: ok');

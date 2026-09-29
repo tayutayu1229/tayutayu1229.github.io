@@ -386,6 +386,7 @@
 
                 grouped[label].forEach((train, rowIdx) => {
                     const s = train.stops.find(st => sameStation(st.station, station));
+                    const displayedTimes = TayunetTimetableFields.displayedTimes(s);
                     const stopIdx = train.stops.findIndex(st => sameStation(st.station, station));
                     const tr = document.createElement('tr');
                     if (rowIdx === 0 && groupIdx > 0) tr.classList.add('row-boundary');
@@ -403,9 +404,9 @@
                     typeCell.style.textAlign = 'left';
                     typeCell.style.paddingLeft = '4px';
                     appendCell(tr, autoDeterminePower(train));
-                    appendCell(tr, formatDisplayTime(s.arrival), 'col-time');
+                    appendCell(tr, formatDisplayTime(displayedTimes.arrival), 'col-time');
                     appendCell(tr, '');
-                    appendCell(tr, formatDisplayTime(s.departure), 'col-time');
+                    appendCell(tr, formatDisplayTime(displayedTimes.departure), 'col-time');
                     appendCell(tr, '');
                     appendCell(tr, safeVal(s.trackN), 'col-trk');
                     const operation = getStopOperation(train, s, stopIdx);
@@ -519,14 +520,15 @@
             const modalBody = document.createElement('tbody');
             serviceRows.forEach((serviceRow, index) => {
                 const s = serviceRow.stop;
+                const displayedTimes = TayunetTimetableFields.displayedTimes(s);
                 const row = document.createElement('tr');
                 const operation = getStopOperation(train, s, index);
                 appendCell(row, TayunetTimetableFields.displayedType(train, s, index));
                 appendCell(row, '');
                 appendCell(row, safeVal(s.station));
-                appendCell(row, formatDisplayTime(s.arrival), 'col-time');
+                appendCell(row, formatDisplayTime(displayedTimes.arrival), 'col-time');
                 appendCell(row, '');
-                appendCell(row, safeVal(s.departure) ? formatDisplayTime(s.departure) : '', 'col-time');
+                appendCell(row, safeVal(displayedTimes.departure) ? formatDisplayTime(displayedTimes.departure) : '', 'col-time');
                 appendCell(row, '');
                 appendCell(row, safeVal(s.trackN), 'col-trk');
                 appendCell(row, operation.type);

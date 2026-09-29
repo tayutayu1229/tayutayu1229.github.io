@@ -36,5 +36,17 @@
     return values.map(text).filter(Boolean);
   }
 
-  return { explicitType, typeAtStop, displayedType, footnotes };
+  function doubleBar(value) {
+    const marker = text(value);
+    return ['||', '｜｜', 'Ⅱ', '∥'].includes(marker) ? marker : '';
+  }
+
+  function displayedTimes(stop) {
+    const arrival = String(stop?.arrival ?? '');
+    const departure = String(stop?.departure ?? '');
+    const marker = doubleBar(arrival) || doubleBar(departure);
+    return marker ? {arrival: marker, departure: marker} : {arrival, departure};
+  }
+
+  return { explicitType, typeAtStop, displayedType, footnotes, displayedTimes };
 });

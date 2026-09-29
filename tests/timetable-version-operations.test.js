@@ -41,5 +41,9 @@ assert.equal(fields.displayedType(typeTrain, typeTrain.stops[1], 1), '快速');
 assert.equal(fields.displayedType(typeTrain, typeTrain.stops[2], 2), '');
 assert.equal(fields.typeAtStop(typeTrain, 2), '快速');
 assert.deepEqual(fields.footnotes(typeTrain), ['列車防護係員省略','乗務員へ通告']);
+assert.deepEqual(fields.displayedTimes({arrival:'||', departure:''}), {arrival:'||', departure:'||'});
+assert.deepEqual(fields.displayedTimes({arrival:'', departure:'||'}), {arrival:'||', departure:'||'});
+assert.deepEqual(fields.displayedTimes({arrival:'Ⅱ', departure:''}), {arrival:'Ⅱ', departure:'Ⅱ'});
+assert.deepEqual(fields.displayedTimes({arrival:'10:00', departure:'10:01'}), {arrival:'10:00', departure:'10:01'});
 
 console.log('timetable version and operation tests: ok');

@@ -3251,8 +3251,9 @@ function showExternalTrainTimetable(train,dateValue,inline=false){
   html+=`<div class="atos-table-wrap"><table class="atos-table external-train-table"><thead><tr><th rowspan="2">列車種別</th><th rowspan="2">抑止</th><th rowspan="2">駅名</th><th colspan="2">着時刻</th><th colspan="2">発時刻</th><th rowspan="2">番線</th><th rowspan="2">運用情報</th><th rowspan="2">運用列番</th></tr><tr><th>時間</th><th>到着</th><th>時間</th><th>発車</th></tr></thead><tbody>`;
   stops.forEach((stop,index)=>{
     const operation=TayunetTimetableOperations.forStop(train,stop,index);
+    const displayedTimes=TayunetTimetableFields.displayedTimes(stop);
     const linked=operation.trainNumber?`<button class="train-link" data-atos-action="open-external-linked" data-train="${encodeAtosActionValue(operation.trainNumber)}" data-kid="${encodeAtosActionValue(operation.kid)}" data-direction="${operation.direction}" data-inline="${inline?'true':'false'}">${diagEscape(operation.trainNumber)}</button>`:'';
-    html+=`<tr><td>${diagEscape(TayunetTimetableFields.displayedType(train,stop,index))}</td><td></td><td><strong>${diagEscape(atosDisplayStationName(stop.station)||'—')}</strong></td><td class="time">${diagEscape(externalTime(stop.arrival))}</td><td></td><td class="time">${diagEscape(stop.departure||'')}</td><td></td><td>${diagEscape(stop.trackN||'—')}</td><td>${diagEscape(operation.type)}</td><td>${linked}</td></tr>`;
+    html+=`<tr><td>${diagEscape(TayunetTimetableFields.displayedType(train,stop,index))}</td><td></td><td><strong>${diagEscape(atosDisplayStationName(stop.station)||'—')}</strong></td><td class="time">${diagEscape(externalTime(displayedTimes.arrival))}</td><td></td><td class="time">${diagEscape(displayedTimes.departure||'')}</td><td></td><td>${diagEscape(stop.trackN||'—')}</td><td>${diagEscape(operation.type)}</td><td>${linked}</td></tr>`;
   });
   html+=`</tbody></table></div><div style="margin-top:8px;font-weight:800;font-size:.7rem">「$」…運休　「*」…運済　「#」…変更　「¥」…運転禁止</div>`;
   output.innerHTML=html;
