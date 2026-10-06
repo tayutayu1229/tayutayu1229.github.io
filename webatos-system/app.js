@@ -82,6 +82,7 @@
   const destination = t => stationName((t?.["odpt:destinationStation"]||[])[0]) || "　　　";
   const noData = message => `<div class="data-empty">${esc(message)}</div>`;
   const infoTime = value => {const d=new Date(value);return value&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(d):String(value||"");};
+  const informationTitle = (railway,text) => {const known=lineName(railway);if(known!=="未対応線区")return known;const match=String(text||"").match(/^(.+?線)(?:（|は)/);return match?.[1]||String(railway||"").split(".").pop()||"";};
 
   function renderNav(){
     setMarkup($("#main-nav"),NAV.map(item=>`<div class="nav-wrap" data-wrap="${item.id}"><button class="nav-btn ${state.screen.startsWith(item.id)?"active":""} ${item.menu?"has-menu":""} ${item.id==="information"&&state.infoActive?"has-information":""}" data-screen="${item.id}">${item.label}</button>${item.menu?`<div class="subnav">${item.menu.map(([id,label])=>`<button data-screen="${id}">${label}</button>`).join("")}</div>`:""}</div>`).join(""));
@@ -101,8 +102,8 @@
       const response=await fetch("/api/odpt/challenge/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is",{headers:{Accept:"application/json"},cache:"no-store"});
       if(!response.ok) throw new Error(String(response.status));
       const data=await response.json();
-      const mapped=(Array.isArray(data)?data:[]).map(x=>{const status=x["odpt:trainInformationStatus"]?.ja||"お知らせ",date=x["dc:date"]||x["odpt:timeOfOrigin"]||x["dct:valid"]||"";return {id:x["@id"]||x["owl:sameAs"]||`${x["odpt:railway"]||""}-${date}`,title:lineName(x["odpt:railway"]),status,text:x["odpt:trainInformationText"]?.ja||"",cause:x["odpt:trainInformationCause"]?.ja||"",range:x["odpt:trainInformationRange"]?.ja||"",date,category:status==="お知らせ"||status==="平常運転"?"general":"accident"};}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-      state.info=mapped;state.infoError=false;state.infoActive=mapped.some(item=>item.status!=="平常運転");renderNav();
+      const mapped=(Array.isArray(data)?data:[]).map(x=>{const status=x["odpt:trainInformationStatus"]?.ja||"",text=x["odpt:trainInformationText"]?.ja||"",date=x["dc:date"]||x["odpt:timeOfOrigin"]||x["dct:valid"]||"";return {id:x["@id"]||x["owl:sameAs"]||`${x["odpt:railway"]||""}-${date}`,title:informationTitle(x["odpt:railway"],text),status,text,cause:x["odpt:trainInformationCause"]?.ja||"",range:x["odpt:trainInformationRange"]?.ja||"",date,category:"accident"};}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+      state.info=mapped;state.infoError=false;state.infoActive=mapped.some(item=>item.status!=="平常運転"&&item.text!=="平常運転");renderNav();
     }catch(_){state.info=[];state.infoActive=false;state.infoError=true;renderNav();}
   }
   async function fetchTimetables(){
