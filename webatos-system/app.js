@@ -38,6 +38,27 @@
     "五日市":{railways:["Itsukaichi"],focus:"拝島",stations:["拝島","熊川","東秋留","秋川","武蔵引田","武蔵増戸","武蔵五日市"]}
   };
   const LINE_NAMES = Object.keys(LINE_CONFIG);
+  const LINE_VISUALS = {
+    "山手":{color:"#00f000",down:"外回",up:"内回"},
+    "京浜東北・根岸":{color:"#00a8f3",down:"南行",up:"北行"},
+    "中央":{color:"#ff7f00",down:"下り",up:"上り"},
+    "武蔵野":{color:"#ff6a00",down:"下り",up:"上り"},
+    "常磐":{color:"#00a650",down:"下り",up:"上り"},
+    "常磐緩行":{color:"#00b8a9",down:"下り",up:"上り"},
+    "横須賀・総武快速":{color:"#0068c9",down:"下り",up:"上り"},
+    "東北":{color:"#ff851b",down:"下り",up:"上り"},
+    "高崎":{color:"#ff851b",down:"下り",up:"上り"},
+    "東海道":{color:"#ff851b",down:"下り",up:"上り"},
+    "東海道貨物":{color:"#ff851b",down:"下り",up:"上り"},
+    "南武":{color:"#ffd400",down:"下り",up:"上り"},
+    "埼京川越・山貨":{color:"#00a651",down:"下り",up:"上り"},
+    "中央・総武緩行":{color:"#fff000",down:"東行",up:"西行"},
+    "東北貨物":{color:"#ff851b",down:"下り",up:"上り"},
+    "横浜":{color:"#7ac143",down:"下り",up:"上り"},
+    "青梅":{color:"#ff7f00",down:"下り",up:"上り"},
+    "京葉":{color:"#c90035",down:"下り",up:"上り"},
+    "五日市":{color:"#ff7f00",down:"下り",up:"上り"}
+  };
   const STATION_TRANSLATIONS = {
     Gotanda:"五反田",Meguro:"目黒",Ebisu:"恵比寿",Shibuya:"渋谷",Harajuku:"原宿",Yoyogi:"代々木",Shinjuku:"新宿",ShinOkubo:"新大久保",Takadanobaba:"高田馬場",Mejiro:"目白",Ikebukuro:"池袋",Otsuka:"大塚",Sugamo:"巣鴨",Komagome:"駒込",Tabata:"田端",NishiNippori:"西日暮里",Nippori:"日暮里",Uguisudani:"鶯谷",Ueno:"上野",Okachimachi:"御徒町",Akihabara:"秋葉原",Kanda:"神田",Tokyo:"東京",Yurakucho:"有楽町",Shimbashi:"新橋",Hamamatsucho:"浜松町",Tamachi:"田町",TakanawaGateway:"高輪ゲートウェイ",Shinagawa:"品川",Osaki:"大崎",
     Omiya:"大宮",SaitamaShintoshin:"さいたま新都心",Yono:"与野",KitaUrawa:"北浦和",Urawa:"浦和",MinamiUrawa:"南浦和",Warabi:"蕨",NishiKawaguchi:"西川口",Kawaguchi:"川口",Akabane:"赤羽",HigashiJujo:"東十条",Oji:"王子",Kaminakazato:"上中里",Oku:"尾久",Miyahara:"宮原",Ageo:"上尾",KitaAgeo:"北上尾",Okegawa:"桶川",Kitamoto:"北本",Konosu:"鴻巣",KitaKonosu:"北鴻巣",Fukiage:"吹上",Gyoda:"行田",Kumagaya:"熊谷",Kagohara:"籠原",Fukaya:"深谷",Okabe:"岡部",Honjo:"本庄",Jimbohara:"神保原",Shimmachi:"新町",Kuragano:"倉賀野",Takasaki:"高崎",
@@ -129,9 +150,8 @@
   function routeSegments(){
     const config=LINE_CONFIG[state.selectedLine]||LINE_CONFIG["東北貨物"];
     if(config.segments)return config.segments;
-    const center=Math.max(0,config.stations.findIndex(x=>compact(x)===compact(state.selectedStation)));
-    const start=Math.max(0,Math.min(center-1,config.stations.length-4));
-    return [config.stations.slice(start,start+4)];
+    if(state.selectedLine==="山手")return [config.stations.slice(0,15),config.stations.slice(15).reverse()];
+    return Array.from({length:Math.ceil(config.stations.length/4)},(_,i)=>config.stations.slice(i*4,i*4+4));
   }
   function onlineToolbar(){
     const lines=LINE_NAMES.map(line=>`<option${line===state.selectedLine?" selected":""}>${line}</option>`).join("");
@@ -140,25 +160,27 @@
   }
   function online(){
     const config=LINE_CONFIG[state.selectedLine]||LINE_CONFIG["東北貨物"];
+    const visual=LINE_VISUALS[state.selectedLine]||LINE_VISUALS["東北貨物"];
     const lineTrains=state.live.filter(t=>config.railways.includes(String(t["odpt:railway"]||"").split(".").pop()));
     const segments=routeSegments();
     const boards=segments.map((stations,segmentIndex)=>{
+      const segmentWidth=Math.max(980,stations.length*220);
       const stationButtons=stations.map((station,i)=>`<button class="station-node ${compact(station)===compact(state.selectedStation)?"selected":""}" data-station="${esc(station)}" style="left:${98+i*220}px">${esc(station)}</button>`).join("");
       const visible=new Set(stations.map(compact));
       const candidates=lineTrains.filter(t=>visible.has(compact(stationName(t["odpt:fromStation"])))||visible.has(compact(stationName(t["odpt:toStation"])))).slice(0,10);
       const chips=candidates.map((t,i)=>{
         const from=compact(stationName(t["odpt:fromStation"])),to=compact(stationName(t["odpt:toStation"]));
         let index=stations.findIndex(x=>compact(x)===from);if(index<0)index=stations.findIndex(x=>compact(x)===to);if(index<0)index=0;
-        const up=String(t["odpt:railDirection"]||"").includes("Inbound");
+        const railDirection=String(t["odpt:railDirection"]||"");const up=railDirection.includes("Inbound")||railDirection.includes("InnerLoop")||railDirection.includes("Northbound");
         const laneOffset=(i%2)*8;
-        const left=Math.min(850,Math.max(100,98+index*220+(to&&from!==to?105:0)+laneOffset));
+        const left=Math.min(segmentWidth-100,Math.max(100,98+index*220+(to&&from!==to?105:0)+laneOffset));
         const destinationText=state.showDestination?`<small>${esc(destination(t))}</small>`:"";
         return `<button class="train-chip ${up?"up":"down"}" data-train="${esc(t["odpt:trainNumber"])}" style="left:${left}px">${esc(t["odpt:trainNumber"]||"")} ${String(delayMin(t)).padStart(3,"0")}${destinationText}</button>`;
       }).join("");
-      return `<section class="route-segment" data-segment="${segmentIndex}"><div class="direction-ribbon down">下り</div><div class="route-rail"></div>${stationButtons}<div class="direction-ribbon up">上り</div>${chips}</section>`;
+      return `<section class="route-segment" data-segment="${segmentIndex}" style="width:${segmentWidth}px"><div class="direction-ribbon down">${visual.down}</div><div class="route-rail"></div>${stationButtons}<div class="direction-ribbon up">${visual.up}</div>${chips}</section>`;
     }).join("");
     const empty=state.liveError?'<div class="online-data-note">ODPT列車データを取得できません。在線図のみ表示しています。</div>':(!lineTrains.length?'<div class="online-data-note">現在、この線区の在線列車データはありません。</div>':"");
-    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="online-canvas">${boards}${empty}</div>`;
+    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="online-canvas" style="--route-color:${visual.color}">${boards}${empty}</div>`;
   }
   function search(){
     return `<div class="search-card"><div class="search-row"><label>線区</label><div><select><option>東北貨物</option><option>高崎</option><option>東北</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号 <select><option></option><option>回</option><option>単</option></select> 英数字(半角) <input class="highlight" data-query="train"></div></div></div><button class="action" data-action="train-search">検　索</button><div id="search-result"></div>`;
