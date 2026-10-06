@@ -21,7 +21,7 @@
     "京浜東北・根岸":{railways:["KeihinTohokuNegishi"],focus:"大宮",stations:["大宮","さいたま新都心","与野","北浦和","浦和","南浦和","蕨","西川口","川口","赤羽","東十条","王子","上中里","田端","西日暮里","日暮里","鶯谷","上野","御徒町","秋葉原","神田","東京","有楽町","新橋","浜松町","田町","高輪ゲートウェイ","品川","大井町","大森","蒲田","川崎","鶴見","新子安","東神奈川","横浜","桜木町","関内","石川町","山手","根岸","磯子","新杉田","洋光台","港南台","本郷台","大船"]},
     "中央":{railways:["ChuoRapid"],focus:"新宿",stations:["東京","神田","御茶ノ水","四ツ谷","新宿","中野","高円寺","阿佐ケ谷","荻窪","西荻窪","吉祥寺","三鷹","武蔵境","東小金井","武蔵小金井","国分寺","西国分寺","国立","立川","日野","豊田","八王子","西八王子","高尾"]},
     "武蔵野":{railways:["Musashino"],focus:"南浦和",stations:["府中本町","北府中","西国分寺","新小平","新秋津","東所沢","新座","北朝霞","西浦和","武蔵浦和","南浦和","東浦和","東川口","南越谷","越谷レイクタウン","吉川","吉川美南","新三郷","三郷","南流山","新松戸","新八柱","東松戸","市川大野","船橋法典","西船橋"]},
-    "常磐":{railways:["Joban"],focus:"松戸",stations:["上野","日暮里","三河島","南千住","北千住","松戸","柏","我孫子","天王台","取手","藤代","龍ケ崎市","牛久","ひたち野うしく","荒川沖","土浦","神立","高浜","石岡","羽鳥","岩間","友部","内原","赤塚","偕楽園","水戸","勝田"]},
+    "常磐":{railways:["Joban","JobanRapid"],focus:"松戸",stations:["上野","日暮里","三河島","南千住","北千住","松戸","柏","我孫子","天王台","取手","藤代","龍ケ崎市","牛久","ひたち野うしく","荒川沖","土浦","神立","高浜","石岡","羽鳥","岩間","友部","内原","赤塚","偕楽園","水戸","勝田"]},
     "常磐緩行":{railways:["JobanLocal"],focus:"松戸",stations:["綾瀬","亀有","金町","松戸","北松戸","馬橋","新松戸","北小金","南柏","柏","北柏","我孫子","天王台","取手"]},
     "横須賀・総武快速":{railways:["YokosukaSobuRapid","SobuRapid","Yokosuka"],focus:"東京",stations:["久里浜","衣笠","横須賀","田浦","東逗子","逗子","鎌倉","北鎌倉","大船","戸塚","東戸塚","保土ケ谷","横浜","新川崎","武蔵小杉","西大井","品川","新橋","東京","新日本橋","馬喰町","錦糸町","新小岩","市川","船橋","津田沼","稲毛","千葉"]},
     "東北":{railways:["Utsunomiya"],focus:"大宮",stations:["東京","上野","尾久","赤羽","浦和","さいたま新都心","大宮","土呂","東大宮","蓮田","白岡","新白岡","久喜","東鷲宮","栗橋","古河","野木","間々田","小山","小金井","自治医大","石橋","雀宮","宇都宮"]},
@@ -61,10 +61,12 @@
   };
   const STATION_TRANSLATIONS = {
     Gotanda:"五反田",Meguro:"目黒",Ebisu:"恵比寿",Shibuya:"渋谷",Harajuku:"原宿",Yoyogi:"代々木",Shinjuku:"新宿",ShinOkubo:"新大久保",Takadanobaba:"高田馬場",Mejiro:"目白",Ikebukuro:"池袋",Otsuka:"大塚",Sugamo:"巣鴨",Komagome:"駒込",Tabata:"田端",NishiNippori:"西日暮里",Nippori:"日暮里",Uguisudani:"鶯谷",Ueno:"上野",Okachimachi:"御徒町",Akihabara:"秋葉原",Kanda:"神田",Tokyo:"東京",Yurakucho:"有楽町",Shimbashi:"新橋",Hamamatsucho:"浜松町",Tamachi:"田町",TakanawaGateway:"高輪ゲートウェイ",Shinagawa:"品川",Osaki:"大崎",
-    Omiya:"大宮",SaitamaShintoshin:"さいたま新都心",Yono:"与野",KitaUrawa:"北浦和",Urawa:"浦和",MinamiUrawa:"南浦和",Warabi:"蕨",NishiKawaguchi:"西川口",Kawaguchi:"川口",Akabane:"赤羽",HigashiJujo:"東十条",Oji:"王子",Kaminakazato:"上中里",Oku:"尾久",Miyahara:"宮原",Ageo:"上尾",KitaAgeo:"北上尾",Okegawa:"桶川",Kitamoto:"北本",Konosu:"鴻巣",KitaKonosu:"北鴻巣",Fukiage:"吹上",Gyoda:"行田",Kumagaya:"熊谷",Kagohara:"籠原",Fukaya:"深谷",Okabe:"岡部",Honjo:"本庄",Jimbohara:"神保原",Shimmachi:"新町",Kuragano:"倉賀野",Takasaki:"高崎",
+    Omiya:"大宮",SaitamaShintoshin:"さいたま新都心",Yono:"与野",KitaUrawa:"北浦和",Urawa:"浦和",MinamiUrawa:"南浦和",Warabi:"蕨",NishiKawaguchi:"西川口",Kawaguchi:"川口",Akabane:"赤羽",HigashiJujo:"東十条",Oji:"王子",KamiNakazato:"上中里",Kaminakazato:"上中里",Oku:"尾久",Miyahara:"宮原",Ageo:"上尾",KitaAgeo:"北上尾",Okegawa:"桶川",Kitamoto:"北本",Konosu:"鴻巣",KitaKonosu:"北鴻巣",Fukiage:"吹上",Gyoda:"行田",Kumagaya:"熊谷",Kagohara:"籠原",Fukaya:"深谷",Okabe:"岡部",Honjo:"本庄",Jimbohara:"神保原",Shimmachi:"新町",Kuragano:"倉賀野",Takasaki:"高崎",
     Ochanomizu:"御茶ノ水",Yotsuya:"四ツ谷",Nakano:"中野",Koenji:"高円寺",Asagaya:"阿佐ケ谷",Ogikubo:"荻窪",NishiOgikubo:"西荻窪",Kichijoji:"吉祥寺",Mitaka:"三鷹",MusashiSakai:"武蔵境",HigashiKoganei:"東小金井",MusashiKoganei:"武蔵小金井",Kokubunji:"国分寺",NishiKokubunji:"西国分寺",Kunitachi:"国立",Tachikawa:"立川",Hino:"日野",Toyoda:"豊田",Hachioji:"八王子",NishiHachioji:"西八王子",Takao:"高尾",
-    Kawasaki:"川崎",Yokohama:"横浜",Totsuka:"戸塚",Ofuna:"大船",Matsudo:"松戸",Kashiwa:"柏",Abiko:"我孫子",Toride:"取手",KitaSenju:"北千住",MinamiSenju:"南千住",Mikawashima:"三河島",Ayase:"綾瀬",Kameari:"亀有",Kanamachi:"金町",Kinshicho:"錦糸町",Funabashi:"船橋",Tsudanuma:"津田沼",Chiba:"千葉",MusashiKosugi:"武蔵小杉",Machida:"町田",Hashimoto:"橋本",Soga:"蘇我"
+    Kawasaki:"川崎",Yokohama:"横浜",Totsuka:"戸塚",Ofuna:"大船",Oimachi:"大井町",Omori:"大森",Kamata:"蒲田",Tsurumi:"鶴見",ShinKoyasu:"新子安",HigashiKanagawa:"東神奈川",Sakuragicho:"桜木町",Kannai:"関内",Ishikawacho:"石川町",Yamate:"山手",Negishi:"根岸",Isogo:"磯子",ShinSugita:"新杉田",Yokodai:"洋光台",Konandai:"港南台",Hongodai:"本郷台",
+    Matsudo:"松戸",Kashiwa:"柏",Abiko:"我孫子",Tennodai:"天王台",Toride:"取手",Fujishiro:"藤代",Ryugasakishi:"龍ケ崎市",Ushiku:"牛久",Hitachinoushiku:"ひたち野うしく",Arakawaoki:"荒川沖",Tsuchiura:"土浦",Ishioka:"石岡",Hatori:"羽鳥",Mito:"水戸",Katsuta:"勝田",KitaSenju:"北千住",MinamiSenju:"南千住",Mikawashima:"三河島",Ayase:"綾瀬",Kameari:"亀有",Kanamachi:"金町",Kinshicho:"錦糸町",Funabashi:"船橋",Tsudanuma:"津田沼",Chiba:"千葉",MusashiKosugi:"武蔵小杉",Machida:"町田",Hashimoto:"橋本",Soga:"蘇我"
   };
+  const STATION_MONITOR_LABELS = {"さいたま新都心":"さ新都心","高輪ゲートウェイ":"高輪ゲト"};
 
   const state = {screen:"top", live:[], info:[], timetables:[], liveLoaded:false, timetableLoaded:false, liveError:false, infoError:false, timetableError:false, selectedLine:"東北貨物", selectedStation:"大宮操", modalStation:"", showDestination:false, enlarged:false};
   const $ = (s,root=document) => root.querySelector(s);
@@ -164,24 +166,32 @@
     const visual=LINE_VISUALS[state.selectedLine]||LINE_VISUALS["東北貨物"];
     const lineTrains=state.live.filter(t=>config.railways.includes(String(t["odpt:railway"]||"").split(".").pop()));
     const segments=routeSegments();
+    const segmentFor=name=>segments.findIndex(stations=>stations.some(station=>compact(station)===compact(name)));
+    const assignedSegments=new Map(lineTrains.map(train=>{
+      const fromSegment=segmentFor(stationName(train["odpt:fromStation"]));
+      const toSegment=segmentFor(stationName(train["odpt:toStation"]));
+      return [train,fromSegment>=0?fromSegment:toSegment];
+    }));
     const boards=segments.map((stations,segmentIndex)=>{
       const segmentWidth=Math.max(980,stations.length*220);
-      const stationButtons=stations.map((station,i)=>`<button class="station-node ${compact(station)===compact(state.selectedStation)?"selected":""}" data-station="${esc(station)}" style="left:${98+i*220}px">${esc(station)}</button>`).join("");
-      const visible=new Set(stations.map(compact));
-      const candidates=lineTrains.filter(t=>visible.has(compact(stationName(t["odpt:fromStation"])))||visible.has(compact(stationName(t["odpt:toStation"])))).slice(0,10);
+      const stationButtons=stations.map((station,i)=>`<button class="station-node ${compact(station)===compact(state.selectedStation)?"selected":""}" data-station="${esc(station)}" style="left:${98+i*220}px">${esc(STATION_MONITOR_LABELS[station]||station)}</button>`).join("");
+      const candidates=lineTrains.filter(train=>assignedSegments.get(train)===segmentIndex).slice(0,10);
       const chips=candidates.map((t,i)=>{
         const from=compact(stationName(t["odpt:fromStation"])),to=compact(stationName(t["odpt:toStation"]));
-        let index=stations.findIndex(x=>compact(x)===from);if(index<0)index=stations.findIndex(x=>compact(x)===to);if(index<0)index=0;
+        const fromIndex=stations.findIndex(x=>compact(x)===from),toIndex=stations.findIndex(x=>compact(x)===to);
         const railDirection=String(t["odpt:railDirection"]||"");const up=railDirection.includes("Inbound")||railDirection.includes("InnerLoop")||railDirection.includes("Northbound");
-        const laneOffset=(i%2)*8;
-        const left=Math.min(segmentWidth-100,Math.max(100,98+index*220+(to&&from!==to?105:0)+laneOffset));
+        let left=98;
+        if(fromIndex>=0&&toIndex>=0)left=98+(fromIndex+toIndex)*110;
+        else if(fromIndex>=0)left=98+fromIndex*220+105;
+        else if(toIndex>=0)left=98+toIndex*220-105;
+        left=Math.min(segmentWidth-100,Math.max(100,left+(i%2)*6));
         const destinationText=state.showDestination?`<small>${esc(destination(t))}</small>`:"";
         return `<button class="train-chip ${up?"up":"down"}" data-train="${esc(t["odpt:trainNumber"])}" style="left:${left}px">${esc(t["odpt:trainNumber"]||"")} ${String(delayMin(t)).padStart(3,"0")}${destinationText}</button>`;
       }).join("");
       return `<section class="route-segment" data-segment="${segmentIndex}" style="width:${segmentWidth}px"><div class="direction-ribbon down">${visual.down}</div><div class="route-rail"></div>${stationButtons}<div class="direction-ribbon up">${visual.up}</div>${chips}</section>`;
     }).join("");
     const empty=state.liveError?'<div class="online-data-note">ODPT列車データを取得できません。在線図のみ表示しています。</div>':(!lineTrains.length?'<div class="online-data-note">現在、この線区の在線列車データはありません。</div>':"");
-    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="online-canvas" style="--route-color:${visual.color}">${boards}${empty}</div>`;
+    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="online-canvas ${state.selectedLine==="山手"?"route-loop":""}" style="--route-color:${visual.color}">${boards}${empty}</div>`;
   }
   function search(){
     return `<div class="search-card"><div class="search-row"><label>線区</label><div><select><option>東北貨物</option><option>高崎</option><option>東北</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号 <select><option></option><option>回</option><option>単</option></select> 英数字(半角) <input class="highlight" data-query="train"></div></div></div><button class="action" data-action="train-search">検　索</button><div id="search-result"></div>`;
@@ -210,8 +220,8 @@
     const base=id.split("-").slice(0,2).join("-");
     const nav=NAV.find(n=>id===n.id||n.menu?.some(([sub])=>sub===id));
     $("#screen-name").textContent=SCREEN_NAMES[id]||nav?.label||"トップメニュー";
-    $("#screen-id").textContent=SCREEN_CODES[id]||"SPANSTOP01";
-    $("#head-line").textContent=state.selectedLine;$("#head-station").textContent=state.selectedStation;
+    $("#screen-id").textContent=id==="online-single"&&state.selectedLine==="山手"?"SPAAJZMY01":SCREEN_CODES[id]||"SPANSTOP01";
+    $("#head-line").textContent="東北貨物";$("#head-station").textContent="大宮操";
     const views={top:topMenu,summary, "summary-history":summary,"station-delay":stationDelay,online,"online-single":online,"online-multi":online,"online-platform":online,"online-keiyo":online,"online-chuo":online,"online-netrains":online,search,plan,"plan-calendar":plan,"train-diagram":trainDiagram,"station-diagram":stationDiagram,depot,information,certificate};
     setMarkup($("#workspace"),`${id!=="top"?'<button class="page-help" type="button" aria-label="画面ヘルプ" data-action="help">?</button>':""}${(views[id]||views[base]||topMenu)()}`);
     $$('[data-field="line"]').forEach(el=>el.value=state.selectedLine);
