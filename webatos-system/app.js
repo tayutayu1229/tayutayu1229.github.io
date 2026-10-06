@@ -69,7 +69,7 @@
   };
   const STATION_MONITOR_LABELS = {"さいたま新都心":"さ新都心","高輪ゲートウェイ":"高輪ゲト"};
 
-  const state = {screen:"top", live:[], info:[], timetables:[], liveLoaded:false, timetableLoaded:false, liveError:false, infoError:false, timetableError:false, selectedLine:"東北貨物", selectedStation:"大宮操", selectedDate:"", stationTime:"", stationOrder:"down-up", stationPage:1, calendarMonth:null, calendarTarget:"", modalStation:"", showDestination:false, enlarged:false};
+  const state = {screen:"top", live:[], info:[], timetables:[], liveLoaded:false, timetableLoaded:false, liveError:false, infoError:false, timetableError:false, infoTab:"accident", infoPage:1, infoActive:false, selectedLine:"東北貨物", selectedStation:"大宮操", selectedDate:"", stationTime:"", stationOrder:"down-up", stationPage:1, calendarMonth:null, calendarTarget:"", modalStation:"", showDestination:false, enlarged:false};
   const $ = (s,root=document) => root.querySelector(s);
   const $$ = (s,root=document) => [...root.querySelectorAll(s)];
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -84,7 +84,7 @@
   const infoTime = value => {const d=new Date(value);return value&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(d):String(value||"");};
 
   function renderNav(){
-    setMarkup($("#main-nav"),NAV.map(item=>`<div class="nav-wrap" data-wrap="${item.id}"><button class="nav-btn ${state.screen.startsWith(item.id)?"active":""} ${item.menu?"has-menu":""}" data-screen="${item.id}">${item.label}</button>${item.menu?`<div class="subnav">${item.menu.map(([id,label])=>`<button data-screen="${id}">${label}</button>`).join("")}</div>`:""}</div>`).join(""));
+    setMarkup($("#main-nav"),NAV.map(item=>`<div class="nav-wrap" data-wrap="${item.id}"><button class="nav-btn ${state.screen.startsWith(item.id)?"active":""} ${item.menu?"has-menu":""} ${item.id==="information"&&state.infoActive?"has-information":""}" data-screen="${item.id}">${item.label}</button>${item.menu?`<div class="subnav">${item.menu.map(([id,label])=>`<button data-screen="${id}">${label}</button>`).join("")}</div>`:""}</div>`).join(""));
   }
 
   async function fetchLive(force=false){
@@ -98,12 +98,12 @@
   }
   async function fetchInformation(){
     try{
-      const response=await fetch("/api/odpt/challenge/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is",{headers:{Accept:"application/json"}});
+      const response=await fetch("/api/odpt/challenge/odpt:TrainInformation?odpt:operator=odpt.Operator:jre-is",{headers:{Accept:"application/json"},cache:"no-store"});
       if(!response.ok) throw new Error(String(response.status));
       const data=await response.json();
-      const mapped=data.map(x=>[lineName(x["odpt:railway"]),x["odpt:trainInformationStatus"]?.ja||"",x["odpt:trainInformationText"]?.ja||"",x["dc:date"]||x["dct:valid"]||""]);
-      state.info=mapped;state.infoError=false;
-    }catch(_){state.info=[];state.infoError=true;}
+      const mapped=(Array.isArray(data)?data:[]).map(x=>{const status=x["odpt:trainInformationStatus"]?.ja||"お知らせ",date=x["dc:date"]||x["odpt:timeOfOrigin"]||x["dct:valid"]||"";return {id:x["@id"]||x["owl:sameAs"]||`${x["odpt:railway"]||""}-${date}`,title:lineName(x["odpt:railway"]),status,text:x["odpt:trainInformationText"]?.ja||"",cause:x["odpt:trainInformationCause"]?.ja||"",range:x["odpt:trainInformationRange"]?.ja||"",date,category:status==="お知らせ"||status==="平常運転"?"general":"accident"};}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+      state.info=mapped;state.infoError=false;state.infoActive=mapped.some(item=>item.status!=="平常運転");renderNav();
+    }catch(_){state.info=[];state.infoActive=false;state.infoError=true;renderNav();}
   }
   async function fetchTimetables(){
     if(state.timetableLoaded) return;
@@ -323,9 +323,12 @@
   }
   function depot(){return `<div class="search-card"><div class="search-row"><label>線区</label><div>線区：<select><option>高崎</option><option>東北</option></select> 駅：<select><option>大　宮</option><option>小金井</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号：<select><option></option><option>回</option></select> 英数字(半角)：<input class="highlight" data-query="train"></div></div><div class="search-row"><label>施行日</label><div>施行日：<input class="highlight" value="${new Date().toISOString().slice(0,10).replaceAll("-","/")}"></div></div></div><button class="action" data-action="depot-search">検　索</button><div id="search-result"></div>`;}
   function information(){
-    const rows=state.info.slice(0,16).map(x=>`<tr><td>${esc(infoTime(x[3]))}</td><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td class="left yellow">【${esc(x[1])}】${esc(x[2])}</td><td></td><td></td><td></td></tr>`).join("");
+    const filtered=state.info.filter(item=>item.category===state.infoTab),pageSize=12,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));state.infoPage=Math.min(Math.max(1,state.infoPage),pageCount);
+    const pageItems=filtered.slice((state.infoPage-1)*pageSize,state.infoPage*pageSize),kind=state.infoTab==="accident"?"事故":"一般";
+    const rows=pageItems.map(item=>`<tr><td>${esc(infoTime(item.date))}</td><td>${esc(item.title)}</td><td>${kind}</td><td class="left yellow">【${esc(item.status)}】${esc(item.text)}</td><td></td><td></td><td></td></tr>`).join("");
     const grid=rows?`<table class="atos-table information-table"><thead><tr><th rowspan="2">登録日時</th><th rowspan="2">タイトル</th><th rowspan="2">情報<br>種別</th><th rowspan="2">内容</th><th colspan="3">関連文書番号</th></tr><tr><th>前</th><th>当</th><th>後</th></tr></thead><tbody>${rows}</tbody></table><div class="information-note">注: <span>黄色文字</span> は、現在表示中の内容です。</div>`:noData(state.infoError?"ODPT運行情報を取得できません。":"運行情報はありません。");
-    return `<div class="information-view"><div class="status-tabs"><button class="active">事故</button><button>一般</button></div><div class="information-actions"><button class="action refresh" data-action="refresh">更　新</button></div>${state.info.length>12?'<div class="information-pages"><b>1</b> <button>2</button> <button>次へ</button></div>':""}<div class="monitor-box">${grid}</div></div>`;
+    const pages=Array.from({length:pageCount},(_,index)=>{const page=index+1;return page===state.infoPage?`<b>${page}</b>`:`<button type="button" data-info-page="${page}">${page}</button>`;}).slice(0,8).join(" "),next=state.infoPage<pageCount?` <button type="button" data-info-page="${state.infoPage+1}">次へ</button>`:"";
+    return `<div class="information-view"><div class="information-head"><div class="status-tabs"><button type="button" data-info-tab="accident" class="${state.infoTab==="accident"?"active":""}">事故</button><button type="button" data-info-tab="general" class="${state.infoTab==="general"?"active":""}">一般</button></div><button class="action refresh" data-action="information-refresh">更　新</button></div>${filtered.length?`<div class="information-pages">${pages}${next}</div>`:""}<div class="monitor-box">${grid}</div></div>`;
   }
   function certificate(){return `<div class="certificate-layout"><div class="certificate-search"><table><tbody><tr><th colspan="3">日時</th><td rowspan="2" colspan="3" class="certificate-submit"><button class="action" data-action="certificate-search">検　索</button></td></tr><tr><td colspan="3"><input class="highlight certificate-date" value="${new Date().toISOString().slice(0,10).replaceAll("-","/")}" aria-label="検索日"><button class="calendar-button" type="button" aria-label="カレンダー">▣</button></td></tr><tr><th colspan="2">開始</th><th colspan="2"></th><th colspan="2">終了</th></tr><tr><td><select aria-label="開始時刻"><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select></td><td>時台</td><td colspan="2">～</td><td><select aria-label="終了時刻"><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select></td><td>時台</td></tr></tbody></table></div><section class="certificate-result"><div id="search-result"></div></section></div>`;}
 
@@ -411,10 +414,13 @@
     const station=event.target.closest("[data-station]");if(station){showStationModal(station.dataset.station);return;}
     const diagramTrain=event.target.closest("[data-diagram-train]");if(diagramTrain){await showTrainDiagram(diagramTrain.dataset.diagramTrain);return;}
     const stationPage=event.target.closest("[data-station-page]");if(stationPage){state.stationPage=Number(stationPage.dataset.stationPage)||1;await showStationDiagram();return;}
+    const infoPage=event.target.closest("[data-info-page]");if(infoPage){state.infoPage=Number(infoPage.dataset.infoPage)||1;render();return;}
+    const infoTab=event.target.closest("[data-info-tab]");if(infoTab){state.infoTab=infoTab.dataset.infoTab;state.infoPage=1;render();return;}
     const calendarDay=event.target.closest("[data-calendar-day]");if(calendarDay){state.selectedDate=calendarDay.dataset.calendarDay;const input=$(state.calendarTarget||'[data-query="diagram-date"]');if(input)input.value=state.selectedDate;$("#modal").close();return;}
     const calendarNav=event.target.closest("[data-calendar-nav]");if(calendarNav){const current=state.calendarMonth instanceof Date?new Date(state.calendarMonth):new Date();current.setMonth(current.getMonth()+Number(calendarNav.dataset.calendarNav));state.calendarMonth=current;showDiagramCalendar();return;}
     const action=event.target.closest("[data-action]")?.dataset.action;
     if(action==="refresh"){event.target.disabled=true;await Promise.all([fetchLive(true),fetchInformation()]);event.target.disabled=false;render();showToast(`更新しました　${hhmm()}`);}
+    if(action==="information-refresh"){event.target.disabled=true;await fetchInformation();event.target.disabled=false;render();showToast(`運転情報を更新しました　${hhmm()}`);}
     if(action==="train-search"||action==="depot-search")runSearch(action);
     if(action==="train-diagram-search")await showTrainDiagram();
     if(action==="station-diagram-search")await showStationDiagram();
