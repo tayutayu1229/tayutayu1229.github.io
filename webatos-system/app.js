@@ -39,6 +39,7 @@
     "五日市":{railways:["Itsukaichi"],focus:"拝島",stations:["拝島","熊川","東秋留","秋川","武蔵引田","武蔵増戸","武蔵五日市"]}
   };
   const LINE_NAMES = Object.keys(LINE_CONFIG);
+  const ONLINE_LINE_NAMES=["山手","京浜東北・根岸","中央","武蔵野","常磐","常磐緩行","横須賀・総武快速","東北","高崎","東海道","東海道貨物","南武","埼京川越・山貨","中央・総武緩行","東北貨物","横浜","青梅","京葉","五日市"];
   const LINE_VISUALS = {
     "山手":{color:"#00f000",down:"外回",up:"内回"},
     "京浜東北・根岸":{color:"#00a8f3",down:"南行",up:"北行"},
@@ -69,20 +70,25 @@
   };
   const STATION_MONITOR_LABELS = {"さいたま新都心":"さ新都心","高輪ゲートウェイ":"高輪ゲト"};
 
-  const state = {screen:"top", live:[], info:[], timetables:[], liveLoaded:false, timetableLoaded:false, liveError:false, infoError:false, timetableError:false, infoTab:"accident", infoPage:1, infoActive:false, selectedLine:"東北貨物", selectedStation:"大宮操", selectedDate:"", stationTime:"", stationOrder:"down-up", stationPage:1, calendarMonth:null, calendarTarget:"", modalStation:"", showDestination:false, enlarged:false};
+  const state = {screen:"top", live:[], info:[], timetables:[], railways:[], stationTitles:new Map(), lineAliases:null, lineResolver:null, liveLoaded:false, railwayLoaded:false, lineAliasesLoaded:false, timetableLoaded:false, liveError:false, railwayError:false, infoError:false, timetableError:false, infoTab:"accident", infoPage:1, infoActive:false, selectedLine:"東北貨物", selectedStation:"大宮操", selectedDate:"", stationTime:"", stationOrder:"down-up", stationPage:1, calendarMonth:null, calendarTarget:"", modalStation:"", showDestination:false, enlarged:false};
   const $ = (s,root=document) => root.querySelector(s);
   const $$ = (s,root=document) => [...root.querySelectorAll(s)];
   const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const setMarkup = (element,markup) => { element.innerHTML=markup; };
   const now = () => new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(new Date()).replaceAll("/","/");
   const hhmm = (date=new Date()) => `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}:${String(date.getSeconds()).padStart(2,"0")}`;
-  const stationName = id => {const key=String(id||"").split(".").pop();return STATION_TRANSLATIONS[key]||(/[^\x00-\x7f]/.test(key)?key:"");};
-  const lineName = id => {const key=String(id||"").split(".").pop();return LINE_NAMES.find(name=>LINE_CONFIG[name].railways.includes(key))||(/[^\x00-\x7f]/.test(key)?key:"未対応線区");};
+  const stationName = id => {const raw=String(id||""),key=raw.split(".").pop();return state.stationTitles.get(raw)||STATION_TRANSLATIONS[key]||(/[^\x00-\x7f]/.test(key)?key:"");};
+  const lineName = id => {const raw=String(id||""),resolved=state.lineResolver?.canonical(raw);if(resolved&&resolved!==raw)return resolved;const key=raw.split(".").pop();return LINE_NAMES.find(name=>LINE_CONFIG[name].railways.includes(key))||(/[^\x00-\x7f]/.test(key)?key:"未対応線区");};
   const delayMin = t => Math.max(0,Math.round(Number(t?.["odpt:delay"]||0)/60));
   const destination = t => stationName((t?.["odpt:destinationStation"]||[])[0]) || "　　　";
   const noData = message => `<div class="data-empty">${esc(message)}</div>`;
   const infoTime = value => {const d=new Date(value);return value&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(d):String(value||"");};
   const informationTitle = (railway,text) => {const known=lineName(railway);if(known!=="未対応線区")return known;const match=String(text||"").match(/^(.+?線)(?:（|は)/);return match?.[1]||String(railway||"").split(".").pop()||"";};
+  const railwayMatchesLine = (train,line) => {
+    const railway=String(train?.["odpt:railway"]||"");
+    if(state.lineResolver?.matchesForSearch(railway,line))return true;
+    return (LINE_CONFIG[line]?.railways||[]).includes(railway.split(".").pop());
+  };
 
   function renderNav(){
     setMarkup($("#main-nav"),NAV.map(item=>`<div class="nav-wrap" data-wrap="${item.id}"><button class="nav-btn ${state.screen.startsWith(item.id)?"active":""} ${item.menu?"has-menu":""} ${item.id==="information"&&state.infoActive?"has-information":""}" data-screen="${item.id}">${item.label}</button>${item.menu?`<div class="subnav">${item.menu.map(([id,label])=>`<button data-screen="${id}">${label}</button>`).join("")}</div>`:""}</div>`).join(""));
@@ -96,6 +102,23 @@
       const data=await response.json();
       state.live=Array.isArray(data)?data:[];state.liveLoaded=true;state.liveError=false;
     }catch(_){state.live=[];state.liveLoaded=true;state.liveError=true;}
+  }
+  async function fetchRailways(force=false){
+    if(state.railwayLoaded&&!force)return;
+    try{
+      const response=await fetch("/api/odpt/challenge/odpt:Railway?odpt:operator=odpt.Operator:JR-East",{headers:{Accept:"application/json"},cache:"no-store"});
+      if(!response.ok)throw new Error(String(response.status));
+      const data=await response.json();state.railways=Array.isArray(data)?data:[];state.stationTitles=new Map();
+      state.railways.forEach(railway=>(railway["odpt:stationOrder"]||[]).forEach(item=>{const id=item["odpt:station"],title=item["odpt:stationTitle"]?.ja;if(id&&title)state.stationTitles.set(id,title);}));
+      state.railwayLoaded=true;state.railwayError=false;
+    }catch(_){state.railways=[];state.stationTitles=new Map();state.railwayLoaded=true;state.railwayError=true;}
+  }
+  async function fetchLineAliases(){
+    if(state.lineAliasesLoaded)return;
+    try{
+      if(!window.TayunetPrivateData||!window.TayunetTimetableLines)throw new Error("unavailable");
+      state.lineAliases=await window.TayunetPrivateData.fetchLineAliases();state.lineResolver=window.TayunetTimetableLines.create(state.lineAliases);state.lineAliasesLoaded=true;
+    }catch(_){state.lineAliases=null;state.lineResolver=null;state.lineAliasesLoaded=true;}
   }
   async function fetchInformation(){
     try{
@@ -121,7 +144,7 @@
     state.screen=id;
     renderNav();
     render();
-    if((id==="train-diagram"||id==="station-diagram")&&!state.timetableLoaded)fetchTimetables().then(()=>{if(state.screen===id)render();});
+    if((id==="train-diagram"||id==="station-diagram")&&(!state.timetableLoaded||!state.lineAliasesLoaded))Promise.all([fetchTimetables(),fetchLineAliases()]).then(()=>{if(state.screen===id)render();});
     if(push) history.replaceState(null,"",`#${encodeURIComponent(id)}`);
     $("#workspace").focus({preventScroll:true});
   }
@@ -130,9 +153,14 @@
     const primary=NAV.filter(n=>n.id!=="external").map(n=>`<button class="${n.menu?"has":""}" data-screen="${n.id}">${n.label}</button>`).join("");
     return `<div class="topmenu-title">　トップメニュー</div><div class="topmenu-grid"><section class="menu-panel"><h2>ATOS情報</h2><div class="menu-list">${primary}</div></section><section class="menu-panel"><h2>その他機能</h2><div class="menu-list"><button data-screen="external-broadcast">旅客一斉放送</button><button>ヘルプD/L</button><button>提供情報D/L</button></div></section></div>`;
   }
+  function allSelectableLineNames(){
+    const displayOrder=(Array.isArray(state.lineAliases?.displayOrder)?state.lineAliases.displayOrder:[]).map(name=>state.lineResolver?.canonical(name)||name);
+    if(displayOrder.length)return [...new Set(displayOrder.filter(Boolean))];
+    return [...new Set([...LINE_NAMES,...state.timetables.map(train=>String(train.line||"").trim()).filter(Boolean)])];
+  }
   function toolbar({search=false,date=false,station=true}={}){
     const dateValue=new Date().toISOString().slice(0,10).replaceAll("-","/");
-    const lines=LINE_NAMES.map(line=>`<option${line===state.selectedLine?" selected":""}>${line}</option>`).join("");
+    const lines=allSelectableLineNames().map(line=>`<option${line===state.selectedLine?" selected":""}>${esc(line)}</option>`).join("");
     const stations=(LINE_CONFIG[state.selectedLine]?.stations||[]).map(name=>`<option${name===state.selectedStation?" selected":""}>${name}</option>`).join("");
     return `<div class="toolbar"><b class="toolbar-title">表示内容選択</b><label class="field-group">線区：<select data-field="line">${lines}</select></label>${station?`<label class="field-group">駅：<select data-field="station">${stations}</select></label>`:""}${date?`<label class="field-group">施行日：<input class="highlight" value="${dateValue}"></label>`:""}<button class="action refresh" data-action="refresh">更　新</button>${search?`<b class="toolbar-title">検索条件</b><label class="field-group">列車番号：<select><option></option><option>回</option><option>単</option></select><input class="highlight" data-query="train"></label><button class="action" data-action="train-search">検　索</button>`:""}</div>`;
   }
@@ -161,10 +189,10 @@
     const config=LINE_CONFIG[state.selectedLine]||LINE_CONFIG["東北貨物"];
     if(config.segments)return config.segments;
     if(state.selectedLine==="山手")return [config.stations.slice(0,15),config.stations.slice(15).reverse()];
-    return Array.from({length:Math.ceil(config.stations.length/4)},(_,i)=>config.stations.slice(i*4,i*4+4));
+    const groups=[];for(let index=0,group=0;index<config.stations.length;group++){const part=group===0?config.stations.slice(index,index+4):config.stations.slice(index-1,index+3);index+=group===0?4:3;if(part.length<2)break;groups.push(part);}return groups;
   }
   function onlineToolbar(){
-    const lines=LINE_NAMES.map(line=>`<option${line===state.selectedLine?" selected":""}>${line}</option>`).join("");
+    const lines=ONLINE_LINE_NAMES.map(line=>`<option${line===state.selectedLine?" selected":""}>${line}</option>`).join("");
     const stations=(LINE_CONFIG[state.selectedLine]?.stations||[]).map(name=>`<option${name===state.selectedStation?" selected":""}>${name}</option>`).join("");
     return `<div class="toolbar online-toolbar"><b class="toolbar-title">表示内容選択</b><label class="field-group">線区：<select data-field="line">${lines}</select></label><label class="field-group">駅：<select data-field="station">${stations}</select></label><label class="destination-toggle"><input type="checkbox" data-field="destination"${state.showDestination?" checked":""}>行先情報</label><button class="action refresh" data-action="refresh">更　新</button><b class="toolbar-title search-title">検索条件</b><label class="field-group train-query">列車番号：<select aria-label="冠記号"><option></option><option>回</option><option>単</option></select><input data-query="train" aria-label="列車番号"></label><button class="action" data-action="train-search">検　索</button></div>`;
   }
@@ -192,8 +220,7 @@
     return `<div class="special-updates"><b>更新日時</b>${(SPECIAL_UPDATES[id]||[]).map(([label,color])=>`<span style="--system-color:${color}"><strong>${label}</strong><small>${stamp}</small></span>`).join("")}</div>`;
   }
   function liveFor(lines){
-    const keys=lines.flatMap(name=>LINE_CONFIG[name]?.railways||[]);
-    return state.live.filter(t=>keys.includes(String(t["odpt:railway"]||"").split(".").pop()));
+    return state.live.filter(train=>lines.some(line=>railwayMatchesLine(train,line)));
   }
   function specialChips(trains,placements,color){
     return trains.slice(0,placements.length).map((train,i)=>{const p=placements[i],delay=delayMin(train);return `<button class="special-train train-chip" data-train="${esc(train["odpt:trainNumber"])}" style="left:${p[0]}px;top:${p[1]}px;--route-color:${p[2]||color}"><span>${esc(train["odpt:trainNumber"]||"")}</span> <span class="${delay?"delay":""}">${String(delay).padStart(3,"0")}</span>${state.showDestination?`<small>${esc(destination(train))}</small>`:""}</button>`;}).join("");
@@ -227,46 +254,48 @@
   function online(){
     const config=LINE_CONFIG[state.selectedLine]||LINE_CONFIG["東北貨物"];
     const visual=LINE_VISUALS[state.selectedLine]||LINE_VISUALS["東北貨物"];
-    const lineTrains=state.live.filter(t=>config.railways.includes(String(t["odpt:railway"]||"").split(".").pop()));
+    const lineTrains=state.live.filter(train=>railwayMatchesLine(train,state.selectedLine));
     const segments=routeSegments();
-    const segmentFor=name=>segments.findIndex(stations=>stations.some(station=>compact(station)===compact(name)));
-    const assignedSegments=new Map(lineTrains.map(train=>{
-      const fromSegment=segmentFor(stationName(train["odpt:fromStation"]));
-      const toSegment=segmentFor(stationName(train["odpt:toStation"]));
-      return [train,fromSegment>=0?fromSegment:toSegment];
-    }));
+    const placed=new Set();let visibleCount=0;
     const boards=segments.map((stations,segmentIndex)=>{
       const segmentWidth=Math.max(980,stations.length*220);
       const stationButtons=stations.map((station,i)=>`<button class="station-node ${compact(station)===compact(state.selectedStation)?"selected":""}" data-station="${esc(station)}" style="left:${153+i*220}px">${esc(STATION_MONITOR_LABELS[station]||station)}</button>`).join("");
-      const candidates=lineTrains.filter(train=>assignedSegments.get(train)===segmentIndex).slice(0,10);
-      const chips=candidates.map((t,i)=>{
-        const from=compact(stationName(t["odpt:fromStation"])),to=compact(stationName(t["odpt:toStation"]));
+      const laneCounts=new Map(),candidates=[];let maxDown=1,maxUp=1;
+      lineTrains.forEach(t=>{
+        const trainKey=`${t["odpt:railway"]||""}|${t["odpt:trainNumber"]||t["@id"]||t["odpt:fromStation"]||""}`;if(placed.has(trainKey))return;
+        const fromRaw=t["odpt:fromStation"],toRaw=t["odpt:toStation"],atStation=!toRaw||toRaw===fromRaw;
+        const from=compact(stationName(fromRaw)),to=atStation?"":compact(stationName(toRaw));
         const fromIndex=stations.findIndex(x=>compact(x)===from),toIndex=stations.findIndex(x=>compact(x)===to);
-        const railDirection=String(t["odpt:railDirection"]||"");const up=railDirection.includes("Inbound")||railDirection.includes("InnerLoop")||railDirection.includes("Northbound");
+        if(fromIndex<0||(!atStation&&toIndex<0))return;
+        const railDirection=String(t["odpt:railDirection"]||""),up=!atStation&&toIndex!==fromIndex?toIndex<fromIndex:railDirection.includes("Inbound")||railDirection.includes("InnerLoop")||railDirection.includes("Northbound");
         let left=153;
-        if(fromIndex>=0&&toIndex>=0)left=153+(fromIndex+toIndex)*110;
-        else if(fromIndex>=0)left=153+fromIndex*220;
-        else if(toIndex>=0)left=153+toIndex*220;
+        if(!atStation&&toIndex>=0)left=153+(fromIndex+toIndex)*110;else left=153+fromIndex*220;
         left=Math.min(segmentWidth-55,Math.max(55,left));
+        const laneKey=`${up?"up":"down"}|${Math.round(left)}`,stack=laneCounts.get(laneKey)||0;laneCounts.set(laneKey,stack+1);if(up)maxUp=Math.max(maxUp,stack+1);else maxDown=Math.max(maxDown,stack+1);
+        candidates.push({t,left,up,stack});placed.add(trainKey);visibleCount++;
+      });
+      const railTop=maxDown*20+20,segmentHeight=railTop+maxUp*20+31;
+      const chips=candidates.map(({t,left,up,stack})=>{
         const delay=delayMin(t);
         const destinationText=state.showDestination?`<small>${esc(destination(t))}</small>`:"";
-        return `<button class="train-chip ${up?"up":"down"}" data-train="${esc(t["odpt:trainNumber"])}" style="left:${left}px"><span>${esc(t["odpt:trainNumber"]||"")}</span> <span class="${delay?"delay":""}">${String(delay).padStart(3,"0")}</span>${destinationText}</button>`;
+        return `<button class="train-chip ${up?"up":"down"}" data-train="${esc(t["odpt:trainNumber"])}" style="left:${left}px;--stack:${stack};--train-color:${visual.color}"><span>${esc(t["odpt:trainNumber"]||"")}</span> <span class="${delay?"delay":""}">${String(delay).padStart(3,"0")}</span>${destinationText}</button>`;
       }).join("");
-      return `<section class="route-segment" data-segment="${segmentIndex}" style="width:${segmentWidth}px"><div class="direction-ribbon down">${visual.down}</div><div class="route-rail"></div>${stationButtons}<div class="direction-ribbon up">${visual.up}</div>${chips}</section>`;
+      return `<section class="route-segment" data-segment="${segmentIndex}" style="width:${segmentWidth}px;height:${segmentHeight}px;--rail-top:${railTop}px"><div class="direction-ribbon down">${visual.down}</div><div class="route-rail"></div>${stationButtons}<div class="direction-ribbon up">${visual.up}</div>${chips}</section>`;
     }).join("");
-    const empty=state.liveError?'<div class="online-data-note">ODPT列車データを取得できません。在線図のみ表示しています。</div>':(!lineTrains.length?'<div class="online-data-note">現在、この線区の在線列車データはありません。</div>':"");
-    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="online-canvas ${state.selectedLine==="山手"?"route-loop":""}" style="--route-color:${visual.color}">${boards}${empty}</div>`;
+    const empty=state.liveError?'<div class="online-data-note">ODPT列車データを取得できません。在線図のみ表示しています。</div>':(!visibleCount?'<div class="online-data-note">現在、この線区の表示区間に在線列車データはありません。</div>':"");
+    return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在　表示 ${visibleCount}本</div><div class="online-canvas ${state.selectedLine==="山手"?"route-loop":""}" style="--route-color:${visual.color}">${boards}${empty}</div>`;
   }
   function onlinePlatform(){
     const config=LINE_CONFIG[state.selectedLine]||LINE_CONFIG["東北貨物"],visual=LINE_VISUALS[state.selectedLine]||LINE_VISUALS["東北貨物"];
-    const live=state.live.filter(t=>config.railways.includes(String(t["odpt:railway"]||"").split(".").pop()));
+    const live=state.live.filter(train=>railwayMatchesLine(train,state.selectedLine));
     const tracks=Array.from({length:11},(_,i)=>11-i);
     const rows=tracks.map(track=>`<div class="platform-track ${track===10||track===7||track===4?"divider":""}"><b>${track}<br>番</b><span></span></div>`).join("");
     const chips=live.slice(0,5).map((train,i)=>{const delay=delayMin(train);return `<button class="platform-train train-chip" data-train="${esc(train["odpt:trainNumber"])}" style="top:${50+i*78}px;left:${i%2?760:145}px;border-color:${visual.color}"><span>${esc(train["odpt:trainNumber"]||"")}</span> <span class="${delay?"delay":""}">${String(delay).padStart(3,"0")}</span>${state.showDestination?`<small>${esc(destination(train))}</small>`:""}</button>`;}).join("");
     return `${onlineToolbar()}<div class="online-heading">■ ${esc(state.selectedLine)}　${now()} 現在</div><div class="platform-canvas" style="--route-color:${visual.color}"><div class="platform-rail"></div><button class="platform-focus" data-station="大宮操">大宮操</button><div class="platform-station"><h3>${esc(state.selectedStation)}</h3>${rows}</div>${chips}${state.liveError?'<div class="online-data-note">ODPT列車データを取得できません。番線図のみ表示しています。</div>':""}</div>`;
   }
   function search(){
-    return `<div class="search-card"><div class="search-row"><label>線区</label><div><select><option>東北貨物</option><option>高崎</option><option>東北</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号 <select><option></option><option>回</option><option>単</option></select> 英数字(半角) <input class="highlight" data-query="train"></div></div></div><button class="action" data-action="train-search">検　索</button><div id="search-result"></div>`;
+    const lines=allSelectableLineNames().map(line=>`<option${line===state.selectedLine?" selected":""}>${esc(line)}</option>`).join("");
+    return `<div class="search-card"><div class="search-row"><label>線区</label><div><select data-field="search-line">${lines}</select></div></div><div class="search-row"><label>列車番号</label><div>冠記号 <select><option></option><option>回</option><option>単</option></select> 英数字(半角) <input class="highlight" data-query="train"></div></div></div><button class="action" data-action="train-search">検　索</button><div id="search-result"></div>`;
   }
   function plan(){
     const day=new Date().toISOString().slice(0,10).replaceAll("-","/");
@@ -280,7 +309,7 @@
   const operationsApi = () => window.TayunetTimetableOperations||{forStop:(_train,stop)=>({type:stop?.operationInfo||"",trainNumber:stop?.operationTrainNumber||""})};
   const DIAGRAM_LINE_NAMES=["山手","京浜東北・根岸","中央","武蔵野","常磐","常磐緩行","横須賀・総武快速","東北","高崎","東海道","東海道貨物","南武","埼京川越・山貨","中央・総武緩行","東北貨物","横浜","青梅","京葉","五日市","内房","京葉臨海","羽沢短絡","総武","相模","国立支","我孫子","日光","外房","大宮支","西浦和","北小金","馬橋支"];
   const TRAIN_CROWNS=["","荷","混","回","試","工","雪","救","配","単","シ","う","に","か","入","出","現","タ","ソ","テ","ハ","改","た","そ","て","は","キ","構","吉"];
-  function timetableLineNames(){return [...new Set([...DIAGRAM_LINE_NAMES,...state.timetables.map(train=>String(train.line||"").trim()).filter(Boolean)])];}
+  function timetableLineNames(){const configured=allSelectableLineNames();return [...new Set([...(state.lineAliases?configured:DIAGRAM_LINE_NAMES),...configured,...state.timetables.map(train=>String(train.line||"").trim()).filter(Boolean)])];}
   function timetableLineOptions(){return timetableLineNames().map(line=>`<option${line===state.selectedLine?" selected":""}>${esc(line)}</option>`).join("");}
   function timetableStations(line=state.selectedLine){
     const fromData=state.timetables.filter(train=>compact(train.line)===compact(line)).flatMap(train=>(train.stops||[]).map(stop=>String(stop.station||"").trim())).filter(Boolean);
@@ -322,7 +351,7 @@
     const time=state.stationTime||hhmm().slice(0,5);state.stationTime=time;
     return `<div class="diagram-monitor station-diagram-view"><div class="toolbar diagram-toolbar station-diagram-toolbar"><b class="toolbar-title">表示内容選択</b><label class="field-group">線区：<select data-field="diagram-line">${timetableLineOptions()}</select></label><label class="field-group">駅：<select data-field="diagram-station">${stationOptions}</select></label><label class="field-group diagram-date-time">日付（暦日）：<input class="highlight" data-query="diagram-date" value="${esc(date)}"><input class="highlight diagram-time" data-query="diagram-time" value="${esc(time)}">${calendarButton()}</label><label class="field-group diagram-order">表示順：<select data-field="diagram-order"><option value="up-down"${state.stationOrder==="up-down"?" selected":""}>上り、下りの順</option><option value="down-up"${state.stationOrder==="down-up"?" selected":""}>下り、上りの順</option><option value="up-only"${state.stationOrder==="up-only"?" selected":""}>上りのみ</option><option value="down-only"${state.stationOrder==="down-only"?" selected":""}>下りのみ</option></select></label><button class="action" data-action="station-diagram-search">更　新</button></div><div id="station-diagram-result" class="diagram-result"><div class="placeholder">線区・駅・日付を指定して「更新」を押してください。</div></div></div>`;
   }
-  function depot(){return `<div class="search-card"><div class="search-row"><label>線区</label><div>線区：<select><option>高崎</option><option>東北</option></select> 駅：<select><option>大　宮</option><option>小金井</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号：<select><option></option><option>回</option></select> 英数字(半角)：<input class="highlight" data-query="train"></div></div><div class="search-row"><label>施行日</label><div>施行日：<input class="highlight" value="${new Date().toISOString().slice(0,10).replaceAll("-","/")}"></div></div></div><button class="action" data-action="depot-search">検　索</button><div id="search-result"></div>`;}
+  function depot(){const lines=allSelectableLineNames().map(line=>`<option${line===state.selectedLine?" selected":""}>${esc(line)}</option>`).join("");return `<div class="search-card"><div class="search-row"><label>線区</label><div>線区：<select data-field="search-line">${lines}</select> 駅：<select><option>大　宮</option><option>小金井</option></select></div></div><div class="search-row"><label>列車番号</label><div>冠記号：<select><option></option><option>回</option></select> 英数字(半角)：<input class="highlight" data-query="train"></div></div><div class="search-row"><label>施行日</label><div>施行日：<input class="highlight" value="${new Date().toISOString().slice(0,10).replaceAll("-","/")}"></div></div></div><button class="action" data-action="depot-search">検　索</button><div id="search-result"></div>`;}
   function information(){
     const filtered=state.info.filter(item=>item.category===state.infoTab),pageSize=12,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));state.infoPage=Math.min(Math.max(1,state.infoPage),pageCount);
     const pageItems=filtered.slice((state.infoPage-1)*pageSize,state.infoPage*pageSize),kind=state.infoTab==="accident"?"事故":"一般";
@@ -347,10 +376,22 @@
   }
 
   function showToast(message){const old=$(".toast");if(old)old.remove();const node=document.createElement("div");node.className="toast";node.textContent=message;document.body.append(node);setTimeout(()=>node.remove(),3800);}
+  function showRequiredError(){alert("必須項目が入力されていません。\nピンク色の項目を入力してください。\n(MPA4201)");}
+  function showDateError(){alert("日付の入力項目が不正です。\n日付を正しく入力してください。\n(MPA4230)");}
+  function validDateInput(value){
+    const match=String(value||"").trim().match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);if(!match)return false;
+    const date=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+    return date.getFullYear()===Number(match[1])&&date.getMonth()===Number(match[2])-1&&date.getDate()===Number(match[3]);
+  }
+  function showNotices(){
+    const modal=$("#modal");modal.className="notice-modal";
+    setMarkup($("#modal-content"),`<div class="notice-modal-head"><b>掲載中のお知らせ一覧</b><button class="close-action" type="button" data-action="close-modal">✖　閉じる</button></div><table class="atos-table notice-list"><thead><tr><th>No</th><th>内容</th></tr></thead><tbody><tr><td>1</td><td class="left">10月8日　2：00～4：00　ネットワークメンテナンス作業に伴い一時的な通信断が発生する場合があります。通信断時は再接続をお願いします。</td></tr></tbody></table>`);
+    if(!modal.open)modal.showModal();
+  }
   function openMonitorModal(html){const modal=$("#modal");modal.className="monitor-modal";setMarkup($("#modal-content"),html);if(!modal.open)modal.showModal();}
   async function showTrain(number){await fetchTimetables();const live=state.live.find(x=>String(x["odpt:trainNumber"])===String(number));const tt=state.timetables.find(x=>String(x.trainNumber)===String(number));if(!live&&!tt)return showToast("該当列車が見つかりません。");const stops=(tt?.stops||[]).map((s,i)=>`<tr><td>${i===0?esc(tt.type||""):""}</td><td></td><td>${esc(s.station||"")}</td><td>${esc(s.arrival||"")}</td><td></td><td></td><td>${esc(s.departure||"")}</td><td></td><td></td><td>${esc(s.trackN||"")}</td><td>${esc(s.delay||"")}</td><td>${esc(s.operationInfo||"")}</td><td>${esc(s.operationTrainNumber||"")}</td></tr>`).join("");const from=tt?.origin||stationName(live?.["odpt:fromStation"]),to=tt?.destination||stationName(live?.["odpt:toStation"]);openMonitorModal(`<div class="monitor-modal-head"><div><b>■${esc(tt?.line||lineName(live?.["odpt:railway"]))} 施行日:${esc(tt?.date||"")}</b><br><b>運転区間:${esc(from)}～${esc(to)} 列車番号: ${esc(number)}</b></div><span>${now()} 現在</span><button class="close-action" data-action="close-modal">✖　閉じる</button></div><div class="monitor-modal-table">${stops?`<table class="atos-table train-detail-table"><thead><tr><th rowspan="2">列車種別</th><th rowspan="2">抑止</th><th rowspan="2">駅名</th><th colspan="3">着時刻</th><th colspan="3">発時刻</th><th rowspan="2">番線</th><th rowspan="2">遅延<br>（分）</th><th rowspan="2">運用<br>情報</th><th rowspan="2">運用列番</th></tr><tr><th>計画</th><th>予測</th><th>到着</th><th>計画</th><th>予測</th><th>発車</th></tr></thead><tbody>${stops}</tbody></table>`:noData(state.timetableError?"時刻表JSONを取得できません。":"この列車の時刻表データはありません。")}</div><div class="symbol-note">「$」…運休　「＊」…運済　「#」…変更　「¥」…運転禁止</div>`);}
   function showStationModal(station){state.modalStation=station;const config=LINE_CONFIG[state.selectedLine];const source=state.live.filter(t=>config?.railways.includes(String(t["odpt:railway"]||"").split(".").pop())).filter(t=>[stationName(t["odpt:fromStation"]),stationName(t["odpt:toStation"])].some(x=>compact(x)===compact(station))).slice(0,14);const rows=source.map((t,i)=>`<tr>${i===0?`<td class="line-cell" rowspan="${source.length}">${esc(state.selectedLine)}</td>`:""}<td>${String(t["odpt:railDirection"]||"").includes("Inbound")?"上り":"下り"}</td><td></td><td><a class="train-link" data-train="${esc(t["odpt:trainNumber"])}">${esc(t["odpt:trainNumber"]||"")}</a></td><td class="${delayMin(t)?"yellow":""}">${String(delayMin(t)).padStart(3,"0")}</td><td>${esc(destination(t))}</td><td>${esc(stationName(t["odpt:fromStation"]))}${t["odpt:toStation"]?" →":""}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("");openMonitorModal(`<div class="monitor-modal-head station-modal-head"><b>駅名:【${esc(station)}】</b><span>${now()} 現在</span><button class="action refresh" data-action="modal-refresh">更　新</button><button class="close-action" data-action="close-modal">✖　閉じる</button></div><div class="monitor-modal-table"><table class="atos-table station-modal-table"><thead><tr><th rowspan="2">線区</th><th rowspan="2">線別</th><th rowspan="2">抑止</th><th rowspan="2">列車番号</th><th rowspan="2">遅延<br>（分）</th><th rowspan="2">行先</th><th rowspan="2">在線位置<br>（→は発車済）</th><th colspan="3">着時間</th><th colspan="3">発時間</th><th rowspan="2">番線</th></tr><tr><th>計画</th><th>予測</th><th>到着</th><th>計画</th><th>予測</th><th>発車</th></tr></thead><tbody>${rows||`<tr><td colspan="14">${state.liveError?"ODPT列車データを取得できません。":"この駅に在線する列車はありません。"}</td></tr>`}</tbody></table></div>`);}
-  function runSearch(kind){const input=$('[data-query="train"]');const q=input?.value.trim();const container=$("#search-result");if(!q){if(container)setMarkup(container,'<div class="placeholder">列車番号を入力してください。</div>');else showToast("列車番号を入力してください。");return;}const found=state.live.filter(t=>String(t["odpt:trainNumber"]||"").includes(q));if(!container){if(found[0])showTrain(found[0]["odpt:trainNumber"]);else showToast("該当列車はありません。");return;}setMarkup(container,found.length?`<div class="monitor-box">${table(["列車番号","線区","在線位置","行先","遅延"],found.map(t=>[`<a class="train-link" data-train="${esc(t["odpt:trainNumber"])}">${esc(t["odpt:trainNumber"])}</a>`,esc(lineName(t["odpt:railway"])),`${esc(stationName(t["odpt:fromStation"]))} → ${esc(stationName(t["odpt:toStation"]))}`,esc(destination(t)),`${delayMin(t)}分`]))}</div>`:'<div class="placeholder">該当列車はありません。</div>');}
+  function runSearch(kind){const input=$('[data-query="train"]');const q=input?.value.trim();const container=$("#search-result");if(!q){showRequiredError();if(container)setMarkup(container,'<div class="placeholder">列車番号を入力してください。</div>');return;}const selected=$('[data-field="search-line"]')?.value||state.selectedLine,lineMatches=train=>railwayMatchesLine(train,selected);const found=state.live.filter(t=>String(t["odpt:trainNumber"]||"").includes(q)&&lineMatches(t));if(!container){if(found[0])showTrain(found[0]["odpt:trainNumber"]);else showToast("該当列車はありません。");return;}setMarkup(container,found.length?`<div class="monitor-box">${table(["列車番号","線区","在線位置","行先","遅延"],found.map(t=>[`<a class="train-link" data-train="${esc(t["odpt:trainNumber"])}">${esc(t["odpt:trainNumber"])}</a>`,esc(lineName(t["odpt:railway"])),`${esc(stationName(t["odpt:fromStation"]))} → ${esc(stationName(t["odpt:toStation"]))}`,esc(destination(t)),`${delayMin(t)}分`]))}</div>`:'<div class="placeholder">該当列車はありません。</div>');}
   function trainDiagramMarkup(train,candidates=[]){
     const live=liveTrainFor(train.trainNumber),delay=delayMin(live),fields=fieldsApi();
     const rows=(train.stops||[]).map((stop,index)=>{const times=fields.displayedTimes(stop),operation=nativeOperationForStop(train,stop,index),arrivalPrediction=predictedTime(times.arrival,delay),departurePrediction=predictedTime(times.departure,delay);return `<tr><td>${esc(fields.displayedType(train,stop,index)||"")}</td><td></td><td class="station-name-cell">${esc(stop.station||"")}</td><td>${esc(times.arrival||"")}</td><td class="prediction">${esc(arrivalPrediction)}</td><td></td><td>${esc(times.departure||"")}</td><td class="prediction">${esc(departurePrediction)}</td><td></td><td>${esc(stop.trackN||"")}</td><td class="${delay?"yellow":""}">${delay?String(delay).padStart(3,"0"):""}</td><td>${esc(operation.type||"")}</td><td>${operationLink(operation)}</td></tr>`;}).join("");
@@ -359,10 +400,12 @@
   }
   async function showTrainDiagram(explicitNumber=""){
     const target=$("#diagram-result");if(target)setMarkup(target,$("#loading-template").innerHTML);
-    await Promise.all([fetchTimetables(),fetchLive()]);if(!target)return;
-    state.selectedDate=normalizeDate($('[data-query="diagram-date"]')?.value||state.selectedDate||localDateValue());
-    const crown=$('[data-query="diagram-crown"]')?.value||"",typed=explicitNumber||$('[data-query="diagram-train"]')?.value.trim()||"",query=normalizeNumber(explicitNumber||`${crown}${typed}`);
-    if(!query){setMarkup(target,'<div class="placeholder">列車番号を入力してください。</div>');return;}
+    if(!target)return;
+    const rawDate=$('[data-query="diagram-date"]')?.value.trim()||"",crown=$('[data-query="diagram-crown"]')?.value||"",typed=explicitNumber||$('[data-query="diagram-train"]')?.value.trim()||"",query=normalizeNumber(explicitNumber||`${crown}${typed}`);
+    if(!rawDate||!query){showRequiredError();setMarkup(target,'<div class="placeholder">線区・施行日・列車番号を指定して「更新」を押してください。</div>');return;}
+    if(!validDateInput(rawDate)){showDateError();setMarkup(target,'<div class="placeholder">日付を正しく入力してください。</div>');return;}
+    state.selectedDate=normalizeDate(rawDate);
+    await Promise.all([fetchTimetables(),fetchLive()]);
     let source=datedTimetables(state.selectedLine,state.selectedDate),matches=source.filter(train=>normalizeNumber(train.trainNumber).includes(query));
     if(explicitNumber&&!matches.length){source=datedTimetables("",state.selectedDate);matches=source.filter(train=>normalizeNumber(train.trainNumber).includes(query));}
     const exact=matches.find(train=>normalizeNumber(train.trainNumber)===query),selected=exact||matches[0];
@@ -381,11 +424,15 @@
   }
   async function showStationDiagram(){
     const target=$("#station-diagram-result");if(target)setMarkup(target,$("#loading-template").innerHTML);
-    await Promise.all([fetchTimetables(),fetchLive()]);if(!target)return;
-    state.selectedDate=normalizeDate($('[data-query="diagram-date"]')?.value||state.selectedDate||localDateValue());
+    if(!target)return;
+    const rawDate=$('[data-query="diagram-date"]')?.value.trim()||"",station=$('[data-field="diagram-station"]')?.value||state.selectedStation;
+    if(!rawDate||!station){showRequiredError();setMarkup(target,'<div class="placeholder">線区・駅・日付を指定して「更新」を押してください。</div>');return;}
+    if(!validDateInput(rawDate)){showDateError();setMarkup(target,'<div class="placeholder">日付を正しく入力してください。</div>');return;}
+    state.selectedDate=normalizeDate(rawDate);
+    await Promise.all([fetchTimetables(),fetchLive()]);
     state.stationTime=$('[data-query="diagram-time"]')?.value.trim()||state.stationTime||"00:00";
     state.stationOrder=$('[data-field="diagram-order"]')?.value||state.stationOrder||"down-up";
-    const station=$('[data-field="diagram-station"]')?.value||state.selectedStation;state.selectedStation=station;
+    state.selectedStation=station;
     const fields=fieldsApi(),fromMinutes=timeMinutes(state.stationTime);
     let records=datedTimetables(state.selectedLine,state.selectedDate).flatMap(train=>{const index=(train.stops||[]).findIndex(stop=>compact(stop.station)===compact(station));if(index<0)return[];const stop=train.stops[index],times=fields.displayedTimes(stop),sortTime=Math.min(timeMinutes(times.arrival),timeMinutes(times.departure)),direction=inferDirection(train,index);return [{train,stop,index,times,sortTime,direction}];}).filter(record=>Number.isFinite(record.sortTime)&&record.sortTime>=fromMinutes);
     if(state.stationOrder==="up-only")records=records.filter(record=>record.direction==="上り");
@@ -420,7 +467,7 @@
     const calendarDay=event.target.closest("[data-calendar-day]");if(calendarDay){state.selectedDate=calendarDay.dataset.calendarDay;const input=$(state.calendarTarget||'[data-query="diagram-date"]');if(input)input.value=state.selectedDate;$("#modal").close();return;}
     const calendarNav=event.target.closest("[data-calendar-nav]");if(calendarNav){const current=state.calendarMonth instanceof Date?new Date(state.calendarMonth):new Date();current.setMonth(current.getMonth()+Number(calendarNav.dataset.calendarNav));state.calendarMonth=current;showDiagramCalendar();return;}
     const action=event.target.closest("[data-action]")?.dataset.action;
-    if(action==="refresh"){event.target.disabled=true;await Promise.all([fetchLive(true),fetchInformation()]);event.target.disabled=false;render();showToast(`更新しました　${hhmm()}`);}
+    if(action==="refresh"){event.target.disabled=true;await Promise.all([fetchLive(true),fetchRailways(true),fetchInformation()]);event.target.disabled=false;render();showToast(`更新しました　${hhmm()}`);}
     if(action==="information-refresh"){event.target.disabled=true;await fetchInformation();event.target.disabled=false;render();showToast(`運転情報を更新しました　${hhmm()}`);}
     if(action==="train-search"||action==="depot-search")runSearch(action);
     if(action==="train-diagram-search")await showTrainDiagram();
@@ -432,13 +479,14 @@
     if(action==="close-modal"){$("#modal").close();}
     if(action==="help"){const modal=$("#modal");modal.className="";setMarkup($("#modal-content"),'<h2>WebATOS ヘルプ</h2><p>上部のモニタボタンで画面を切り替えます。列車番号を押すと詳細を表示します。</p><p>列車情報はODPT、ダイヤ情報は東京圏輸送情報システムの時刻表JSONを使用します。</p>');modal.showModal();}
     if(action==="logout")showToast("公開版ではログアウト操作はありません。");
-    if(action==="notices")showToast("お知らせは現在1件です。");
+    if(action==="notices")showNotices();
     if(action==="collapse"){$(".ticker").classList.toggle("hidden");}
   });
   document.addEventListener("change",event=>{
     if(event.target.matches('[data-field="line"]')){state.selectedLine=event.target.value;state.selectedStation=LINE_CONFIG[state.selectedLine]?.focus||LINE_CONFIG[state.selectedLine]?.stations?.[0]||"";render();}
     if(event.target.matches('[data-field="station"]')){state.selectedStation=event.target.value;render();}
     if(event.target.matches('[data-field="destination"]')){state.showDestination=event.target.checked;render();}
+    if(event.target.matches('[data-field="search-line"]')){state.selectedLine=event.target.value;}
     if(event.target.matches('[data-field="diagram-line"]')){state.selectedLine=event.target.value;const stations=timetableStations();state.selectedStation=stations[0]||"";render();}
     if(event.target.matches('[data-field="diagram-station"]')){state.selectedStation=event.target.value;}
     if(event.target.matches('[data-query="diagram-date"]')){state.selectedDate=normalizeDate(event.target.value);}
@@ -452,6 +500,6 @@
   const hash=decodeURIComponent(location.hash.slice(1));if(hash&&(NAV.some(n=>n.id===hash||n.menu?.some(([id])=>id===hash))))state.screen=hash;
   if(SPECIAL_DEFAULTS[state.screen]) [state.selectedLine,state.selectedStation]=SPECIAL_DEFAULTS[state.screen];
   renderNav();render();
-  if((state.screen==="train-diagram"||state.screen==="station-diagram")&&!state.timetableLoaded)fetchTimetables().then(()=>{if(state.screen==="train-diagram"||state.screen==="station-diagram")render();});
-  Promise.all([fetchLive(),fetchInformation()]).then(()=>{if(["summary","station-delay","online","station-diagram","information"].some(x=>state.screen.startsWith(x))){render();}});
+  if((state.screen==="train-diagram"||state.screen==="station-diagram")&&(!state.timetableLoaded||!state.lineAliasesLoaded))Promise.all([fetchTimetables(),fetchLineAliases()]).then(()=>{if(state.screen==="train-diagram"||state.screen==="station-diagram")render();});
+  Promise.all([fetchLive(),fetchRailways(),fetchInformation(),fetchLineAliases()]).then(()=>{renderNav();if(["summary","station-delay","online","station-diagram","train-diagram","search","depot","information"].some(x=>state.screen.startsWith(x))){render();}});
 })();

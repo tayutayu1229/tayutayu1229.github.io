@@ -7,6 +7,7 @@
   const AUTH_HELPER_URL = "/T-time/firebase-data-auth.js";
   const TIMETABLE_MANIFEST_PATH = "/api/timetable-files";
   const LINE_ALIASES_PATH = "/api/line-aliases";
+  const clientConfig = window.TayunetPrivateDataConfig || {};
   let authHelperPromise;
 
   class PrivateDataError extends Error {
@@ -33,6 +34,7 @@
   }
 
   function showLoginNotice(messageText) {
+    if (clientConfig.showNotices === false) return;
     if (!document.body || document.getElementById("tayunet-private-data-notice")) return;
     const notice = document.createElement("div");
     notice.id = "tayunet-private-data-notice";
