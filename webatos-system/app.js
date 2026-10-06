@@ -13,6 +13,7 @@
     {id:"information",label:"運転情報モニタ"},
     {id:"certificate",label:"遅延証明モニタ"}
   ];
+  const SCREEN_CODES = {top:"SPANSTOP01",summary:"SPAAJUHM01","summary-history":"SPAAJUHK01","station-delay":"SPAAJECM01",online:"SPAAJZMU01","online-single":"SPAAJZMS01","online-multi":"SPAAJZMF01","online-platform":"SPAAJZBS01","online-keiyo":"SPAAJZMK01","online-chuo":"SPAAJZMC01",search:"SPAAJRTM01",plan:"SPAAJUPM01","plan-calendar":"SPAAJUPM01","train-diagram":"SPAAJRDM01","station-diagram":"SPAAJEDM01",depot:"SPAAJNDM01",information:"SPAAJUJM01",certificate:"SPAAJCSM01"};
 
   const fallbackTrains = [
     {"odpt:trainNumber":"1896E","odpt:railway":"odpt.Railway:JR-East.Takasaki","odpt:fromStation":"odpt.Station:JR-East.Takasaki.Omiya","odpt:toStation":"odpt.Station:JR-East.Takasaki.Miyahara","odpt:destinationStation":["odpt.Station:JR-East.Takasaki.Takasaki"],"odpt:railDirection":"odpt.RailDirection:Outbound","odpt:delay":180},
@@ -105,9 +106,9 @@
     return `<div class="content-title"><span>遅延線区表示　<button class="action" style="height:48px;min-width:180px">全線区表示</button></span><span>${now()}　現在　<button class="action refresh" data-action="refresh">更　新</button></span></div><div class="delay-summary">${table(["線区","最大<br>遅延時分","最大<br>遅延列番","遅数","総本数","3分","5分","10分","15分","20分"],rows)}<div class="delay-note">注: <span>黄色文字</span> は、遅延線区です。</div></div>`;
   }
   function stationDelay(){
-    const selected=state.live.slice(0,14);
-    const rows=selected.map((t,i)=>[i<7?"下り":"上り",`<a class="train-link" data-train="${esc(t["odpt:trainNumber"])}">${esc(t["odpt:trainNumber"]||"-")}</a>`,`<span class="${delayMin(t)?"yellow":""}">${String(delayMin(t)).padStart(3,"0")}</span>`,destination(t),`${stationName(t["odpt:fromStation"])} →`,i%3?"…":hhmm(new Date(Date.now()+i*300000)),hhmm(new Date(Date.now()+(i+2)*300000)),i<7?"下本":"上本"]);
-    return `<div class="status-tabs"><button class="active">駅遅延モニタ</button><button>運転済列車情報</button><button>条件変更</button></div><div class="content-title"><b>駅名:【${state.selectedStation}】</b><span>${now()} 現在　<button class="action refresh" data-action="refresh">更　新</button></span></div><div class="monitor-box">${table(["線区","列車番号","遅延<br>(分)","行先","在線位置<br>(→は発車済)","着時間","発時間","番線"],rows)}</div>`;
+    const source=Array.from({length:12},(_,i)=>state.live[i%state.live.length]||fallbackTrains[i%fallbackTrains.length]);
+    const rows=source.map((t,i)=>{const down=i<6,d=delayMin(t),from=stationName(t["odpt:fromStation"]),depart=hhmm(new Date(Date.now()+(i+1)*270000));return `<tr>${i===0?`<td class="line-cell" rowspan="12"><span>${esc(state.selectedLine==="高崎"?"東北貨物":state.selectedLine)}</span></td>`:""}${i===0?'<td class="direction-cell" rowspan="6">下り</td>':i===6?'<td class="direction-cell" rowspan="6">上り</td>':""}<td></td><td><a class="train-link" data-train="${esc(t["odpt:trainNumber"])}">${esc(t["odpt:trainNumber"]||"-")}</a></td><td class="delay-cell ${d?"yellow":""}">${String(d).padStart(3,"0")}</td><td>${esc(destination(t))}</td><td>${esc(from)}${i>1?" →":""}</td><td>…</td><td></td><td></td><td>${depart}</td><td></td><td></td><td>${down?"下本":"上本"}</td></tr>`;}).join("");
+    return `<div class="station-delay-view"><div class="status-tabs"><button class="active">駅遅延モニタ</button><button>運転済列車情報</button><button>条件変更</button></div><div class="content-title"><b>駅名:【${state.selectedStation}】</b><span>${now()} 現在　<button class="action refresh" data-action="refresh">更　新</button></span></div><div class="monitor-box"><table class="atos-table station-delay-table"><thead><tr><th rowspan="2">線区</th><th rowspan="2">線別</th><th rowspan="2">抑止</th><th rowspan="2">列車番号</th><th rowspan="2">遅延<br>（分）</th><th rowspan="2">行先</th><th rowspan="2">在線位置<br>（→は発車済）</th><th colspan="3">着時間</th><th colspan="3">発時間</th><th rowspan="2">番線</th></tr><tr><th>計画</th><th>予測</th><th>到着</th><th>計画</th><th>予測</th><th>発車</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
   function online(){
     const stations=["川　口","浦　和","大宮操","大　宮","宮　原","上　尾"];
@@ -132,16 +133,17 @@
     const rows=state.info.slice(0,16).map((x,i)=>[new Date(Date.now()-i*900000).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}),esc(x[0]),esc(x[1]),`<span class="yellow">【${esc(x[1])}】${esc(x[2])}</span>`,"−",String(i+1),"−"]);
     return `<div class="status-tabs"><button class="active">事故</button><button>一般</button></div><div style="text-align:right;margin:0 40px 15px"><button class="action refresh" data-action="refresh">更　新</button></div><div class="monitor-box">${table(["登録日時","タイトル","情報種別","内容","前","当","後"],rows,"information-table")}</div>`;
   }
-  function certificate(){return `<div class="search-card" style="width:600px;margin-left:370px"><div class="search-row"><label>日時</label><div><input class="highlight" value="${new Date().toISOString().slice(0,10).replaceAll("-","")}"></div></div><div class="search-row"><label>開始</label><div><select><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select> 時台　～　<select><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select> 時台</div></div></div><button class="action" style="margin-left:720px" data-action="certificate-search">検　索</button><div id="search-result"></div>`;}
+  function certificate(){return `<div class="certificate-layout"><div class="certificate-search"><table><tbody><tr><th colspan="3">日時</th><td rowspan="2" colspan="3" class="certificate-submit"><button class="action" data-action="certificate-search">検　索</button></td></tr><tr><td colspan="3"><input class="highlight certificate-date" value="${new Date().toISOString().slice(0,10).replaceAll("-","/")}" aria-label="検索日"><button class="calendar-button" type="button" aria-label="カレンダー">▣</button></td></tr><tr><th colspan="2">開始</th><th colspan="2"></th><th colspan="2">終了</th></tr><tr><td><select aria-label="開始時刻"><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select></td><td>時台</td><td colspan="2">～</td><td><select aria-label="終了時刻"><option></option>${Array.from({length:24},(_,i)=>`<option>${i}</option>`).join("")}</select></td><td>時台</td></tr></tbody></table></div><section class="certificate-result"><div id="search-result"></div></section></div>`;}
 
   function render(){
     const id=state.screen;
     const base=id.split("-").slice(0,2).join("-");
     const nav=NAV.find(n=>id===n.id||n.menu?.some(([sub])=>sub===id));
     $("#screen-name").textContent=nav?.label||"トップメニュー";
+    $("#screen-id").textContent=SCREEN_CODES[id]||"SPANSTOP01";
     $("#head-line").textContent=state.selectedLine;$("#head-station").textContent=state.selectedStation;
     const views={top:topMenu,summary, "summary-history":summary,"station-delay":stationDelay,online,"online-single":online,"online-multi":online,"online-platform":online,"online-keiyo":online,"online-chuo":online,search,plan,"plan-calendar":plan,"train-diagram":trainDiagram,"station-diagram":stationDiagram,depot,information,certificate};
-    $("#workspace").innerHTML=(views[id]||views[base]||topMenu)();
+    $("#workspace").innerHTML=`${id!=="top"?'<button class="page-help" type="button" aria-label="画面ヘルプ" data-action="help">?</button>':""}${(views[id]||views[base]||topMenu)()}`;
     $$('[data-field="line"]').forEach(el=>el.value=state.selectedLine);
     $$('[data-field="station"]').forEach(el=>el.value=state.selectedStation);
   }
