@@ -9,7 +9,7 @@
   const API_CACHE_KEY = "tayunet-photo-spots-api-cache-v1";
   const FAVORITE_KEY = "tayunet-photo-spot-favorites-v1";
   const SCHEMA_VERSION = 3;
-  const KIND_LABELS = Object.freeze({ train: "列車", nonTrain: "列車以外" });
+  const KIND_LABELS = Object.freeze({ train: "列車", nonTrain: "その他" });
   const VALID_KINDS = new Set(Object.keys(KIND_LABELS));
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -244,7 +244,7 @@
     const photoSource = safePhotoSource(spot);
     const article = element("article", { className: `spot-card${photoSource ? " has-photo" : ""}${sameId(state.selectedId, spot.id) ? " active" : ""}`, attrs: { tabindex: "0" } });
     article.dataset.id = String(spot.id);
-    const kind = element("span", { className: `kind-badge ${spot.kind}`, text: KIND_LABELS[spot.kind] || "列車以外" });
+    const kind = element("span", { className: `kind-badge ${spot.kind}`, text: KIND_LABELS[spot.kind] || "その他" });
     const favorite = element("button", {
       className: `favorite-button${isFavorite(spot.id) ? " saved" : ""}`,
       text: "★ お気に入り",
@@ -699,6 +699,17 @@
   }
 
   function bind() {
+    const headerMenu = $(".header-menu");
+    const headerMenuSummary = $("summary", headerMenu);
+    headerMenu.addEventListener("toggle", () => headerMenuSummary.setAttribute("aria-expanded", String(headerMenu.open)));
+    document.addEventListener("click", event => {
+      if (headerMenu.open && !headerMenu.contains(event.target)) headerMenu.open = false;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !headerMenu.open) return;
+      headerMenu.open = false;
+      headerMenuSummary.focus();
+    });
     ["#plan-date", "#plan-time"].forEach(selector => $(selector).addEventListener("change", filterResults));
     ["#keyword-filter", "#line-filter", "#direction-filter", "#subject-filter", "#light-filter", "#access-filter", "#season-filter", "#beginner-filter", "#safe-filter", "#sort-order"].forEach(selector => {
       $(selector).addEventListener(selector === "#keyword-filter" ? "input" : "change", filterResults);
