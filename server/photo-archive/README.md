@@ -1,17 +1,20 @@
 # 撮影記録アーカイブ Ubuntu API
 
-「撮影記録アーカイブ」の写真原本、サムネイル、検索索引をUbuntuのHDDへ保存するAPIです。Firebase AuthenticationのIDトークンを検証するため、Firebaseのメールアドレスやパスワードをこのサーバーへ保存しません。
+「撮影記録アーカイブ」の写真原本・検索索引と、「撮影地検索」の撮影地データをUbuntuのHDDへ保存するAPIです。Firebase AuthenticationのIDトークンを検証するため、Firebaseのメールアドレスやパスワードをこのサーバーへ保存しません。
 
 ## 保存場所
 
 既定では `/mnt/hdd/tayunet-photo-archive` に保存します。
 
 - `archive.sqlite3`: 撮影情報・EXIF・タグ・権限・共有リンク・フレンド・グループ
+- `archive.sqlite3` の `shooting_spots`: 撮影地、作例写真、登録者、更新履歴
 - `originals/<Firebase UID>/`: 原寸画像
 - `thumbnails/<Firebase UID>/`: 一覧用JPEG
 - `exports/`: ZIP作成中だけ使う一時領域（ダウンロード後に自動削除）
 
 写真をゴミ箱へ入れてから30日後、次回の一覧取得またはアップロード時に原本とサムネイルを自動削除します。
+
+撮影地APIは `/v1/spots` です。承認済み利用者は一覧取得と登録ができ、登録者または管理者だけが更新・削除できます。旧ブラウザ内データの取り込みは `/v1/spots/import` が端末識別子単位で重複を防ぎます。
 
 ## Ubuntuへの導入
 

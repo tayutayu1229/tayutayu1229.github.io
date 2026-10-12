@@ -8,6 +8,8 @@ Firebaseのパスワードは受け取らず、ブラウザが発行したIDト�
 from __future__ import annotations
 
 import csv
+import base64
+import binascii
 import hashlib
 import io
 import json
@@ -63,8 +65,15 @@ PHOTO_FIELDS = (
     "iso", "focalLength", "visibility", "allowedUids", "allowedGroupIds", "tags", "albumIds",
 )
 VISIBILITIES = {"private", "users", "link", "public"}
+SPOT_KINDS = {"train", "nonTrain"}
+SPOT_TEXT_LIMITS = {
+    "name": 200, "area": 200, "line": 100, "section": 200, "subject": 100,
+    "upLabel": 100, "downLabel": 100, "lens": 200, "capacity": 100,
+    "tripod": 100, "access": 5000, "memo": 10000, "updated": 40,
+}
+SPOT_PHOTO_PATTERN = re.compile(r"^data:image/(png|jpe?g|gif|webp);base64,([A-Za-z0-9+/=]+)$", re.IGNORECASE)
 
-app = FastAPI(title="TAYUNET Photo Archive / Operation Dispatch", version="2026.08.12.8")
+app = FastAPI(title="TAYUNET Photo Archive / Operation Dispatch / Shooting Spots", version="2026.10.12.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -151,6 +160,13 @@ def initialize() -> None:
         CREATE TABLE IF NOT EXISTS group_members (
           group_id TEXT NOT NULL, uid TEXT NOT NULL, PRIMARY KEY(group_id, uid)
         );
+        CREATE TABLE IF NOT EXISTS shooting_spots (
+          id TEXT PRIMARY KEY, client_id TEXT NOT NULL, owner_uid TEXT NOT NULL, owner_email TEXT NOT NULL,
+          payload_json TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, deleted_at TEXT,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          UNIQUE(owner_uid, client_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_shooting_spots_active ON shooting_spots(deleted_at, updated_at);
         """)
 
 
@@ -334,6 +350,69 @@ def clean_payload(raw: dict[str, Any], exif: dict[str, Any] | None = None) -> di
     return data
 
 
+def clean_spot_payload(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise HTTPException(400, "撮影地データの形式が不正です")
+    kind = str(raw.get("kind") or "")
+    if kind not in SPOT_KINDS:
+        raise HTTPException(400, "撮影地の種類が不正です")
+    result: dict[str, Any] = {"schemaVersion": 3, "kind": kind}
+    for key, limit in SPOT_TEXT_LIMITS.items():
+        result[key] = str(raw.get(key) or "").strip()[:limit]
+    if not result["name"]:
+        raise HTTPException(400, "撮影地の名称が必要です")
+    for key, minimum, maximum in (
+        ("lat", -90, 90), ("lng", -180, 180), ("bearing", 0, 359),
+        ("walk", 0, 1440), ("bloomStart", 0, 12), ("bloomEnd", 0, 12),
+    ):
+        try:
+            number = float(raw.get(key) or 0)
+        except (TypeError, ValueError) as error:
+            raise HTTPException(400, f"{key}の値が不正です") from error
+        if not minimum <= number <= maximum:
+            raise HTTPException(400, f"{key}の範囲が不正です")
+        result[key] = int(number) if key not in {"lat", "lng"} else number
+    result["directions"] = [value for value in json_list(raw.get("directions")) if value in {"up", "down"}]
+    result["features"] = json_list(raw.get("features"))
+    result["beginner"] = raw.get("beginner") is True
+    result["verified"] = raw.get("verified") is True
+    photo = str(raw.get("photo") or "")
+    if photo:
+        match = SPOT_PHOTO_PATTERN.fullmatch(photo)
+        if not match:
+            raise HTTPException(415, "作例写真の形式が不正です")
+        try:
+            photo_bytes = base64.b64decode(match.group(2), validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise HTTPException(415, "作例写真を読み取れません") from error
+        if len(photo_bytes) > 2 * 1024 * 1024:
+            raise HTTPException(413, "作例写真は2MB以下にしてください")
+        result["photo"] = photo
+    return result
+
+
+def row_spot(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        payload = json.loads(row["payload_json"])
+    except (TypeError, json.JSONDecodeError):
+        payload = {}
+    return {
+        **payload,
+        "id": row["id"],
+        "ownerUid": row["owner_uid"],
+        "revision": row["revision"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def require_spot(db: sqlite3.Connection, spot_id: str) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM shooting_spots WHERE id=?", (spot_id,)).fetchone()
+    if not row or row["deleted_at"]:
+        raise HTTPException(404, "撮影地が見つかりません")
+    return row
+
+
 def upload_payload(common: dict[str, Any], individual: Any, filename: str, exif: dict[str, Any]) -> dict[str, Any]:
     merged = dict(common)
     if isinstance(individual, dict):
@@ -410,10 +489,12 @@ def health() -> dict[str, Any]:
     with connect() as db:
         photos = db.execute("SELECT COUNT(*) FROM photos WHERE deleted_at IS NULL").fetchone()[0]
         trash = db.execute("SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL").fetchone()[0]
+        shooting_spots = db.execute("SELECT COUNT(*) FROM shooting_spots WHERE deleted_at IS NULL").fetchone()[0]
     with OPERATION_DISPATCH.connect() as db:
         dispatches = db.execute("SELECT COUNT(*) FROM dispatches").fetchone()[0]
         active_dispatches = db.execute("SELECT COUNT(*) FROM dispatches WHERE status IN('active','monitoring')").fetchone()[0]
     return {"ok": True, "version": app.version, "photos": photos, "trash": trash, "trashDays": TRASH_DAYS,
+            "shootingSpots": shooting_spots,
             "operationDispatch": {"records": dispatches, "active": active_dispatches},
             "storage": {"totalBytes": usage.total, "usedBytes": usage.used, "freeBytes": usage.free}}
 
@@ -421,6 +502,104 @@ def health() -> dict[str, Any]:
 @app.get("/v1/me")
 def current_user(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
     return {key: user[key] for key in ("uid", "email", "role", "canUpload", "canManage")}
+
+
+def spot_client_id(raw: Any) -> str:
+    value = str(raw or "").strip()[:200]
+    if not value or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*", value):
+        raise HTTPException(400, "撮影地の端末識別子が不正です")
+    return value
+
+
+@app.get("/v1/spots")
+def list_spots(user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    with connect() as db:
+        rows = db.execute("SELECT * FROM shooting_spots WHERE deleted_at IS NULL ORDER BY updated_at DESC,id").fetchall()
+        return {"items": [row_spot(row) for row in rows]}
+
+
+@app.post("/v1/spots")
+async def create_spot(request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    raw = await request.json()
+    client_id = spot_client_id(raw.get("clientId") if isinstance(raw, dict) else None)
+    payload = clean_spot_payload(raw)
+    spot_id = uuid.uuid4().hex
+    timestamp = now_iso()
+    with connect() as db:
+        existing = db.execute(
+            "SELECT * FROM shooting_spots WHERE owner_uid=? AND client_id=?",
+            (user["uid"], client_id),
+        ).fetchone()
+        if existing:
+            if existing["deleted_at"]:
+                raise HTTPException(409, "同じ撮影地識別子の削除済みデータがあります")
+            return row_spot(existing)
+        db.execute(
+            "INSERT INTO shooting_spots(id,client_id,owner_uid,owner_email,payload_json,revision,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,1,NULL,?,?)",
+            (spot_id, client_id, user["uid"], user["email"], json.dumps(payload, ensure_ascii=False), timestamp, timestamp),
+        )
+        return row_spot(require_spot(db, spot_id))
+
+
+@app.post("/v1/spots/import")
+async def import_spots(request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    document = await request.json()
+    raw_items = document.get("items") if isinstance(document, dict) else None
+    if not isinstance(raw_items, list) or len(raw_items) > 100:
+        raise HTTPException(400, "取り込みは1回100件までです")
+    timestamp = now_iso()
+    mapping: dict[str, str] = {}
+    created = 0
+    with connect() as db:
+        for raw in raw_items:
+            if not isinstance(raw, dict):
+                raise HTTPException(400, "撮影地データの形式が不正です")
+            client_id = spot_client_id(raw.get("clientId") or raw.get("id"))
+            payload = clean_spot_payload(raw)
+            existing = db.execute(
+                "SELECT * FROM shooting_spots WHERE owner_uid=? AND client_id=?",
+                (user["uid"], client_id),
+            ).fetchone()
+            if existing:
+                mapping[client_id] = existing["id"]
+                continue
+            spot_id = uuid.uuid4().hex
+            db.execute(
+                "INSERT INTO shooting_spots(id,client_id,owner_uid,owner_email,payload_json,revision,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,1,NULL,?,?)",
+                (spot_id, client_id, user["uid"], user["email"], json.dumps(payload, ensure_ascii=False), timestamp, timestamp),
+            )
+            mapping[client_id] = spot_id
+            created += 1
+    return {"ok": True, "created": created, "idMap": mapping}
+
+
+@app.patch("/v1/spots/{spot_id}")
+async def update_spot(spot_id: str, request: Request, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    raw = await request.json()
+    payload = clean_spot_payload(raw)
+    expected_revision = raw.get("revision") if isinstance(raw, dict) else None
+    with connect() as db:
+        row = require_spot(db, spot_id)
+        if not can_manage(row, user):
+            raise HTTPException(403, "登録者または管理者だけが変更できます")
+        if expected_revision is not None and int(expected_revision) != row["revision"]:
+            raise HTTPException(409, "別の利用者が先に更新しました。再読み込みしてください")
+        db.execute(
+            "UPDATE shooting_spots SET payload_json=?,revision=revision+1,updated_at=? WHERE id=?",
+            (json.dumps(payload, ensure_ascii=False), now_iso(), spot_id),
+        )
+        return row_spot(require_spot(db, spot_id))
+
+
+@app.delete("/v1/spots/{spot_id}")
+def delete_spot(spot_id: str, user: dict[str, Any] = Depends(verify_user)) -> dict[str, Any]:
+    with connect() as db:
+        row = require_spot(db, spot_id)
+        if not can_manage(row, user):
+            raise HTTPException(403, "登録者または管理者だけが削除できます")
+        timestamp = now_iso()
+        db.execute("UPDATE shooting_spots SET deleted_at=?,updated_at=?,revision=revision+1 WHERE id=?", (timestamp, timestamp, spot_id))
+    return {"ok": True}
 
 
 @app.post("/v1/photos")

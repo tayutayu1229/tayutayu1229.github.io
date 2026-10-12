@@ -66,7 +66,33 @@ class PhotoArchiveTest(unittest.TestCase):
     def test_database_schema_is_initialized(self):
         with archive.connect() as db:
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        self.assertTrue({"photos", "albums", "shares", "friends", "groups"}.issubset(tables))
+        self.assertTrue({"photos", "albums", "shares", "friends", "groups", "shooting_spots"}.issubset(tables))
+
+    def test_shooting_spot_import_is_idempotent_and_shared(self):
+        owner = {"uid": "spot-owner", "email": "spot-owner@example.com"}
+        viewer = {"uid": "spot-viewer", "email": "spot-viewer@example.com"}
+        item = {
+            "id": "local-api-test-1", "kind": "nonTrain", "name": "<script>alert(1)</script>",
+            "subject": "紅葉", "lat": 35.6812, "lng": 139.7671, "memo": "<img onerror=alert(1)>",
+            "bloomStart": 11, "bloomEnd": 12, "features": ["利用者登録"],
+        }
+        archive.app.dependency_overrides[archive.verify_user] = lambda: owner
+        try:
+            with TestClient(archive.app) as client:
+                first = client.post("/v1/spots/import", json={"items": [item]})
+                second = client.post("/v1/spots/import", json={"items": [item]})
+                self.assertEqual(first.status_code, 200, first.text)
+                self.assertEqual(first.json()["created"], 1)
+                self.assertEqual(second.status_code, 200, second.text)
+                self.assertEqual(second.json()["created"], 0)
+                archive.app.dependency_overrides[archive.verify_user] = lambda: viewer
+                listed = client.get("/v1/spots")
+                self.assertEqual(listed.status_code, 200, listed.text)
+                matched = [spot for spot in listed.json()["items"] if spot["name"] == item["name"]]
+                self.assertEqual(len(matched), 1)
+                self.assertEqual(matched[0]["memo"], item["memo"])
+        finally:
+            archive.app.dependency_overrides.clear()
 
     def test_expiry_is_normalized_to_jst(self):
         self.assertTrue(archive.normalized_expiry("2026-08-10T12:30").endswith("+09:00"))
