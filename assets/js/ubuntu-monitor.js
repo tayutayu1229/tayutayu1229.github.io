@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const API = 'https://incident-api.tayunet-traininfo.com/server-monitor';
+  const SHOOTING_API_HEALTH = 'https://photo-api.tayunet-traininfo.com/health';
   const ALLOWED = new Set(['admin@tayunet-traininfo.com','systemadmin@tayunet-traininfo.com','railwaymax185@gmail.com']);
   let context=null, status=null, pendingAction=null, refreshTimer=null;
   const $=id=>document.getElementById(id);
@@ -51,9 +52,41 @@
     $('endpoint-body').innerHTML=(status.endpoints||[]).map(x=>`<tr><td>${badge(x.ok?'ok':'critical')}</td><td><b>${esc(x.name)}</b><br><span class="muted mono">${esc(x.url)}</span></td><td>${x.status||'-'}</td><td>${x.responseMs}ms</td><td>${x.jsonValid==null?'-':x.jsonValid?'正常':'不正'}</td></tr>`).join('');
     $('tls-list').innerHTML=(status.tls||[]).map(x=>`<li><div><b>${esc(x.host)}</b><small>${x.expiresAt?new Date(x.expiresAt).toLocaleDateString('ja-JP'):'取得失敗'}／${esc(x.issuer||x.error||'')}</small></div>${badge(!x.ok?'critical':x.daysRemaining<=7?'critical':x.daysRemaining<=30?'warning':'ok')}<small>${x.daysRemaining??'-'}日</small></li>`).join('');
   }
+  function setShootingApiStatus(kind,label){
+    const node=$('shooting-api-status');
+    node.className=`ops-status ${kind}`;
+    $('shooting-api-status-text').textContent=label;
+    $('shooting-spot-api-card').classList.toggle('api-error',kind==='error');
+  }
+  async function refreshShootingApi(){
+    const started=performance.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+    setShootingApiStatus('unknown','確認中');
+    try{
+      const response=await fetch(`${SHOOTING_API_HEALTH}?monitor=${Date.now()}`,{cache:'no-store',signal:controller.signal});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const health=await response.json();
+      if(!health||health.ok!==true||typeof health.version!=='string'||!health.storage)throw new Error('応答形式が不正です');
+      const storage=health.storage,total=Number(storage.totalBytes||0),used=Number(storage.usedBytes||0),free=Number(storage.freeBytes||0);
+      setShootingApiStatus('ok','正常');
+      $('shooting-api-response').textContent=`${Math.round(performance.now()-started)}ms`;
+      $('shooting-api-version').textContent=health.version;
+      $('shooting-api-spots').textContent=`${Number(health.shootingSpots||0).toLocaleString('ja-JP')}件`;
+      $('shooting-api-photos').textContent=`${Number(health.photos||0).toLocaleString('ja-JP')}件`;
+      $('shooting-api-storage').textContent=total?`${fmtBytes(used)} / ${fmtBytes(total)}（空き ${fmtBytes(free)}）`:'取得不可';
+      $('shooting-api-checked').textContent=`確認 ${new Date().toLocaleTimeString('ja-JP')}`;
+    }catch(error){
+      setShootingApiStatus('error','異常');
+      $('shooting-api-response').textContent=error.name==='AbortError'?'12秒でタイムアウト':error.message;
+      $('shooting-api-version').textContent='取得不可';
+      $('shooting-api-spots').textContent='取得不可';
+      $('shooting-api-photos').textContent='取得不可';
+      $('shooting-api-storage').textContent='取得不可';
+      $('shooting-api-checked').textContent=`失敗 ${new Date().toLocaleTimeString('ja-JP')}`;
+    }finally{clearTimeout(timeout);}
+  }
   function renderChart(history){const svg=$('resource-chart'),rows=history.map(x=>x.metrics).filter(x=>x?.cpu&&x?.memory);if(rows.length<2){svg.innerHTML='<text x="450" y="100" text-anchor="middle" fill="#65736b">履歴を収集中です</text>';return;}const w=900,h=190,p=8;const points=key=>rows.map((x,i)=>`${p+i*(w-2*p)/(rows.length-1)},${h-p-Math.min(100,key(x)||0)*(h-2*p)/100}`).join(' ');svg.innerHTML=`<line class="grid" x1="0" y1="48" x2="900" y2="48"/><line class="grid" x1="0" y1="95" x2="900" y2="95"/><line class="grid" x1="0" y1="143" x2="900" y2="143"/><polyline class="cpu" points="${points(x=>x.cpu.usedPercent)}"/><polyline class="memory" points="${points(x=>x.memory.usedPercent)}"/><polyline class="iowait" points="${points(x=>x.cpu.iowaitPercent)}"/>`;}
   function renderEvents(events,actions){$('event-body').innerHTML=events.map(x=>`<tr><td>${new Date(x.created_at).toLocaleString('ja-JP')}</td><td>${badge(x.severity)}</td><td><b>${esc(x.message)}</b><br><span class="muted">${esc(x.code)}</span></td></tr>`).join('')||'<tr><td colspan="3">イベントはありません。</td></tr>';$('action-body').innerHTML=actions.map(x=>`<tr><td>${new Date(x.created_at).toLocaleString('ja-JP')}</td><td>${esc(x.actor)}</td><td>${esc(x.kind)}/${esc(x.target)}</td><td>${esc(x.action)}</td><td>${badge(x.success?'ok':'critical')}</td></tr>`).join('')||'<tr><td colspan="5">操作履歴はありません。</td></tr>';}
-  async function refresh(){try{$('refresh-monitor').disabled=true;const [newStatus,history,events,actions]=await Promise.all([api('/api/status'),api('/api/history?granularity=5m&limit=288'),api('/api/events'),api('/api/actions')]);status=newStatus;renderSummary();renderAlerts();renderDetails();renderServices();renderExternal();renderChart(history);renderEvents(events,actions);}catch(error){const banner=$('health-banner');banner.className='server-health-banner error';banner.querySelector('h2').textContent='監視情報を取得できません';banner.querySelector('p').textContent=error.message;banner.querySelector('.server-health-state').textContent='接続異常';$('server-alerts').innerHTML=`<div class="ops-alert critical"><div><b>Ubuntu監視APIへ接続できません</b><p>${esc(error.message)}。サーバー停止・Cloudflare Tunnel・認証状態を確認してください。</p></div></div>`;}finally{$('refresh-monitor').disabled=false;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60000);}}
+  async function refresh(){const shootingApiPromise=refreshShootingApi();try{$('refresh-monitor').disabled=true;const [newStatus,history,events,actions]=await Promise.all([api('/api/status'),api('/api/history?granularity=5m&limit=288'),api('/api/events'),api('/api/actions')]);status=newStatus;renderSummary();renderAlerts();renderDetails();renderServices();renderExternal();renderChart(history);renderEvents(events,actions);}catch(error){const banner=$('health-banner');banner.className='server-health-banner error';banner.querySelector('h2').textContent='監視情報を取得できません';banner.querySelector('p').textContent=error.message;banner.querySelector('.server-health-state').textContent='接続異常';$('server-alerts').innerHTML=`<div class="ops-alert critical"><div><b>Ubuntu監視APIへ接続できません</b><p>${esc(error.message)}。サーバー停止・Cloudflare Tunnel・認証状態を確認してください。</p></div></div>`;}finally{await shootingApiPromise;$('refresh-monitor').disabled=false;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60000);}}
   async function showLogs(kind,target){pendingAction=null;$('modal-title').textContent=`${target} ログ`;$('restart-confirm').hidden=true;$('modal-content').textContent='ログを取得しています…';$('service-modal').classList.add('open');try{const result=await api(`/api/logs?kind=${encodeURIComponent(kind)}&target=${encodeURIComponent(target)}&lines=100`);$('modal-content').textContent=result.logs||'ログはありません。';}catch(error){$('modal-content').textContent=error.message;}}
   function confirmRestart(kind,target){pendingAction={kind,target};$('modal-title').textContent=`${target} を再起動`;$('confirm-target').textContent=`${kind} / ${target}`;$('restart-confirm').hidden=false;$('modal-content').textContent='実行すると、再起動前後のログと実行者が記録され、Discordへ通知されます。';$('service-modal').classList.add('open');}
   async function executeRestart(){if(!pendingAction)return;const {kind,target}=pendingAction;if(!confirm(`${target} を再起動します。よろしいですか？`))return;$('execute-restart').disabled=true;$('modal-content').textContent='再起動しています…';try{const result=await api('/api/action',{method:'POST',body:JSON.stringify({kind,target,action:'restart',confirm:target})});$('modal-content').textContent=`再起動が完了しました。\n${result.detail||''}`;Ops.toast(`${target} を再起動しました。`);await Ops.audit('server_service_restart',{summary:`${kind}/${target} を再起動`});setTimeout(refresh,1000);}catch(error){$('modal-content').textContent=`再起動に失敗しました。\n${error.message}`;Ops.toast('再起動に失敗しました。','error');}finally{$('execute-restart').disabled=false;pendingAction=null;}}
