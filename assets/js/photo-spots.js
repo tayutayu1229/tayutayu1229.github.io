@@ -863,8 +863,17 @@
 
   function updateEditorFields() {
     const isTrain = $("#editor-kind").value === "train";
-    $("#editor-train-fields").hidden = !isTrain;
-    $("#editor-non-train-fields").hidden = isTrain;
+    const trainFields = $("#editor-train-fields");
+    const nonTrainFields = $("#editor-non-train-fields");
+    trainFields.hidden = !isTrain;
+    nonTrainFields.hidden = isTrain;
+    $$("input, select, textarea", trainFields).forEach(control => { control.disabled = !isTrain; });
+    $$("input, select, textarea", nonTrainFields).forEach(control => {
+      control.disabled = isTrain;
+      if (!isTrain && (control.name === "bloomStart" || control.name === "bloomEnd") && control.value === "0") {
+        control.value = "";
+      }
+    });
   }
 
   function setEditorPoint(lat, lng, center = false) {
