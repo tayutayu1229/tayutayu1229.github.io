@@ -1,22 +1,41 @@
 #!/bin/sh
 set -eu
 
-IMAGE="tayunet/photo-archive:2026.10.12.1"
+IMAGE="tayunet/photo-archive:2026.10.13.3"
 NAME="tayunet-photo-archive"
+PREVIOUS_NAME="${NAME}-previous"
 DATA_DIR="/mnt/hdd/tayunet-photo-archive"
 SOURCE_DIR="${PHOTO_ARCHIVE_SOURCE_DIR:-/opt/tayunet/photo-archive}"
 
 case "${1:-start}" in
   start)
-    install -d -o 1000 -g 1000 -m 0750 "$DATA_DIR" "$DATA_DIR/originals" "$DATA_DIR/thumbnails" "$DATA_DIR/exports"
+    install -d -o 1000 -g 1000 -m 0750 \
+      "$DATA_DIR" "$DATA_DIR/originals" "$DATA_DIR/thumbnails" "$DATA_DIR/exports" \
+      "$DATA_DIR/shooting-spots" "$DATA_DIR/shooting-spots/originals" "$DATA_DIR/shooting-spots/thumbnails"
+    # Dockerfile内の単体テストを含むビルドが完了するまで、稼働中コンテナには触れない。
     docker build -t "$IMAGE" "$SOURCE_DIR"
-    docker rm -f "$NAME" >/dev/null 2>&1 || true
-    docker run -d --name "$NAME" --restart unless-stopped \
-      -p 127.0.0.1:8790:8790 \
-      -v "$DATA_DIR:/data" \
-      -e PHOTO_ARCHIVE_FIREBASE_PROJECT=tokyo-pass \
-      -e PHOTO_ARCHIVE_ALLOWED_ORIGINS=https://tayunet-traininfo.com,https://www.tayunet-traininfo.com \
-      "$IMAGE"
+    had_previous=0
+    if docker container inspect "$NAME" >/dev/null 2>&1; then
+      docker rm -f "$PREVIOUS_NAME" >/dev/null 2>&1 || true
+      docker stop "$NAME" >/dev/null
+      docker rename "$NAME" "$PREVIOUS_NAME"
+      had_previous=1
+    fi
+    if docker run -d --name "$NAME" --restart unless-stopped \
+        -p 127.0.0.1:8790:8790 \
+        -v "$DATA_DIR:/data" \
+        -e PHOTO_ARCHIVE_FIREBASE_PROJECT=tokyo-pass \
+        -e PHOTO_ARCHIVE_ALLOWED_ORIGINS=https://tayunet-traininfo.com,https://www.tayunet-traininfo.com \
+        "$IMAGE"; then
+      if [ "$had_previous" -eq 1 ]; then docker rm "$PREVIOUS_NAME" >/dev/null; fi
+    else
+      docker rm -f "$NAME" >/dev/null 2>&1 || true
+      if [ "$had_previous" -eq 1 ]; then
+        docker rename "$PREVIOUS_NAME" "$NAME"
+        docker start "$NAME" >/dev/null
+      fi
+      exit 1
+    fi
     ;;
   stop) docker stop "$NAME" >/dev/null 2>&1 || true ;;
   status) docker ps -a --filter "name=^/${NAME}$" ;;

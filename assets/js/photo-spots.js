@@ -57,7 +57,14 @@
     markers: new Map(),
     editorMap: null,
     editorMarker: null,
-    apiReady: false
+    apiReady: false,
+    me: null,
+    editingId: null,
+    editingRevision: null,
+    conflictCurrent: null,
+    photoObserver: null,
+    photoUrls: new Map(),
+    photoRequests: new Map()
   };
 
   function rad(value) { return value * Math.PI / 180; }
@@ -242,7 +249,8 @@
         ? (spot.directions || []).map(direction => direction === "up" ? "上り" : "下り").join("・")
         : meaningful(spot.subject) ? spot.subject : "";
     const photoSource = safePhotoSource(spot);
-    const article = element("article", { className: `spot-card${photoSource ? " has-photo" : ""}${sameId(state.selectedId, spot.id) ? " active" : ""}`, attrs: { tabindex: "0" } });
+    const hasPhoto = Boolean(photoSource || spot.hasPhoto);
+    const article = element("article", { className: `spot-card${hasPhoto ? " has-photo" : ""}${sameId(state.selectedId, spot.id) ? " active" : ""}`, attrs: { tabindex: "0" } });
     article.dataset.id = String(spot.id);
     const kind = element("span", { className: `kind-badge ${spot.kind}`, text: KIND_LABELS[spot.kind] || "その他" });
     const favorite = element("button", {
@@ -265,11 +273,15 @@
     const footer = element("div", { className: "card-footer" });
     if (meaningful(spot.updated)) append(footer, element("span", { text: `最終確認 ${spot.updated}` }));
     append(footer, element("b", { text: "詳細を見る" }));
-    if (photoSource) {
+    if (hasPhoto) {
       const visual = element("div", { className: "card-visual" });
       const image = element("img");
-      image.src = photoSource;
       image.alt = `${spot.name}の作例`;
+      if (photoSource) image.src = photoSource;
+      else {
+        image.dataset.photoId = String(spot.id);
+        image.dataset.loading = "true";
+      }
       append(visual, image);
       append(article, visual);
     }
@@ -294,6 +306,7 @@
       event.stopPropagation();
       toggleFavorite(button.dataset.favorite);
     }));
+    observeThumbnails(cards);
   }
 
   function markerIcon(spot, selected = false) {
@@ -411,6 +424,186 @@
     return list;
   }
 
+  function displayDateTime(value) {
+    if (!meaningful(value)) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  }
+
+  function displayHistoryDateTime(value) {
+    if (!meaningful(value)) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    }).format(date);
+  }
+
+  function replaceSpot(updated) {
+    const normalized = normalizeSpot(updated);
+    state.spots = [normalized, ...state.spots.filter(item => !sameId(item.id, normalized.id))];
+    saveApiCache(state.spots);
+    fillOptions();
+    filterResults();
+    return normalized;
+  }
+
+  function showConflict(error) {
+    state.conflictCurrent = error?.payload?.current || null;
+    const current = state.conflictCurrent;
+    const summary = $("#conflict-summary");
+    summary.replaceChildren();
+    if (current) append(summary,
+      element("dt", { text: "最終更新者" }), element("dd", { text: current.updatedByName || "不明" }),
+      element("dt", { text: "最終更新日" }), element("dd", { text: displayDateTime(current.updatedAt) })
+    );
+    $("#conflict-dialog").showModal();
+  }
+
+  async function confirmSpot(spot) {
+    if (!window.confirm("この撮影地を現地確認済みにし、確認日と確認者を記録しますか？")) return;
+    try {
+      const updated = replaceSpot(await api(`/v1/spots/${encodeURIComponent(spot.id)}/verify`, {
+        method: "POST", body: JSON.stringify({ expectedRevision: spot.revision })
+      }));
+      $("#spot-dialog").close();
+      openDetail(updated);
+      showToast("最終確認日と確認者を更新しました");
+    } catch (error) {
+      if (error.status === 409) showConflict(error);
+      else showToast(error.message || "確認情報を更新できませんでした");
+    }
+  }
+
+  async function moveSpotToTrash(spot) {
+    if (!window.confirm(`「${spot.name}」をゴミ箱へ移動しますか？30日間は復元できます。`)) return;
+    try {
+      await api(`/v1/spots/${encodeURIComponent(spot.id)}`, {
+        method: "DELETE", body: JSON.stringify({ expectedRevision: spot.revision })
+      });
+      state.spots = state.spots.filter(item => !sameId(item.id, spot.id));
+      saveApiCache(state.spots);
+      $("#spot-dialog").close();
+      filterResults();
+      showToast("撮影地をゴミ箱へ移動しました");
+    } catch (error) {
+      if (error.status === 409) showConflict(error);
+      else showToast(error.message || "ゴミ箱へ移動できませんでした");
+    }
+  }
+
+  const HISTORY_ACTIONS = Object.freeze({
+    create: "登録しました", update: "編集", verify: "現地確認", trash: "ゴミ箱へ移動",
+    restore: "復元", photo_add: "作例写真を追加", photo_replace: "作例写真を交換", photo_remove: "作例写真を削除"
+  });
+
+  const HISTORY_FIELDS = Object.freeze({
+    schemaVersion: "データ形式", kind: "種類", name: "名称", area: "市区町村・場所",
+    line: "路線", section: "区間", subject: "被写体", upLabel: "上り方面", downLabel: "下り方面",
+    lens: "推奨レンズ", capacity: "定員目安", tripod: "三脚の可否", access: "撮影位置・アクセス",
+    memo: "メモ", updated: "最終確認日", verifiedAt: "最終確認日時", verifiedBy: "確認者",
+    lat: "緯度", lng: "経度", bearing: "カメラ方位", walk: "駅から徒歩",
+    bloomStart: "見頃開始月", bloomEnd: "見頃終了月", directions: "対象方向",
+    features: "特徴", beginner: "初心者向け", verified: "現地確認済み", photo: "作例写真",
+    deletedAt: "削除日時"
+  });
+
+  function historyValue(value) {
+    if (value === null || value === undefined || value === "") return "未入力";
+    if (value === true) return "はい";
+    if (value === false) return "いいえ";
+    if (Array.isArray(value)) {
+      return value.map(item => item === "up" ? "上り" : item === "down" ? "下り" : String(item)).join("・") || "未入力";
+    }
+    if (value === "train") return "列車";
+    if (value === "nonTrain") return "その他";
+    return String(value);
+  }
+
+  async function openHistory(spot) {
+    const list = $("#history-list");
+    list.replaceChildren(element("p", { className: "empty-dialog", text: "履歴を読み込んでいます" }));
+    $("#history-dialog").showModal();
+    try {
+      const response = await api(`/v1/spots/${encodeURIComponent(spot.id)}/history`);
+      const entries = (response.items || []).map(item => {
+        const entry = element("section", { className: "history-entry" });
+        const head = element("header");
+        append(head, element("b", { text: `${item.actorName || "利用者"}／${HISTORY_ACTIONS[item.action] || item.action}` }),
+          element("time", { text: displayHistoryDateTime(item.changedAt) }));
+        const changes = element("ul");
+        if (item.action !== "create") (item.changes || []).forEach(change => append(changes, element("li", {
+          text: `${HISTORY_FIELDS[change.field] || "項目"}: ${historyValue(change.before)} → ${historyValue(change.after)}`
+        })));
+        append(entry, head);
+        if (changes.childElementCount) append(entry, changes);
+        return entry;
+      });
+      list.replaceChildren(...(entries.length ? entries : [element("p", { className: "empty-dialog", text: "履歴はありません" })]));
+    } catch (error) {
+      list.replaceChildren(element("p", { className: "empty-dialog", text: error.message || "履歴を取得できませんでした" }));
+    }
+  }
+
+  async function restoreFromTrash(spot) {
+    try {
+      const restored = replaceSpot(await api(`/v1/spots/${encodeURIComponent(spot.id)}/restore`, {
+        method: "POST", body: JSON.stringify({ expectedRevision: spot.revision })
+      }));
+      showToast(`「${restored.name}」を復元しました`);
+      await openTrash();
+    } catch (error) {
+      if (error.status === 409) showConflict(error);
+      else showToast(error.message || "撮影地を復元できませんでした");
+    }
+  }
+
+  async function permanentlyDeleteFromTrash(spot) {
+    const message = `「${spot.name}」を完全に削除します。編集履歴・作例写真・全利用者のお気に入りも削除され、元に戻せません。実行しますか？`;
+    if (!window.confirm(message)) return;
+    try {
+      await api(`/v1/spots/${encodeURIComponent(spot.id)}/permanent`, { method: "DELETE" });
+      forgetSpotPhotos(spot.id);
+      showToast("撮影地を完全に削除しました");
+      await openTrash();
+    } catch (error) {
+      showToast(error.message || "完全削除できませんでした");
+    }
+  }
+
+  async function openTrash() {
+    const dialog = $("#trash-dialog");
+    const list = $("#trash-list");
+    list.replaceChildren(element("p", { className: "empty-dialog", text: "ゴミ箱を読み込んでいます" }));
+    if (!dialog.open) dialog.showModal();
+    try {
+      const response = await api("/v1/spots/trash");
+      const entries = (response.items || []).map(spot => {
+        const entry = element("section", { className: "trash-entry" });
+        const text = element("div");
+        append(text,
+          element("h3", { text: spot.name }),
+          element("p", { className: "trash-meta", text: `削除者：${spot.deletedByName || "不明"}` }),
+          element("time", { text: `削除 ${displayDateTime(spot.deletedAt)}／完全削除予定 ${displayDateTime(spot.purgeAt)}` })
+        );
+        const actions = element("div", { className: "detail-actions" });
+        const restore = element("button", { text: "復元", attrs: { type: "button" } });
+        restore.addEventListener("click", () => restoreFromTrash(spot));
+        append(actions, restore);
+        if (state.me?.canManage) {
+          const permanent = element("button", { className: "danger-action", text: "完全削除", attrs: { type: "button" } });
+          permanent.addEventListener("click", () => permanentlyDeleteFromTrash(spot));
+          append(actions, permanent);
+        }
+        return append(entry, text, actions);
+      });
+      list.replaceChildren(...(entries.length ? entries : [element("p", { className: "empty-dialog", text: "ゴミ箱は空です" })]));
+    } catch (error) {
+      list.replaceChildren(element("p", { className: "empty-dialog", text: error.message || "ゴミ箱を取得できませんでした" }));
+    }
+  }
+
   function openDetail(raw) {
     const sun = currentSun();
     const spot = { ...raw, _light: raw._light || lightCondition(raw, sun) };
@@ -421,7 +614,8 @@
     const close = element("button", { text: "×", attrs: { type: "button", "aria-label": "閉じる" } });
     append(header, element("h2", { text: spot.name }), close);
     const photoSource = safePhotoSource(spot);
-    const grid = element("div", { className: `detail-grid${photoSource ? "" : " no-media"}` });
+    const hasPhoto = Boolean(photoSource || spot.hasPhoto);
+    const grid = element("div", { className: `detail-grid${hasPhoto ? "" : " no-media"}` });
     const content = element("div", { className: "detail-content" });
     const summary = element("div", { className: "condition-summary" });
     const conditionValue = spot.kind === "train"
@@ -460,12 +654,30 @@
     if (conditionItems.length) append(content, detailSection("撮影条件", dataList(conditionItems)));
     if (access.childElementCount) append(content, detailSection("アクセス", access));
     if (String(spot.memo || "").trim()) append(content, detailSection("メモ", element("div", { className: "memo-box", text: spot.memo })));
+    const audit = element("dl", { className: "detail-audit" });
+    append(audit,
+      element("dt", { text: "登録者" }), element("dd", { text: spot.ownerDisplayName || "不明" }),
+      element("dt", { text: "最終更新者" }), element("dd", { text: spot.updatedByName || spot.ownerDisplayName || "不明" }),
+      element("dt", { text: "最終更新日" }), element("dd", { text: displayDateTime(spot.updatedAt) })
+    );
+    if (meaningful(spot.updated)) append(audit,
+      element("dt", { text: "最終確認" }), element("dd", { text: `${spot.updated}${meaningful(spot.verifiedBy) ? `／${spot.verifiedBy}` : ""}` })
+    );
+    append(content, audit);
+    const confirm = element("button", { text: "確認した", attrs: { type: "button" } });
+    const edit = element("button", { text: "編集", attrs: { type: "button" } });
+    const history = element("button", { text: "履歴", attrs: { type: "button" } });
+    const remove = element("button", { className: "danger-action", text: "ゴミ箱へ移動", attrs: { type: "button" } });
     append(content, actions);
-    if (photoSource) {
+    actions.prepend(confirm, edit, history);
+    append(actions, remove);
+    let protectedImage = null;
+    if (hasPhoto) {
       const media = element("div", { className: "detail-media" });
       const image = element("img");
-      image.src = photoSource;
       image.alt = `${spot.name}の作例`;
+      if (photoSource) image.src = photoSource;
+      else { image.dataset.loading = "true"; protectedImage = image; }
       append(media, image, element("span", { className: "media-caption", text: "作例写真／撮影前に現地の最新状況を確認してください" }));
       append(grid, media);
     }
@@ -473,12 +685,17 @@
     append(article, header, grid);
     container.replaceChildren(article);
     close.addEventListener("click", () => dialog.close());
+    confirm.addEventListener("click", () => confirmSpot(spot));
+    edit.addEventListener("click", () => { dialog.close(); openEditor(spot); });
+    history.addEventListener("click", () => openHistory(spot));
+    remove.addEventListener("click", () => moveSpotToTrash(spot));
     favorite.addEventListener("click", () => {
       toggleFavorite(spot.id);
       dialog.close();
       openDetail(state.spots.find(item => sameId(item.id, spot.id)));
     });
     dialog.showModal();
+    if (protectedImage) loadProtectedImage(protectedImage, spot.id, "original");
   }
 
   function toggleFavorite(id) {
@@ -497,13 +714,13 @@
     showToast.timer = setTimeout(() => { toast.hidden = true; }, 2600);
   }
 
-  async function api(path, options = {}, retryAuth = true) {
+  async function authenticatedFetch(path, options = {}, retryAuth = true) {
     let user;
     try { user = await window.TayunetFirebaseDataAuth.currentUser(); }
     catch (_) { throw new Error("ログイン情報を確認できません。再ログインしてください"); }
     const headers = new Headers(options.headers || {});
     headers.set("Authorization", `Bearer ${await user.getIdToken(!retryAuth)}`);
-    if (options.body) headers.set("Content-Type", "application/json");
+    if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     let response;
@@ -512,13 +729,84 @@
     } catch (error) {
       throw new Error(error.name === "AbortError" ? "撮影地サーバーからの応答がありません" : "撮影地サーバーに接続できません");
     } finally { clearTimeout(timer); }
-    if (response.status === 401 && retryAuth) return api(path, options, false);
+    if (response.status === 401 && retryAuth) return authenticatedFetch(path, options, false);
+    return response;
+  }
+
+  async function api(path, options = {}, retryAuth = true) {
+    const response = await authenticatedFetch(path, options, retryAuth);
     if (!response.ok) {
-      let detail = "";
-      try { detail = String((await response.json()).detail || ""); } catch (_) {}
-      throw new Error(detail || `撮影地サーバーでエラーが発生しました（${response.status}）`);
+      let document = {};
+      try { document = await response.json(); } catch (_) {}
+      const detail = document.detail;
+      const message = typeof detail === "object" ? detail.message : String(detail || "");
+      const error = new Error(message || `撮影地サーバーでエラーが発生しました（${response.status}）`);
+      error.status = response.status;
+      error.payload = typeof detail === "object" ? detail : {};
+      throw error;
     }
     return response.json();
+  }
+
+  async function apiBlob(path) {
+    const response = await authenticatedFetch(path);
+    if (!response.ok) throw new Error(`作例写真を取得できません（${response.status}）`);
+    const blob = await response.blob();
+    if (!String(blob.type || "").startsWith("image/")) throw new Error("作例写真の形式が不正です");
+    return blob;
+  }
+
+  async function loadProtectedImage(image, spotId, variant = "thumbnail") {
+    const key = `${spotId}:${variant}`;
+    try {
+      let source = state.photoUrls.get(key);
+      if (!source) {
+        let request = state.photoRequests.get(key);
+        if (!request) {
+          request = apiBlob(`/v1/spots/${encodeURIComponent(spotId)}/media/${variant}`).then(blob => {
+            const value = URL.createObjectURL(blob);
+            state.photoUrls.set(key, value);
+            state.photoRequests.delete(key);
+            return value;
+          });
+          state.photoRequests.set(key, request);
+        }
+        source = await request;
+      }
+      if (image.isConnected) image.src = source;
+    } catch (_) {
+      state.photoRequests.delete(key);
+      image.closest(".card-visual, .detail-media")?.remove();
+      image.closest(".spot-card")?.classList.remove("has-photo");
+    } finally {
+      delete image.dataset.loading;
+    }
+  }
+
+  function forgetSpotPhotos(spotId) {
+    ["thumbnail", "original"].forEach(variant => {
+      const key = `${spotId}:${variant}`;
+      const source = state.photoUrls.get(key);
+      if (source) URL.revokeObjectURL(source);
+      state.photoUrls.delete(key);
+      state.photoRequests.delete(key);
+    });
+  }
+
+  function observeThumbnails(root) {
+    const images = $$('img[data-photo-id]', root);
+    if (!("IntersectionObserver" in window)) {
+      images.forEach(image => loadProtectedImage(image, image.dataset.photoId));
+      return;
+    }
+    if (!state.photoObserver) {
+      state.photoObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        state.photoObserver.unobserve(entry.target);
+        loadProtectedImage(entry.target, entry.target.dataset.photoId);
+      }), { root: null, rootMargin: "80px" });
+    }
+    images.forEach(image => state.photoObserver.observe(image));
   }
 
   function remapFavorites(idMap) {
@@ -553,8 +841,9 @@
       remapFavorites(idMap);
       localStorage.setItem(API_MIGRATION_KEY, new Date().toISOString());
     }
-    const response = await api("/v1/spots");
+    const [response, me] = await Promise.all([api("/v1/spots"), api("/v1/me")]);
     state.spots = Array.isArray(response.items) ? response.items.map(normalizeSpot) : [];
+    state.me = me;
     state.apiReady = true;
     saveApiCache(state.spots);
     fillOptions();
@@ -572,15 +861,6 @@
     filterResults();
   }
 
-  function fileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   function updateEditorFields() {
     const isTrain = $("#editor-kind").value === "train";
     $("#editor-train-fields").hidden = !isTrain;
@@ -596,7 +876,7 @@
     if (!state.editorMap) return;
     if (!state.editorMarker) state.editorMarker = L.marker([lat, lng]).addTo(state.editorMap);
     else state.editorMarker.setLatLng([lat, lng]);
-    if (center) state.editorMap.panTo([lat, lng]);
+    if (center) state.editorMap.setView([lat, lng], 15);
   }
 
   function ensureEditorMap() {
@@ -619,8 +899,19 @@
     if (form.elements.lat.value && form.elements.lng.value && Number.isFinite(lat) && Number.isFinite(lng)) setEditorPoint(lat, lng, true);
   }
 
-  function openEditor() {
+  function openEditor(spot = null) {
     const dialog = $("#editor-dialog");
+    const form = $("#spot-form");
+    state.editingId = spot?.id ? String(spot.id) : null;
+    state.editingRevision = spot?.revision || null;
+    $("#editor-title").textContent = spot ? "撮影地を編集" : "撮影地を追加";
+    form.reset();
+    if (spot) {
+      ["kind", "name", "line", "upLabel", "downLabel", "bearing", "subject", "bloomStart", "bloomEnd", "lat", "lng", "walk", "access", "memo"].forEach(name => {
+        const control = form.elements[name];
+        if (control && spot[name] !== undefined && spot[name] !== null) control.value = String(spot[name]);
+      });
+    }
     updateEditorFields();
     dialog.showModal();
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -636,7 +927,7 @@
     if (form.elements.lat.value && form.elements.lng.value && Number.isFinite(lat) && Number.isFinite(lng)) setEditorPoint(lat, lng, true);
   }
 
-  async function addSpot(event) {
+  async function saveSpot(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -646,8 +937,10 @@
     if (file && file.size && !allowedTypes.has(file.type)) { showToast("写真はPNG・JPEG・GIF・WebP形式にしてください"); return; }
     const kind = String(data.get("kind") || "nonTrain");
     const isTrain = kind === "train";
+    const existing = state.editingId ? state.spots.find(item => sameId(item.id, state.editingId)) : null;
     const spot = {
-      clientId: `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      ...(existing || {}),
+      clientId: existing?.clientId || `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       schemaVersion: SCHEMA_VERSION,
       kind: isTrain ? "train" : "nonTrain",
       name: String(data.get("name") || "").trim(),
@@ -673,15 +966,24 @@
       memo: String(data.get("memo") || ""),
       features: ["利用者登録"]
     };
-    if (file && file.size) spot.photo = await fileAsDataUrl(file);
+    if (existing) spot.expectedRevision = state.editingRevision;
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
     submit.textContent = "保存中";
     try {
-      const saved = await api("/v1/spots", { method: "POST", body: JSON.stringify(spot) });
-      state.spots = [normalizeSpot(saved), ...state.spots.filter(item => !sameId(item.id, saved.id))];
-      saveApiCache(state.spots);
+      let saved = await api(existing ? `/v1/spots/${encodeURIComponent(existing.id)}` : "/v1/spots", {
+        method: existing ? "PATCH" : "POST", body: JSON.stringify(spot)
+      });
+      if (file && file.size) {
+        const upload = new FormData();
+        upload.set("file", file);
+        upload.set("expectedRevision", String(saved.revision));
+        saved = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photo`, { method: "PUT", body: upload });
+        forgetSpotPhotos(saved.id);
+      }
+      replaceSpot(saved);
     } catch (error) {
+      if (error.status === 409) { showConflict(error); return; }
       showToast(error.message || "撮影地を保存できませんでした");
       return;
     } finally {
@@ -691,11 +993,12 @@
     fillOptions();
     $("#editor-dialog").close();
     form.reset();
+    state.editingId = null;
+    state.editingRevision = null;
     updateEditorFields();
     if (state.editorMarker) { state.editorMarker.remove(); state.editorMarker = null; }
     $("#editor-map-status").textContent = "地図をクリックまたはタップして位置を指定";
-    filterResults();
-    showToast("撮影地をサーバーに保存しました");
+    showToast(existing ? "撮影地を更新しました" : "撮影地をサーバーに保存しました");
   }
 
   function bind() {
@@ -732,11 +1035,25 @@
       document.body.classList.toggle("filters-open");
       $("#filter-toggle").setAttribute("aria-expanded", String(document.body.classList.contains("filters-open")));
     });
-    $("#add-spot-button").addEventListener("click", openEditor);
-    $$('[data-close="editor-dialog"]').forEach(button => button.addEventListener("click", () => $("#editor-dialog").close()));
+    $("#add-spot-button").addEventListener("click", () => openEditor());
+    $$('[data-close]').forEach(button => button.addEventListener("click", () => {
+      const dialog = $(`#${button.dataset.close}`);
+      if (dialog?.open) dialog.close();
+    }));
+    $("#trash-button").addEventListener("click", () => {
+      headerMenu.open = false;
+      openTrash();
+    });
+    $("#conflict-reload").addEventListener("click", () => {
+      if (!state.conflictCurrent) return;
+      const current = replaceSpot(state.conflictCurrent);
+      $("#conflict-dialog").close();
+      if ($("#editor-dialog").open) $("#editor-dialog").close();
+      openDetail(current);
+    });
     $("#editor-kind").addEventListener("change", updateEditorFields);
     [$("#spot-form").elements.lat, $("#spot-form").elements.lng].forEach(input => input.addEventListener("change", syncEditorMapFromInputs));
-    $("#spot-form").addEventListener("submit", addSpot);
+    $("#spot-form").addEventListener("submit", saveSpot);
   }
 
   function authenticatedName(result) {

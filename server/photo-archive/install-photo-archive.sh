@@ -16,7 +16,18 @@ install -o root -g root -m 0444 "$HERE/test_photo_archive.py" /opt/tayunet/photo
 install -o root -g root -m 0444 "$HERE/test_operation_dispatch.py" /opt/tayunet/photo-archive/test_operation_dispatch.py
 install -o root -g root -m 0755 "$HERE/tayunet-photo-archive" /usr/local/sbin/tayunet-photo-archive
 install -o root -g root -m 0644 "$HERE/photo-archive.service" /etc/systemd/system/tayunet-photo-archive.service
+install -d -o 1000 -g 1000 -m 0750 \
+  /mnt/hdd/tayunet-photo-archive \
+  /mnt/hdd/tayunet-photo-archive/shooting-spots \
+  /mnt/hdd/tayunet-photo-archive/shooting-spots/originals \
+  /mnt/hdd/tayunet-photo-archive/shooting-spots/thumbnails
 systemctl daemon-reload
 systemctl enable tayunet-photo-archive.service
-systemctl restart tayunet-photo-archive.service
+if systemctl is-active --quiet tayunet-photo-archive.service; then
+  # restartはExecStopが先に走るため使わない。稼働中APIを残したままビルド・検査してから入れ替える。
+  /usr/local/sbin/tayunet-photo-archive start
+else
+  systemctl start tayunet-photo-archive.service
+fi
+systemctl is-enabled --quiet tayunet-photo-archive.service
 echo "撮影記録アーカイブAPIを導入しました: http://127.0.0.1:8790/health"

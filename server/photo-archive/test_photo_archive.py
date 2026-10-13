@@ -1,7 +1,10 @@
+import base64
+import asyncio
 import io
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -150,6 +153,134 @@ class PhotoArchiveTest(unittest.TestCase):
             self.assertEqual(imported["display_name"], "新規メンバー")
         finally:
             archive.app.dependency_overrides.clear()
+
+    def test_spot_concurrent_edit_is_rejected_and_history_is_kept(self):
+        creator = {"uid": "spot-editor-a", "email": "a@example.com", "displayName": "編集者A"}
+        editor = {"uid": "spot-editor-b", "email": "b@example.com", "displayName": "編集者B"}
+        archive.app.dependency_overrides[archive.verify_user] = lambda: creator
+        payload = {
+            "clientId": "concurrency-test", "kind": "train", "name": "同時編集試験",
+            "lat": 35.6812, "lng": 139.7671, "directions": ["up"],
+        }
+        try:
+            with TestClient(archive.app) as client:
+                created = client.post("/v1/spots", json=payload)
+                self.assertEqual(created.status_code, 200, created.text)
+                spot = created.json()
+                archive.app.dependency_overrides[archive.verify_user] = lambda: editor
+                first = client.patch(f"/v1/spots/{spot['id']}", json={**spot, "name": "先に保存", "expectedRevision": 1})
+                self.assertEqual(first.status_code, 200, first.text)
+                archive.app.dependency_overrides[archive.verify_user] = lambda: creator
+                stale = client.patch(f"/v1/spots/{spot['id']}", json={**spot, "name": "後から上書き", "expectedRevision": 1})
+                self.assertEqual(stale.status_code, 409, stale.text)
+                current = client.get(f"/v1/spots/{spot['id']}")
+                self.assertEqual(current.json()["name"], "先に保存")
+                history = client.get(f"/v1/spots/{spot['id']}/history")
+                self.assertEqual(history.status_code, 200, history.text)
+                self.assertEqual(history.json()["items"][0]["actorName"], "編集者B")
+                verified = client.post(f"/v1/spots/{spot['id']}/verify", json={"expectedRevision": 2})
+                self.assertEqual(verified.status_code, 200, verified.text)
+                self.assertTrue(verified.json()["verified"])
+                self.assertEqual(verified.json()["verifiedBy"], "編集者A")
+                self.assertEqual(verified.json()["revision"], 3)
+                verified_history = client.get(f"/v1/spots/{spot['id']}/history").json()["items"][0]
+                self.assertEqual(verified_history["action"], "verify")
+                self.assertEqual(verified_history["actorName"], "編集者A")
+        finally:
+            archive.app.dependency_overrides.clear()
+
+    def test_spot_trash_retention_and_manager_only_permanent_delete(self):
+        member = {"uid": "trash-member", "email": "member@example.com", "displayName": "一般職員"}
+        manager = {"uid": "trash-manager", "email": "admin@tayunet-traininfo.com", "displayName": "管理者"}
+        archive.app.dependency_overrides[archive.verify_user] = lambda: member
+        image = io.BytesIO()
+        Image.new("RGB", (40, 30), "blue").save(image, "JPEG")
+        encoded = base64.b64encode(image.getvalue()).decode("ascii")
+        try:
+            with TestClient(archive.app) as client:
+                created = client.post("/v1/spots", json={
+                    "clientId": "trash-retention-test", "kind": "nonTrain", "name": "ゴミ箱試験",
+                    "lat": 35.6, "lng": 139.7, "photo": f"data:image/jpeg;base64,{encoded}",
+                }).json()
+                with archive.connect() as db:
+                    media = db.execute("SELECT original_path FROM shooting_spot_media WHERE spot_id=?", (created["id"],)).fetchone()
+                    media_path = Path(media["original_path"])
+                    db.execute("INSERT INTO shooting_spot_favorites(uid,spot_id,created_at) VALUES(?,?,?)",
+                               ("favorite-user", created["id"], archive.now_iso()))
+                deleted = client.request("DELETE", f"/v1/spots/{created['id']}", json={"expectedRevision": created["revision"]})
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                denied = client.delete(f"/v1/spots/{created['id']}/permanent")
+                self.assertEqual(denied.status_code, 403, denied.text)
+                deleted_at = datetime.fromisoformat(deleted.json()["deletedAt"])
+                archive.purge_expired_spots(deleted_at + timedelta(days=29, hours=23))
+                with archive.connect() as db:
+                    self.assertIsNotNone(db.execute("SELECT id FROM shooting_spots WHERE id=?", (created["id"],)).fetchone())
+                archive.app.dependency_overrides[archive.verify_user] = lambda: manager
+                removed = client.delete(f"/v1/spots/{created['id']}/permanent")
+                self.assertEqual(removed.status_code, 200, removed.text)
+                with archive.connect() as db:
+                    self.assertIsNone(db.execute("SELECT id FROM shooting_spots WHERE id=?", (created["id"],)).fetchone())
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM shooting_spot_history WHERE spot_id=?", (created["id"],)).fetchone()[0], 0)
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM shooting_spot_favorites WHERE spot_id=?", (created["id"],)).fetchone()[0], 0)
+                self.assertFalse(media_path.exists())
+        finally:
+            archive.app.dependency_overrides.clear()
+
+    def test_legacy_spot_photo_is_separated_and_invalid_images_are_rejected(self):
+        user = {"uid": "spot-photo-user", "email": "photo@example.com", "displayName": "写真担当"}
+        archive.app.dependency_overrides[archive.verify_user] = lambda: user
+        image = io.BytesIO()
+        Image.new("RGB", (320, 180), "green").save(image, "JPEG")
+        encoded = base64.b64encode(image.getvalue()).decode("ascii")
+        try:
+            with TestClient(archive.app) as client:
+                created = client.post("/v1/spots", json={
+                    "clientId": "legacy-photo-test", "kind": "nonTrain", "name": "旧画面互換",
+                    "lat": 35.6, "lng": 139.7, "photo": f"data:image/jpeg;base64,{encoded}",
+                })
+                self.assertEqual(created.status_code, 200, created.text)
+                self.assertTrue(created.json()["hasPhoto"])
+                self.assertNotIn("photo", created.json())
+                listed = client.get("/v1/spots")
+                legacy = next(item for item in listed.json()["items"] if item["id"] == created.json()["id"])
+                self.assertEqual(legacy["name"], "旧画面互換")
+                self.assertNotIn("photo", legacy)
+                thumbnail = client.get(legacy["thumbnailUrl"])
+                self.assertEqual(thumbnail.status_code, 200, thumbnail.text)
+                fake = client.put(
+                    f"/v1/spots/{legacy['id']}/photo",
+                    files={"file": ("fake.jpg", b"not an image", "image/jpeg")},
+                    data={"expectedRevision": legacy["revision"]},
+                )
+                self.assertEqual(fake.status_code, 415, fake.text)
+                small = io.BytesIO()
+                Image.new("RGB", (20, 20), "red").save(small, "PNG")
+                with patch.object(archive, "MAX_SPOT_IMAGE_PIXELS", 100):
+                    huge = client.put(
+                        f"/v1/spots/{legacy['id']}/photo",
+                        files={"file": ("large.png", small.getvalue(), "image/png")},
+                        data={"expectedRevision": legacy["revision"]},
+                    )
+                self.assertEqual(huge.status_code, 413, huge.text)
+        finally:
+            archive.app.dependency_overrides.clear()
+
+    def test_invalid_firebase_token_is_rejected(self):
+        archive.app.dependency_overrides.clear()
+        with TestClient(archive.app) as client:
+            response = client.get("/v1/spots", headers={"Authorization": "Bearer invalid-token"})
+        self.assertEqual(response.status_code, 401, response.text)
+
+    def test_firestore_unavailable_fails_closed_without_profile_cache(self):
+        client = AsyncMock()
+        client.get.side_effect = OSError("offline")
+        manager = AsyncMock()
+        manager.__aenter__.return_value = client
+        manager.__aexit__.return_value = False
+        with patch.object(archive.httpx, "AsyncClient", return_value=manager):
+            with self.assertRaises(archive.HTTPException) as raised:
+                asyncio.run(archive.active_firestore_profile("test-uid", "test-token"))
+        self.assertEqual(raised.exception.status_code, 503)
 
     def test_upload_edit_and_password_share_flow(self):
         contributor = {"uid": "integration-user", "email": "integration@example.com"}
