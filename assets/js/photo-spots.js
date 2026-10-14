@@ -61,6 +61,7 @@
     editorMap: null,
     editorMarker: null,
     detailMap: null,
+    userLocationMarker: null,
     apiReady: false,
     me: null,
     editingId: null,
@@ -69,13 +70,72 @@
     photoObserver: null,
     photoUrls: new Map(),
     photoRequests: new Map(),
-    favoriteSyncing: false
+    favoriteSyncing: false,
+    loading: true,
+    loadError: "",
+    editorDirty: false
   };
+
+  function spotIdFromHash() {
+    const match = location.hash.match(/^#spot=(.+)$/);
+    if (!match) return "";
+    try { return decodeURIComponent(match[1]); } catch (_) { return ""; }
+  }
+
+  function clearSpotHash() {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+
+  function closeDetailWithHistory() {
+    const id = spotIdFromHash();
+    if (id && history.state?.photoSpot === id) history.back();
+    else {
+      if (id) clearSpotHash();
+      $("#spot-dialog").close();
+    }
+  }
 
   function rad(value) { return value * Math.PI / 180; }
   function deg(value) { return value * 180 / Math.PI; }
   const angularDistance = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
   const monthInRange = (month, start, end) => !start || !end ? true : start <= end ? month >= start && month <= end : month >= start || month <= end;
+  function monthsUntilSeason(month, start, end) {
+    if (!Number.isInteger(Number(start)) || !Number.isInteger(Number(end)) || Number(start) < 1 || Number(end) > 12) return Number.POSITIVE_INFINITY;
+    for (let offset = 0; offset < 12; offset += 1) {
+      const candidate = ((month - 1 + offset) % 12) + 1;
+      if (monthInRange(candidate, Number(start), Number(end))) return offset;
+    }
+    return Number.POSITIVE_INFINITY;
+  }
+
+  function hasSeason(spot) {
+    return Number(spot?.bloomStart) >= 1 && Number(spot?.bloomStart) <= 12 && Number(spot?.bloomEnd) >= 1 && Number(spot?.bloomEnd) <= 12;
+  }
+
+  function updatedAtTime(spot) {
+    const value = Date.parse(String(spot?.updatedAt || ""));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function compareUpdatedSpots(a, b) {
+    return updatedAtTime(b) - updatedAtTime(a) || String(a.name || "").localeCompare(String(b.name || ""), "ja");
+  }
+
+  function isStaleSpot(spot, now = new Date()) {
+    const updatedAt = updatedAtTime(spot);
+    return updatedAt > 0 && now.getTime() - updatedAt >= 180 * 86400000;
+  }
+
+  function seasonMonthBar(spot, currentMonth) {
+    const bar = element("div", { className: "season-month-bar", attrs: { "aria-label": `見頃 ${spot.bloomStart}月から${spot.bloomEnd}月` } });
+    for (let month = 1; month <= 12; month += 1) {
+      const classes = [];
+      if (monthInRange(month, Number(spot.bloomStart), Number(spot.bloomEnd))) classes.push("in-season");
+      if (month === currentMonth) classes.push("current");
+      append(bar, element("span", { className: classes.join(" "), text: month }));
+    }
+    return bar;
+  }
 
   function solarPosition(date, lat, lng) {
     const jd = date.getTime() / 86400000 + 2440587.5;
@@ -116,6 +176,33 @@
           date: sunset,
           time: new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(sunset),
           azimuth: Math.round(position.azimuth)
+        };
+      }
+      previous = current;
+    }
+    return null;
+  }
+
+  function sunriseInfo(date, lat, lng) {
+    const day = formatJstDate(date);
+    const start = new Date(`${day}T00:00:00+09:00`);
+    let previous = solarPosition(start, lat, lng);
+    for (let minutes = 5; minutes <= 720; minutes += 5) {
+      const currentDate = new Date(start.getTime() + minutes * 60000);
+      const current = solarPosition(currentDate, lat, lng);
+      if (previous.elevation < 0 && current.elevation >= 0) {
+        let low = new Date(currentDate.getTime() - 5 * 60000);
+        let high = currentDate;
+        for (let index = 0; index < 8; index += 1) {
+          const middle = new Date((low.getTime() + high.getTime()) / 2);
+          if (solarPosition(middle, lat, lng).elevation < 0) low = middle;
+          else high = middle;
+        }
+        const sunrise = new Date((low.getTime() + high.getTime()) / 2);
+        return {
+          date: sunrise,
+          time: new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(sunrise),
+          azimuth: Math.round(solarPosition(sunrise, lat, lng).azimuth)
         };
       }
       previous = current;
@@ -231,6 +318,32 @@
     return value ? new Date(`${value}T${time}:00+09:00`) : new Date();
   }
 
+  function formatJstDate(date) {
+    return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+  }
+
+  function shiftPlanDate(days) {
+    const base = new Date(`${$("#plan-date").value}T12:00:00+09:00`);
+    if (Number.isNaN(base.getTime())) return;
+    $("#plan-date").value = formatJstDate(new Date(base.getTime() + days * 86400000));
+    filterResults();
+  }
+
+  function shiftPlanMinutes(minutes) {
+    const parts = $("#plan-time").value.split(":").map(Number);
+    if (parts.length !== 2 || parts.some(value => !Number.isFinite(value))) return;
+    const total = (parts[0] * 60 + parts[1] + minutes + 1440) % 1440;
+    $("#plan-time").value = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    filterResults();
+  }
+
+  function setPlanNow() {
+    const now = new Date();
+    $("#plan-date").value = formatJstDate(now);
+    $("#plan-time").value = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+    filterResults();
+  }
+
   function currentSun() { return solarPosition(selectedDate(), 35.6812, 139.7671); }
   function compass(value) {
     const names = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
@@ -282,6 +395,10 @@
     $("#train-filters").hidden = state.kind !== "train";
     $("#non-train-filters").hidden = state.kind !== "nonTrain";
     $("#light-filter-field").hidden = state.kind !== "train";
+    const seasonSort = $('[data-non-train-sort]');
+    seasonSort.hidden = state.kind !== "nonTrain";
+    seasonSort.disabled = state.kind !== "nonTrain";
+    if (seasonSort.disabled && $("#sort-order").value === "season") $("#sort-order").value = "updated";
   }
 
   function filterResults() {
@@ -313,13 +430,18 @@
       return true;
     }).map(spot => {
       const sun = solarPosition(selectedDate(), Number(spot.lat), Number(spot.lng));
-      return { ...spot, _light: lightCondition(spot, sun), _sun: sun, _sunset: spot.kind === "nonTrain" ? sunsetInfo(selectedDate(), Number(spot.lat), Number(spot.lng)) : null };
+      return { ...spot, _light: lightCondition(spot, sun), _sun: sun,
+        _sunrise: sunriseInfo(selectedDate(), Number(spot.lat), Number(spot.lng)),
+        _sunset: sunsetInfo(selectedDate(), Number(spot.lat), Number(spot.lng)) };
     });
 
     const sort = $("#sort-order").value;
-    state.results.sort((a, b) => sort === "distance"
-      ? (positiveNumber(a.walk) ?? Number.POSITIVE_INFINITY) - (positiveNumber(b.walk) ?? Number.POSITIVE_INFINITY)
-      : String(b.updated || "").localeCompare(String(a.updated || "")));
+    state.results.sort((a, b) => {
+      if (sort === "distance") return (positiveNumber(a.walk) ?? Number.POSITIVE_INFINITY) - (positiveNumber(b.walk) ?? Number.POSITIVE_INFINITY);
+      if (sort === "season") return monthsUntilSeason(month, a.bloomStart, a.bloomEnd) - monthsUntilSeason(month, b.bloomStart, b.bloomEnd) || String(a.name).localeCompare(String(b.name), "ja");
+      if (sort === "name") return String(a.name).localeCompare(String(b.name), "ja");
+      return compareUpdatedSpots(a, b);
+    });
     if (state.selectedId !== null && !state.results.some(item => sameId(item.id, state.selectedId))) state.selectedId = null;
     render();
   }
@@ -338,6 +460,10 @@
     const article = element("article", { className: `spot-card${hasPhoto ? " has-photo" : ""}${sameId(state.selectedId, spot.id) ? " active" : ""}`, attrs: { tabindex: "0" } });
     article.dataset.id = String(spot.id);
     const kind = element("span", { className: `kind-badge ${spot.kind}`, text: KIND_LABELS[spot.kind] || "その他" });
+    const statusLabels = append(element("div", { className: "card-status-labels" }), kind);
+    if (spot.kind === "nonTrain" && hasSeason(spot) && monthInRange(selectedDate().getMonth() + 1, Number(spot.bloomStart), Number(spot.bloomEnd))) {
+      append(statusLabels, element("span", { className: "season-now", text: "いま見頃" }));
+    }
     const favorite = element("button", {
       className: `favorite-button${isFavorite(spot.id) ? " saved" : ""}`,
       text: "★ お気に入り",
@@ -345,7 +471,7 @@
     });
     favorite.dataset.favorite = String(spot.id);
     const body = element("div", { className: "card-body" });
-    append(body, append(element("div", { className: "card-status" }), kind, favorite));
+    append(body, append(element("div", { className: "card-status" }), statusLabels, favorite));
     const lightRow = element("div", { className: "light-row" });
     if (spot.kind === "train" && spot._light) append(lightRow, element("span", { className: `light-chip ${spot._light.key}`, text: spot._light.label }));
     else if (spot._sunset) append(lightRow,
@@ -358,6 +484,7 @@
     if (meaningful(season)) append(meta, element("span", { text: season }));
     if (meaningful(subject)) append(body, element("div", { className: "card-kicker", text: subject }));
     append(body, element("div", { className: "card-title", text: spot.name }));
+    if (isStaleSpot(spot)) append(body, element("p", { className: "stale-warning", text: "情報が古い可能性があります" }));
     if (lightRow.childElementCount) append(body, lightRow);
     if (meta.childElementCount) append(body, meta);
     const footer = element("div", { className: "card-footer" });
@@ -382,7 +509,11 @@
     const cards = $("#spot-cards");
     cards.replaceChildren(...state.results.map(card));
     $("#result-count").textContent = `${state.results.length}件`;
-    $("#empty-state").hidden = state.results.length > 0;
+    const status = $("#result-state");
+    status.classList.toggle("error", Boolean(state.loadError));
+    status.textContent = state.loadError || (state.loading ? "撮影地を読み込んでいます" : "");
+    status.hidden = !state.loading && !state.loadError;
+    $("#empty-state").hidden = state.loading || Boolean(state.loadError) || state.results.length > 0;
     $$(".spot-card", cards).forEach(cardElement => {
       cardElement.addEventListener("click", event => {
         if (event.target.closest("[data-favorite]")) return;
@@ -442,6 +573,20 @@
       state.markers.set(String(spot.id), marker);
     });
     refreshMapLayout(true);
+  }
+
+  function showCurrentLocation() {
+    if (!navigator.geolocation) { showToast("このブラウザでは現在地を取得できません"); return; }
+    navigator.geolocation.getCurrentPosition(position => {
+      if (!state.map || !window.L) return;
+      const point = [position.coords.latitude, position.coords.longitude];
+      if (state.userLocationMarker) state.userLocationMarker.remove();
+      state.userLocationMarker = L.circleMarker(point, {
+        radius: 7, color: "#FFFFFF", fillColor: "#1B1B1B", fillOpacity: 1, weight: 2
+      }).addTo(state.map);
+      state.map.setView(point, Math.max(state.map.getZoom(), 14));
+      showToast("現在地を地図に表示しました。位置情報は保存・送信しません");
+    }, () => showToast("現在地を取得できませんでした"), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   }
 
   function activeLabels() {
@@ -726,9 +871,11 @@
     }
   }
 
-  function openDetail(raw) {
+  function openDetail(raw, { syncHash = true } = {}) {
     const sun = solarPosition(selectedDate(), Number(raw.lat), Number(raw.lng));
-    const spot = { ...raw, _light: raw._light || lightCondition(raw, sun), _sunset: raw._sunset || sunsetInfo(selectedDate(), Number(raw.lat), Number(raw.lng)) };
+    const spot = { ...raw, _light: raw._light || lightCondition(raw, sun),
+      _sunrise: raw._sunrise || sunriseInfo(selectedDate(), Number(raw.lat), Number(raw.lng)),
+      _sunset: raw._sunset || sunsetInfo(selectedDate(), Number(raw.lat), Number(raw.lng)) };
     const dialog = $("#spot-dialog");
     const container = $("#spot-detail");
     const article = element("article", { className: "detail-shell" });
@@ -737,18 +884,20 @@
     append(header, element("h2", { text: spot.name }), close);
     const photoSource = safePhotoSource(spot);
     const hasPhoto = Boolean(photoSource || spot.hasPhoto);
-    const grid = element("div", { className: `detail-grid${hasPhoto ? "" : " no-media"}` });
+    const grid = element("div", { className: "detail-grid" });
     const content = element("div", { className: "detail-content" });
-    const summary = element("div", { className: "condition-summary" });
+    if (isStaleSpot(spot)) append(content, element("p", { className: "stale-warning detail-stale-warning", text: "情報が古い可能性があります。現地状況を再確認してください。" }));
+    const summary = element("div", { className: `condition-summary${spot.kind === "nonTrain" ? " non-train-summary" : ""}` });
     if (spot.kind === "train") {
       const conditionValue = directionText(spot);
       const conditionNote = hasBearing(spot) ? `カメラ方位 ${Number(spot.bearing)}°` : "";
       if (spot._light) append(summary, summaryItem("光線", spot._light.label, spot._light.detail));
       if (meaningful(conditionValue) || meaningful(conditionNote)) append(summary, summaryItem("撮影方向", conditionValue, conditionNote));
     } else {
-      if (spot._sunset) append(summary, summaryItem("日没", spot._sunset.time, `方位 ${spot._sunset.azimuth}°`));
       if (spot.bloomStart || spot.bloomEnd) append(summary, summaryItem("見頃", `${spot.bloomStart || "?"}〜${spot.bloomEnd || "?"}月`, ""));
     }
+    if (spot._sunrise) append(summary, summaryItem("日の出", spot._sunrise.time, `方位 ${spot._sunrise.azimuth}°`));
+    if (spot._sunset) append(summary, summaryItem("日没", spot._sunset.time, `方位 ${spot._sunset.azimuth}°`));
     const conditionItems = [];
     if (meaningful(spot.area)) conditionItems.push(["場所", spot.area]);
     const target = spot.kind === "train" ? [spot.line, spot.section].filter(meaningful).join(" ") : spot.subject;
@@ -766,10 +915,24 @@
     const favorite = element("button", { text: isFavorite(spot.id) ? "お気に入り保存済み" : "お気に入りに保存", attrs: { type: "button" } });
     const archive = element("a", { text: "撮影記録を開く" });
     archive.href = "/photo-archive.html";
-    append(actions, mapLink, favorite, archive);
+    const copyUrl = element("button", { text: "URLをコピー", attrs: { type: "button" } });
+    append(actions, mapLink, copyUrl, favorite, archive);
+    let protectedImage = null;
+    let photoSection = null;
+    if (hasPhoto) {
+      const media = element("div", { className: "detail-media" });
+      const image = element("img");
+      image.alt = `${spot.name}の作例`;
+      if (photoSource) image.src = photoSource;
+      else { image.dataset.loading = "true"; protectedImage = image; }
+      append(media, image, element("span", { className: "media-caption", text: "撮影前に現地の最新状況を確認してください" }));
+      photoSection = detailSection("作例写真", media);
+    }
     append(content, summary);
     if (conditionItems.length) append(content, detailSection("撮影条件", dataList(conditionItems)));
+    if (spot.kind === "nonTrain" && hasSeason(spot)) append(content, detailSection("見頃の月", seasonMonthBar(spot, selectedDate().getMonth() + 1)));
     append(content, detailLocationSection(spot));
+    if (photoSection) append(content, photoSection);
     if (access.childElementCount) append(content, detailSection("アクセス", access));
     if (String(spot.memo || "").trim()) append(content, detailSection("メモ", element("div", { className: "memo-box", text: spot.memo })));
     const audit = element("dl", { className: "detail-audit" });
@@ -784,43 +947,68 @@
     append(content, audit);
     const confirm = element("button", { text: "最終確認日を更新", attrs: { type: "button" } });
     const edit = element("button", { text: "編集", attrs: { type: "button" } });
-    const history = element("button", { text: "履歴", attrs: { type: "button" } });
+    const historyButton = element("button", { text: "履歴", attrs: { type: "button" } });
     const remove = element("button", { className: "danger-action", text: "ゴミ箱へ移動", attrs: { type: "button" } });
+    const previous = element("button", { text: "前の撮影地", attrs: { type: "button" } });
+    const next = element("button", { text: "次の撮影地", attrs: { type: "button" } });
+    previous.disabled = !adjacentSpot(spot, -1);
+    next.disabled = !adjacentSpot(spot, 1);
     append(content, actions);
-    actions.prepend(confirm, edit, history);
+    actions.prepend(previous, next, confirm, edit, historyButton);
     append(actions, remove);
-    let protectedImage = null;
-    if (hasPhoto) {
-      const media = element("div", { className: "detail-media" });
-      const image = element("img");
-      image.alt = `${spot.name}の作例`;
-      if (photoSource) image.src = photoSource;
-      else { image.dataset.loading = "true"; protectedImage = image; }
-      append(media, image, element("span", { className: "media-caption", text: "作例写真／撮影前に現地の最新状況を確認してください" }));
-      append(grid, media);
-    }
     append(grid, content);
     append(article, header, grid);
     container.replaceChildren(article);
-    close.addEventListener("click", () => {
-      dialog.close();
-      if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
-    });
+    close.addEventListener("click", closeDetailWithHistory);
     confirm.addEventListener("click", () => confirmSpot(spot));
     edit.addEventListener("click", () => {
       dialog.close();
       if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
       openEditor(spot);
     });
-    history.addEventListener("click", () => openHistory(spot));
+    historyButton.addEventListener("click", () => openHistory(spot));
+    previous.addEventListener("click", () => openAdjacentSpot(spot, -1));
+    next.addEventListener("click", () => openAdjacentSpot(spot, 1));
     remove.addEventListener("click", () => moveSpotToTrash(spot));
     favorite.addEventListener("click", () => {
       toggleFavorite(spot.id);
       dialog.close();
       openDetail(state.spots.find(item => sameId(item.id, spot.id)));
     });
-    dialog.showModal();
+    copyUrl.addEventListener("click", async () => {
+      const url = new URL(location.href);
+      url.hash = `spot=${encodeURIComponent(spot.id)}`;
+      try {
+        await navigator.clipboard.writeText(url.href);
+        showToast("撮影地のURLをコピーしました");
+      } catch (_) { showToast("URLをコピーできませんでした"); }
+    });
+    if (syncHash && spotIdFromHash() !== String(spot.id)) history.pushState({ photoSpot: String(spot.id) }, "", `#spot=${encodeURIComponent(spot.id)}`);
+    if (!dialog.open) dialog.showModal();
     if (protectedImage) loadProtectedImage(protectedImage, spot.id, "original");
+  }
+
+  function restoreDetailFromHash() {
+    const id = spotIdFromHash();
+    if (!id) {
+      if ($("#spot-dialog").open) $("#spot-dialog").close();
+      return;
+    }
+    const spot = state.spots.find(item => sameId(item.id, id));
+    if (spot) openDetail(spot, { syncHash: false });
+  }
+
+  function adjacentSpot(spot, offset) {
+    const index = state.results.findIndex(item => sameId(item.id, spot.id));
+    if (index < 0) return null;
+    return state.results[index + offset] || null;
+  }
+
+  function openAdjacentSpot(spot, offset) {
+    const target = adjacentSpot(spot, offset);
+    if (!target) return;
+    history.replaceState({ photoSpot: String(target.id) }, "", `#spot=${encodeURIComponent(target.id)}`);
+    openDetail(target, { syncHash: false });
   }
 
   async function toggleFavorite(id) {
@@ -1000,10 +1188,13 @@
     state.spots = Array.isArray(response.items) ? response.items.map(normalizeSpot) : [];
     state.me = me;
     state.apiReady = true;
+    state.loading = false;
+    state.loadError = "";
     saveApiCache(state.spots);
     await synchronizeFavorites();
     fillOptions();
     filterResults();
+    restoreDetailFromHash();
   }
 
   function resetFilters() {
@@ -1048,6 +1239,44 @@
     $("input", down).disabled = !showDown;
   }
 
+  function setDirectionMode(mode) {
+    const value = ["up", "down", "both"].includes(mode) ? mode : "";
+    $("#editor-direction").value = value;
+    $$('[data-direction-mode]').forEach(button => button.setAttribute("aria-pressed", String(button.dataset.directionMode === value)));
+    clearEditorInvalid($("[data-direction-mode]"));
+    updateDirectionFields();
+  }
+
+  function clearEditorInvalid(control) {
+    const field = control?.closest("label, .direction-field");
+    if (field) field.classList.remove("field-invalid");
+    if (control?.removeAttribute) control.removeAttribute("aria-invalid");
+  }
+
+  function validateEditorForm(form) {
+    const isTrain = form.elements.kind.value === "train";
+    const entries = [form.elements.kind, form.elements.name, form.elements.lat, form.elements.lng, form.elements.access];
+    entries.push(isTrain ? $("[data-direction-mode]") : form.elements.subject);
+    let first = null;
+    entries.forEach(control => {
+      const isDirection = control?.matches?.("[data-direction-mode]");
+      const valid = isDirection
+        ? Boolean(form.elements.directionMode.value)
+        : Boolean(String(control?.value || "").trim()) && control.checkValidity();
+      clearEditorInvalid(control);
+      if (valid) return;
+      const field = control?.closest("label, .direction-field");
+      if (field) field.classList.add("field-invalid");
+      control?.setAttribute?.("aria-invalid", "true");
+      if (!first) first = control;
+    });
+    if (!first) return true;
+    first.closest("label, .direction-field")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    first.focus();
+    showToast("必須項目を入力してください");
+    return false;
+  }
+
   function updateSubjectStatus() {
     const input = $("#editor-subject");
     const normalized = normalizeGenreName(input.value);
@@ -1059,7 +1288,7 @@
     $("#subject-status").textContent = exists ? "登録済みのジャンルを使用します" : "新しい名前として登録します";
   }
 
-  function setEditorPoint(lat, lng, center = false) {
+  function setEditorPoint(lat, lng, center = false, markDirty = false) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const form = $("#spot-form");
     form.elements.lat.value = lat.toFixed(6);
@@ -1069,6 +1298,7 @@
     if (!state.editorMarker) state.editorMarker = L.marker([lat, lng]).addTo(state.editorMap);
     else state.editorMarker.setLatLng([lat, lng]);
     if (center) state.editorMap.setView([lat, lng], 15);
+    if (markDirty) state.editorDirty = true;
   }
 
   function ensureEditorMap() {
@@ -1082,7 +1312,7 @@
         maxZoom: 19,
         attribution: "© OpenStreetMap contributors"
       }).addTo(state.editorMap);
-      state.editorMap.on("click", event => setEditorPoint(event.latlng.lat, event.latlng.lng));
+      state.editorMap.on("click", event => setEditorPoint(event.latlng.lat, event.latlng.lng, false, true));
     }
     state.editorMap.invalidateSize();
     const form = $("#spot-form");
@@ -1106,15 +1336,24 @@
         }
       });
       const directions = Array.isArray(spot.directions) ? spot.directions : [];
-      form.elements.directionMode.value = directions.includes("up") && directions.includes("down") ? "both" : directions.includes("up") ? "up" : directions.includes("down") ? "down" : "";
+      setDirectionMode(directions.includes("up") && directions.includes("down") ? "both" : directions.includes("up") ? "up" : directions.includes("down") ? "down" : "");
       form.elements.beginner.checked = spot.beginner === true;
-    }
+    } else setDirectionMode("");
     updateEditorFields();
+    state.editorDirty = false;
     dialog.showModal();
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ensureEditorMap();
       if (state.editorMap) state.editorMap.invalidateSize({ pan: false });
     }));
+  }
+
+  function requestEditorClose() {
+    const dialog = $("#editor-dialog");
+    if (!dialog.open) return;
+    if (state.editorDirty && !window.confirm("入力途中の内容を破棄して閉じますか？")) return;
+    state.editorDirty = false;
+    dialog.close();
   }
 
   function syncEditorMapFromInputs() {
@@ -1127,6 +1366,7 @@
   async function saveSpot(event) {
     event.preventDefault();
     const form = event.currentTarget;
+    if (!validateEditorForm(form)) return;
     const data = new FormData(form);
     const file = data.get("photo");
     const allowedTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
@@ -1169,6 +1409,7 @@
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
     submit.textContent = "保存中";
+    let savedSpot = null;
     try {
       let saved = await api(existing ? `/v1/spots/${encodeURIComponent(existing.id)}` : "/v1/spots", {
         method: existing ? "PATCH" : "POST", body: JSON.stringify(spot)
@@ -1180,7 +1421,7 @@
         saved = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photo`, { method: "PUT", body: upload });
         forgetSpotPhotos(saved.id);
       }
-      replaceSpot(saved);
+      savedSpot = replaceSpot(saved);
     } catch (error) {
       if (error.status === 409) { showConflict(error); return; }
       showToast(error.message || "撮影地を保存できませんでした");
@@ -1190,6 +1431,7 @@
       submit.textContent = "撮影地を保存";
     }
     fillOptions();
+    state.editorDirty = false;
     $("#editor-dialog").close();
     form.reset();
     state.editingId = null;
@@ -1198,6 +1440,12 @@
     if (state.editorMarker) { state.editorMarker.remove(); state.editorMarker = null; }
     $("#editor-map-status").textContent = "地図をクリックまたはタップして位置を指定";
     showToast(existing ? "撮影地を更新しました" : "撮影地をサーバーに保存しました");
+    if (!existing && savedSpot) {
+      state.selectedId = String(savedSpot.id);
+      filterResults();
+      if (state.map) state.map.setView([Number(savedSpot.lat), Number(savedSpot.lng)], 15);
+      openDetail(savedSpot);
+    }
   }
 
   function bind() {
@@ -1214,8 +1462,15 @@
     });
     $("#spot-dialog").addEventListener("close", () => {
       if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
+      if (spotIdFromHash()) clearSpotHash();
     });
+    window.addEventListener("popstate", restoreDetailFromHash);
     ["#plan-date", "#plan-time"].forEach(selector => $(selector).addEventListener("change", filterResults));
+    $("#date-previous").addEventListener("click", () => shiftPlanDate(-1));
+    $("#date-next").addEventListener("click", () => shiftPlanDate(1));
+    $("#time-minus").addEventListener("click", () => shiftPlanMinutes(-15));
+    $("#time-plus").addEventListener("click", () => shiftPlanMinutes(15));
+    $("#time-now").addEventListener("click", setPlanNow);
     ["#keyword-filter", "#line-filter", "#direction-filter", "#light-filter", "#access-filter", "#season-filter", "#beginner-filter", "#sort-order"].forEach(selector => {
       $(selector).addEventListener(selector === "#keyword-filter" ? "input" : "change", filterResults);
     });
@@ -1233,6 +1488,7 @@
     }));
     $("#clear-filters").addEventListener("click", resetFilters);
     $("#map-reset").addEventListener("click", () => state.map && state.map.setView([35.72, 139.67], 9));
+    $("#show-current-location").addEventListener("click", showCurrentLocation);
     $("#filter-toggle").addEventListener("click", () => {
       document.body.classList.toggle("filters-open");
       $("#filter-toggle").setAttribute("aria-expanded", String(document.body.classList.contains("filters-open")));
@@ -1245,7 +1501,8 @@
     $("#add-spot-button").addEventListener("click", () => openEditor());
     $$('[data-close]').forEach(button => button.addEventListener("click", () => {
       const dialog = $(`#${button.dataset.close}`);
-      if (dialog?.open) dialog.close();
+      if (dialog?.id === "editor-dialog") requestEditorClose();
+      else if (dialog?.open) dialog.close();
     }));
     $("#trash-button").addEventListener("click", () => {
       headerMenu.open = false;
@@ -1259,7 +1516,11 @@
       openDetail(current);
     });
     $("#editor-kind").addEventListener("change", updateEditorFields);
-    $("#editor-direction").addEventListener("change", updateDirectionFields);
+    $$('[data-direction-mode]').forEach(button => button.addEventListener("click", () => { setDirectionMode(button.dataset.directionMode); state.editorDirty = true; }));
+    $$("input, select, textarea", $("#spot-form")).forEach(control => {
+      control.addEventListener("input", () => { clearEditorInvalid(control); state.editorDirty = true; });
+      control.addEventListener("change", () => { clearEditorInvalid(control); state.editorDirty = true; });
+    });
     $("#editor-subject").addEventListener("input", updateSubjectStatus);
     $("#editor-subject").addEventListener("blur", () => {
       $("#editor-subject").value = canonicalGenre($("#editor-subject").value);
@@ -1267,6 +1528,7 @@
     });
     [$("#spot-form").elements.lat, $("#spot-form").elements.lng].forEach(input => input.addEventListener("change", syncEditorMapFromInputs));
     $("#spot-form").addEventListener("submit", saveSpot);
+    $("#editor-dialog").addEventListener("cancel", event => { event.preventDefault(); requestEditorClose(); });
   }
 
   function authenticatedName(result) {
@@ -1282,7 +1544,12 @@
     $("#user-info").textContent = `${authenticatedName(result)} でログイン中`;
     requestAnimationFrame(() => requestAnimationFrame(renderMap));
     try { await synchronizeSpots(); }
-    catch (error) { showToast(`${error.message || "撮影地を取得できませんでした"}。端末内の控えを表示します`); }
+    catch (error) {
+      state.loading = false;
+      state.loadError = `${error.message || "撮影地を取得できませんでした"}。端末内の控えを表示しています`;
+      filterResults();
+      showToast(state.loadError);
+    }
   }
 
   function initialize() {
@@ -1297,6 +1564,7 @@
     bind();
     setContextFilters();
     filterResults();
+    restoreDetailFromHash();
     if ("ResizeObserver" in window) {
       state.mapResizeObserver = new ResizeObserver(entries => {
         const size = entries[0]?.contentRect;
@@ -1317,12 +1585,19 @@
     solarPosition,
     lightCondition,
     sunsetInfo,
+    sunriseInfo,
     monthInRange,
+    monthsUntilSeason,
+    hasSeason,
+    compareUpdatedSpots,
+    isStaleSpot,
     angularDistance,
     normalizeGenreName,
     positiveNumber,
     hasBearing,
     authenticatedName,
+    showCurrentLocation,
+    shiftPlanMinutes,
     normalizeSpot,
     migrateItems,
     remapFavorites
