@@ -10,6 +10,7 @@
   const FAVORITE_KEY = "tayunet-photo-spot-favorites-v1";
   const FAVORITE_IMPORT_KEY = "tayunet-photo-spot-favorites-account-import-v1";
   const SCHEMA_VERSION = 3;
+  const MAX_PHOTO_UPLOAD_BYTES = 25 * 1024 * 1024;
   const KIND_LABELS = Object.freeze({ train: "列車", nonTrain: "その他" });
   const VALID_KINDS = new Set(Object.keys(KIND_LABELS));
   const DEFAULT_GENRES = Object.freeze(["桜", "紅葉", "梅", "あじさい", "夜景", "夕焼け", "飛行機", "風景"]);
@@ -76,7 +77,10 @@
     favoriteSyncing: false,
     loading: true,
     loadError: "",
-    editorDirty: false
+    editorDirty: false,
+    editorGallery: [],
+    editorRemovedPhotos: new Set(),
+    galleryLimit: 9
   };
 
   function spotIdFromHash() {
@@ -535,6 +539,7 @@
       if (photoSource) image.src = photoSource;
       else {
         image.dataset.photoId = String(spot.id);
+        image.dataset.galleryPhotoId = String(spot.coverPhotoId || "");
         image.dataset.loading = "true";
       }
       append(visual, image);
@@ -672,6 +677,10 @@
     $$(".spot-card").forEach(cardElement => cardElement.classList.toggle("active", sameId(cardElement.dataset.id, id)));
     const spot = state.results.find(item => sameId(item.id, id)) || state.spots.find(item => sameId(item.id, id));
     if (spot && state.map) state.map.panTo([spot.lat, spot.lng]);
+    if (!open) requestAnimationFrame(() => {
+      const selectedCard = $(`.spot-card[data-id="${CSS.escape(String(id))}"]`);
+      selectedCard?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
     if (open && spot) openDetail(spot);
   }
 
@@ -809,7 +818,8 @@
 
   const HISTORY_ACTIONS = Object.freeze({
     create: "登録しました", update: "編集", verify: "最終確認日を更新", trash: "ゴミ箱へ移動",
-    restore: "復元", photo_add: "作例写真を追加", photo_replace: "作例写真を交換", photo_remove: "作例写真を削除"
+    restore: "復元", photo_add: "作例写真を追加", photo_replace: "作例写真を交換", photo_remove: "作例写真を削除",
+    photo_edit: "作例写真の情報を編集", photo_order: "作例写真の並び順を変更"
   });
 
   const HISTORY_FIELDS = Object.freeze({
@@ -819,7 +829,9 @@
     memo: "メモ", updated: "最終確認日", verifiedAt: "最終確認日時", verifiedBy: "確認者",
     lat: "緯度", lng: "経度", bearing: "カメラ方位", walk: "駅から徒歩",
     bloomStart: "見頃開始月", bloomEnd: "見頃終了月", directions: "対象方向",
-    features: "特徴", beginner: "初心者向け", verified: "旧確認状態", photo: "作例写真",
+    features: "特徴", beginner: "初心者向け", verified: "旧確認状態", photo: "作例写真", photos: "作例写真の枚数",
+    photoOrder: "作例写真の並び順", "photo.takenDate": "作例写真の撮影日",
+    "photo.place": "作例写真の場所", "photo.note": "作例写真の一言",
     deletedAt: "削除日時"
   });
 
@@ -918,6 +930,51 @@
     }
   }
 
+  function photoMeta(photo) {
+    const meta = element("dl", { className: "detail-photo-meta" });
+    const values = [
+      ["撮影日", photo.takenDate],
+      ["場所", photo.place],
+      ["一言", photo.note]
+    ].filter(([, value]) => meaningful(value));
+    values.forEach(([label, value]) => append(meta, element("dt", { text: label }), element("dd", { text: value })));
+    return meta;
+  }
+
+  async function loadDetailPhotos(container, spot) {
+    const localSource = safePhotoSource(spot);
+    let photos = [];
+    try {
+      const response = await api(`/v1/spots/${encodeURIComponent(spot.id)}/photos`);
+      photos = Array.isArray(response.items) ? response.items : [];
+    } catch (_) {
+      if (spot.coverPhotoId) photos = [{ id: spot.coverPhotoId, isCover: true }];
+    }
+    if (!photos.length && localSource) {
+      const item = element("figure", { className: "detail-photo-item" });
+      const image = element("img", { attrs: { alt: `${spot.name}の作例写真` } });
+      image.src = localSource;
+      append(item, image);
+      container.replaceChildren(item);
+      return;
+    }
+    if (!photos.length) {
+      container.replaceChildren(element("p", { className: "empty-dialog", text: "作例写真はありません" }));
+      return;
+    }
+    const items = photos.map((photo, index) => {
+      const item = element("figure", { className: "detail-photo-item" });
+      const image = element("img", { attrs: { alt: `${spot.name}の作例写真${index + 1}` } });
+      image.dataset.loading = "true";
+      append(item, image);
+      const meta = photoMeta(photo);
+      if (meta.childElementCount) append(item, meta);
+      loadProtectedImage(image, spot.id, "original", photo.id);
+      return item;
+    });
+    container.replaceChildren(...items);
+  }
+
   function openDetail(raw, { syncHash = true } = {}) {
     const sun = solarPosition(selectedDate(), Number(raw.lat), Number(raw.lng));
     const spot = { ...raw, _light: raw._light || lightCondition(raw, sun),
@@ -964,16 +1021,11 @@
     archive.href = "/photo-archive.html";
     const copyUrl = element("button", { text: "URLをコピー", attrs: { type: "button" } });
     append(actions, mapLink, copyUrl, favorite, archive);
-    let protectedImage = null;
     let photoSection = null;
     if (hasPhoto) {
-      const media = element("div", { className: "detail-media" });
-      const image = element("img");
-      image.alt = `${spot.name}の作例`;
-      if (photoSource) image.src = photoSource;
-      else { image.dataset.loading = "true"; protectedImage = image; }
-      append(media, image, element("span", { className: "media-caption", text: "撮影前に現地の最新状況を確認してください" }));
+      const media = element("div", { className: "detail-photo-list" });
       photoSection = detailSection("作例写真", media);
+      loadDetailPhotos(media, spot);
     }
     append(content, summary);
     if (conditionItems.length) append(content, detailSection("撮影条件", dataList(conditionItems)));
@@ -1032,7 +1084,6 @@
     });
     if (syncHash && spotIdFromHash() !== String(spot.id)) history.pushState({ photoSpot: String(spot.id) }, "", `#spot=${encodeURIComponent(spot.id)}`);
     if (!dialog.open) dialog.showModal();
-    if (protectedImage) loadProtectedImage(protectedImage, spot.id, "original");
   }
 
   function restoreDetailFromHash() {
@@ -1081,10 +1132,32 @@
 
   function showToast(message) {
     const toast = $("#toast");
+    toast.classList.remove("error");
     toast.textContent = message;
     toast.hidden = false;
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => { toast.hidden = true; }, 2600);
+  }
+
+  function showEditorError(message) {
+    const editorError = $("#editor-error");
+    if ($("#editor-dialog").open) {
+      editorError.textContent = message;
+      editorError.hidden = false;
+      return;
+    }
+    const toast = $("#toast");
+    toast.classList.add("error");
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { toast.hidden = true; toast.classList.remove("error"); }, 8000);
+  }
+
+  function clearEditorError() {
+    const editorError = $("#editor-error");
+    editorError.textContent = "";
+    editorError.hidden = true;
   }
 
   async function authenticatedFetch(path, options = {}, retryAuth = true) {
@@ -1129,14 +1202,18 @@
     return blob;
   }
 
-  async function loadProtectedImage(image, spotId, variant = "thumbnail") {
-    const key = `${spotId}:${variant}`;
+  async function loadProtectedImage(image, spotId, variant = "thumbnail", photoId = "") {
+    const galleryPhotoId = String(photoId || "");
+    const key = `${spotId}:${galleryPhotoId || "legacy"}:${variant}`;
     try {
       let source = state.photoUrls.get(key);
       if (!source) {
         let request = state.photoRequests.get(key);
         if (!request) {
-          request = apiBlob(`/v1/spots/${encodeURIComponent(spotId)}/media/${variant}`).then(blob => {
+          const path = galleryPhotoId
+            ? `/v1/spots/${encodeURIComponent(spotId)}/photos/${encodeURIComponent(galleryPhotoId)}/${variant}`
+            : `/v1/spots/${encodeURIComponent(spotId)}/media/${variant}`;
+          request = apiBlob(path).then(blob => {
             const value = URL.createObjectURL(blob);
             state.photoUrls.set(key, value);
             state.photoRequests.delete(key);
@@ -1149,7 +1226,7 @@
       if (image.isConnected) image.src = source;
     } catch (_) {
       state.photoRequests.delete(key);
-      image.closest(".card-visual, .detail-media")?.remove();
+      image.closest(".card-visual")?.remove();
       image.closest(".spot-card")?.classList.remove("has-photo");
     } finally {
       delete image.dataset.loading;
@@ -1157,8 +1234,7 @@
   }
 
   function forgetSpotPhotos(spotId) {
-    ["thumbnail", "original"].forEach(variant => {
-      const key = `${spotId}:${variant}`;
+    [...state.photoUrls.keys()].filter(key => key.startsWith(`${spotId}:`)).forEach(key => {
       const source = state.photoUrls.get(key);
       if (source) URL.revokeObjectURL(source);
       state.photoUrls.delete(key);
@@ -1169,14 +1245,14 @@
   function observeThumbnails(root) {
     const images = $$('img[data-photo-id]', root);
     if (!("IntersectionObserver" in window)) {
-      images.forEach(image => loadProtectedImage(image, image.dataset.photoId));
+      images.forEach(image => loadProtectedImage(image, image.dataset.photoId, "thumbnail", image.dataset.galleryPhotoId));
       return;
     }
     if (!state.photoObserver) {
       state.photoObserver = new IntersectionObserver(entries => entries.forEach(entry => {
         if (!entry.isIntersecting) return;
         state.photoObserver.unobserve(entry.target);
-        loadProtectedImage(entry.target, entry.target.dataset.photoId);
+        loadProtectedImage(entry.target, entry.target.dataset.photoId, "thumbnail", entry.target.dataset.galleryPhotoId);
       }), { root: null, rootMargin: "80px" });
     }
     images.forEach(image => state.photoObserver.observe(image));
@@ -1321,7 +1397,7 @@
     if (!first) return true;
     first.closest("label, .direction-field")?.scrollIntoView({ block: "center", behavior: "smooth" });
     first.focus();
-    showToast("必須項目を入力してください");
+    showEditorError("必須項目を入力してください");
     return false;
   }
 
@@ -1408,6 +1484,154 @@
     }
   }
 
+  function resetEditorGallery() {
+    state.editorGallery.filter(item => item.previewUrl).forEach(item => URL.revokeObjectURL(item.previewUrl));
+    state.editorGallery = [];
+    state.editorRemovedPhotos = new Set();
+    $("#editor-gallery").replaceChildren();
+  }
+
+  function currentPhotoLimit() {
+    return state.me?.canManage ? 15 : 9;
+  }
+
+  function renderEditorGallery() {
+    const container = $("#editor-gallery");
+    const items = state.editorGallery.map((photo, index) => {
+      const item = element("article", { className: `gallery-edit-item${photo.isCover ? " cover" : ""}` });
+      const image = element("img", { attrs: { alt: `作例写真${index + 1}` } });
+      if (photo.previewUrl) image.src = photo.previewUrl;
+      else if (photo.id && state.editingId) loadProtectedImage(image, state.editingId, "thumbnail", photo.id);
+      const heading = element("div", { className: "gallery-edit-caption", text: photo.isCover ? `代表写真 ${index + 1}` : `写真 ${index + 1}` });
+      const fields = element("div", { className: "gallery-photo-fields" });
+      const date = element("input", { attrs: { type: "date", "aria-label": `写真${index + 1}の撮影日` } });
+      const place = element("input", { attrs: { type: "text", maxlength: "200", placeholder: "場所", "aria-label": `写真${index + 1}の場所` } });
+      const note = element("input", { attrs: { type: "text", maxlength: "500", placeholder: "一言", "aria-label": `写真${index + 1}の一言` } });
+      date.value = photo.takenDate || "";
+      place.value = photo.place || "";
+      note.value = photo.note || "";
+      [[date, "takenDate"], [place, "place"], [note, "note"]].forEach(([control, key]) => {
+        control.addEventListener("input", () => { photo[key] = control.value; state.editorDirty = true; });
+      });
+      append(fields,
+        append(element("label"), element("span", { text: "撮影日" }), date),
+        append(element("label"), element("span", { text: "場所" }), place),
+        append(element("label"), element("span", { text: "一言" }), note)
+      );
+      const actions = element("div", { className: "gallery-edit-actions" });
+      const up = element("button", { text: "前へ", attrs: { type: "button" } });
+      const down = element("button", { text: "後へ", attrs: { type: "button" } });
+      const cover = element("button", { text: "代表", attrs: { type: "button" } });
+      const remove = element("button", { text: "削除", attrs: { type: "button" } });
+      up.disabled = index === 0;
+      down.disabled = index === state.editorGallery.length - 1;
+      up.addEventListener("click", () => { state.editorGallery.splice(index - 1, 0, state.editorGallery.splice(index, 1)[0]); state.editorDirty = true; renderEditorGallery(); });
+      down.addEventListener("click", () => { state.editorGallery.splice(index + 1, 0, state.editorGallery.splice(index, 1)[0]); state.editorDirty = true; renderEditorGallery(); });
+      cover.addEventListener("click", () => { state.editorGallery.forEach(entry => { entry.isCover = entry === photo; }); state.editorDirty = true; renderEditorGallery(); });
+      remove.addEventListener("click", () => {
+        if (photo.id) state.editorRemovedPhotos.add(photo.id);
+        if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+        state.editorGallery.splice(index, 1);
+        if (photo.isCover && state.editorGallery[0]) state.editorGallery[0].isCover = true;
+        state.editorDirty = true;
+        renderEditorGallery();
+      });
+      append(actions, up, down, cover, remove);
+      return append(item, image, heading, fields, actions);
+    });
+    container.replaceChildren(...items);
+    $("#photo-limit-label").textContent = `最大${state.galleryLimit}枚`;
+  }
+
+  async function loadEditorGallery(spot) {
+    resetEditorGallery();
+    state.galleryLimit = currentPhotoLimit();
+    renderEditorGallery();
+    if (!spot?.id) return;
+    try {
+      const response = await api(`/v1/spots/${encodeURIComponent(spot.id)}/photos`);
+      if (!sameId(state.editingId, spot.id)) return;
+      state.galleryLimit = Number(response.limit) || currentPhotoLimit();
+      state.editorGallery = (response.items || []).map(photo => ({
+        ...photo,
+        isCover: photo.isCover === true,
+        originalPosition: Number(photo.position),
+        originalIsCover: photo.isCover === true,
+        originalTakenDate: photo.takenDate || "",
+        originalPlace: photo.place || "",
+        originalNote: photo.note || ""
+      }));
+      if (state.editorGallery.length && !state.editorGallery.some(photo => photo.isCover)) state.editorGallery[0].isCover = true;
+      renderEditorGallery();
+    } catch (error) {
+      showEditorError(error.message || "作例写真を取得できませんでした");
+    }
+  }
+
+  function addEditorFiles(files) {
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+    for (const file of files) {
+      if (state.editorGallery.length >= state.galleryLimit) { showEditorError(`作例写真は最大${state.galleryLimit}枚です`); break; }
+      if (file.size > MAX_PHOTO_UPLOAD_BYTES) { showEditorError(`${file.name}は25MBを超えています`); continue; }
+      if (!allowedTypes.has(file.type)) { showEditorError(`${file.name}はJPEG・PNG・GIF・WebP形式ではありません`); continue; }
+      state.editorGallery.push({
+        file, previewUrl: URL.createObjectURL(file), isCover: state.editorGallery.length === 0,
+        takenDate: "", place: "", note: ""
+      });
+      state.editorDirty = true;
+    }
+    $("#editor-photo-input").value = "";
+    renderEditorGallery();
+  }
+
+  async function applyGalleryChanges(saved) {
+    let current = saved;
+    let structureChanged = state.editorRemovedPhotos.size > 0 || state.editorGallery.some(item => item.file);
+    for (const photoId of state.editorRemovedPhotos) {
+      current = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos/${encodeURIComponent(photoId)}`, {
+        method: "DELETE", body: JSON.stringify({ expectedRevision: current.revision })
+      });
+      forgetSpotPhotos(saved.id);
+    }
+    for (const photo of state.editorGallery.filter(item => item.file)) {
+      const upload = new FormData();
+      upload.set("file", photo.file);
+      upload.set("expectedRevision", String(current.revision));
+      upload.set("takenDate", photo.takenDate || "");
+      upload.set("place", photo.place || "");
+      upload.set("note", photo.note || "");
+      const response = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos`, { method: "POST", body: upload });
+      current = response.spot;
+      photo.id = response.photo.id;
+      photo.file = null;
+      photo.originalTakenDate = photo.takenDate || "";
+      photo.originalPlace = photo.place || "";
+      photo.originalNote = photo.note || "";
+      forgetSpotPhotos(saved.id);
+    }
+    for (const photo of state.editorGallery.filter(item => item.id && !item.file)) {
+      const changed = (photo.takenDate || "") !== (photo.originalTakenDate || "")
+        || (photo.place || "") !== (photo.originalPlace || "")
+        || (photo.note || "") !== (photo.originalNote || "");
+      if (!changed) continue;
+      const response = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos/${encodeURIComponent(photo.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ expectedRevision: current.revision, takenDate: photo.takenDate || "", place: photo.place || "", note: photo.note || "" })
+      });
+      current = response.spot;
+    }
+    const ordered = state.editorGallery.filter(photo => photo.id);
+    structureChanged = structureChanged || ordered.some((photo, index) => photo.originalPosition !== index || photo.originalIsCover !== photo.isCover);
+    if (ordered.length && structureChanged) {
+      const cover = ordered.find(photo => photo.isCover) || ordered[0];
+      current = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos/actions/reorder`, {
+        method: "PATCH",
+        body: JSON.stringify({ expectedRevision: current.revision, photoIds: ordered.map(photo => photo.id), coverPhotoId: cover.id })
+      });
+    }
+    return current;
+  }
+
   function setEditorPoint(lat, lng, center = false, markDirty = false) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const form = $("#spot-form");
@@ -1448,6 +1672,7 @@
     const form = $("#spot-form");
     state.editingId = spot?.id ? String(spot.id) : null;
     state.editingRevision = spot?.revision || null;
+    clearEditorError();
     $("#editor-title").textContent = spot ? "撮影地を編集" : "撮影地を追加";
     form.reset();
     if (spot) {
@@ -1462,6 +1687,7 @@
       form.elements.beginner.checked = spot.beginner === true;
     } else setDirectionMode("");
     updateEditorFields();
+    loadEditorGallery(spot);
     state.editorDirty = false;
     dialog.showModal();
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1476,6 +1702,8 @@
     if (state.editorDirty && !window.confirm("入力途中の内容を破棄して閉じますか？")) return;
     state.editorDirty = false;
     dialog.close();
+    clearEditorError();
+    resetEditorGallery();
   }
 
   function syncEditorMapFromInputs() {
@@ -1488,12 +1716,9 @@
   async function saveSpot(event) {
     event.preventDefault();
     const form = event.currentTarget;
+    clearEditorError();
     if (!validateEditorForm(form)) return;
     const data = new FormData(form);
-    const file = data.get("photo");
-    const allowedTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
-    if (file && file.size > 2 * 1024 * 1024) { showToast("写真は2MB以下にしてください"); return; }
-    if (file && file.size && !allowedTypes.has(file.type)) { showToast("写真はPNG・JPEG・GIF・WebP形式にしてください"); return; }
     const kind = String(data.get("kind") || "nonTrain");
     const isTrain = kind === "train";
     const existing = state.editingId ? state.spots.find(item => sameId(item.id, state.editingId)) : null;
@@ -1536,17 +1761,11 @@
       let saved = await api(existing ? `/v1/spots/${encodeURIComponent(existing.id)}` : "/v1/spots", {
         method: existing ? "PATCH" : "POST", body: JSON.stringify(spot)
       });
-      if (file && file.size) {
-        const upload = new FormData();
-        upload.set("file", file);
-        upload.set("expectedRevision", String(saved.revision));
-        saved = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photo`, { method: "PUT", body: upload });
-        forgetSpotPhotos(saved.id);
-      }
+      saved = await applyGalleryChanges(saved);
       savedSpot = replaceSpot(saved);
     } catch (error) {
       if (error.status === 409) { showConflict(error); return; }
-      showToast(error.message || "撮影地を保存できませんでした");
+      showEditorError(error.message || "撮影地を保存できませんでした");
       return;
     } finally {
       submit.disabled = false;
@@ -1556,6 +1775,7 @@
     state.editorDirty = false;
     $("#editor-dialog").close();
     form.reset();
+    resetEditorGallery();
     state.editingId = null;
     state.editingRevision = null;
     updateEditorFields();
@@ -1646,14 +1866,15 @@
       state.editorDirty = true;
     }));
     $$("input, select, textarea", $("#spot-form")).forEach(control => {
-      control.addEventListener("input", () => { clearEditorInvalid(control); state.editorDirty = true; });
-      control.addEventListener("change", () => { clearEditorInvalid(control); state.editorDirty = true; });
+      control.addEventListener("input", () => { clearEditorInvalid(control); clearEditorError(); state.editorDirty = true; });
+      control.addEventListener("change", () => { clearEditorInvalid(control); clearEditorError(); state.editorDirty = true; });
     });
     $("#editor-subject").addEventListener("input", updateSubjectStatus);
     $("#editor-subject").addEventListener("blur", () => {
       $("#editor-subject").value = canonicalGenre($("#editor-subject").value);
       updateSubjectStatus();
     });
+    $("#editor-photo-input").addEventListener("change", event => addEditorFiles([...event.target.files]));
     [$("#spot-form").elements.lat, $("#spot-form").elements.lng].forEach(input => input.addEventListener("change", syncEditorMapFromInputs));
     $("#spot-form").addEventListener("submit", saveSpot);
     $("#editor-dialog").addEventListener("cancel", event => { event.preventDefault(); requestEditorClose(); });
