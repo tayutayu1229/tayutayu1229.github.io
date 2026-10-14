@@ -8,9 +8,11 @@
   const API_MIGRATION_KEY = "tayunet-photo-spots-api-import-v1";
   const API_CACHE_KEY = "tayunet-photo-spots-api-cache-v1";
   const FAVORITE_KEY = "tayunet-photo-spot-favorites-v1";
+  const FAVORITE_IMPORT_KEY = "tayunet-photo-spot-favorites-account-import-v1";
   const SCHEMA_VERSION = 3;
   const KIND_LABELS = Object.freeze({ train: "列車", nonTrain: "その他" });
   const VALID_KINDS = new Set(Object.keys(KIND_LABELS));
+  const DEFAULT_GENRES = Object.freeze(["桜", "紅葉", "梅", "あじさい", "夜景", "夕焼け", "飛行機", "風景"]);
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -47,6 +49,7 @@
 
   const state = {
     kind: "all",
+    selectedGenres: new Set(),
     view: "split",
     spots: [],
     results: [],
@@ -57,6 +60,7 @@
     markers: new Map(),
     editorMap: null,
     editorMarker: null,
+    detailMap: null,
     apiReady: false,
     me: null,
     editingId: null,
@@ -64,7 +68,8 @@
     conflictCurrent: null,
     photoObserver: null,
     photoUrls: new Map(),
-    photoRequests: new Map()
+    photoRequests: new Map(),
+    favoriteSyncing: false
   };
 
   function rad(value) { return value * Math.PI / 180; }
@@ -90,9 +95,66 @@
     return { azimuth, elevation };
   }
 
+  function sunsetInfo(date, lat, lng) {
+    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    const start = new Date(`${day}T12:00:00+09:00`);
+    let previous = solarPosition(start, lat, lng);
+    for (let minutes = 5; minutes <= 720; minutes += 5) {
+      const currentDate = new Date(start.getTime() + minutes * 60000);
+      const current = solarPosition(currentDate, lat, lng);
+      if (previous.elevation >= 0 && current.elevation < 0) {
+        let low = new Date(currentDate.getTime() - 5 * 60000);
+        let high = currentDate;
+        for (let index = 0; index < 8; index += 1) {
+          const middle = new Date((low.getTime() + high.getTime()) / 2);
+          if (solarPosition(middle, lat, lng).elevation >= 0) low = middle;
+          else high = middle;
+        }
+        const sunset = new Date((low.getTime() + high.getTime()) / 2);
+        const position = solarPosition(sunset, lat, lng);
+        return {
+          date: sunset,
+          time: new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }).format(sunset),
+          azimuth: Math.round(position.azimuth)
+        };
+      }
+      previous = current;
+    }
+    return null;
+  }
+
+  function normalizeGenreName(value) {
+    return String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").slice(0, 50);
+  }
+
+  function genreKey(value) { return normalizeGenreName(value).toLocaleLowerCase("ja"); }
+
+  function knownGenres() {
+    const names = [...DEFAULT_GENRES, ...state.spots.filter(spot => spot.kind === "nonTrain").map(spot => normalizeGenreName(spot.subject)).filter(Boolean)];
+    const found = new Map();
+    names.forEach(name => { if (!found.has(genreKey(name))) found.set(genreKey(name), name); });
+    return [...found.values()].sort((a, b) => a.localeCompare(b, "ja"));
+  }
+
+  function canonicalGenre(value) {
+    const normalized = normalizeGenreName(value);
+    const existing = knownGenres().find(name => genreKey(name) === genreKey(normalized));
+    return existing || normalized;
+  }
+
+  function positiveNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : null;
+  }
+
+  function hasBearing(spot) {
+    return spot?.bearing !== null && spot?.bearing !== "" && Number.isFinite(Number(spot?.bearing));
+  }
+
   function lightCondition(spot, sun) {
+    if (!hasBearing(spot)) return null;
     if (sun.elevation < 1) return { key: "night", label: "夜間", detail: "太陽は地平線の下" };
-    const ideal = (Number(spot.bearing || 0) + 180) % 360;
+    const ideal = (Number(spot.bearing) + 180) % 360;
     const diff = angularDistance(sun.azimuth, ideal);
     if (diff <= 38) return { key: "front", label: "順光", detail: `光軸差 ${Math.round(diff)}°` };
     if (diff <= 85) return { key: "side", label: "側面光", detail: `光軸差 ${Math.round(diff)}°` };
@@ -189,51 +251,74 @@
 
   function fillOptions() {
     const line = $("#line-filter");
-    const subject = $("#subject-filter");
     line.replaceChildren(option("", "すべての路線"), ...uniqueOptions("line").map(value => option(value, value)));
-    subject.replaceChildren(option("", "すべての被写体"), ...uniqueOptions("subject").map(value => option(value, value)));
+    $("#subject-examples").replaceChildren(...knownGenres().map(value => option(value, value)));
+    renderGenreFilters();
+  }
+
+  function renderGenreFilters() {
+    const container = $("#genre-filter-buttons");
+    const counts = new Map();
+    state.spots.filter(spot => spot.kind === "nonTrain").forEach(spot => {
+      const name = canonicalGenre(spot.subject);
+      if (name) counts.set(name, (counts.get(name) || 0) + 1);
+    });
+    const buttons = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b, "ja")).map(([name, count]) => {
+      const button = element("button", { attrs: { type: "button", "aria-pressed": String(state.selectedGenres.has(genreKey(name))) } });
+      button.dataset.genre = genreKey(name);
+      append(button, name, element("span", { text: count }));
+      button.addEventListener("click", () => {
+        const key = button.dataset.genre;
+        state.selectedGenres.has(key) ? state.selectedGenres.delete(key) : state.selectedGenres.add(key);
+        renderGenreFilters();
+        filterResults();
+      });
+      return button;
+    });
+    container.replaceChildren(...(buttons.length ? buttons : [element("span", { className: "genre-empty", text: "登録済みジャンルはありません" })]));
   }
 
   function setContextFilters() {
     $("#train-filters").hidden = state.kind !== "train";
     $("#non-train-filters").hidden = state.kind !== "nonTrain";
+    $("#light-filter-field").hidden = state.kind !== "train";
   }
 
   function filterResults() {
     const keyword = $("#keyword-filter").value.trim().toLowerCase();
     const line = $("#line-filter").value;
     const direction = $("#direction-filter").value;
-    const subject = $("#subject-filter").value;
     const lightFilter = $("#light-filter").value;
     const access = $("#access-filter").value;
     const month = selectedDate().getMonth() + 1;
-    const sun = currentSun();
     const requireSeason = $("#season-filter").checked;
     const beginner = $("#beginner-filter").checked;
-    const verified = $("#safe-filter").checked;
 
     state.results = state.spots.filter(spot => {
       const haystack = [spot.name, spot.area, spot.line, spot.section, spot.subject, spot.memo, ...(spot.features || [])].join(" ").toLowerCase();
-      const light = lightCondition(spot, sun);
+      const spotSun = solarPosition(selectedDate(), Number(spot.lat), Number(spot.lng));
+      const light = lightCondition(spot, spotSun);
       if (state.kind === "favorite" && !isFavorite(spot.id)) return false;
       if (VALID_KINDS.has(state.kind) && spot.kind !== state.kind) return false;
       if (keyword && !haystack.includes(keyword)) return false;
       if (state.kind === "train" && line && spot.line !== line) return false;
       if (state.kind === "train" && direction && !(spot.directions || []).includes(direction)) return false;
-      if (state.kind === "nonTrain" && subject && spot.subject !== subject) return false;
-      if (lightFilter === "front" && light.key !== "front") return false;
-      if (lightFilter === "side" && !["front", "side"].includes(light.key)) return false;
-      if (lightFilter === "back" && light.key !== "back") return false;
-      if (/^\d+$/.test(access) && Number(spot.walk || 0) > Number(access)) return false;
+      if (state.kind === "nonTrain" && state.selectedGenres.size && !state.selectedGenres.has(genreKey(spot.subject))) return false;
+      if (state.kind === "train" && lightFilter === "front" && light?.key !== "front") return false;
+      if (state.kind === "train" && lightFilter === "side" && !["front", "side"].includes(light?.key)) return false;
+      if (state.kind === "train" && lightFilter === "back" && light?.key !== "back") return false;
+      if (/^\d+$/.test(access) && (!positiveNumber(spot.walk) || positiveNumber(spot.walk) > Number(access))) return false;
       if (state.kind === "nonTrain" && requireSeason && !monthInRange(month, spot.bloomStart, spot.bloomEnd)) return false;
       if (beginner && !spot.beginner) return false;
-      if (verified && !spot.verified) return false;
       return true;
-    }).map(spot => ({ ...spot, _light: lightCondition(spot, sun) }));
+    }).map(spot => {
+      const sun = solarPosition(selectedDate(), Number(spot.lat), Number(spot.lng));
+      return { ...spot, _light: lightCondition(spot, sun), _sun: sun, _sunset: spot.kind === "nonTrain" ? sunsetInfo(selectedDate(), Number(spot.lat), Number(spot.lng)) : null };
+    });
 
     const sort = $("#sort-order").value;
     state.results.sort((a, b) => sort === "distance"
-      ? Number(a.walk || 0) - Number(b.walk || 0)
+      ? (positiveNumber(a.walk) ?? Number.POSITIVE_INFINITY) - (positiveNumber(b.walk) ?? Number.POSITIVE_INFINITY)
       : String(b.updated || "").localeCompare(String(a.updated || "")));
     if (state.selectedId !== null && !state.results.some(item => sameId(item.id, state.selectedId))) state.selectedId = null;
     render();
@@ -246,7 +331,7 @@
     const season = spot.kind === "nonTrain" && (spot.bloomStart || spot.bloomEnd)
       ? `${spot.bloomStart || "?"}〜${spot.bloomEnd || "?"}月が見頃`
       : spot.kind === "train"
-        ? (spot.directions || []).map(direction => direction === "up" ? "上り" : "下り").join("・")
+        ? directionText(spot)
         : meaningful(spot.subject) ? spot.subject : "";
     const photoSource = safePhotoSource(spot);
     const hasPhoto = Boolean(photoSource || spot.hasPhoto);
@@ -262,13 +347,18 @@
     const body = element("div", { className: "card-body" });
     append(body, append(element("div", { className: "card-status" }), kind, favorite));
     const lightRow = element("div", { className: "light-row" });
-    append(lightRow, element("span", { className: `light-chip ${spot._light.key}`, text: spot._light.label }));
+    if (spot.kind === "train" && spot._light) append(lightRow, element("span", { className: `light-chip ${spot._light.key}`, text: spot._light.label }));
+    else if (spot._sunset) append(lightRow,
+      element("span", { className: "sunset-chip", text: `日没 ${spot._sunset.time}` }),
+      element("span", { className: "sunset-chip", text: `方位 ${spot._sunset.azimuth}°` })
+    );
     const meta = element("div", { className: "card-meta" });
-    if (meaningful(spot.walk) && Number.isFinite(Number(spot.walk))) append(meta, element("span", { text: `徒歩${Number(spot.walk)}分` }));
+    if (positiveNumber(spot.walk)) append(meta, element("span", { text: `徒歩${positiveNumber(spot.walk)}分` }));
     if (meaningful(spot.lens)) append(meta, element("span", { text: spot.lens }));
     if (meaningful(season)) append(meta, element("span", { text: season }));
     if (meaningful(subject)) append(body, element("div", { className: "card-kicker", text: subject }));
-    append(body, element("div", { className: "card-title", text: spot.name }), lightRow);
+    append(body, element("div", { className: "card-title", text: spot.name }));
+    if (lightRow.childElementCount) append(body, lightRow);
     if (meta.childElementCount) append(body, meta);
     const footer = element("div", { className: "card-footer" });
     if (meaningful(spot.updated)) append(footer, element("span", { text: `最終確認 ${spot.updated}` }));
@@ -359,24 +449,27 @@
     if (state.kind !== "all") labels.push(state.kind === "favorite" ? "お気に入り" : KIND_LABELS[state.kind]);
     const keyword = $("#keyword-filter").value.trim();
     if (keyword) labels.push(`「${keyword}」`);
-    const commonControls = [["#light-filter", "光線"], ["#access-filter", "アクセス"]];
+    const commonControls = [["#access-filter", "アクセス"]];
     commonControls.forEach(([selector, label]) => {
       const control = $(selector);
       if (control.value) labels.push(`${label}: ${control.selectedOptions[0].textContent}`);
     });
     if (state.kind === "train") {
+      const light = $("#light-filter");
+      if (light.value) labels.push(`光線: ${light.selectedOptions[0].textContent}`);
       [["#line-filter", "路線"], ["#direction-filter", "方向"]].forEach(([selector, label]) => {
         const control = $(selector);
         if (control.value) labels.push(`${label}: ${control.selectedOptions[0].textContent}`);
       });
     }
     if (state.kind === "nonTrain") {
-      const subject = $("#subject-filter");
-      if (subject.value) labels.push(`被写体: ${subject.selectedOptions[0].textContent}`);
+      state.selectedGenres.forEach(key => {
+        const name = knownGenres().find(value => genreKey(value) === key) || key;
+        labels.push(`ジャンル: ${name}`);
+      });
       if ($("#season-filter").checked) labels.push("指定月に見頃");
     }
     if ($("#beginner-filter").checked) labels.push("初心者向け");
-    if ($("#safe-filter").checked) labels.push("現地確認済み");
     $("#active-filters").replaceChildren(...labels.map(value => element("span", { text: value })));
   }
 
@@ -401,9 +494,10 @@
 
   function directionText(spot) {
     if (spot.kind !== "train") return "—";
-    return (spot.directions || []).map(direction => direction === "up"
-      ? `上り（${spot.upLabel || "上り方面"}）`
-      : `下り（${spot.downLabel || "下り方面"}）`).join("／");
+    return (spot.directions || []).map(direction => {
+      const label = direction === "up" ? String(spot.upLabel || "").trim() : String(spot.downLabel || "").trim();
+      return `${direction === "up" ? "上り" : "下り"}${label ? `（${label}）` : ""}`;
+    }).join("／");
   }
 
   function summaryItem(label, value, note) {
@@ -416,6 +510,34 @@
 
   function detailSection(title, content) {
     return append(element("section", { className: "detail-section" }), element("h3", { text: title }), content);
+  }
+
+  function initializeDetailLocationMap(container, spot) {
+    if (!window.L || !container.isConnected) return;
+    const lat = Number(spot.lat);
+    const lng = Number(spot.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (state.detailMap) state.detailMap.remove();
+    const map = L.map(container, { zoomControl: true, attributionControl: true }).setView([lat, lng], 15);
+    state.detailMap = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+    L.circleMarker([lat, lng], {
+      radius: 6,
+      color: "#FFFFFF",
+      fillColor: spot.kind === "train" ? "#0A5C2E" : "#9C5A24",
+      fillOpacity: 1,
+      weight: 2
+    }).addTo(map);
+    requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+  }
+
+  function detailLocationSection(spot) {
+    const map = element("div", { className: "detail-location-map", attrs: { "aria-label": `${spot.name}の地図` } });
+    requestAnimationFrame(() => requestAnimationFrame(() => initializeDetailLocationMap(map, spot)));
+    return detailSection("撮影地点", map);
   }
 
   function dataList(items) {
@@ -462,7 +584,7 @@
   }
 
   async function confirmSpot(spot) {
-    if (!window.confirm("この撮影地を現地確認済みにし、確認日と確認者を記録しますか？")) return;
+    if (!window.confirm("最終確認日を今日に更新し、確認者を記録しますか？")) return;
     try {
       const updated = replaceSpot(await api(`/v1/spots/${encodeURIComponent(spot.id)}/verify`, {
         method: "POST", body: JSON.stringify({ expectedRevision: spot.revision })
@@ -494,18 +616,18 @@
   }
 
   const HISTORY_ACTIONS = Object.freeze({
-    create: "登録しました", update: "編集", verify: "現地確認", trash: "ゴミ箱へ移動",
+    create: "登録しました", update: "編集", verify: "最終確認日を更新", trash: "ゴミ箱へ移動",
     restore: "復元", photo_add: "作例写真を追加", photo_replace: "作例写真を交換", photo_remove: "作例写真を削除"
   });
 
   const HISTORY_FIELDS = Object.freeze({
     schemaVersion: "データ形式", kind: "種類", name: "名称", area: "市区町村・場所",
-    line: "路線", section: "区間", subject: "被写体", upLabel: "上り方面", downLabel: "下り方面",
+    line: "路線", section: "区間", subject: "ジャンル", upLabel: "上り方面", downLabel: "下り方面",
     lens: "推奨レンズ", capacity: "定員目安", tripod: "三脚の可否", access: "撮影位置・アクセス",
     memo: "メモ", updated: "最終確認日", verifiedAt: "最終確認日時", verifiedBy: "確認者",
     lat: "緯度", lng: "経度", bearing: "カメラ方位", walk: "駅から徒歩",
     bloomStart: "見頃開始月", bloomEnd: "見頃終了月", directions: "対象方向",
-    features: "特徴", beginner: "初心者向け", verified: "現地確認済み", photo: "作例写真",
+    features: "特徴", beginner: "初心者向け", verified: "旧確認状態", photo: "作例写真",
     deletedAt: "削除日時"
   });
 
@@ -605,8 +727,8 @@
   }
 
   function openDetail(raw) {
-    const sun = currentSun();
-    const spot = { ...raw, _light: raw._light || lightCondition(raw, sun) };
+    const sun = solarPosition(selectedDate(), Number(raw.lat), Number(raw.lng));
+    const spot = { ...raw, _light: raw._light || lightCondition(raw, sun), _sunset: raw._sunset || sunsetInfo(selectedDate(), Number(raw.lat), Number(raw.lng)) };
     const dialog = $("#spot-dialog");
     const container = $("#spot-detail");
     const article = element("article", { className: "detail-shell" });
@@ -618,31 +740,26 @@
     const grid = element("div", { className: `detail-grid${hasPhoto ? "" : " no-media"}` });
     const content = element("div", { className: "detail-content" });
     const summary = element("div", { className: "condition-summary" });
-    const conditionValue = spot.kind === "train"
-      ? (spot.directions || []).map(direction => direction === "up" ? "上り" : "下り").join("・")
-      : spot.bloomStart && spot.bloomEnd ? `${spot.bloomStart}〜${spot.bloomEnd}月` : spot.subject || "";
-    const conditionNote = spot.kind === "train" && Number.isFinite(Number(spot.bearing))
-      ? `カメラ方位 ${Number(spot.bearing)}°`
-      : spot.kind === "nonTrain" && meaningful(spot.subject) ? spot.subject : "";
-    append(summary, summaryItem("光線", spot._light.label, spot._light.detail));
-    if (meaningful(conditionValue) || meaningful(conditionNote)) {
-      append(summary, summaryItem(
-        spot.kind === "train" ? "撮影方向" : spot.bloomStart && spot.bloomEnd ? "見頃" : "被写体",
-        conditionValue,
-        conditionNote
-      ));
+    if (spot.kind === "train") {
+      const conditionValue = directionText(spot);
+      const conditionNote = hasBearing(spot) ? `カメラ方位 ${Number(spot.bearing)}°` : "";
+      if (spot._light) append(summary, summaryItem("光線", spot._light.label, spot._light.detail));
+      if (meaningful(conditionValue) || meaningful(conditionNote)) append(summary, summaryItem("撮影方向", conditionValue, conditionNote));
+    } else {
+      if (spot._sunset) append(summary, summaryItem("日没", spot._sunset.time, `方位 ${spot._sunset.azimuth}°`));
+      if (spot.bloomStart || spot.bloomEnd) append(summary, summaryItem("見頃", `${spot.bloomStart || "?"}〜${spot.bloomEnd || "?"}月`, ""));
     }
     const conditionItems = [];
     if (meaningful(spot.area)) conditionItems.push(["場所", spot.area]);
     const target = spot.kind === "train" ? [spot.line, spot.section].filter(meaningful).join(" ") : spot.subject;
-    if (meaningful(target)) conditionItems.push([spot.kind === "train" ? "線区" : "被写体", target]);
+    if (meaningful(target)) conditionItems.push([spot.kind === "train" ? "線区" : "ジャンル", target]);
     if (spot.kind === "train" && meaningful(directionText(spot))) conditionItems.push(["対象方向", directionText(spot)]);
     if (meaningful(spot.lens)) conditionItems.push(["推奨レンズ", spot.lens]);
     if (meaningful(spot.capacity)) conditionItems.push(["定員目安", spot.capacity]);
     if (meaningful(spot.tripod)) conditionItems.push(["三脚", spot.tripod]);
     const access = element("div");
     if (meaningful(spot.access)) append(access, element("p", { text: spot.access }));
-    if (meaningful(spot.walk) && Number.isFinite(Number(spot.walk))) append(access, append(element("p"), element("b", { text: "徒歩：" }), `${Number(spot.walk)}分`));
+    if (positiveNumber(spot.walk)) append(access, append(element("p"), element("b", { text: "徒歩：" }), `${positiveNumber(spot.walk)}分`));
     const actions = element("div", { className: "detail-actions" });
     const mapLink = element("a", { text: "地図アプリで開く", attrs: { target: "_blank", rel: "noopener noreferrer" } });
     mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${Number(spot.lat)},${Number(spot.lng)}`)}`;
@@ -652,6 +769,7 @@
     append(actions, mapLink, favorite, archive);
     append(content, summary);
     if (conditionItems.length) append(content, detailSection("撮影条件", dataList(conditionItems)));
+    append(content, detailLocationSection(spot));
     if (access.childElementCount) append(content, detailSection("アクセス", access));
     if (String(spot.memo || "").trim()) append(content, detailSection("メモ", element("div", { className: "memo-box", text: spot.memo })));
     const audit = element("dl", { className: "detail-audit" });
@@ -664,7 +782,7 @@
       element("dt", { text: "最終確認" }), element("dd", { text: `${spot.updated}${meaningful(spot.verifiedBy) ? `／${spot.verifiedBy}` : ""}` })
     );
     append(content, audit);
-    const confirm = element("button", { text: "確認した", attrs: { type: "button" } });
+    const confirm = element("button", { text: "最終確認日を更新", attrs: { type: "button" } });
     const edit = element("button", { text: "編集", attrs: { type: "button" } });
     const history = element("button", { text: "履歴", attrs: { type: "button" } });
     const remove = element("button", { className: "danger-action", text: "ゴミ箱へ移動", attrs: { type: "button" } });
@@ -684,9 +802,16 @@
     append(grid, content);
     append(article, header, grid);
     container.replaceChildren(article);
-    close.addEventListener("click", () => dialog.close());
+    close.addEventListener("click", () => {
+      dialog.close();
+      if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
+    });
     confirm.addEventListener("click", () => confirmSpot(spot));
-    edit.addEventListener("click", () => { dialog.close(); openEditor(spot); });
+    edit.addEventListener("click", () => {
+      dialog.close();
+      if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
+      openEditor(spot);
+    });
     history.addEventListener("click", () => openHistory(spot));
     remove.addEventListener("click", () => moveSpotToTrash(spot));
     favorite.addEventListener("click", () => {
@@ -698,12 +823,25 @@
     if (protectedImage) loadProtectedImage(protectedImage, spot.id, "original");
   }
 
-  function toggleFavorite(id) {
+  async function toggleFavorite(id) {
+    if (state.favoriteSyncing) return;
     const key = String(id);
-    state.favorites.has(key) ? state.favorites.delete(key) : state.favorites.add(key);
+    const removing = state.favorites.has(key);
+    removing ? state.favorites.delete(key) : state.favorites.add(key);
     saveFavorites();
     filterResults();
-    showToast(state.favorites.has(key) ? "お気に入りに保存しました" : "お気に入りから外しました");
+    state.favoriteSyncing = true;
+    try {
+      await api(`/v1/spots/${encodeURIComponent(key)}/favorite`, { method: removing ? "DELETE" : "PUT" });
+      showToast(removing ? "お気に入りから外しました" : "お気に入りに保存しました");
+    } catch (error) {
+      removing ? state.favorites.add(key) : state.favorites.delete(key);
+      saveFavorites();
+      filterResults();
+      showToast(error.message || "お気に入りを更新できませんでした");
+    } finally {
+      state.favoriteSyncing = false;
+    }
   }
 
   function showToast(message) {
@@ -820,6 +958,23 @@
     if (changed) saveFavorites();
   }
 
+  async function synchronizeFavorites() {
+    const account = await api("/v1/spots/favorites");
+    let ids = new Set((account.items || []).map(String));
+    if (!localStorage.getItem(FAVORITE_IMPORT_KEY)) {
+      const localIds = [...state.favorites];
+      if (localIds.length) {
+        const imported = await api("/v1/spots/favorites/import", {
+          method: "POST", body: JSON.stringify({ spotIds: localIds })
+        });
+        ids = new Set((imported.items || []).map(String));
+      }
+      localStorage.setItem(FAVORITE_IMPORT_KEY, new Date().toISOString());
+    }
+    state.favorites = ids;
+    saveFavorites();
+  }
+
   async function synchronizeSpots() {
     const local = loadLocal();
     if (local.length && !localStorage.getItem(API_MIGRATION_KEY)) {
@@ -846,17 +1001,19 @@
     state.me = me;
     state.apiReady = true;
     saveApiCache(state.spots);
+    await synchronizeFavorites();
     fillOptions();
     filterResults();
   }
 
   function resetFilters() {
     state.kind = "all";
+    state.selectedGenres.clear();
     $$(".category-tabs button").forEach(button => button.classList.toggle("active", button.dataset.kind === "all"));
-    ["#keyword-filter", "#line-filter", "#direction-filter", "#subject-filter", "#light-filter", "#access-filter"].forEach(selector => { $(selector).value = ""; });
+    ["#keyword-filter", "#line-filter", "#direction-filter", "#light-filter", "#access-filter"].forEach(selector => { $(selector).value = ""; });
     $("#season-filter").checked = false;
     $("#beginner-filter").checked = false;
-    $("#safe-filter").checked = false;
+    renderGenreFilters();
     setContextFilters();
     filterResults();
   }
@@ -874,6 +1031,32 @@
         control.value = "";
       }
     });
+    updateDirectionFields();
+    updateSubjectStatus();
+  }
+
+  function updateDirectionFields() {
+    const mode = $("#editor-direction").value;
+    const isTrain = $("#editor-kind").value === "train";
+    const up = $("#editor-up-label");
+    const down = $("#editor-down-label");
+    const showUp = isTrain && ["up", "both"].includes(mode);
+    const showDown = isTrain && ["down", "both"].includes(mode);
+    up.hidden = !showUp;
+    down.hidden = !showDown;
+    $("input", up).disabled = !showUp;
+    $("input", down).disabled = !showDown;
+  }
+
+  function updateSubjectStatus() {
+    const input = $("#editor-subject");
+    const normalized = normalizeGenreName(input.value);
+    if (!normalized || $("#editor-kind").value !== "nonTrain") {
+      $("#subject-status").textContent = "";
+      return;
+    }
+    const exists = knownGenres().some(name => genreKey(name) === genreKey(normalized));
+    $("#subject-status").textContent = exists ? "登録済みのジャンルを使用します" : "新しい名前として登録します";
   }
 
   function setEditorPoint(lat, lng, center = false) {
@@ -916,10 +1099,15 @@
     $("#editor-title").textContent = spot ? "撮影地を編集" : "撮影地を追加";
     form.reset();
     if (spot) {
-      ["kind", "name", "line", "upLabel", "downLabel", "bearing", "subject", "bloomStart", "bloomEnd", "lat", "lng", "walk", "access", "memo"].forEach(name => {
+      ["kind", "name", "area", "line", "upLabel", "downLabel", "bearing", "subject", "bloomStart", "bloomEnd", "lat", "lng", "walk", "lens", "tripod", "access", "memo"].forEach(name => {
         const control = form.elements[name];
-        if (control && spot[name] !== undefined && spot[name] !== null) control.value = String(spot[name]);
+        if (control && spot[name] !== undefined && spot[name] !== null) {
+          control.value = name === "walk" && !positiveNumber(spot[name]) ? "" : String(spot[name]);
+        }
       });
+      const directions = Array.isArray(spot.directions) ? spot.directions : [];
+      form.elements.directionMode.value = directions.includes("up") && directions.includes("down") ? "both" : directions.includes("up") ? "up" : directions.includes("down") ? "down" : "";
+      form.elements.beginner.checked = spot.beginner === true;
     }
     updateEditorFields();
     dialog.showModal();
@@ -947,33 +1135,35 @@
     const kind = String(data.get("kind") || "nonTrain");
     const isTrain = kind === "train";
     const existing = state.editingId ? state.spots.find(item => sameId(item.id, state.editingId)) : null;
+    const directionMode = isTrain ? String(data.get("directionMode") || "") : "";
+    const directions = directionMode === "both" ? ["up", "down"] : ["up", "down"].includes(directionMode) ? [directionMode] : [];
     const spot = {
       ...(existing || {}),
       clientId: existing?.clientId || `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       schemaVersion: SCHEMA_VERSION,
       kind: isTrain ? "train" : "nonTrain",
       name: String(data.get("name") || "").trim(),
-      area: "利用者登録",
+      area: String(data.get("area") || "").trim(),
       line: isTrain ? String(data.get("line") || "").trim() : "",
-      subject: isTrain ? "" : String(data.get("subject") || "").trim(),
+      subject: isTrain ? "" : canonicalGenre(data.get("subject")),
       lat: Number(data.get("lat")),
       lng: Number(data.get("lng")),
-      bearing: isTrain ? Number(data.get("bearing") || 0) : 0,
-      directions: isTrain ? ["up", "down"] : [],
+      bearing: isTrain && String(data.get("bearing") || "").trim() ? Number(data.get("bearing")) : null,
+      directions,
       upLabel: isTrain ? String(data.get("upLabel") || "").trim() : "",
       downLabel: isTrain ? String(data.get("downLabel") || "").trim() : "",
       walk: Number(data.get("walk") || 0),
-      beginner: false,
-      verified: true,
-      updated: new Date().toISOString().slice(0, 10),
+      beginner: data.get("beginner") === "on",
+      verified: existing?.verified === true,
+      updated: existing?.updated || "",
       bloomStart: isTrain ? 0 : Number(data.get("bloomStart") || 0),
       bloomEnd: isTrain ? 0 : Number(data.get("bloomEnd") || 0),
-      lens: "",
+      lens: String(data.get("lens") || "").trim(),
       capacity: "",
-      tripod: "",
+      tripod: String(data.get("tripod") || "").trim(),
       access: String(data.get("access") || "").trim(),
       memo: String(data.get("memo") || ""),
-      features: ["利用者登録"]
+      features: existing?.features || []
     };
     if (existing) spot.expectedRevision = state.editingRevision;
     const submit = form.querySelector('button[type="submit"]');
@@ -1022,8 +1212,11 @@
       headerMenu.open = false;
       headerMenuSummary.focus();
     });
+    $("#spot-dialog").addEventListener("close", () => {
+      if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
+    });
     ["#plan-date", "#plan-time"].forEach(selector => $(selector).addEventListener("change", filterResults));
-    ["#keyword-filter", "#line-filter", "#direction-filter", "#subject-filter", "#light-filter", "#access-filter", "#season-filter", "#beginner-filter", "#safe-filter", "#sort-order"].forEach(selector => {
+    ["#keyword-filter", "#line-filter", "#direction-filter", "#light-filter", "#access-filter", "#season-filter", "#beginner-filter", "#sort-order"].forEach(selector => {
       $(selector).addEventListener(selector === "#keyword-filter" ? "input" : "change", filterResults);
     });
     $$(".category-tabs button").forEach(button => button.addEventListener("click", () => {
@@ -1044,6 +1237,11 @@
       document.body.classList.toggle("filters-open");
       $("#filter-toggle").setAttribute("aria-expanded", String(document.body.classList.contains("filters-open")));
     });
+    $("#filter-close").addEventListener("click", () => {
+      document.body.classList.remove("filters-open");
+      $("#filter-toggle").setAttribute("aria-expanded", "false");
+      $("#filter-toggle").focus();
+    });
     $("#add-spot-button").addEventListener("click", () => openEditor());
     $$('[data-close]').forEach(button => button.addEventListener("click", () => {
       const dialog = $(`#${button.dataset.close}`);
@@ -1061,6 +1259,12 @@
       openDetail(current);
     });
     $("#editor-kind").addEventListener("change", updateEditorFields);
+    $("#editor-direction").addEventListener("change", updateDirectionFields);
+    $("#editor-subject").addEventListener("input", updateSubjectStatus);
+    $("#editor-subject").addEventListener("blur", () => {
+      $("#editor-subject").value = canonicalGenre($("#editor-subject").value);
+      updateSubjectStatus();
+    });
     [$("#spot-form").elements.lat, $("#spot-form").elements.lng].forEach(input => input.addEventListener("change", syncEditorMapFromInputs));
     $("#spot-form").addEventListener("submit", saveSpot);
   }
@@ -1112,8 +1316,12 @@
   window.PhotoSpotUtils = Object.freeze({
     solarPosition,
     lightCondition,
+    sunsetInfo,
     monthInRange,
     angularDistance,
+    normalizeGenreName,
+    positiveNumber,
+    hasBearing,
     authenticatedName,
     normalizeSpot,
     migrateItems,

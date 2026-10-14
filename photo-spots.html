@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="列車とその他の撮影地を、地図・光線・季節・撮影条件から検索する撮影計画システム">
   <title>撮影地検索・撮影計画｜東京圏輸送情報システム</title>
-  <link rel="stylesheet" href="/assets/css/photo-spots.css?v=2026.10.13.4">
+  <link rel="stylesheet" href="/assets/css/photo-spots.css?v=2026.10.14.8">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -50,21 +50,20 @@
 
     <section class="search-workspace">
       <aside class="filter-panel" id="filter-panel">
-        <div class="panel-heading"><h2>検索条件</h2><button id="clear-filters" type="button">条件クリア</button></div>
+        <div class="panel-heading"><h2>検索条件</h2><div class="panel-actions"><button class="filter-close" id="filter-close" type="button">閉じる</button><button id="clear-filters" type="button">条件クリア</button></div></div>
         <label class="search-field filter-field"><span>キーワード</span><input id="keyword-filter" type="search" placeholder="路線・被写体・場所…"></label>
         <div class="conditional-filter" id="train-filters" hidden>
           <label><span>路線</span><select id="line-filter"><option value="">すべての路線</option></select></label>
-          <label><span>列車の方向</span><select id="direction-filter"><option value="">上り・下り両方</option><option value="up">上り</option><option value="down">下り</option></select></label>
+          <label><span>列車の方向</span><select id="direction-filter"><option value="">指定なし</option><option value="up">上り</option><option value="down">下り</option></select></label>
         </div>
         <div class="conditional-filter" id="non-train-filters" hidden>
-          <label><span>被写体</span><select id="subject-filter"><option value="">すべての被写体</option></select></label>
+          <div class="genre-filter-block"><span>ジャンル（複数選択可）</span><div class="genre-filter-buttons" id="genre-filter-buttons" role="group" aria-label="その他のジャンル"></div></div>
           <label class="compact-check"><input id="season-filter" type="checkbox"><span>指定月に見頃のものだけ</span></label>
         </div>
-        <label class="filter-field"><span>光線条件</span><select id="light-filter"><option value="">条件を問わない</option><option value="front">順光を優先</option><option value="side">側面光まで</option><option value="back">逆光を活かす</option></select></label>
+        <label class="filter-field" id="light-filter-field" hidden><span>光線条件</span><select id="light-filter"><option value="">条件を問わない</option><option value="front">順光を優先</option><option value="side">側面光まで</option><option value="back">逆光を活かす</option></select></label>
         <label class="filter-field"><span>アクセス</span><select id="access-filter"><option value="">指定なし</option><option value="10">駅から徒歩10分以内</option><option value="20">駅から徒歩20分以内</option></select></label>
         <div class="check-stack">
           <label><input id="beginner-filter" type="checkbox"><span>初心者向けのみ</span></label>
-          <label><input id="safe-filter" type="checkbox"><span>現地確認済みのみ</span></label>
         </div>
       </aside>
 
@@ -95,21 +94,26 @@
         <div class="editor-grid">
           <label>種類<select name="kind" id="editor-kind" required><option value="train">列車</option><option value="nonTrain">その他</option></select></label>
           <label>名称<input name="name" required maxlength="80" placeholder="例：○○駅〜△△駅 河川敷"></label>
+          <label class="span2">市区町村・場所（任意）<input name="area" maxlength="100" placeholder="例：東京都日野市／多摩川右岸"></label>
           <div class="editor-conditional span2" id="editor-train-fields">
             <label>路線<input name="line" maxlength="50" placeholder="例：東北本線"></label>
-            <label>上り方面<input name="upLabel" maxlength="50" placeholder="例：東京方面"></label>
-            <label>下り方面<input name="downLabel" maxlength="50" placeholder="例：大宮方面"></label>
-            <label>カメラ方位<input name="bearing" type="number" min="0" max="359" value="90"><small>北0°・東90°・南180°・西270°</small></label>
+            <label>対象方向<select name="directionMode" id="editor-direction" required><option value="">選択してください</option><option value="up">上りのみ</option><option value="down">下りのみ</option><option value="both">上下線とも</option></select></label>
+            <label id="editor-up-label">上り方面（任意）<input name="upLabel" maxlength="50" placeholder="例：東京方面"></label>
+            <label id="editor-down-label">下り方面（任意）<input name="downLabel" maxlength="50" placeholder="例：大宮方面"></label>
+            <label>カメラ方位（任意）<input name="bearing" type="number" min="0" max="359"><small>北0°・東90°・南180°・西270°</small></label>
           </div>
           <div class="editor-conditional span2" id="editor-non-train-fields" hidden>
-            <label>被写体<input name="subject" list="subject-examples" maxlength="50" placeholder="例：夜景、夕焼け、桜、紅葉"><datalist id="subject-examples"><option value="夜景"></option><option value="夕焼け"></option><option value="桜"></option><option value="紅葉"></option><option value="梅"></option><option value="あじさい"></option><option value="花菖蒲"></option><option value="彼岸花"></option><option value="風景"></option></datalist></label>
+            <label class="span2">ジャンル<input name="subject" id="editor-subject" list="subject-examples" maxlength="50" required placeholder="例：桜、紅葉、夜景、飛行機"><small id="subject-status" aria-live="polite"></small><datalist id="subject-examples"></datalist></label>
             <label>見頃開始月<input name="bloomStart" type="number" min="1" max="12"></label>
             <label>見頃終了月<input name="bloomEnd" type="number" min="1" max="12"></label>
           </div>
           <div class="editor-map-block span2"><b>撮影地点</b><span id="editor-map-status">地図をクリックまたはタップして位置を指定</span><div id="editor-map" aria-label="追加する撮影地点を選ぶ地図"></div></div>
           <label>緯度<input name="lat" type="number" step="any" min="20" max="46" required></label>
           <label>経度<input name="lng" type="number" step="any" min="122" max="154" required></label>
-          <label>駅から徒歩<input name="walk" type="number" min="0" max="180" value="10"><small>分</small></label>
+          <label>駅から徒歩（任意）<input name="walk" type="number" min="1" max="180"><small>分</small></label>
+          <label>推奨レンズ（任意）<input name="lens" maxlength="200" placeholder="例：70–200mm"></label>
+          <label>三脚の可否（任意）<select name="tripod"><option value="">未入力</option><option value="使用可">使用可</option><option value="使用不可">使用不可</option><option value="条件付き">条件付き</option></select></label>
+          <div class="editor-checks span2"><label><input name="beginner" type="checkbox">初心者向け</label></div>
           <label class="span2">撮影位置・アクセス<textarea name="access" rows="2" required placeholder="公共の場所から安全に到達できる経路"></textarea></label>
           <label class="span2">メモ<textarea name="memo" rows="3" placeholder="撮影時に確認したいことを自由に入力"></textarea></label>
           <label class="span2">作例写真<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"><small>2MB以下。位置情報を公開したくない写真は、事前にGPS情報を削除してください。</small></label>
@@ -131,6 +135,6 @@
 
   <script src="/auth_guard.js?v=2026.08.25.4"></script>
   <script src="/T-time/firebase-data-auth.js?v=2026.08.09.1"></script>
-  <script src="/assets/js/photo-spots.js?v=2026.10.13.4" defer></script>
+  <script src="/assets/js/photo-spots.js?v=2026.10.14.8" defer></script>
 </body>
 </html>
