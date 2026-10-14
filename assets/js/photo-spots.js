@@ -60,6 +60,9 @@
     markers: new Map(),
     editorMap: null,
     editorMarker: null,
+    editorBearingSector: null,
+    editorBearingLine: null,
+    editorBearingHandle: null,
     detailMap: null,
     userLocationMarker: null,
     apiReady: false,
@@ -98,6 +101,41 @@
   function rad(value) { return value * Math.PI / 180; }
   function deg(value) { return value * 180 / Math.PI; }
   const angularDistance = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+
+  function destinationPoint(lat, lng, bearing, distanceMeters) {
+    const radius = 6371000;
+    const angular = distanceMeters / radius;
+    const latitude = rad(lat);
+    const longitude = rad(lng);
+    const direction = rad(bearing);
+    const targetLat = Math.asin(Math.sin(latitude) * Math.cos(angular)
+      + Math.cos(latitude) * Math.sin(angular) * Math.cos(direction));
+    const targetLng = longitude + Math.atan2(
+      Math.sin(direction) * Math.sin(angular) * Math.cos(latitude),
+      Math.cos(angular) - Math.sin(latitude) * Math.sin(targetLat)
+    );
+    return [deg(targetLat), ((deg(targetLng) + 540) % 360) - 180];
+  }
+
+  function bearingBetween(origin, target) {
+    const latitude1 = rad(origin.lat);
+    const latitude2 = rad(target.lat);
+    const longitudeDelta = rad(target.lng - origin.lng);
+    return (deg(Math.atan2(
+      Math.sin(longitudeDelta) * Math.cos(latitude2),
+      Math.cos(latitude1) * Math.sin(latitude2)
+        - Math.sin(latitude1) * Math.cos(latitude2) * Math.cos(longitudeDelta)
+    )) + 360) % 360;
+  }
+
+  function sectorPoints(lat, lng, bearing, distance = 280, halfAngle = 22) {
+    const points = [[lat, lng]];
+    for (let offset = -halfAngle; offset <= halfAngle; offset += 5.5) {
+      points.push(destinationPoint(lat, lng, bearing + offset, distance));
+    }
+    points.push([lat, lng]);
+    return points;
+  }
   const monthInRange = (month, start, end) => !start || !end ? true : start <= end ? month >= start && month <= end : month >= start || month <= end;
   function monthsUntilSeason(month, start, end) {
     if (!Number.isInteger(Number(start)) || !Number.isInteger(Number(end)) || Number(start) < 1 || Number(end) > 12) return Number.POSITIVE_INFINITY;
@@ -676,6 +714,15 @@
       fillOpacity: 1,
       weight: 2
     }).addTo(map);
+    if (spot.kind === "train" && hasBearing(spot)) {
+      L.polygon(sectorPoints(lat, lng, Number(spot.bearing), 280), {
+        color: "#0A5C2E",
+        fillColor: "#0A5C2E",
+        fillOpacity: .18,
+        weight: 2,
+        interactive: false
+      }).addTo(map);
+    }
     requestAnimationFrame(() => map.invalidateSize({ pan: false }));
   }
 
@@ -1224,6 +1271,7 @@
     });
     updateDirectionFields();
     updateSubjectStatus();
+    renderEditorBearingOverlay();
   }
 
   function updateDirectionFields() {
@@ -1288,6 +1336,78 @@
     $("#subject-status").textContent = exists ? "登録済みのジャンルを使用します" : "新しい名前として登録します";
   }
 
+  function normalizedBearing(value) {
+    if (String(value ?? "").trim() === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round((number % 360 + 360) % 360) : null;
+  }
+
+  function updateBearingButtons() {
+    const bearing = normalizedBearing($("#editor-bearing").value);
+    $$("#bearing-buttons button").forEach(button => {
+      const active = bearing !== null && angularDistance(bearing, Number(button.dataset.bearing)) < 1;
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  function clearEditorBearingLayers() {
+    ["editorBearingSector", "editorBearingLine", "editorBearingHandle"].forEach(key => {
+      if (state[key]) state[key].remove();
+      state[key] = null;
+    });
+  }
+
+  function renderEditorBearingOverlay() {
+    updateBearingButtons();
+    if (!state.editorMap || $("#editor-kind").value !== "train") {
+      clearEditorBearingLayers();
+      return;
+    }
+    const form = $("#spot-form");
+    const lat = Number(form.elements.lat.value);
+    const lng = Number(form.elements.lng.value);
+    const bearing = normalizedBearing(form.elements.bearing.value);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || bearing === null) {
+      clearEditorBearingLayers();
+      return;
+    }
+    const points = sectorPoints(lat, lng, bearing);
+    const handlePoint = destinationPoint(lat, lng, bearing, 280);
+    if (!state.editorBearingSector) {
+      state.editorBearingSector = L.polygon(points, {
+        color: "#0A5C2E", fillColor: "#0A5C2E", fillOpacity: .2, weight: 2, interactive: false
+      }).addTo(state.editorMap);
+      state.editorBearingLine = L.polyline([[lat, lng], handlePoint], {
+        color: "#0A5C2E", weight: 2, interactive: false
+      }).addTo(state.editorMap);
+      state.editorBearingHandle = L.marker(handlePoint, {
+        draggable: true,
+        keyboard: true,
+        title: "カメラ方位をドラッグして変更",
+        icon: L.divIcon({
+          className: "",
+          html: element("span", { className: "bearing-handle" }),
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        })
+      }).addTo(state.editorMap);
+      state.editorBearingHandle.on("drag", event => {
+        const origin = { lat: Number(form.elements.lat.value), lng: Number(form.elements.lng.value) };
+        const value = normalizedBearing(Math.round(bearingBetween(origin, event.target.getLatLng())));
+        form.elements.bearing.value = String(value);
+        state.editorBearingSector?.setLatLngs(sectorPoints(origin.lat, origin.lng, value));
+        state.editorBearingLine?.setLatLngs([[origin.lat, origin.lng], event.target.getLatLng()]);
+        updateBearingButtons();
+        state.editorDirty = true;
+      });
+      state.editorBearingHandle.on("dragend", renderEditorBearingOverlay);
+    } else {
+      state.editorBearingSector.setLatLngs(points);
+      state.editorBearingLine.setLatLngs([[lat, lng], handlePoint]);
+      state.editorBearingHandle.setLatLng(handlePoint);
+    }
+  }
+
   function setEditorPoint(lat, lng, center = false, markDirty = false) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const form = $("#spot-form");
@@ -1297,6 +1417,7 @@
     if (!state.editorMap) return;
     if (!state.editorMarker) state.editorMarker = L.marker([lat, lng]).addTo(state.editorMap);
     else state.editorMarker.setLatLng([lat, lng]);
+    renderEditorBearingOverlay();
     if (center) state.editorMap.setView([lat, lng], 15);
     if (markDirty) state.editorDirty = true;
   }
@@ -1319,6 +1440,7 @@
     const lat = Number(form.elements.lat.value);
     const lng = Number(form.elements.lng.value);
     if (form.elements.lat.value && form.elements.lng.value && Number.isFinite(lat) && Number.isFinite(lng)) setEditorPoint(lat, lng, true);
+    else clearEditorBearingLayers();
   }
 
   function openEditor(spot = null) {
@@ -1517,6 +1639,12 @@
     });
     $("#editor-kind").addEventListener("change", updateEditorFields);
     $$('[data-direction-mode]').forEach(button => button.addEventListener("click", () => { setDirectionMode(button.dataset.directionMode); state.editorDirty = true; }));
+    $("#editor-bearing").addEventListener("input", renderEditorBearingOverlay);
+    $$("#bearing-buttons button").forEach(button => button.addEventListener("click", () => {
+      $("#editor-bearing").value = button.dataset.bearing;
+      renderEditorBearingOverlay();
+      state.editorDirty = true;
+    }));
     $$("input, select, textarea", $("#spot-form")).forEach(control => {
       control.addEventListener("input", () => { clearEditorInvalid(control); state.editorDirty = true; });
       control.addEventListener("change", () => { clearEditorInvalid(control); state.editorDirty = true; });
@@ -1592,6 +1720,10 @@
     compareUpdatedSpots,
     isStaleSpot,
     angularDistance,
+    destinationPoint,
+    bearingBetween,
+    sectorPoints,
+    normalizedBearing,
     normalizeGenreName,
     positiveNumber,
     hasBearing,
