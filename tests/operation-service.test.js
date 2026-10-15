@@ -38,7 +38,9 @@ assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込み�
 assert.match(adminJs, /line\s*&&\s*!\(train\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '統合列車が通る全線区を絞り込み対象にすること');
 assert.match(publicJs, /line\s*&&\s*!\(item\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '公開画面も列車が通る全線区を絞り込み対象にすること');
 assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
-assert.match(adminJs, /operationKind:\s*'suspension'[\s\S]*operationState:\s*'suspend'/, '一括運休を運転休止として登録すること');
+assert.match(adminHtml, /id="bulkOperate"[\s\S]*一括運転/, '複数列車の一括運転操作を備えること');
+assert.match(adminJs, /operationKind:\s*operate\s*\?\s*'operation'\s*:\s*'suspension'[\s\S]*operationState:\s*operate\s*\?\s*'operate'\s*:\s*'suspend'/, '一括運転・運休を対応する活休として登録すること');
+assert.match(css, /\.catalog-grid td\s*\{[\s\S]*height:\s*18px[\s\S]*padding:\s*0 3px/, 'ダイヤ原簿の行高を密にすること');
 assert.match(adminHtml, /data-auth-display="flex"/, '認証後も管理画面本体をflex表示すること');
 assert.match(authGuard, /mainContent\.dataset\.authDisplay\s*\|\|\s*'block'/, '画面ごとの認証後表示方式を守ること');
 assert.doesNotMatch(publicJs, /<th>No\.<\/th><th>線区<\/th>/, '公開時刻表にNo.・線区列を戻さないこと');

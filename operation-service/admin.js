@@ -127,11 +127,13 @@
   }
 
   function updateBulkSelection() {
+    $('bulkOperate').disabled = selectedCatalogKeys.size === 0;
     $('bulkSuspend').disabled = selectedCatalogKeys.size === 0;
+    $('bulkOperate').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運転` : '選択列車を一括運転';
     $('bulkSuspend').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運休` : '選択列車を一括運休';
   }
 
-  async function bulkSuspend() {
+  async function bulkRegister(mode) {
     const trains = catalog.filter(train => selectedCatalogKeys.has(train.scheduleKey));
     const dateSpec = collectServiceDates();
     if (!trains.length) return;
@@ -143,19 +145,24 @@
       setMessage('一度に一括登録できるのは100列車までです。', 'error');
       return;
     }
-    if (!confirm(`${trains.length}列車を全区間運休として公開します。よろしいですか？`)) return;
+    const operate = mode === 'operate';
+    const actionLabel = operate ? '一括運転' : '一括運休';
+    const stateLabel = operate ? '運転' : '運休';
+    if (!confirm(`${trains.length}列車を全区間${stateLabel}として公開します。よろしいですか？`)) return;
+    $('bulkOperate').disabled = true;
     $('bulkSuspend').disabled = true;
     let succeeded = 0;
     const failed = [];
     for (const train of trains) {
-      $('statusText').textContent = `一括運休を登録中 ${succeeded + failed.length + 1}/${trains.length}　${train.trainNumber}`;
+      $('statusText').textContent = `${actionLabel}を登録中 ${succeeded + failed.length + 1}/${trains.length}　${train.trainNumber}`;
       try {
         await api('/api/operation-service/notices', {
           method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.assign({
-            status: 'published', title: '列車運転休止', operationKind: 'suspension', operationState: 'suspend',
+            status: 'published', title: operate ? (train.defaultTitle || '列車運転') : '列車運転休止',
+            operationKind: operate ? 'operation' : 'suspension', operationState: operate ? 'operate' : 'suspend',
             diagramPeriodId: $('diagramPeriod').value || train.diagramPeriod?.id || '', trainNumber: train.trainNumber,
             trainType: train.trainType || '', scheduleKey: train.scheduleKey, sectionStart: train.origin,
-            sectionEnd: train.destination, restriction: '', remarks: '管理画面の一括運休で登録', lines: train.lines || [],
+            sectionEnd: train.destination, restriction: '', remarks: `管理画面の${actionLabel}で登録`, lines: train.lines || [],
             timeChanges: [], scheduleSnapshot: train, noticeNumber: '',
           }, dateSpec)),
         });
@@ -167,8 +174,8 @@
     selectedCatalogKeys.clear();
     markDirty(false);
     await loadDate();
-    if (failed.length) setMessage(`一括運休 ${succeeded}件を公開、${failed.length}件は失敗しました。${failed.slice(0, 5).join(' / ')}`, 'error');
-    else setMessage(`一括運休 ${succeeded}件を公開しました。`, 'success');
+    if (failed.length) setMessage(`${actionLabel} ${succeeded}件を公開、${failed.length}件は失敗しました。${failed.slice(0, 5).join(' / ')}`, 'error');
+    else setMessage(`${actionLabel} ${succeeded}件を公開しました。`, 'success');
     updateBulkSelection();
   }
 
@@ -464,7 +471,8 @@
   $('catalogSort').addEventListener('change', renderCatalog);
   $('selectVisible').addEventListener('click', () => { filteredCatalog().forEach(train => selectedCatalogKeys.add(train.scheduleKey)); renderCatalog(); });
   $('clearSelection').addEventListener('click', () => { selectedCatalogKeys.clear(); renderCatalog(); });
-  $('bulkSuspend').addEventListener('click', bulkSuspend);
+  $('bulkOperate').addEventListener('click', () => bulkRegister('operate'));
+  $('bulkSuspend').addEventListener('click', () => bulkRegister('suspend'));
   $('newNotice').addEventListener('click', () => resetForm());
   $('newNoticeMenu').addEventListener('click', event => { event.preventDefault(); resetForm(); });
   $('saveDraft').addEventListener('click', () => save('draft'));
