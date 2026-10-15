@@ -32,6 +32,7 @@ assert.match(adminHtml, /運転報PDF/, '運転活休通達PDFへの導線を備
 assert.match(adminJs, /diagramPeriodId/, '選択した改正をAPIへ渡すこと');
 assert.match(adminJs, /timeChanges:\s*collectTimeChanges\(\)/, '駅ごとの時刻変更を保存すること');
 assert.match(adminHtml, /id="serviceDateMode"[\s\S]*複数日[\s\S]*期間/, '運転日を単日・複数日・期間で指定できること');
+assert.match(adminHtml, /通常登録・一括操作に共通[\s\S]*id="operationDatePicker"[\s\S]*id="addOperationDate"[\s\S]*id="operationDateList"/, '複数日を日付追加式でわかりやすく指定できること');
 assert.match(adminHtml, /id="catalogSort"[\s\S]*線区順/, 'ダイヤ原簿を線区でソートできること');
 assert.match(adminHtml, /id="trainLine"/, '管理画面で線区絞り込みができること');
 assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込みができること');
@@ -40,6 +41,9 @@ assert.match(publicJs, /line\s*&&\s*!\(item\.lines\s*\|\|\s*\[\]\)\.includes\(li
 assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
 assert.match(adminHtml, /id="bulkOperate"[\s\S]*一括運転/, '複数列車の一括運転操作を備えること');
 assert.match(adminJs, /operationKind:\s*operate\s*\?\s*'operation'\s*:\s*'suspension'[\s\S]*operationState:\s*operate\s*\?\s*'operate'\s*:\s*'suspend'/, '一括運転・運休を対応する活休として登録すること');
+assert.match(adminJs, /title:\s*operate\s*\?[^:]+:\s*'運転休止'/, '一括運休の表題を運転休止とすること');
+assert.doesNotMatch(adminJs, /100列車まで/, '一括登録の件数を100列車に制限しないこと');
+assert.match(adminJs, /Promise\.all\(Array\.from\(\{length:\s*Math\.min\(4,\s*trains\.length\)\}/, '大量一括登録を4件並行で処理すること');
 assert.match(css, /\.catalog-grid td\s*\{[\s\S]*height:\s*18px[\s\S]*padding:\s*0 3px/, 'ダイヤ原簿の行高を密にすること');
 assert.match(adminHtml, /data-auth-display="flex"/, '認証後も管理画面本体をflex表示すること');
 assert.match(authGuard, /mainContent\.dataset\.authDisplay\s*\|\|\s*'block'/, '画面ごとの認証後表示方式を守ること');
