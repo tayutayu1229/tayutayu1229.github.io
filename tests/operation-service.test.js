@@ -12,6 +12,7 @@ const noticeHtml = fs.readFileSync('operation-service/notice.html', 'utf8');
 const noticeJs = fs.readFileSync('operation-service/notice.js', 'utf8');
 const authGuard = fs.readFileSync('auth_guard.js', 'utf8');
 const periodHtml = fs.readFileSync('operation-service/diagram-periods.html', 'utf8');
+const guideHtml = fs.readFileSync('operation-service/guide.html', 'utf8');
 
 assert.match(css, /--face:\s*#ece9d8/i, 'Windowsクラシック配色を使うこと');
 assert.match(css, /border-radius:\s*0\s*!important/, '角丸を全面禁止すること');
@@ -19,7 +20,7 @@ assert.match(css, /button:active[\s\S]*border-color:\s*var\(--border-dark\) var\
 assert.match(css, /table\.data-grid[\s\S]*table-layout:\s*fixed/, '一覧列幅を固定すること');
 assert.doesNotMatch(css, /box-shadow\s*:/, 'ふんわりした影を使わないこと');
 
-for (const html of [publicHtml, adminHtml, noticeHtml, periodHtml]) {
+for (const html of [publicHtml, adminHtml, noticeHtml, periodHtml, guideHtml]) {
   assert.match(html, /back-navigation\.js/, '共通の戻る導線を読み込むこと');
 }
 assert.match(publicHtml, /id="viewMode"[\s\S]*線区毎[\s\S]*運転のみ[\s\S]*運休のみ/, '公開一覧の指定表示を備えること');
@@ -39,6 +40,9 @@ assert.match(adminHtml, /id="trainLine"/, '管理画面で線区絞り込みが�
 assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込みができること');
 assert.match(publicHtml, />発表件数</, '公開画面の件数表示は「発表件数」とすること');
 assert.doesNotMatch(publicHtml, />公表件数</, '「公表件数」の旧表記を残さないこと');
+assert.match(publicHtml, /href="guide\.html">ご利用案内/, '公開画面から専用のご利用案内を開けること');
+assert.match(adminHtml, /href="guide\.html">ご利用案内/, '管理画面から専用のご利用案内を開けること');
+assert.match(guideHtml, /一括運転・一括運休[\s\S]*100列車の上限はありません/, '専用案内に一括操作を記載すること');
 assert.match(adminJs, /line\s*&&\s*!\(train\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '統合列車が通る全線区を絞り込み対象にすること');
 assert.match(publicJs, /line\s*&&\s*!\(item\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '公開画面も列車が通る全線区を絞り込み対象にすること');
 assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
