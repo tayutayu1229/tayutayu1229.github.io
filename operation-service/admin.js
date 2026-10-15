@@ -74,13 +74,17 @@
   function filteredCatalog() {
     const query = normalized($('trainQuery').value);
     const category = $('trainCategory').value;
-    return catalog.filter(train => {
+    const items = catalog.filter(train => {
       if (category && train.category !== category) return false;
       if (!query) return true;
       return normalized([train.trainNumber, ...(train.trainNumbers || []), train.trainType,
         ...(train.lines || []), train.origin, train.destination,
         ...(train.stops || []).map(stop => stop.station)].join('|')).includes(query);
     });
+    const sort = $('catalogSort').value;
+    if (sort === 'line') items.sort((left, right) => normalized(left.lines?.[0]).localeCompare(normalized(right.lines?.[0]), 'ja') || String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric: true}));
+    if (sort === 'number') items.sort((left, right) => String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric: true}));
+    return items;
   }
 
   function renderCatalog() {
@@ -182,16 +186,44 @@
     $('sectionEnd').value = endValue || '';
   }
 
+  function setOperationDates(item) {
+    const baseDate = normalizedDate(item?.serviceDate) || normalizedDate($('serviceDate').value) || tokyoToday();
+    const mode = item?.serviceDateMode || 'single';
+    const dates = Array.isArray(item?.serviceDates) && item.serviceDates.length ? item.serviceDates : [baseDate];
+    $('serviceDateMode').value = mode;
+    $('operationDates').value = dates.map(displayDate).join(', ');
+    $('serviceDateStart').value = displayDate(item?.serviceDateStart || dates[0]);
+    $('serviceDateEnd').value = displayDate(item?.serviceDateEnd || dates[dates.length - 1]);
+    document.querySelectorAll('.date-mode-multiple').forEach(element => element.classList.toggle('hidden', mode !== 'multiple'));
+    document.querySelectorAll('.date-mode-range').forEach(element => element.classList.toggle('hidden', mode !== 'range'));
+  }
+
+  function collectServiceDates() {
+    const mode = $('serviceDateMode').value;
+    const baseDate = normalizedDate($('serviceDate').value);
+    if (mode === 'multiple') {
+      const serviceDates = $('operationDates').value.split(/[,\s、]+/).filter(Boolean).map(normalizedDate);
+      return serviceDates.length && serviceDates.every(Boolean) ? {serviceDateMode: mode, serviceDate: serviceDates[0], serviceDates} : null;
+    }
+    if (mode === 'range') {
+      const serviceDateStart = normalizedDate($('serviceDateStart').value);
+      const serviceDateEnd = normalizedDate($('serviceDateEnd').value);
+      return serviceDateStart && serviceDateEnd && serviceDateStart <= serviceDateEnd
+        ? {serviceDateMode: mode, serviceDate: serviceDateStart, serviceDateStart, serviceDateEnd} : null;
+    }
+    return baseDate ? {serviceDateMode: 'single', serviceDate: baseDate, serviceDates: [baseDate]} : null;
+  }
+
   function renderTimeRows(schedule, changes) {
     const stops = schedule?.stops || [];
     const changeMap = new Map((changes || []).map(change => [normalized(change.station), change]));
     if (!stops.length) {
-      replaceMarkup($('timeRows'), '<tr><td colspan="7" class="empty-cell">列車時刻表はありません。</td></tr>');
+      replaceMarkup($('timeRows'), '<tr><td colspan="5" class="empty-cell">列車時刻表はありません。</td></tr>');
       return;
     }
-    replaceMarkup($('timeRows'), stops.map((stop, index) => {
+    replaceMarkup($('timeRows'), stops.map(stop => {
       const change = changeMap.get(normalized(stop.station)) || {};
-      return `<tr data-station="${escapeHtml(stop.station)}"><td>${index + 1}</td><td>${escapeHtml(stop.line || '')}</td><td>${escapeHtml(stop.station)}</td>
+      return `<tr data-station="${escapeHtml(stop.station)}"><td>${escapeHtml(stop.station)}</td>
         <td><input data-field="arrival" value="${escapeHtml(change.arrival || stop.arrival || '')}" data-original="${escapeHtml(stop.arrival || '')}"></td>
         <td><input data-field="departure" value="${escapeHtml(change.departure || stop.departure || '')}" data-original="${escapeHtml(stop.departure || '')}"></td>
         <td><input data-field="trackN" value="${escapeHtml(change.trackN || stop.trackN || '')}" data-original="${escapeHtml(stop.trackN || '')}"></td>
@@ -212,6 +244,7 @@
     $('trainType').value = train.trainType || '';
     $('restriction').value = '';
     $('remarks').value = '';
+    setOperationDates();
     setSectionOptions(train.stops, train.origin, train.destination);
     renderTimeRows(train, []);
     $('recordIdentity').textContent = `新規 / ${train.scheduleKey}`;
@@ -238,6 +271,7 @@
     $('trainType').value = item.trainType || '';
     $('restriction').value = item.restriction || '';
     $('remarks').value = item.remarks || '';
+    setOperationDates(item);
     setSectionOptions(selectedSchedule?.stops, item.sectionStart, item.sectionEnd);
     renderTimeRows(selectedSchedule, item.timeChanges);
     $('recordIdentity').textContent = `${item.noticeNumber || item.id} / 第${item.version}版`;
@@ -257,6 +291,7 @@
     ['title', 'trainNumber', 'trainType', 'restriction', 'remarks'].forEach(id => { $(id).value = ''; });
     $('operationKind').value = '';
     $('operationState').value = '';
+    setOperationDates();
     setSectionOptions(selectedSchedule?.stops || [], '', '');
     renderTimeRows(selectedSchedule, []);
     $('recordIdentity').textContent = '新規';
@@ -283,10 +318,9 @@
   }
 
   function formPayload(status) {
-    return {
+    return Object.assign({
       version: currentNotice?.version,
       status,
-      serviceDate: normalizedDate($('serviceDate').value),
       diagramPeriodId: $('diagramPeriod').value || selectedSchedule?.diagramPeriod?.id || '',
       title: $('title').value.trim(),
       operationKind: $('operationKind').value,
@@ -303,11 +337,15 @@
       timeChanges: collectTimeChanges(),
       scheduleSnapshot: selectedSchedule || currentNotice?.scheduleSnapshot || {},
       noticeNumber: currentNotice?.noticeNumber || '',
-    };
+    }, collectServiceDates() || {});
   }
 
   async function save(status) {
     const payload = formPayload(status);
+    if (!collectServiceDates()) {
+      setMessage('運転日の指定が正しくありません。複数日はカンマ区切り、期間は開始日から終了日の順で入力してください。', 'error');
+      return;
+    }
     if (!payload.title || !payload.trainNumber || !payload.serviceDate || !payload.operationKind || !payload.operationState) {
       setMessage('表題・列車番号・施行日・手配区分・活休区分は必須です。', 'error');
       return;
@@ -356,6 +394,7 @@
   $('diagramPeriod').addEventListener('change', loadDate);
   $('trainQuery').addEventListener('input', renderCatalog);
   $('trainCategory').addEventListener('change', renderCatalog);
+  $('catalogSort').addEventListener('change', renderCatalog);
   $('newNotice').addEventListener('click', () => resetForm());
   $('newNoticeMenu').addEventListener('click', event => { event.preventDefault(); resetForm(); });
   $('saveDraft').addEventListener('click', () => save('draft'));
@@ -373,6 +412,13 @@
   });
   $('pdfPreview').addEventListener('click', () => { if (currentNotice) window.open(`notice.html?id=${encodeURIComponent(currentNotice.id)}&print=1`, '_blank', 'noopener'); });
   $('operationKind').addEventListener('change', syncKindAndState);
+  $('serviceDateMode').addEventListener('change', () => { setOperationDates({
+    serviceDateMode: $('serviceDateMode').value,
+    serviceDates: $('operationDates').value.split(/[,\s、]+/).filter(Boolean),
+    serviceDateStart: $('serviceDateStart').value,
+    serviceDateEnd: $('serviceDateEnd').value,
+    serviceDate: normalizedDate($('serviceDate').value),
+  }); markDirty(); });
   document.querySelectorAll('.editor-scroll input, .editor-scroll select, .editor-scroll textarea').forEach(control => {
     if (control.id !== 'operationKind') control.addEventListener('input', () => markDirty());
   });
