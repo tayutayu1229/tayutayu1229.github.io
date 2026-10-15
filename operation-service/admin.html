@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>運転活休情報システム 管理</title>
+  <link rel="stylesheet" href="styles.css?v=20261015-1">
+  <link rel="icon" href="/favicon.ico">
+</head>
+<body>
+  <header class="app-titlebar">
+    <h1><span class="system-mark">■</span>運転活休情報システム［管理］</h1>
+    <span id="operatorName">認証確認中</span>
+  </header>
+  <nav class="menubar" aria-label="メニュー">
+    <a href="/toppage.html">システム一覧へ</a><a href="index.html">公開閲覧画面</a><a href="#" id="newNoticeMenu">新規作成</a>
+  </nav>
+  <div class="toolbar">
+    <label>施行日 <input type="date" id="serviceDate"></label>
+    <label>曜日
+      <select id="dayType"><option value="">自動判定</option><option value="平日">平日</option><option value="土休日">土休日</option></select>
+    </label>
+    <label>改正 <select id="diagramPeriod"><option value="">日付から自動選択</option></select></label>
+    <button type="button" id="loadDate" class="primary">ダイヤ読込</button>
+    <span class="separator"></span>
+    <label>列車検索 <input type="search" id="trainQuery" placeholder="列番・駅・線区"></label>
+    <label>分類 <select id="trainCategory"><option value="">すべて</option><option value="planned_extra">予定臨</option><option value="extra">臨時</option><option value="regular">定期・その他</option></select></label>
+    <button type="button" id="newNotice">新規入力</button>
+  </div>
+
+  <main id="main-content" class="window-body" style="display:none">
+    <div id="message" class="message hidden" role="status"></div>
+    <div class="admin-layout">
+      <div class="admin-column">
+        <section class="panel">
+          <div class="panel-title"><span>ダイヤ原簿（統合列車）</span><span id="catalogMeta">未読込</span></div>
+          <div class="data-wrap inset">
+            <table class="data-grid">
+              <colgroup><col style="width:75px"><col style="width:78px"><col style="width:85px"><col><col style="width:120px"><col style="width:120px"></colgroup>
+              <thead><tr><th>分類</th><th>列車番号</th><th>種別</th><th>線区</th><th>始発駅</th><th>終着駅</th></tr></thead>
+              <tbody id="catalogRows"><tr><td colspan="6" class="empty-cell">施行日を指定してダイヤを読み込んでください。</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-title"><span>登録済み活休情報</span><span id="noticeMeta">0件</span></div>
+          <div class="data-wrap inset">
+            <table class="data-grid">
+              <colgroup><col style="width:62px"><col style="width:72px"><col style="width:74px"><col><col style="width:115px"></colgroup>
+              <thead><tr><th>状態</th><th>活休</th><th>列車番号</th><th>表題</th><th>区間</th></tr></thead>
+              <tbody id="noticeRows"><tr><td colspan="5" class="empty-cell">登録はありません。</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel editor-panel">
+        <div class="panel-title"><span>活休情報入力・編集</span><span id="recordIdentity">新規</span></div>
+        <div class="editor-scroll">
+          <div class="form-grid">
+            <label for="title">表題</label><input id="title" class="span-3" maxlength="160" placeholder="予定臨運転">
+            <label for="operationKind">手配区分</label><select id="operationKind"><option value="operation">運転</option><option value="suspension">運休</option><option value="partial">一部区間</option><option value="time_change">時刻変更</option><option value="prohibition">運転禁止</option><option value="other">その他</option></select>
+            <label for="operationState">活休状態</label><select id="operationState"><option value="operate">運転</option><option value="suspend">運休</option><option value="changed">時刻変更</option><option value="prohibited">運転禁止</option></select>
+            <label for="trainNumber">列車番号</label><input id="trainNumber" maxlength="40">
+            <label for="trainType">列車種別</label><input id="trainType" maxlength="80">
+            <label for="sectionStart">運転区間 自</label><select id="sectionStart"><option value="">―</option></select>
+            <label for="sectionEnd">運転区間 至</label><select id="sectionEnd"><option value="">―</option></select>
+            <label for="restriction">禁止・制限</label><textarea id="restriction" class="span-3" maxlength="1000" placeholder="運転禁止、停車禁止、取扱条件等"></textarea>
+            <label for="remarks">記事</label><textarea id="remarks" class="span-3" maxlength="4000" placeholder="運転日、手配事項、補足"></textarea>
+          </div>
+
+          <fieldset class="group-box">
+            <legend>時刻変更・列車時刻表（変更するセルだけ上書き）</legend>
+            <div class="data-wrap inset" style="max-height:330px">
+              <table class="data-grid time-edit-table">
+                <colgroup><col style="width:36px"><col style="width:90px"><col style="width:105px"><col style="width:82px"><col style="width:82px"><col style="width:70px"><col></colgroup>
+                <thead><tr><th>No.</th><th>線区</th><th>駅名</th><th>着</th><th>発</th><th>番線</th><th>変更記事</th></tr></thead>
+                <tbody id="timeRows"><tr><td colspan="7" class="empty-cell">ダイヤ原簿から列車を選択してください。</td></tr></tbody>
+              </table>
+            </div>
+          </fieldset>
+        </div>
+        <div class="editor-actions">
+          <button type="button" id="saveDraft">下書き保存</button>
+          <button type="button" id="publish" class="primary">保存して公開</button>
+          <button type="button" id="withdraw" class="danger" disabled>公開取下げ</button>
+          <button type="button" id="duplicate">複製して新規</button>
+          <button type="button" id="pdfPreview" disabled>運転報PDF</button>
+          <span class="push" id="dirtyState">未変更</span>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer class="statusbar"><span class="grow" id="statusText">認証確認中</span><span id="periodText">改正期間 未選択</span><span id="clock"></span></footer>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="/T-time/firebase-data-auth.js"></script>
+  <script src="/auth_guard.js"></script>
+  <script src="admin.js?v=20261015-1"></script>
+  <script src="/assets/js/back-navigation.js" defer></script>
+</body>
+</html>
