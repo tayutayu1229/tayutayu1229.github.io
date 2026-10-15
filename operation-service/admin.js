@@ -13,6 +13,7 @@
   let currentNotice = null;
   let dirty = false;
   let loadingDate = false;
+  const selectedCatalogKeys = new Set();
 
   function tokyoToday() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
@@ -74,8 +75,10 @@
   function filteredCatalog() {
     const query = normalized($('trainQuery').value);
     const category = $('trainCategory').value;
+    const line = $('trainLine').value;
     const items = catalog.filter(train => {
       if (category && train.category !== category) return false;
+      if (line && !(train.lines || []).includes(line)) return false;
       if (!query) return true;
       return normalized([train.trainNumber, ...(train.trainNumbers || []), train.trainType,
         ...(train.lines || []), train.origin, train.destination,
@@ -87,15 +90,24 @@
     return items;
   }
 
+  function populateLineChoices() {
+    const previous = $('trainLine').value;
+    const lines = [...new Set(catalog.flatMap(train => train.lines || []).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ja'));
+    replaceMarkup($('trainLine'), '<option value="">すべて</option>' + lines.map(line => `<option value="${escapeHtml(line)}">${escapeHtml(line)}</option>`).join(''));
+    if (lines.includes(previous)) $('trainLine').value = previous;
+  }
+
   function renderCatalog() {
     const items = filteredCatalog();
     $('catalogMeta').textContent = `${items.length}/${catalog.length}列車`;
     if (!items.length) {
-      replaceMarkup($('catalogRows'), '<tr><td colspan="6" class="empty-cell">条件に一致する列車はありません。</td></tr>');
+      replaceMarkup($('catalogRows'), '<tr><td colspan="7" class="empty-cell">条件に一致する列車はありません。</td></tr>');
+      updateBulkSelection();
       return;
     }
     replaceMarkup($('catalogRows'), items.map(train => `
       <tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
+        <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''}></td>
         <td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
         <td><strong>${escapeHtml((train.trainNumbers || [train.trainNumber]).join('→'))}</strong></td>
         <td>${escapeHtml(train.trainType || '―')}</td><td>${escapeHtml((train.lines || []).join('・'))}</td>
@@ -105,7 +117,59 @@
       const select = () => selectTrain(catalog.find(item => item.scheduleKey === row.dataset.key));
       row.addEventListener('click', select);
       row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } });
+      row.querySelector('.catalog-check').addEventListener('click', event => event.stopPropagation());
+      row.querySelector('.catalog-check').addEventListener('change', event => {
+        if (event.target.checked) selectedCatalogKeys.add(row.dataset.key); else selectedCatalogKeys.delete(row.dataset.key);
+        updateBulkSelection();
+      });
     });
+    updateBulkSelection();
+  }
+
+  function updateBulkSelection() {
+    $('bulkSuspend').disabled = selectedCatalogKeys.size === 0;
+    $('bulkSuspend').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運休` : '選択列車を一括運休';
+  }
+
+  async function bulkSuspend() {
+    const trains = catalog.filter(train => selectedCatalogKeys.has(train.scheduleKey));
+    const dateSpec = collectServiceDates();
+    if (!trains.length) return;
+    if (!dateSpec) {
+      setMessage('運転日の指定が正しくありません。', 'error');
+      return;
+    }
+    if (trains.length > 100) {
+      setMessage('一度に一括登録できるのは100列車までです。', 'error');
+      return;
+    }
+    if (!confirm(`${trains.length}列車を全区間運休として公開します。よろしいですか？`)) return;
+    $('bulkSuspend').disabled = true;
+    let succeeded = 0;
+    const failed = [];
+    for (const train of trains) {
+      $('statusText').textContent = `一括運休を登録中 ${succeeded + failed.length + 1}/${trains.length}　${train.trainNumber}`;
+      try {
+        await api('/api/operation-service/notices', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.assign({
+            status: 'published', title: '列車運転休止', operationKind: 'suspension', operationState: 'suspend',
+            diagramPeriodId: $('diagramPeriod').value || train.diagramPeriod?.id || '', trainNumber: train.trainNumber,
+            trainType: train.trainType || '', scheduleKey: train.scheduleKey, sectionStart: train.origin,
+            sectionEnd: train.destination, restriction: '', remarks: '管理画面の一括運休で登録', lines: train.lines || [],
+            timeChanges: [], scheduleSnapshot: train, noticeNumber: '',
+          }, dateSpec)),
+        });
+        succeeded += 1;
+      } catch (error) {
+        failed.push(`${train.trainNumber}: ${error.message}`);
+      }
+    }
+    selectedCatalogKeys.clear();
+    markDirty(false);
+    await loadDate();
+    if (failed.length) setMessage(`一括運休 ${succeeded}件を公開、${failed.length}件は失敗しました。${failed.slice(0, 5).join(' / ')}`, 'error');
+    else setMessage(`一括運休 ${succeeded}件を公開しました。`, 'success');
+    updateBulkSelection();
   }
 
   function renderNotices() {
@@ -161,6 +225,8 @@
       ]);
       catalog = catalogPayload.items || [];
       notices = noticePayload.items || [];
+      selectedCatalogKeys.clear();
+      populateLineChoices();
       selectedSchedule = null;
       currentNotice = null;
       populatePeriodChoices(catalogPayload);
@@ -394,7 +460,11 @@
   $('diagramPeriod').addEventListener('change', loadDate);
   $('trainQuery').addEventListener('input', renderCatalog);
   $('trainCategory').addEventListener('change', renderCatalog);
+  $('trainLine').addEventListener('change', renderCatalog);
   $('catalogSort').addEventListener('change', renderCatalog);
+  $('selectVisible').addEventListener('click', () => { filteredCatalog().forEach(train => selectedCatalogKeys.add(train.scheduleKey)); renderCatalog(); });
+  $('clearSelection').addEventListener('click', () => { selectedCatalogKeys.clear(); renderCatalog(); });
+  $('bulkSuspend').addEventListener('click', bulkSuspend);
   $('newNotice').addEventListener('click', () => resetForm());
   $('newNoticeMenu').addEventListener('click', event => { event.preventDefault(); resetForm(); });
   $('saveDraft').addEventListener('click', () => save('draft'));
