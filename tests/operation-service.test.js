@@ -33,6 +33,8 @@ assert.match(adminJs, /diagramPeriodId/, '選択した改正をAPIへ渡すこ�
 assert.match(adminJs, /timeChanges:\s*collectTimeChanges\(\)/, '駅ごとの時刻変更を保存すること');
 assert.match(adminHtml, /id="serviceDateMode"[\s\S]*複数日[\s\S]*期間/, '運転日を単日・複数日・期間で指定できること');
 assert.match(adminHtml, /id="catalogSort"[\s\S]*線区順/, 'ダイヤ原簿を線区でソートできること');
+assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
+assert.match(adminJs, /operationKind:\s*'suspension'[\s\S]*operationState:\s*'suspend'/, '一括運休を運転休止として登録すること');
 assert.match(adminHtml, /data-auth-display="flex"/, '認証後も管理画面本体をflex表示すること');
 assert.match(authGuard, /mainContent\.dataset\.authDisplay\s*\|\|\s*'block'/, '画面ごとの認証後表示方式を守ること');
 assert.doesNotMatch(publicJs, /<th>No\.<\/th><th>線区<\/th>/, '公開時刻表にNo.・線区列を戻さないこと');
