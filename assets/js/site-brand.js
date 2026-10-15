@@ -79,6 +79,9 @@
   }
 
   function injectBrandIcon() {
+    // <html data-no-site-brand> を付けたページには共通アイコンを挿入しない
+    if (document.documentElement.hasAttribute('data-no-site-brand')) return;
+
     if (document.querySelector('[data-site-icon-instance]')) return;
 
     const explicitHost = document.querySelector('[data-site-brand-host]');

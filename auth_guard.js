@@ -165,7 +165,7 @@
         }
         if (!document.querySelector('script[src*="site-brand.js"]')) {
             const script = document.createElement('script');
-            script.src = '/assets/js/site-brand.js?v=2026.08.02.1';
+            script.src = '/assets/js/site-brand.js?v=2026.10.15.1';
             script.defer = true;
             document.head.appendChild(script);
         }

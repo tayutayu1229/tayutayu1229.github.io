@@ -12,10 +12,20 @@
   let selectedSchedule = null;
   let currentNotice = null;
   let dirty = false;
+  let loadingDate = false;
 
   function tokyoToday() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
   }
+
+  function normalizedDate(value) {
+    const match = String(value || '').trim().match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+    if (!match) return '';
+    const iso = `${match[1]}-${match[2]}-${match[3]}`;
+    return Number.isNaN(new Date(`${iso}T12:00:00+09:00`).getTime()) ? '' : iso;
+  }
+
+  function displayDate(value) { return String(value || '').replace(/-/g, '/'); }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
@@ -125,16 +135,25 @@
   }
 
   async function loadDate() {
+    if (loadingDate) return;
     if (dirty && !confirm('未保存の入力があります。破棄して施行日を切り替えますか？')) return;
+    const serviceDate = normalizedDate($('serviceDate').value);
+    if (!serviceDate) {
+      setMessage('施行日はYYYY/MM/DD形式で入力してください。', 'error');
+      return;
+    }
+    $('serviceDate').value = displayDate(serviceDate);
+    loadingDate = true;
+    $('loadDate').disabled = true;
     setMessage('');
     $('statusText').textContent = 'ダイヤ原簿と活休情報を読み込んでいます…';
-    const params = new URLSearchParams({serviceDate: $('serviceDate').value});
+    const params = new URLSearchParams({serviceDate});
     if ($('dayType').value) params.set('dayType', $('dayType').value);
     if ($('diagramPeriod').value) params.set('diagramPeriodId', $('diagramPeriod').value);
     try {
       const [catalogPayload, noticePayload] = await Promise.all([
         api(`/api/operation-service/catalog?${params}`),
-        api(`/api/operation-service/notices?serviceDate=${encodeURIComponent($('serviceDate').value)}`),
+        api(`/api/operation-service/notices?serviceDate=${encodeURIComponent(serviceDate)}`),
       ]);
       catalog = catalogPayload.items || [];
       notices = noticePayload.items || [];
@@ -144,10 +163,13 @@
       renderCatalog();
       renderNotices();
       resetForm();
-      $('statusText').textContent = `${catalogPayload.selectionDate || $('serviceDate').value}基準の統合ダイヤ ${catalog.length}列車を読み込みました。`;
+      $('statusText').textContent = `${displayDate(catalogPayload.selectionDate || serviceDate)}基準の統合ダイヤ ${catalog.length}列車を読み込みました。`;
     } catch (error) {
       setMessage(error.code === 'admin_required' ? '管理者権限がありません。' : `読込に失敗しました: ${error.message}`, 'error');
       $('statusText').textContent = '読込失敗';
+    } finally {
+      loadingDate = false;
+      $('loadDate').disabled = false;
     }
   }
 
@@ -193,6 +215,9 @@
     setSectionOptions(train.stops, train.origin, train.destination);
     renderTimeRows(train, []);
     $('recordIdentity').textContent = `新規 / ${train.scheduleKey}`;
+    $('noticeNumberDisplay').textContent = '未採番（初回公開時に自動採番）';
+    $('createdAtDisplay').textContent = '―';
+    $('updatedAtDisplay').textContent = '―';
     $('withdraw').disabled = true;
     $('pdfPreview').disabled = true;
     markDirty(false);
@@ -216,6 +241,9 @@
     setSectionOptions(selectedSchedule?.stops, item.sectionStart, item.sectionEnd);
     renderTimeRows(selectedSchedule, item.timeChanges);
     $('recordIdentity').textContent = `${item.noticeNumber || item.id} / 第${item.version}版`;
+    $('noticeNumberDisplay').textContent = item.noticeNumber || '未採番（初回公開時に自動採番）';
+    $('createdAtDisplay').textContent = item.createdAt || '―';
+    $('updatedAtDisplay').textContent = item.updatedAt || '―';
     $('withdraw').disabled = item.status !== 'published';
     $('pdfPreview').disabled = item.status !== 'published';
     markDirty(false);
@@ -232,6 +260,9 @@
     setSectionOptions(selectedSchedule?.stops || [], '', '');
     renderTimeRows(selectedSchedule, []);
     $('recordIdentity').textContent = '新規';
+    $('noticeNumberDisplay').textContent = '未採番（初回公開時に自動採番）';
+    $('createdAtDisplay').textContent = '―';
+    $('updatedAtDisplay').textContent = '―';
     $('withdraw').disabled = true;
     $('pdfPreview').disabled = true;
     markDirty(false);
@@ -255,7 +286,7 @@
     return {
       version: currentNotice?.version,
       status,
-      serviceDate: $('serviceDate').value,
+      serviceDate: normalizedDate($('serviceDate').value),
       diagramPeriodId: $('diagramPeriod').value || selectedSchedule?.diagramPeriod?.id || '',
       title: $('title').value.trim(),
       operationKind: $('operationKind').value,
@@ -313,7 +344,7 @@
   }
 
   async function initialize() {
-    $('serviceDate').value = tokyoToday();
+    $('serviceDate').value = displayDate(tokyoToday());
     const ready = await window.TayunetAuthReady;
     if (!ready.ok) return;
     $('operatorName').textContent = `${ready.user.email || '利用者'} / ${ready.profile.isAdmin ? '管理者' : '閲覧権限'}`;
@@ -330,7 +361,16 @@
   $('saveDraft').addEventListener('click', () => save('draft'));
   $('publish').addEventListener('click', () => save('published'));
   $('withdraw').addEventListener('click', () => { if (confirm('公開情報を取下げますか？通達番号と変更履歴は残ります。')) save('withdrawn'); });
-  $('duplicate').addEventListener('click', () => { currentNotice = null; $('recordIdentity').textContent = '複製 / 新規'; $('withdraw').disabled = true; $('pdfPreview').disabled = true; markDirty(); });
+  $('duplicate').addEventListener('click', () => {
+    currentNotice = null;
+    $('recordIdentity').textContent = '複製 / 新規';
+    $('noticeNumberDisplay').textContent = '未採番（初回公開時に自動採番）';
+    $('createdAtDisplay').textContent = '―';
+    $('updatedAtDisplay').textContent = '―';
+    $('withdraw').disabled = true;
+    $('pdfPreview').disabled = true;
+    markDirty();
+  });
   $('pdfPreview').addEventListener('click', () => { if (currentNotice) window.open(`notice.html?id=${encodeURIComponent(currentNotice.id)}&print=1`, '_blank', 'noopener'); });
   $('operationKind').addEventListener('change', syncKindAndState);
   document.querySelectorAll('.editor-scroll input, .editor-scroll select, .editor-scroll textarea').forEach(control => {
