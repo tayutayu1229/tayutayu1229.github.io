@@ -125,18 +125,22 @@
     const items = filteredCatalog();
     $('catalogMeta').textContent = `${items.length}/${catalog.length}列車`;
     if (!items.length) {
-      replaceMarkup($('catalogRows'), '<tr><td colspan="7" class="empty-cell">条件に一致する列車はありません。</td></tr>');
+      replaceMarkup($('catalogRows'), '<tr><td colspan="8" class="empty-cell">条件に一致する列車はありません。</td></tr>');
       updateBulkSelection();
       return;
     }
-    replaceMarkup($('catalogRows'), items.map(train => `
-      <tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
+    replaceMarkup($('catalogRows'), items.map(train => {
+      const notice = existingNoticeForTrain(train);
+      const state = notice?.operationState || '';
+      const stateCell = state ? `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(stateLabels[state] || state)}</span>` : '―';
+      return `<tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
         <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''}></td>
-        <td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
-        <td><strong>${escapeHtml((train.trainNumbers || [train.trainNumber]).join('→'))}</strong></td>
+        <td>${stateCell}</td><td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
+        <td><strong>${escapeHtml(train.trainNumber)}</strong></td>
         <td>${escapeHtml(train.trainType || '―')}</td><td>${escapeHtml((train.lines || []).join('・'))}</td>
         <td>${escapeHtml(train.origin)}</td><td>${escapeHtml(train.destination)}</td>
-      </tr>`).join(''));
+      </tr>`;
+    }).join(''));
     $('catalogRows').querySelectorAll('tr[data-key]').forEach(row => {
       const select = () => selectTrain(catalog.find(item => item.scheduleKey === row.dataset.key));
       row.addEventListener('click', select);
@@ -159,7 +163,7 @@
 
   async function bulkRegister(mode) {
     const trains = catalog.filter(train => selectedCatalogKeys.has(train.scheduleKey));
-    const dateSpec = collectServiceDates();
+    const dateSpec = collectBulkServiceDates();
     if (!trains.length) return;
     if (!dateSpec) {
       setMessage('運転日の指定が正しくありません。', 'error');
@@ -246,6 +250,7 @@
       return;
     }
     $('serviceDate').value = displayDate(serviceDate);
+    setBulkOperationDates();
     loadingDate = true;
     $('loadDate').disabled = true;
     setMessage('');
@@ -311,9 +316,9 @@
 
   function updateOperationDateControls() {
     const mode = $('serviceDateMode').value;
-    document.querySelectorAll('.date-mode-single').forEach(element => element.classList.toggle('hidden', mode !== 'single'));
-    document.querySelectorAll('.date-mode-multiple').forEach(element => element.classList.toggle('hidden', mode !== 'multiple'));
-    document.querySelectorAll('.date-mode-range').forEach(element => element.classList.toggle('hidden', mode !== 'range'));
+    document.querySelectorAll('.editor-date-mode-single').forEach(element => element.classList.toggle('hidden', mode !== 'single'));
+    document.querySelectorAll('.editor-date-mode-multiple').forEach(element => element.classList.toggle('hidden', mode !== 'multiple'));
+    document.querySelectorAll('.editor-date-mode-range').forEach(element => element.classList.toggle('hidden', mode !== 'range'));
     const baseDate = normalizedDate($('serviceDate').value);
     $('singleDateDisplay').textContent = displayDate(baseDate) || '―';
     const dates = operationDateListValues();
@@ -358,6 +363,79 @@
     if (mode === 'range') {
       const serviceDateStart = normalizedDate($('serviceDateStart').value);
       const serviceDateEnd = normalizedDate($('serviceDateEnd').value);
+      return serviceDateStart && serviceDateEnd && serviceDateStart <= serviceDateEnd
+        ? {serviceDateMode: mode, serviceDate: serviceDateStart, serviceDateStart, serviceDateEnd} : null;
+    }
+    return baseDate ? {serviceDateMode: 'single', serviceDate: baseDate, serviceDates: [baseDate]} : null;
+  }
+
+  function bulkOperationDateListValues() {
+    return Array.from($('bulkOperationDateList').options).map(option => option.value);
+  }
+
+  function renderBulkOperationDateList(dates, selectedDates = []) {
+    const selected = new Set(selectedDates);
+    replaceMarkup($('bulkOperationDateList'), dates.map(date => `<option value="${escapeHtml(date)}"${selected.has(date) ? ' selected' : ''}>${escapeHtml(displayDate(date))}</option>`).join(''));
+    $('bulkOperationDateCount').textContent = `${dates.length}日選択`;
+  }
+
+  function setBulkOperationDates() {
+    const baseDate = normalizedDate($('serviceDate').value) || tokyoToday();
+    $('bulkServiceDateMode').value = 'single';
+    renderBulkOperationDateList([baseDate]);
+    $('bulkOperationDatePicker').value = '';
+    $('bulkServiceDateStart').value = displayDate(baseDate);
+    $('bulkServiceDateEnd').value = displayDate(baseDate);
+    updateBulkOperationDateControls();
+  }
+
+  function updateBulkOperationDateControls() {
+    const mode = $('bulkServiceDateMode').value;
+    document.querySelectorAll('.bulk-date-mode-single').forEach(element => element.classList.toggle('hidden', mode !== 'single'));
+    document.querySelectorAll('.bulk-date-mode-multiple').forEach(element => element.classList.toggle('hidden', mode !== 'multiple'));
+    document.querySelectorAll('.bulk-date-mode-range').forEach(element => element.classList.toggle('hidden', mode !== 'range'));
+    const baseDate = normalizedDate($('serviceDate').value);
+    $('bulkSingleDateDisplay').textContent = displayDate(baseDate) || '―';
+    const dates = bulkOperationDateListValues();
+    if (mode === 'multiple') $('bulkOperationDateSummary').textContent = dates.length ? `${dates.length}日：${dates.map(displayDate).join('・')}` : '日付を追加してください';
+    else if (mode === 'range') $('bulkOperationDateSummary').textContent = `${$('bulkServiceDateStart').value || '―'} ～ ${$('bulkServiceDateEnd').value || '―'}`;
+    else $('bulkOperationDateSummary').textContent = displayDate(baseDate) || '―';
+  }
+
+  function addBulkOperationDate() {
+    const date = normalizedDate($('bulkOperationDatePicker').value);
+    if (!date) {
+      setMessage('一括登録に追加する日付はYYYY/MM/DD形式で入力してください。', 'error');
+      return;
+    }
+    const dates = [...new Set([...bulkOperationDateListValues(), date])].sort();
+    renderBulkOperationDateList(dates, [date]);
+    $('bulkOperationDatePicker').value = '';
+    updateBulkOperationDateControls();
+    setMessage('');
+  }
+
+  function removeBulkOperationDates() {
+    const removing = new Set(Array.from($('bulkOperationDateList').selectedOptions).map(option => option.value));
+    if (!removing.size) {
+      setMessage('一括登録から削除する日付を一覧で選択してください。', 'error');
+      return;
+    }
+    renderBulkOperationDateList(bulkOperationDateListValues().filter(date => !removing.has(date)));
+    updateBulkOperationDateControls();
+    setMessage('');
+  }
+
+  function collectBulkServiceDates() {
+    const mode = $('bulkServiceDateMode').value;
+    const baseDate = normalizedDate($('serviceDate').value);
+    if (mode === 'multiple') {
+      const serviceDates = bulkOperationDateListValues();
+      return serviceDates.length ? {serviceDateMode: mode, serviceDate: serviceDates[0], serviceDates} : null;
+    }
+    if (mode === 'range') {
+      const serviceDateStart = normalizedDate($('bulkServiceDateStart').value);
+      const serviceDateEnd = normalizedDate($('bulkServiceDateEnd').value);
       return serviceDateStart && serviceDateEnd && serviceDateStart <= serviceDateEnd
         ? {serviceDateMode: mode, serviceDate: serviceDateStart, serviceDateStart, serviceDateEnd} : null;
     }
@@ -585,8 +663,19 @@
   $('addOperationDate').addEventListener('click', addOperationDate);
   $('operationDatePicker').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addOperationDate(); } });
   $('removeOperationDate').addEventListener('click', removeOperationDates);
-  $('serviceDate').addEventListener('input', updateOperationDateControls);
+  $('bulkServiceDateMode').addEventListener('change', () => {
+    if ($('bulkServiceDateMode').value === 'multiple' && !bulkOperationDateListValues().length) {
+      const baseDate = normalizedDate($('serviceDate').value);
+      if (baseDate) renderBulkOperationDateList([baseDate]);
+    }
+    updateBulkOperationDateControls();
+  });
+  $('bulkAddOperationDate').addEventListener('click', addBulkOperationDate);
+  $('bulkOperationDatePicker').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addBulkOperationDate(); } });
+  $('bulkRemoveOperationDate').addEventListener('click', removeBulkOperationDates);
+  $('serviceDate').addEventListener('input', () => { updateOperationDateControls(); updateBulkOperationDateControls(); });
   ['serviceDateStart', 'serviceDateEnd'].forEach(id => $(id).addEventListener('input', () => { updateOperationDateControls(); markDirty(); }));
+  ['bulkServiceDateStart', 'bulkServiceDateEnd'].forEach(id => $(id).addEventListener('input', updateBulkOperationDateControls));
   document.querySelectorAll('.editor-scroll input, .editor-scroll select, .editor-scroll textarea').forEach(control => {
     if (control.id !== 'operationKind') control.addEventListener('input', () => markDirty());
   });

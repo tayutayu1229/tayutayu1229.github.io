@@ -32,7 +32,8 @@ assert.match(adminHtml, /運転報PDF/, '運転活休通達PDFへの導線を備
 assert.match(adminJs, /diagramPeriodId/, '選択した改正をAPIへ渡すこと');
 assert.match(adminJs, /timeChanges:\s*collectTimeChanges\(\)/, '駅ごとの時刻変更を保存すること');
 assert.match(adminHtml, /id="serviceDateMode"[\s\S]*複数日[\s\S]*期間/, '運転日を単日・複数日・期間で指定できること');
-assert.match(adminHtml, /通常登録・一括操作に共通[\s\S]*id="operationDatePicker"[\s\S]*id="addOperationDate"[\s\S]*id="operationDateList"/, '複数日を日付追加式でわかりやすく指定できること');
+assert.match(adminHtml, /id="bulkServiceDateMode"[\s\S]*id="bulkOperationDatePicker"[\s\S]*id="bulkOperationDateList"/, '一括操作の複数日を日付追加式で指定できること');
+assert.match(adminHtml, /運転日指定[\s\S]*id="serviceDateMode"[\s\S]*id="operationDatePicker"[\s\S]*id="operationDateList"/, '通常登録の複数日も編集欄内で指定できること');
 assert.match(adminHtml, /id="catalogSort"[\s\S]*線区順/, 'ダイヤ原簿を線区でソートできること');
 assert.match(adminHtml, /id="trainLine"/, '管理画面で線区絞り込みができること');
 assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込みができること');
@@ -47,6 +48,9 @@ assert.match(adminJs, /Promise\.all\(Array\.from\(\{length:\s*Math\.min\(4,\s*tr
 assert.match(adminJs, /function existingNoticeForTrain[\s\S]*scheduleKey === train\.scheduleKey[\s\S]*sameIntegratedTrain/, 'ダイヤ原簿の選択から登録済み活休を復元できること');
 assert.match(adminJs, /sameUniqueTrainNumber[\s\S]*catalog\.filter/, '旧統合データも列車番号が一意なら登録済み活休を復元すること');
 assert.match(adminJs, /if \(existing\) \{[\s\S]*editNotice\(existing, train\)/, '登録済み列車の選択時は新規入力ではなく編集表示すること');
+assert.doesNotMatch(adminJs, /trainNumbers[\s\S]{0,80}join\('→'\)/, '異なる列車番号を矢印で連結表示しないこと');
+assert.match(adminHtml, /<th>選<\/th><th>活休<\/th>/, 'ダイヤ原簿に活休列を表示すること');
+assert.match(adminJs, /const notice = existingNoticeForTrain\(train\)[\s\S]*badge-\$\{escapeHtml\(state\)\}/, 'ダイヤ原簿に登録済み活休状態を表示すること');
 assert.match(css, /\.catalog-grid td\s*\{[\s\S]*height:\s*18px[\s\S]*padding:\s*0 3px/, 'ダイヤ原簿の行高を密にすること');
 assert.match(adminHtml, /data-auth-display="flex"/, '認証後も管理画面本体をflex表示すること');
 assert.match(authGuard, /mainContent\.dataset\.authDisplay\s*\|\|\s*'block'/, '画面ごとの認証後表示方式を守ること');
