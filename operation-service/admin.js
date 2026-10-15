@@ -75,8 +75,10 @@
   function filteredCatalog() {
     const query = normalized($('trainQuery').value);
     const category = $('trainCategory').value;
+    const line = $('trainLine').value;
     const items = catalog.filter(train => {
       if (category && train.category !== category) return false;
+      if (line && !(train.lines || []).includes(line)) return false;
       if (!query) return true;
       return normalized([train.trainNumber, ...(train.trainNumbers || []), train.trainType,
         ...(train.lines || []), train.origin, train.destination,
@@ -86,6 +88,13 @@
     if (sort === 'line') items.sort((left, right) => normalized(left.lines?.[0]).localeCompare(normalized(right.lines?.[0]), 'ja') || String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric: true}));
     if (sort === 'number') items.sort((left, right) => String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric: true}));
     return items;
+  }
+
+  function populateLineChoices() {
+    const previous = $('trainLine').value;
+    const lines = [...new Set(catalog.flatMap(train => train.lines || []).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ja'));
+    replaceMarkup($('trainLine'), '<option value="">すべて</option>' + lines.map(line => `<option value="${escapeHtml(line)}">${escapeHtml(line)}</option>`).join(''));
+    if (lines.includes(previous)) $('trainLine').value = previous;
   }
 
   function renderCatalog() {
@@ -217,6 +226,7 @@
       catalog = catalogPayload.items || [];
       notices = noticePayload.items || [];
       selectedCatalogKeys.clear();
+      populateLineChoices();
       selectedSchedule = null;
       currentNotice = null;
       populatePeriodChoices(catalogPayload);
@@ -450,6 +460,7 @@
   $('diagramPeriod').addEventListener('change', loadDate);
   $('trainQuery').addEventListener('input', renderCatalog);
   $('trainCategory').addEventListener('change', renderCatalog);
+  $('trainLine').addEventListener('change', renderCatalog);
   $('catalogSort').addEventListener('change', renderCatalog);
   $('selectVisible').addEventListener('click', () => { filteredCatalog().forEach(train => selectedCatalogKeys.add(train.scheduleKey)); renderCatalog(); });
   $('clearSelection').addEventListener('click', () => { selectedCatalogKeys.clear(); renderCatalog(); });

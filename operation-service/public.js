@@ -68,6 +68,7 @@
   function filteredNotices() {
     const category = $('categoryFilter').value;
     const state = $('stateFilter').value;
+    const line = $('lineFilter').value;
     const query = $('query').value.trim().toLowerCase().replace(/[\s　]/g, '');
     const mode = $('viewMode').value;
     const result = notices.filter(item => {
@@ -75,6 +76,7 @@
       if (mode === 'suspend' && item.operationState !== 'suspend') return false;
       if (category && item.category !== category) return false;
       if (state && item.operationState !== state) return false;
+      if (line && !(item.lines || []).includes(line)) return false;
       if (!query) return true;
       const haystack = [item.trainNumber, item.trainType, item.title, item.sectionStart, item.sectionEnd,
         ...(item.lines || []), item.remarks, item.restriction].join('|').toLowerCase().replace(/[\s　]/g, '');
@@ -82,6 +84,13 @@
     });
     if (mode === 'line') result.sort((left, right) => String(left.lines?.[0] || '').localeCompare(String(right.lines?.[0] || ''), 'ja') || String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric:true}));
     return result;
+  }
+
+  function populateLineChoices() {
+    const previous = $('lineFilter').value;
+    const lines = [...new Set(notices.flatMap(item => item.lines || []).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ja'));
+    replaceMarkup($('lineFilter'), '<option value="">すべて</option>' + lines.map(line => `<option value="${escapeHtml(line)}">${escapeHtml(line)}</option>`).join(''));
+    if (lines.includes(previous)) $('lineFilter').value = previous;
   }
 
   function renderList() {
@@ -195,6 +204,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       notices = Array.isArray(payload.items) ? payload.items : [];
+      populateLineChoices();
       populatePeriodChoices(payload);
       latestChange = payload.latestChange || null;
       if (latestChange) {
@@ -226,6 +236,6 @@
   $('serviceDate').addEventListener('change', loadNotices);
   $('diagramPeriod').addEventListener('change', loadNotices);
   $('reload').addEventListener('click', loadNotices);
-  ['viewMode', 'categoryFilter', 'stateFilter', 'query'].forEach(id => $(id).addEventListener(id === 'query' ? 'input' : 'change', renderList));
+  ['viewMode', 'categoryFilter', 'stateFilter', 'lineFilter', 'query'].forEach(id => $(id).addEventListener(id === 'query' ? 'input' : 'change', renderList));
   loadNotices();
 })();
