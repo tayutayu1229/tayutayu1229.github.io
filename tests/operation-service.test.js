@@ -37,6 +37,8 @@ assert.match(adminHtml, /運転日指定[\s\S]*id="serviceDateMode"[\s\S]*id="op
 assert.match(adminHtml, /id="catalogSort"[\s\S]*線区順/, 'ダイヤ原簿を線区でソートできること');
 assert.match(adminHtml, /id="trainLine"/, '管理画面で線区絞り込みができること');
 assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込みができること');
+assert.match(publicHtml, />発表件数</, '公開画面の件数表示は「発表件数」とすること');
+assert.doesNotMatch(publicHtml, />公表件数</, '「公表件数」の旧表記を残さないこと');
 assert.match(adminJs, /line\s*&&\s*!\(train\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '統合列車が通る全線区を絞り込み対象にすること');
 assert.match(publicJs, /line\s*&&\s*!\(item\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '公開画面も列車が通る全線区を絞り込み対象にすること');
 assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
