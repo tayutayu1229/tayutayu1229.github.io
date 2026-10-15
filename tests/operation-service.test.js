@@ -44,6 +44,9 @@ assert.match(adminJs, /operationKind:\s*operate\s*\?\s*'operation'\s*:\s*'suspen
 assert.match(adminJs, /title:\s*operate\s*\?[^:]+:\s*'運転休止'/, '一括運休の表題を運転休止とすること');
 assert.doesNotMatch(adminJs, /100列車まで/, '一括登録の件数を100列車に制限しないこと');
 assert.match(adminJs, /Promise\.all\(Array\.from\(\{length:\s*Math\.min\(4,\s*trains\.length\)\}/, '大量一括登録を4件並行で処理すること');
+assert.match(adminJs, /function existingNoticeForTrain[\s\S]*scheduleKey === train\.scheduleKey[\s\S]*sameIntegratedTrain/, 'ダイヤ原簿の選択から登録済み活休を復元できること');
+assert.match(adminJs, /sameUniqueTrainNumber[\s\S]*catalog\.filter/, '旧統合データも列車番号が一意なら登録済み活休を復元すること');
+assert.match(adminJs, /if \(existing\) \{[\s\S]*editNotice\(existing, train\)/, '登録済み列車の選択時は新規入力ではなく編集表示すること');
 assert.match(css, /\.catalog-grid td\s*\{[\s\S]*height:\s*18px[\s\S]*padding:\s*0 3px/, 'ダイヤ原簿の行高を密にすること');
 assert.match(adminHtml, /data-auth-display="flex"/, '認証後も管理画面本体をflex表示すること');
 assert.match(authGuard, /mainContent\.dataset\.authDisplay\s*\|\|\s*'block'/, '画面ごとの認証後表示方式を守ること');

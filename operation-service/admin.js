@@ -40,6 +40,30 @@
 
   function normalized(value) { return String(value || '').toLowerCase().replace(/[\s　]/g, ''); }
 
+  function sameIntegratedTrain(train, notice) {
+    if (normalized(train?.trainNumber) !== normalized(notice?.trainNumber)) return false;
+    const snapshot = notice?.scheduleSnapshot || {};
+    const trainLines = (train?.lines || []).map(normalized).sort().join('|');
+    const noticeLines = (notice?.lines?.length ? notice.lines : snapshot.lines || []).map(normalized).sort().join('|');
+    if (trainLines !== noticeLines) return false;
+    if (snapshot.origin && normalized(snapshot.origin) !== normalized(train.origin)) return false;
+    if (snapshot.destination && normalized(snapshot.destination) !== normalized(train.destination)) return false;
+    return true;
+  }
+
+  function sameUniqueTrainNumber(train, notice) {
+    const number = normalized(train?.trainNumber);
+    return number && number === normalized(notice?.trainNumber)
+      && catalog.filter(item => normalized(item.trainNumber) === number).length === 1;
+  }
+
+  function existingNoticeForTrain(train) {
+    return notices.filter(item => item.scheduleKey === train.scheduleKey || sameIntegratedTrain(train, item) || sameUniqueTrainNumber(train, item)).sort((left, right) => {
+      const rank = item => item.scheduleKey === train.scheduleKey ? 2 : sameIntegratedTrain(train, item) ? 1 : 0;
+      return rank(right) - rank(left) || String(right.updatedAt || '').localeCompare(String(left.updatedAt || ''));
+    })[0] || null;
+  }
+
   function setMessage(text, kind) {
     $('message').textContent = text || '';
     $('message').className = `message${kind ? ` ${kind}` : ''}${text ? '' : ' hidden'}`;
@@ -360,6 +384,11 @@
 
   function selectTrain(train) {
     if (!train) return;
+    const existing = existingNoticeForTrain(train);
+    if (existing) {
+      editNotice(existing, train);
+      return;
+    }
     if (dirty && !confirm('未保存の入力を破棄して、選択列車で新規作成しますか？')) return;
     selectedSchedule = train;
     currentNotice = null;
@@ -385,11 +414,13 @@
     $('statusText').textContent = `${train.trainNumber} ${train.origin}～${train.destination}を選択しました。`;
   }
 
-  function editNotice(item) {
+  function editNotice(item, catalogTrain = null) {
     if (!item) return;
     if (dirty && !confirm('未保存の入力を破棄して、登録済み情報を開きますか？')) return;
     currentNotice = item;
-    selectedSchedule = item.scheduleSnapshot || catalog.find(train => train.scheduleKey === item.scheduleKey) || null;
+    selectedSchedule = catalogTrain || catalog.find(train => train.scheduleKey === item.scheduleKey)
+      || catalog.find(train => sameIntegratedTrain(train, item))
+      || catalog.find(train => sameUniqueTrainNumber(train, item)) || item.scheduleSnapshot || null;
     $('title').value = item.title || '';
     $('operationKind').value = item.operationKind || '';
     $('operationState').value = item.operationState || '';
