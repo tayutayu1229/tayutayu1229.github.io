@@ -224,7 +224,7 @@
 
                 const mainContent = document.getElementById('main-content');
                 const userInfo = document.getElementById('user-info');
-                if (mainContent) mainContent.style.display = 'block';
+                if (mainContent) mainContent.style.display = mainContent.dataset.authDisplay || 'block';
                 if (userInfo) userInfo.textContent = `(${user.email || '利用者'})でログイン中`;
                 ensureBrandAndVersion();
                 startTelemetry({ auth, db, user, profile });

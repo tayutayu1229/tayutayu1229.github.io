@@ -21,22 +21,25 @@
 
   function render(item) {
     const changes = new Map((item.timeChanges || []).map(change => [String(change.station).replace(/[\s　]/g,''), change]));
-    const rows = (item.scheduleSnapshot?.stops || []).map((stop, index) => {
+    const rows = (item.scheduleSnapshot?.stops || []).map(stop => {
       const change = changes.get(String(stop.station || '').replace(/[\s　]/g,'')) || {};
       const cell = (original, changed) => changed && changed !== original
         ? `<span class="changed">${escapeHtml(changed)}</span><br><small>所定 ${escapeHtml(original || '―')}</small>`
         : escapeHtml(original || '―');
-      return `<tr><td>${index + 1}</td><td>${escapeHtml(stop.line || '')}</td><td>${escapeHtml(stop.station || '')}</td><td>${cell(stop.arrival,change.arrival)}</td><td>${cell(stop.departure,change.departure)}</td><td>${cell(stop.trackN,change.trackN)}</td></tr>`;
+      return `<tr><td>${escapeHtml(stop.station || '')}</td><td>${cell(stop.arrival,change.arrival)}</td><td>${cell(stop.departure,change.departure)}</td><td>${cell(stop.trackN,change.trackN)}</td></tr>`;
     }).join('');
+    const serviceDateText = item.serviceDateMode === 'range'
+      ? `${item.serviceDateStart || item.serviceDate}～${item.serviceDateEnd || item.serviceDate}`
+      : (item.serviceDates || [item.serviceDate]).join('・');
     document.title = `${item.noticeNumber || item.id} ${item.title}`;
     replaceMarkup(document.getElementById('paper'), `
       <div class="document-number">${escapeHtml(item.noticeNumber || '未採番')}<br>作成 ${escapeHtml(item.createdAt || '')}<br>更新 ${escapeHtml(item.updatedAt || '')}</div>
       <h1 class="document-title">運転活休通達</h1><div class="document-subtitle">${escapeHtml(item.title)}</div>
-      <table class="document-meta"><tr><th>施行日</th><td>${escapeHtml(item.serviceDate)}</td><th>活休区分</th><td>${escapeHtml({operate:'運転',suspend:'運転休止',changed:'時刻変更',prohibited:'運転禁止'}[item.operationState] || item.operationState)}</td></tr>
+      <table class="document-meta"><tr><th>施行日</th><td>${escapeHtml(serviceDateText)}</td><th>活休区分</th><td>${escapeHtml({operate:'運転',suspend:'運転休止',changed:'時刻変更',prohibited:'運転禁止'}[item.operationState] || item.operationState)}</td></tr>
       <tr><th>列車</th><td>${escapeHtml(item.trainType || '')} ${escapeHtml(item.trainNumber)}</td><th>線区</th><td>${escapeHtml((item.lines || []).join('・'))}</td></tr>
       <tr><th>区間</th><td colspan="3">${escapeHtml(item.sectionStart || '―')} ～ ${escapeHtml(item.sectionEnd || '―')}</td></tr></table>
-      <table class="document-table"><colgroup><col style="width:8mm"><col style="width:27mm"><col style="width:31mm"><col style="width:25mm"><col style="width:25mm"><col style="width:22mm"></colgroup>
-      <thead><tr><th>No.</th><th>線区</th><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead><tbody>${rows || '<tr><td colspan="6">時刻表なし</td></tr>'}</tbody></table>
+      <table class="document-table"><colgroup><col style="width:55mm"><col style="width:35mm"><col style="width:35mm"><col style="width:30mm"></colgroup>
+      <thead><tr><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead><tbody>${rows || '<tr><td colspan="4">時刻表なし</td></tr>'}</tbody></table>
       ${item.restriction ? `<div class="document-note"><strong>運転上の禁止・制限事項</strong><br>${escapeHtml(item.restriction)}</div>` : ''}
       <div class="document-note"><strong>備考</strong><br>${escapeHtml(item.remarks || 'なし')}</div>
       <div class="document-footer"><span>東京圏輸送情報システム</span><span>${escapeHtml(item.id)} / 第${escapeHtml(item.version)}版</span></div>`);

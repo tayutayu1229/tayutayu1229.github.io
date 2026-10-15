@@ -23,6 +23,10 @@
   }
 
   function displayDate(value) { return String(value || '').replace(/-/g, '/'); }
+  function serviceDatesText(item) {
+    if (item.serviceDateMode === 'range') return `${displayDate(item.serviceDateStart || item.serviceDate)}～${displayDate(item.serviceDateEnd || item.serviceDate)}`;
+    return (item.serviceDates || [item.serviceDate]).map(displayDate).join('・');
+  }
   function setServiceDate(value) { $('serviceDate').value = displayDate(value); }
 
   function escapeHtml(value) {
@@ -134,9 +138,9 @@
     $('detail').className = '';
     const changes = new Map((item.timeChanges || []).map(change => [String(change.station).replace(/[\s　]/g, ''), change]));
     const stops = item.scheduleSnapshot?.stops || [];
-    const stopRows = stops.map((stop, index) => {
+    const stopRows = stops.map(stop => {
       const change = changes.get(String(stop.station || '').replace(/[\s　]/g, '')) || {};
-      return `<tr><td>${index + 1}</td><td>${escapeHtml(stop.line || '')}</td><td>${escapeHtml(stop.station || '')}</td>
+      return `<tr><td>${escapeHtml(stop.station || '')}</td>
         <td>${timeCell(stop.arrival, change.arrival)}</td><td>${timeCell(stop.departure, change.departure)}</td>
         <td>${timeCell(stop.trackN, change.trackN)}</td></tr>`;
     }).join('');
@@ -151,9 +155,9 @@
       ${item.restriction ? `<div class="notice-text"><strong>運転上の制限・禁止事項</strong>\n${escapeHtml(item.restriction)}</div>` : ''}
       ${item.remarks ? `<div class="notice-text"><strong>記事</strong>\n${escapeHtml(item.remarks)}</div>` : ''}
       <div class="panel-title"><span>列車時刻表</span><span>${stops.length}駅</span></div>
-      <div class="data-wrap inset"><table class="data-grid"><colgroup><col style="width:35px"><col style="width:90px"><col style="width:95px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>
-        <thead><tr><th>No.</th><th>線区</th><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead>
-        <tbody>${stopRows || '<tr><td colspan="6" class="empty-cell">時刻表はありません。</td></tr>'}</tbody></table></div>
+      <div class="data-wrap inset"><table class="data-grid"><colgroup><col style="width:135px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>
+        <thead><tr><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead>
+        <tbody>${stopRows || '<tr><td colspan="4" class="empty-cell">時刻表はありません。</td></tr>'}</tbody></table></div>
       ${item.category === 'planned_extra' ? '<div class="panel-title"><span>この列車の活休履歴</span></div><div id="plannedHistory" class="panel-content">履歴を照会中です。</div>' : ''}`);
     if (item.category === 'planned_extra') loadPlannedHistory(item);
   }
@@ -169,7 +173,7 @@
       const payload = await response.json();
       if (!$('plannedHistory') || selectedId !== item.id) return;
       const history = (payload.items || []).sort((a,b) => String(b.serviceDate).localeCompare(String(a.serviceDate)));
-      replaceMarkup($('plannedHistory'), history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(entry.serviceDate)}</td><td>${escapeHtml(stateLabels[entry.operationState] || entry.operationState)}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml(entry.remarks || '')}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。');
+      replaceMarkup($('plannedHistory'), history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(serviceDatesText(entry))}</td><td>${escapeHtml(stateLabels[entry.operationState] || entry.operationState)}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml(entry.remarks || '')}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。');
     } catch (error) { if ($('plannedHistory')) $('plannedHistory').textContent = `履歴を取得できませんでした: ${error.message}`; }
   }
 
