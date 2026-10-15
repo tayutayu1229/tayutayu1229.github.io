@@ -18,6 +18,12 @@
     return String(value ?? '').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
   }
 
+  function replaceMarkup(target, markup) {
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    target.replaceChildren(range.createContextualFragment(markup));
+  }
+
   function setMessage(text, kind) {
     $('message').textContent = text || '';
     $('message').className = `message${kind ? ` ${kind}` : ''}${text ? '' : ' hidden'}`;
@@ -57,19 +63,19 @@
       $(`${state}Count`).textContent = notices.filter(item => item.operationState === state).length;
     });
     if (!rows.length) {
-      $('noticeRows').innerHTML = '<tr><td colspan="7" class="empty-cell">該当する公表情報はありません。</td></tr>';
+      replaceMarkup($('noticeRows'), '<tr><td colspan="7" class="empty-cell">該当する公表情報はありません。</td></tr>');
       selectedId = '';
       renderDetail(null);
       return;
     }
-    $('noticeRows').innerHTML = rows.map(item => `
+    replaceMarkup($('noticeRows'), rows.map(item => `
       <tr data-id="${escapeHtml(item.id)}" class="${item.id === selectedId ? 'selected' : ''}" tabindex="0">
         <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span></td>
         <td class="category-${escapeHtml(item.category)}">${escapeHtml(categoryLabels[item.category] || item.category)}</td>
         <td><strong>${escapeHtml(item.trainNumber)}</strong></td><td>${escapeHtml(item.trainType || '―')}</td>
         <td>${escapeHtml(item.sectionStart || item.scheduleSnapshot?.origin || '―')}</td><td title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</td>
         <td>${escapeHtml(item.sectionEnd || item.scheduleSnapshot?.destination || '―')}</td>
-      </tr>`).join('');
+      </tr>`).join(''));
     $('noticeRows').querySelectorAll('tr[data-id]').forEach(row => {
       const select = () => { selectedId = row.dataset.id; renderList(); renderDetail(notices.find(item => item.id === selectedId)); };
       row.addEventListener('click', select);
@@ -101,7 +107,7 @@
         <td>${timeCell(stop.arrival, change.arrival)}</td><td>${timeCell(stop.departure, change.departure)}</td>
         <td>${timeCell(stop.trackN, change.trackN)}</td></tr>`;
     }).join('');
-    $('detail').innerHTML = `
+    replaceMarkup($('detail'), `
       <div class="detail-header"><div><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span> ${escapeHtml(categoryLabels[item.category] || '')}</div><h2>${escapeHtml(item.title)}</h2></div>
       <dl class="detail-meta">
         <dt>通達番号</dt><dd>${escapeHtml(item.noticeNumber || '―')} <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}">PDF出力</a></dd><dt>運転日</dt><dd>${escapeHtml(item.serviceDate)}</dd><dt>列車</dt><dd>${escapeHtml(item.trainType || '')} ${escapeHtml(item.trainNumber)}</dd>
@@ -114,7 +120,7 @@
       <div class="data-wrap inset"><table class="data-grid"><colgroup><col style="width:35px"><col style="width:90px"><col style="width:95px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>
         <thead><tr><th>No.</th><th>線区</th><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead>
         <tbody>${stopRows || '<tr><td colspan="6" class="empty-cell">時刻表はありません。</td></tr>'}</tbody></table></div>
-      ${item.category === 'planned_extra' ? '<div class="panel-title"><span>この列車の活休履歴</span></div><div id="plannedHistory" class="panel-content">履歴を照会中です。</div>' : ''}`;
+      ${item.category === 'planned_extra' ? '<div class="panel-title"><span>この列車の活休履歴</span></div><div id="plannedHistory" class="panel-content">履歴を照会中です。</div>' : ''}`);
     if (item.category === 'planned_extra') loadPlannedHistory(item);
   }
 
@@ -129,7 +135,7 @@
       const payload = await response.json();
       if (!$('plannedHistory') || selectedId !== item.id) return;
       const history = (payload.items || []).sort((a,b) => String(b.serviceDate).localeCompare(String(a.serviceDate)));
-      $('plannedHistory').innerHTML = history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(entry.serviceDate)}</td><td>${escapeHtml(stateLabels[entry.operationState] || entry.operationState)}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml(entry.remarks || '')}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。';
+      replaceMarkup($('plannedHistory'), history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(entry.serviceDate)}</td><td>${escapeHtml(stateLabels[entry.operationState] || entry.operationState)}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml(entry.remarks || '')}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。');
     } catch (error) { if ($('plannedHistory')) $('plannedHistory').textContent = `履歴を取得できませんでした: ${error.message}`; }
   }
 

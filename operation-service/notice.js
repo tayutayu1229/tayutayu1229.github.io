@@ -5,6 +5,12 @@
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const id = new URLSearchParams(location.search).get('id') || '';
 
+  function replaceMarkup(target, markup) {
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    target.replaceChildren(range.createContextualFragment(markup));
+  }
+
   async function fetchNotice() {
     const response = await fetch(new URL(`/public/api/operation-notices/${encodeURIComponent(id)}`, API_ORIGIN), {
       cache:'no-store', headers:{Accept:'application/json'},
@@ -23,7 +29,7 @@
       return `<tr><td>${index + 1}</td><td>${escapeHtml(stop.line || '')}</td><td>${escapeHtml(stop.station || '')}</td><td>${cell(stop.arrival,change.arrival)}</td><td>${cell(stop.departure,change.departure)}</td><td>${cell(stop.trackN,change.trackN)}</td></tr>`;
     }).join('');
     document.title = `${item.noticeNumber || item.id} ${item.title}`;
-    document.getElementById('paper').innerHTML = `
+    replaceMarkup(document.getElementById('paper'), `
       <div class="document-number">${escapeHtml(item.noticeNumber || '未採番')}<br>作成 ${escapeHtml(item.createdAt || '')}<br>更新 ${escapeHtml(item.updatedAt || '')}</div>
       <h1 class="document-title">運転活休通達</h1><div class="document-subtitle">${escapeHtml(item.title)}</div>
       <table class="document-meta"><tr><th>施行日</th><td>${escapeHtml(item.serviceDate)}</td><th>活休区分</th><td>${escapeHtml({operate:'運転',suspend:'運転休止',changed:'時刻変更',prohibited:'運転禁止'}[item.operationState] || item.operationState)}</td></tr>
@@ -33,15 +39,16 @@
       <thead><tr><th>No.</th><th>線区</th><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead><tbody>${rows || '<tr><td colspan="6">時刻表なし</td></tr>'}</tbody></table>
       ${item.restriction ? `<div class="document-note"><strong>運転上の禁止・制限事項</strong><br>${escapeHtml(item.restriction)}</div>` : ''}
       <div class="document-note"><strong>備考</strong><br>${escapeHtml(item.remarks || 'なし')}</div>
-      <div class="document-footer"><span>東京圏輸送情報システム</span><span>${escapeHtml(item.id)} / 第${escapeHtml(item.version)}版</span></div>`;
+      <div class="document-footer"><span>東京圏輸送情報システム</span><span>${escapeHtml(item.id)} / 第${escapeHtml(item.version)}版</span></div>`);
   }
 
   document.getElementById('printButton').addEventListener('click', () => window.print());
+  document.getElementById('closeButton').addEventListener('click', () => window.close());
   try {
     if (!id) throw new Error('通達IDがありません');
     render(await fetchNotice());
     if (new URLSearchParams(location.search).get('print') === '1') setTimeout(() => window.print(), 400);
   } catch (error) {
-    document.getElementById('paper').innerHTML = `<h1>運転活休通達</h1><p>読込に失敗しました: ${escapeHtml(error.message)}</p>`;
+    replaceMarkup(document.getElementById('paper'), `<h1>運転活休通達</h1><p>読込に失敗しました: ${escapeHtml(error.message)}</p>`);
   }
 })();

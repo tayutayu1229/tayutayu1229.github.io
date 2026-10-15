@@ -21,6 +21,12 @@
     return String(value ?? '').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
   }
 
+  function replaceMarkup(target, markup) {
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    target.replaceChildren(range.createContextualFragment(markup));
+  }
+
   function normalized(value) { return String(value || '').toLowerCase().replace(/[\s　]/g, ''); }
 
   function setMessage(text, kind) {
@@ -71,16 +77,16 @@
     const items = filteredCatalog();
     $('catalogMeta').textContent = `${items.length}/${catalog.length}列車`;
     if (!items.length) {
-      $('catalogRows').innerHTML = '<tr><td colspan="6" class="empty-cell">条件に一致する列車はありません。</td></tr>';
+      replaceMarkup($('catalogRows'), '<tr><td colspan="6" class="empty-cell">条件に一致する列車はありません。</td></tr>');
       return;
     }
-    $('catalogRows').innerHTML = items.map(train => `
+    replaceMarkup($('catalogRows'), items.map(train => `
       <tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
         <td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
         <td><strong>${escapeHtml((train.trainNumbers || [train.trainNumber]).join('→'))}</strong></td>
         <td>${escapeHtml(train.trainType || '―')}</td><td>${escapeHtml((train.lines || []).join('・'))}</td>
         <td>${escapeHtml(train.origin)}</td><td>${escapeHtml(train.destination)}</td>
-      </tr>`).join('');
+      </tr>`).join(''));
     $('catalogRows').querySelectorAll('tr[data-key]').forEach(row => {
       const select = () => selectTrain(catalog.find(item => item.scheduleKey === row.dataset.key));
       row.addEventListener('click', select);
@@ -91,16 +97,16 @@
   function renderNotices() {
     $('noticeMeta').textContent = `${notices.length}件`;
     if (!notices.length) {
-      $('noticeRows').innerHTML = '<tr><td colspan="5" class="empty-cell">この施行日の登録はありません。</td></tr>';
+      replaceMarkup($('noticeRows'), '<tr><td colspan="5" class="empty-cell">この施行日の登録はありません。</td></tr>');
       return;
     }
-    $('noticeRows').innerHTML = notices.map(item => `
+    replaceMarkup($('noticeRows'), notices.map(item => `
       <tr data-id="${escapeHtml(item.id)}" class="${item.id === currentNotice?.id ? 'selected' : ''}" tabindex="0">
         <td><span class="badge badge-${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span></td>
         <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span></td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.title)}</td>
         <td>${escapeHtml(item.sectionStart || '―')}～${escapeHtml(item.sectionEnd || '―')}</td>
-      </tr>`).join('');
+      </tr>`).join(''));
     $('noticeRows').querySelectorAll('tr[data-id]').forEach(row => {
       const select = () => editNotice(notices.find(item => item.id === row.dataset.id));
       row.addEventListener('click', select);
@@ -111,8 +117,8 @@
   function populatePeriodChoices(payload) {
     const choices = payload.availableDiagramPeriods || [];
     const previous = $('diagramPeriod').value;
-    $('diagramPeriod').innerHTML = '<option value="">日付から自動選択</option>' + choices.map(period =>
-      `<option value="${escapeHtml(period.id)}">${escapeHtml(period.name)}${period.active ? '（適用中）' : '（切替期間）'}</option>`).join('');
+    replaceMarkup($('diagramPeriod'), '<option value="">日付から自動選択</option>' + choices.map(period =>
+      `<option value="${escapeHtml(period.id)}">${escapeHtml(period.name)}${period.active ? '（適用中）' : '（切替期間）'}</option>`).join(''));
     if (previous && choices.some(period => period.id === previous)) $('diagramPeriod').value = previous;
     const selected = payload.diagramPeriod;
     $('periodText').textContent = selected ? `${selected.name} ${selected.startDate}～${selected.endDate}` : '該当する改正期間なし';
@@ -148,8 +154,8 @@
   function setSectionOptions(stops, startValue, endValue) {
     const options = '<option value="">―</option>' + (stops || []).map(stop =>
       `<option value="${escapeHtml(stop.station)}">${escapeHtml(stop.station)}</option>`).join('');
-    $('sectionStart').innerHTML = options;
-    $('sectionEnd').innerHTML = options;
+    replaceMarkup($('sectionStart'), options);
+    replaceMarkup($('sectionEnd'), options);
     $('sectionStart').value = startValue || '';
     $('sectionEnd').value = endValue || '';
   }
@@ -158,17 +164,17 @@
     const stops = schedule?.stops || [];
     const changeMap = new Map((changes || []).map(change => [normalized(change.station), change]));
     if (!stops.length) {
-      $('timeRows').innerHTML = '<tr><td colspan="7" class="empty-cell">列車時刻表はありません。</td></tr>';
+      replaceMarkup($('timeRows'), '<tr><td colspan="7" class="empty-cell">列車時刻表はありません。</td></tr>');
       return;
     }
-    $('timeRows').innerHTML = stops.map((stop, index) => {
+    replaceMarkup($('timeRows'), stops.map((stop, index) => {
       const change = changeMap.get(normalized(stop.station)) || {};
       return `<tr data-station="${escapeHtml(stop.station)}"><td>${index + 1}</td><td>${escapeHtml(stop.line || '')}</td><td>${escapeHtml(stop.station)}</td>
         <td><input data-field="arrival" value="${escapeHtml(change.arrival || stop.arrival || '')}" data-original="${escapeHtml(stop.arrival || '')}"></td>
         <td><input data-field="departure" value="${escapeHtml(change.departure || stop.departure || '')}" data-original="${escapeHtml(stop.departure || '')}"></td>
         <td><input data-field="trackN" value="${escapeHtml(change.trackN || stop.trackN || '')}" data-original="${escapeHtml(stop.trackN || '')}"></td>
         <td><input data-field="note" value="${escapeHtml(change.note || '')}" data-original=""></td></tr>`;
-    }).join('');
+    }).join(''));
     $('timeRows').querySelectorAll('input').forEach(input => input.addEventListener('input', () => markDirty()));
   }
 
