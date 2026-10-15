@@ -206,8 +206,8 @@
     selectedSchedule = train;
     currentNotice = null;
     $('title').value = train.defaultTitle || '列車運転';
-    $('operationKind').value = 'operation';
-    $('operationState').value = 'operate';
+    $('operationKind').value = '';
+    $('operationState').value = '';
     $('trainNumber').value = train.trainNumber || '';
     $('trainType').value = train.trainType || '';
     $('restriction').value = '';
@@ -232,8 +232,8 @@
     currentNotice = item;
     selectedSchedule = item.scheduleSnapshot || catalog.find(train => train.scheduleKey === item.scheduleKey) || null;
     $('title').value = item.title || '';
-    $('operationKind').value = item.operationKind || 'operation';
-    $('operationState').value = item.operationState || 'operate';
+    $('operationKind').value = item.operationKind || '';
+    $('operationState').value = item.operationState || '';
     $('trainNumber').value = item.trainNumber || '';
     $('trainType').value = item.trainType || '';
     $('restriction').value = item.restriction || '';
@@ -255,8 +255,8 @@
     currentNotice = null;
     if (!keepSchedule) selectedSchedule = null;
     ['title', 'trainNumber', 'trainType', 'restriction', 'remarks'].forEach(id => { $(id).value = ''; });
-    $('operationKind').value = 'operation';
-    $('operationState').value = 'operate';
+    $('operationKind').value = '';
+    $('operationState').value = '';
     setSectionOptions(selectedSchedule?.stops || [], '', '');
     renderTimeRows(selectedSchedule, []);
     $('recordIdentity').textContent = '新規';
@@ -308,8 +308,8 @@
 
   async function save(status) {
     const payload = formPayload(status);
-    if (!payload.title || !payload.trainNumber || !payload.serviceDate) {
-      setMessage('表題・列車番号・施行日は必須です。', 'error');
+    if (!payload.title || !payload.trainNumber || !payload.serviceDate || !payload.operationKind || !payload.operationState) {
+      setMessage('表題・列車番号・施行日・手配区分・活休区分は必須です。', 'error');
       return;
     }
     if (!payload.scheduleSnapshot?.stops?.length && !confirm('時刻表が選択されていません。このまま保存しますか？')) return;
