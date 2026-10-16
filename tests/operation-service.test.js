@@ -47,7 +47,11 @@ assert.match(adminJs, /line\s*&&\s*!\(train\.lines\s*\|\|\s*\[\]\)\.includes\(li
 assert.match(publicJs, /line\s*&&\s*!\(item\.lines\s*\|\|\s*\[\]\)\.includes\(line\)/, '公開画面も列車が通る全線区を絞り込み対象にすること');
 assert.match(adminHtml, /id="bulkSuspend"[\s\S]*一括運休/, '複数列車の一括運休操作を備えること');
 assert.match(adminHtml, /id="bulkOperate"[\s\S]*一括運転/, '複数列車の一括運転操作を備えること');
+assert.match(adminHtml, /id="bulkClearActivity"[\s\S]*活休未入力/, '複数列車の活休未入力操作を備えること');
+assert.match(adminHtml, /id="clearActivity"[\s\S]*活休未入力へ戻す/, '単独列車の活休未入力操作を備えること');
 assert.match(adminJs, /operationKind:\s*operate\s*\?\s*'operation'\s*:\s*'suspension'[\s\S]*operationState:\s*operate\s*\?\s*'operate'\s*:\s*'suspend'/, '一括運転・運休を対応する活休として登録すること');
+assert.match(adminJs, /\/api\/operation-service\/notices\/clear-activity[\s\S]*trainNumbers/, '活休未入力は専用APIへ列車番号と運転日を送ること');
+assert.match(adminJs, /operationState === 'unknown'[\s\S]*未入力状態は公開できません/, '活休未入力を公開通達として保存しないこと');
 assert.match(adminJs, /title:\s*operate\s*\?[^:]+:\s*'運転休止'/, '一括運休の表題を運転休止とすること');
 assert.doesNotMatch(adminJs, /100列車まで/, '一括登録の件数を100列車に制限しないこと');
 assert.match(adminJs, /Promise\.all\(Array\.from\(\{length:\s*Math\.min\(4,\s*trains\.length\)\}/, '大量一括登録を4件並行で処理すること');

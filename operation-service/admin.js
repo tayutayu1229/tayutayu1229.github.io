@@ -5,7 +5,7 @@
     ? 'http://127.0.0.1:5119' : 'https://secure.tayunet-traininfo.com';
   const $ = id => document.getElementById(id);
   const categoryLabels = {planned_extra: '予定臨', extra: '臨時', regular: '定期等'};
-  const stateLabels = {operate: '運転', suspend: '運休', changed: '時刻変更', prohibited: '運転禁止'};
+  const stateLabels = {unknown: '未入力', operate: '運転', suspend: '運休', changed: '時刻変更', prohibited: '運転禁止'};
   const statusLabels = {draft: '下書き', published: '公開中', withdrawn: '取下げ'};
   let catalog = [];
   let notices = [];
@@ -132,7 +132,9 @@
     replaceMarkup($('catalogRows'), items.map(train => {
       const notice = existingNoticeForTrain(train);
       const state = notice?.operationState || '';
-      const stateCell = state ? `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(stateLabels[state] || state)}</span>` : '―';
+      const stateCell = !notice || notice.status === 'withdrawn' || state === 'unknown'
+        ? '未入力'
+        : `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(stateLabels[state] || state)}</span>`;
       return `<tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
         <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''}></td>
         <td>${stateCell}</td><td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
@@ -157,8 +159,10 @@
   function updateBulkSelection() {
     $('bulkOperate').disabled = selectedCatalogKeys.size === 0;
     $('bulkSuspend').disabled = selectedCatalogKeys.size === 0;
+    $('bulkClearActivity').disabled = selectedCatalogKeys.size === 0;
     $('bulkOperate').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運転` : '選択列車を一括運転';
     $('bulkSuspend').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運休` : '選択列車を一括運休';
+    $('bulkClearActivity').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を活休未入力へ` : '選択列車を活休未入力へ';
   }
 
   async function bulkRegister(mode) {
@@ -175,6 +179,7 @@
     if (!confirm(`${trains.length}列車を全区間${stateLabel}として公開します。よろしいですか？`)) return;
     $('bulkOperate').disabled = true;
     $('bulkSuspend').disabled = true;
+    $('bulkClearActivity').disabled = true;
     let succeeded = 0;
     let completed = 0;
     let nextIndex = 0;
@@ -209,6 +214,40 @@
     if (failed.length) setMessage(`${actionLabel} ${succeeded}件を公開、${failed.length}件は失敗しました。${failed.slice(0, 5).join(' / ')}`, 'error');
     else setMessage(`${actionLabel} ${succeeded}件を公開しました。`, 'success');
     updateBulkSelection();
+  }
+
+  async function clearActivityForTrains(trains, dateSpec, bulk = false) {
+    if (!trains.length || !dateSpec) {
+      setMessage('運転日の指定が正しくありません。', 'error');
+      return;
+    }
+    const label = bulk ? `${trains.length}列車` : `${trains[0].trainNumber}列車`;
+    if (!confirm(`${label}の指定日の活休情報を未入力へ戻します。公開中の情報は取下げます。よろしいですか？`)) return;
+    $('bulkOperate').disabled = true;
+    $('bulkSuspend').disabled = true;
+    $('bulkClearActivity').disabled = true;
+    $('clearActivity').disabled = true;
+    setMessage('');
+    $('statusText').textContent = '活休情報を未入力へ戻しています…';
+    try {
+      const result = await api('/api/operation-service/notices/clear-activity', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.assign({
+          trainNumbers: [...new Set(trains.map(train => train.trainNumber).filter(Boolean))],
+        }, dateSpec)),
+      });
+      selectedCatalogKeys.clear();
+      markDirty(false);
+      await loadDate();
+      const message = result.updatedCount
+        ? `${result.updatedCount}件（延べ${result.clearedDateCount}日）の活休情報を未入力へ戻しました。`
+        : '指定日に登録済みの活休情報はありませんでした。';
+      setMessage(message, 'success');
+    } catch (error) {
+      setMessage(`活休未入力への変更に失敗しました: ${error.message}`, 'error');
+      $('statusText').textContent = '変更失敗';
+      updateBulkSelection();
+      $('clearActivity').disabled = !currentNotice;
+    }
   }
 
   function renderNotices() {
@@ -485,6 +524,7 @@
     $('createdAtDisplay').textContent = '―';
     $('updatedAtDisplay').textContent = '―';
     $('withdraw').disabled = true;
+    $('clearActivity').disabled = true;
     $('pdfPreview').disabled = true;
     markDirty(false);
     renderCatalog();
@@ -514,6 +554,7 @@
     $('createdAtDisplay').textContent = item.createdAt || '―';
     $('updatedAtDisplay').textContent = item.updatedAt || '―';
     $('withdraw').disabled = item.status !== 'published';
+    $('clearActivity').disabled = item.status === 'withdrawn' && item.operationState === 'unknown';
     $('pdfPreview').disabled = item.status !== 'published';
     markDirty(false);
     renderCatalog();
@@ -534,6 +575,7 @@
     $('createdAtDisplay').textContent = '―';
     $('updatedAtDisplay').textContent = '―';
     $('withdraw').disabled = true;
+    $('clearActivity').disabled = true;
     $('pdfPreview').disabled = true;
     markDirty(false);
     renderCatalog();
@@ -585,6 +627,10 @@
       setMessage('表題・列車番号・施行日・手配区分・活休区分は必須です。', 'error');
       return;
     }
+    if (status === 'published' && payload.operationState === 'unknown') {
+      setMessage('活休未入力は「活休未入力へ戻す」で設定してください。未入力状態は公開できません。', 'error');
+      return;
+    }
     if (!payload.scheduleSnapshot?.stops?.length && !confirm('時刻表が選択されていません。このまま保存しますか？')) return;
     setMessage('');
     $('statusText').textContent = status === 'published' ? '公開処理中…' : '保存中…';
@@ -611,7 +657,7 @@
   }
 
   function syncKindAndState() {
-    const map = {operation: 'operate', suspension: 'suspend', time_change: 'changed', prohibition: 'prohibited'};
+    const map = {unconfirmed: 'unknown', operation: 'operate', suspension: 'suspend', time_change: 'changed', prohibition: 'prohibited'};
     if (map[$('operationKind').value]) $('operationState').value = map[$('operationKind').value];
     markDirty();
   }
@@ -635,10 +681,17 @@
   $('clearSelection').addEventListener('click', () => { selectedCatalogKeys.clear(); renderCatalog(); });
   $('bulkOperate').addEventListener('click', () => bulkRegister('operate'));
   $('bulkSuspend').addEventListener('click', () => bulkRegister('suspend'));
+  $('bulkClearActivity').addEventListener('click', () => clearActivityForTrains(
+    catalog.filter(train => selectedCatalogKeys.has(train.scheduleKey)), collectBulkServiceDates(), true,
+  ));
   $('newNotice').addEventListener('click', () => resetForm());
   $('newNoticeMenu').addEventListener('click', event => { event.preventDefault(); resetForm(); });
   $('saveDraft').addEventListener('click', () => save('draft'));
   $('publish').addEventListener('click', () => save('published'));
+  $('clearActivity').addEventListener('click', () => {
+    const train = selectedSchedule || currentNotice?.scheduleSnapshot || currentNotice;
+    if (train) clearActivityForTrains([Object.assign({}, train, {trainNumber: currentNotice?.trainNumber || train.trainNumber})], collectServiceDates());
+  });
   $('withdraw').addEventListener('click', () => { if (confirm('公開情報を取下げますか？通達番号と変更履歴は残ります。')) save('withdrawn'); });
   $('duplicate').addEventListener('click', () => {
     currentNotice = null;
@@ -647,6 +700,7 @@
     $('createdAtDisplay').textContent = '―';
     $('updatedAtDisplay').textContent = '―';
     $('withdraw').disabled = true;
+    $('clearActivity').disabled = true;
     $('pdfPreview').disabled = true;
     markDirty();
   });
