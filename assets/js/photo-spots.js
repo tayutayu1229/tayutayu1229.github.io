@@ -974,7 +974,7 @@
       append(item, image);
       const meta = photoMeta(photo);
       if (meta.childElementCount) append(item, meta);
-      loadProtectedImage(image, spot.id, "original", photo.id);
+      loadDetailImage(image, spot.id, photo.id);
       return item;
     });
     container.replaceChildren(...items);
@@ -1228,7 +1228,7 @@
         }
         source = await request;
       }
-      if (image.isConnected) image.src = source;
+      image.src = source;
     } catch (_) {
       state.photoRequests.delete(key);
       image.closest(".card-visual")?.remove();
@@ -1236,6 +1236,10 @@
     } finally {
       delete image.dataset.loading;
     }
+  }
+
+  async function loadDetailImage(image, spotId, photoId) {
+    await loadProtectedImage(image, spotId, "thumbnail", photoId);
   }
 
   function forgetSpotPhotos(spotId) {
