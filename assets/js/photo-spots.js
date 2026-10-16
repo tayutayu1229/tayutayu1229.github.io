@@ -830,8 +830,8 @@
     lat: "緯度", lng: "経度", bearing: "カメラ方位", walk: "駅から徒歩",
     bloomStart: "見頃開始月", bloomEnd: "見頃終了月", directions: "対象方向",
     features: "特徴", beginner: "初心者向け", verified: "旧確認状態", photo: "作例写真", photos: "作例写真の枚数",
-    photoOrder: "作例写真の並び順", "photo.takenDate": "作例写真の撮影日",
-    "photo.place": "作例写真の場所", "photo.note": "作例写真の一言",
+    photoOrder: "作例写真の並び順", "photo.takenDate": "作例写真の付記",
+    "photo.place": "作例写真の付記", "photo.note": "作例写真の付記",
     deletedAt: "削除日時"
   });
 
@@ -930,14 +930,19 @@
     }
   }
 
+  function photoAnnotation(photo = {}) {
+    if (Object.prototype.hasOwnProperty.call(photo, "annotation")) return String(photo.annotation || "");
+    const legacy = [];
+    if (meaningful(photo.takenDate)) legacy.push(`撮影日：${photo.takenDate}`);
+    if (meaningful(photo.place)) legacy.push(`場所：${photo.place}`);
+    if (meaningful(photo.note)) legacy.push(String(photo.note));
+    return legacy.join("\n");
+  }
+
   function photoMeta(photo) {
     const meta = element("dl", { className: "detail-photo-meta" });
-    const values = [
-      ["撮影日", photo.takenDate],
-      ["場所", photo.place],
-      ["一言", photo.note]
-    ].filter(([, value]) => meaningful(value));
-    values.forEach(([label, value]) => append(meta, element("dt", { text: label }), element("dd", { text: value })));
+    const annotation = photoAnnotation(photo);
+    if (meaningful(annotation)) append(meta, element("dt", { text: "付記" }), element("dd", { text: annotation }));
     return meta;
   }
 
@@ -1504,19 +1509,11 @@
       else if (photo.id && state.editingId) loadProtectedImage(image, state.editingId, "thumbnail", photo.id);
       const heading = element("div", { className: "gallery-edit-caption", text: photo.isCover ? `代表写真 ${index + 1}` : `写真 ${index + 1}` });
       const fields = element("div", { className: "gallery-photo-fields" });
-      const date = element("input", { attrs: { type: "date", "aria-label": `写真${index + 1}の撮影日` } });
-      const place = element("input", { attrs: { type: "text", maxlength: "200", placeholder: "場所", "aria-label": `写真${index + 1}の場所` } });
-      const note = element("input", { attrs: { type: "text", maxlength: "500", placeholder: "一言", "aria-label": `写真${index + 1}の一言` } });
-      date.value = photo.takenDate || "";
-      place.value = photo.place || "";
-      note.value = photo.note || "";
-      [[date, "takenDate"], [place, "place"], [note, "note"]].forEach(([control, key]) => {
-        control.addEventListener("input", () => { photo[key] = control.value; state.editorDirty = true; });
-      });
+      const annotation = element("textarea", { attrs: { maxlength: "1000", rows: "3", placeholder: "任意の付記", "aria-label": `写真${index + 1}の付記` } });
+      annotation.value = photo.annotation ?? photoAnnotation(photo);
+      annotation.addEventListener("input", () => { photo.annotation = annotation.value; state.editorDirty = true; });
       append(fields,
-        append(element("label"), element("span", { text: "撮影日" }), date),
-        append(element("label"), element("span", { text: "場所" }), place),
-        append(element("label"), element("span", { text: "一言" }), note)
+        append(element("label"), element("span", { text: "付記" }), annotation)
       );
       const actions = element("div", { className: "gallery-edit-actions" });
       const up = element("button", { text: "前へ", attrs: { type: "button" } });
@@ -1554,12 +1551,11 @@
       state.galleryLimit = Number(response.limit) || currentPhotoLimit();
       state.editorGallery = (response.items || []).map(photo => ({
         ...photo,
+        annotation: photoAnnotation(photo),
         isCover: photo.isCover === true,
         originalPosition: Number(photo.position),
         originalIsCover: photo.isCover === true,
-        originalTakenDate: photo.takenDate || "",
-        originalPlace: photo.place || "",
-        originalNote: photo.note || ""
+        originalAnnotation: photoAnnotation(photo)
       }));
       if (state.editorGallery.length && !state.editorGallery.some(photo => photo.isCover)) state.editorGallery[0].isCover = true;
       renderEditorGallery();
@@ -1576,7 +1572,7 @@
       if (!allowedTypes.has(file.type)) { showEditorError(`${file.name}はJPEG・PNG・GIF・WebP形式ではありません`); continue; }
       state.editorGallery.push({
         file, previewUrl: URL.createObjectURL(file), isCover: state.editorGallery.length === 0,
-        takenDate: "", place: "", note: ""
+        annotation: ""
       });
       state.editorDirty = true;
     }
@@ -1597,26 +1593,22 @@
       const upload = new FormData();
       upload.set("file", photo.file);
       upload.set("expectedRevision", String(current.revision));
-      upload.set("takenDate", photo.takenDate || "");
-      upload.set("place", photo.place || "");
-      upload.set("note", photo.note || "");
+      upload.set("takenDate", "");
+      upload.set("place", "");
+      upload.set("note", photo.annotation || "");
       const response = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos`, { method: "POST", body: upload });
       current = response.spot;
       photo.id = response.photo.id;
       photo.file = null;
-      photo.originalTakenDate = photo.takenDate || "";
-      photo.originalPlace = photo.place || "";
-      photo.originalNote = photo.note || "";
+      photo.originalAnnotation = photo.annotation || "";
       forgetSpotPhotos(saved.id);
     }
     for (const photo of state.editorGallery.filter(item => item.id && !item.file)) {
-      const changed = (photo.takenDate || "") !== (photo.originalTakenDate || "")
-        || (photo.place || "") !== (photo.originalPlace || "")
-        || (photo.note || "") !== (photo.originalNote || "");
+      const changed = (photo.annotation || "") !== (photo.originalAnnotation || "");
       if (!changed) continue;
       const response = await api(`/v1/spots/${encodeURIComponent(saved.id)}/photos/${encodeURIComponent(photo.id)}`, {
         method: "PATCH",
-        body: JSON.stringify({ expectedRevision: current.revision, takenDate: photo.takenDate || "", place: photo.place || "", note: photo.note || "" })
+        body: JSON.stringify({ expectedRevision: current.revision, takenDate: "", place: "", note: photo.annotation || "" })
       });
       current = response.spot;
     }
@@ -1949,6 +1941,7 @@
     positiveNumber,
     hasBearing,
     authenticatedName,
+    photoAnnotation,
     showCurrentLocation,
     shiftPlanMinutes,
     normalizeSpot,
