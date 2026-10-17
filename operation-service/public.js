@@ -153,7 +153,7 @@
         <td>${timeCell(stop.arrival, change.arrival)}</td><td>${timeCell(stop.departure, change.departure)}</td>
         <td>${timeCell(stop.trackN, change.trackN)}</td></tr>`;
     }).join('');
-    const pdfLink = item.source === 'timetable' ? '' : ` <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}">PDF出力</a>`;
+    const pdfLink = item.source === 'timetable' ? '' : ` <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}&serviceDate=${encodeURIComponent(item.serviceDate)}">PDF出力</a>`;
     replaceMarkup($('detail'), `
       <div class="detail-header"><div><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span> ${escapeHtml(categoryLabels[item.category] || '')}</div><h2>${escapeHtml(item.title)}</h2></div>
       <dl class="detail-meta">
