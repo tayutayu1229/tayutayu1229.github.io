@@ -13,17 +13,16 @@
   let currentNotice = null;
   let dirty = false;
   let loadingDate = false;
+  let bulkOperationRunning = false;
   const selectedCatalogKeys = new Set();
+  const adminUtils = window.OperationServiceAdminUtils;
 
   function tokyoToday() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
   }
 
   function normalizedDate(value) {
-    const match = String(value || '').trim().match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
-    if (!match) return '';
-    const iso = `${match[1]}-${match[2]}-${match[3]}`;
-    return Number.isNaN(new Date(`${iso}T12:00:00+09:00`).getTime()) ? '' : iso;
+    return adminUtils.normalizeDate(value);
   }
 
   function displayDate(value) { return String(value || '').replace(/-/g, '/'); }
@@ -136,7 +135,7 @@
         ? '未入力'
         : `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(stateLabels[state] || state)}</span>`;
       return `<tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
-        <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''}></td>
+        <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''} ${bulkOperationRunning ? 'disabled' : ''}></td>
         <td>${stateCell}</td><td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
         <td><strong>${escapeHtml(train.trainNumber)}</strong></td>
         <td>${escapeHtml(train.trainType || '―')}</td><td>${escapeHtml((train.lines || []).join('・'))}</td>
@@ -157,33 +156,60 @@
   }
 
   function updateBulkSelection() {
-    $('bulkOperate').disabled = selectedCatalogKeys.size === 0;
-    $('bulkSuspend').disabled = selectedCatalogKeys.size === 0;
-    $('bulkClearActivity').disabled = selectedCatalogKeys.size === 0;
+    $('bulkOperate').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
+    $('bulkSuspend').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
+    $('bulkClearActivity').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
     $('bulkOperate').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運転` : '選択列車を一括運転';
     $('bulkSuspend').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運休` : '選択列車を一括運休';
     $('bulkClearActivity').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を活休未入力へ` : '選択列車を活休未入力へ';
   }
 
+  function setBulkOperationRunning(running) {
+    bulkOperationRunning = running;
+    ['selectVisible', 'clearSelection', 'bulkServiceDateMode', 'bulkOperationDatePicker',
+      'bulkAddOperationDate', 'bulkOperationDateList', 'bulkRemoveOperationDate',
+      'bulkServiceDateStart', 'bulkServiceDateEnd'].forEach(id => { $(id).disabled = running; });
+    document.querySelectorAll('.catalog-check').forEach(control => { control.disabled = running; });
+    updateBulkSelection();
+  }
+
+  function renderBulkProgress(actionLabel, completed, total, succeeded, failed) {
+    $('bulkResultPanel').classList.remove('hidden');
+    $('bulkResultState').textContent = '処理中';
+    $('bulkResultSummary').textContent = `${actionLabel}を処理中 ${completed}/${total}　成功 ${succeeded}件　失敗 ${failed}件`;
+    $('bulkFailureDetails').classList.add('hidden');
+  }
+
+  function renderBulkResult(actionLabel, succeeded, failures, total) {
+    const result = adminUtils.bulkResultModel(actionLabel, succeeded, failures, total);
+    $('bulkResultPanel').classList.remove('hidden');
+    $('bulkResultState').textContent = result.failed.length ? '一部失敗' : '完了';
+    $('bulkResultSummary').textContent = `${result.actionLabel} ${result.total}件中　成功 ${result.succeeded}件　失敗 ${result.failed.length}件`;
+    $('bulkFailureDetails').classList.toggle('hidden', result.failed.length === 0);
+    $('bulkFailureSummary').textContent = `失敗詳細（${result.failed.length}件・すべて表示）`;
+    replaceMarkup($('bulkFailureRows'), result.failed.map(item => `<tr><td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.reason)}</td></tr>`).join(''));
+  }
+
   async function bulkRegister(mode) {
+    if (bulkOperationRunning) return;
     const trains = catalog.filter(train => selectedCatalogKeys.has(train.scheduleKey));
-    const dateSpec = collectBulkServiceDates();
     if (!trains.length) return;
-    if (!dateSpec) {
-      setMessage('運転日の指定が正しくありません。', 'error');
+    const dateResult = bulkServiceDateResult();
+    if (!dateResult.ok) {
+      setMessage(`一括操作：${dateResult.message}`, 'error');
       return;
     }
+    const dateSpec = dateResult.spec;
     const operate = mode === 'operate';
     const actionLabel = operate ? '一括運転' : '一括運休';
     const stateLabel = operate ? '運転' : '運休';
     if (!confirm(`${trains.length}列車を全区間${stateLabel}として公開します。よろしいですか？`)) return;
-    $('bulkOperate').disabled = true;
-    $('bulkSuspend').disabled = true;
-    $('bulkClearActivity').disabled = true;
+    setBulkOperationRunning(true);
     let succeeded = 0;
     let completed = 0;
     let nextIndex = 0;
     const failed = [];
+    renderBulkProgress(actionLabel, 0, trains.length, 0, 0);
     async function worker() {
       while (nextIndex < trains.length) {
         const train = trains[nextIndex];
@@ -201,31 +227,35 @@
           });
           succeeded += 1;
         } catch (error) {
-          failed.push(`${train.trainNumber}: ${error.message}`);
+          failed.push({trainNumber: train.trainNumber, reason: error.message});
         }
         completed += 1;
+        renderBulkProgress(actionLabel, completed, trains.length, succeeded, failed.length);
         $('statusText').textContent = `${actionLabel}を登録中 ${completed}/${trains.length}　${train.trainNumber}`;
       }
     }
-    await Promise.all(Array.from({length: Math.min(4, trains.length)}, () => worker()));
-    selectedCatalogKeys.clear();
-    markDirty(false);
-    await loadDate();
-    if (failed.length) setMessage(`${actionLabel} ${succeeded}件を公開、${failed.length}件は失敗しました。${failed.slice(0, 5).join(' / ')}`, 'error');
-    else setMessage(`${actionLabel} ${succeeded}件を公開しました。`, 'success');
-    updateBulkSelection();
+    try {
+      await Promise.all(Array.from({length: Math.min(4, trains.length)}, () => worker()));
+      selectedCatalogKeys.clear();
+      markDirty(false);
+      await loadDate();
+      renderBulkResult(actionLabel, succeeded, failed, trains.length);
+      setMessage(failed.length ? `${actionLabel}は${failed.length}件失敗しました。一括処理結果で全件を確認してください。` : `${actionLabel} ${succeeded}件を公開しました。`, failed.length ? 'error' : 'success');
+    } finally {
+      setBulkOperationRunning(false);
+    }
   }
 
   async function clearActivityForTrains(trains, dateSpec, bulk = false) {
+    if (bulkOperationRunning) return;
     if (!trains.length || !dateSpec) {
-      setMessage('運転日の指定が正しくありません。', 'error');
+      const result = bulk ? bulkServiceDateResult() : serviceDateResult();
+      setMessage(`${bulk ? '一括操作：' : ''}${result.message || '対象列車を選択してください。'}`, 'error');
       return;
     }
     const label = bulk ? `${trains.length}列車` : `${trains[0].trainNumber}列車`;
     if (!confirm(`${label}の指定日の活休情報を未入力へ戻します。公開中の情報は取下げます。よろしいですか？`)) return;
-    $('bulkOperate').disabled = true;
-    $('bulkSuspend').disabled = true;
-    $('bulkClearActivity').disabled = true;
+    setBulkOperationRunning(bulk);
     $('clearActivity').disabled = true;
     setMessage('');
     $('statusText').textContent = '活休情報を未入力へ戻しています…';
@@ -242,11 +272,15 @@
         ? `${result.updatedCount}件（延べ${result.clearedDateCount}日）の活休情報を未入力へ戻しました。`
         : '指定日に登録済みの活休情報はありませんでした。';
       setMessage(message, 'success');
+      if (bulk) renderBulkResult('一括活休未入力', trains.length, [], trains.length);
     } catch (error) {
       setMessage(`活休未入力への変更に失敗しました: ${error.message}`, 'error');
+      if (bulk) renderBulkResult('一括活休未入力', 0, trains.map(train => ({trainNumber: train.trainNumber, reason: error.message})), trains.length);
       $('statusText').textContent = '変更失敗';
       updateBulkSelection();
       $('clearActivity').disabled = !currentNotice;
+    } finally {
+      if (bulk) setBulkOperationRunning(false);
     }
   }
 
@@ -392,20 +426,19 @@
     markDirty();
   }
 
+  function serviceDateResult() {
+    return adminUtils.dateSelectionResult({
+      mode: $('serviceDateMode').value,
+      single: $('serviceDate').value,
+      dates: operationDateListValues(),
+      start: $('serviceDateStart').value,
+      end: $('serviceDateEnd').value,
+    });
+  }
+
   function collectServiceDates() {
-    const mode = $('serviceDateMode').value;
-    const baseDate = normalizedDate($('serviceDate').value);
-    if (mode === 'multiple') {
-      const serviceDates = operationDateListValues();
-      return serviceDates.length ? {serviceDateMode: mode, serviceDate: serviceDates[0], serviceDates} : null;
-    }
-    if (mode === 'range') {
-      const serviceDateStart = normalizedDate($('serviceDateStart').value);
-      const serviceDateEnd = normalizedDate($('serviceDateEnd').value);
-      return serviceDateStart && serviceDateEnd && serviceDateStart <= serviceDateEnd
-        ? {serviceDateMode: mode, serviceDate: serviceDateStart, serviceDateStart, serviceDateEnd} : null;
-    }
-    return baseDate ? {serviceDateMode: 'single', serviceDate: baseDate, serviceDates: [baseDate]} : null;
+    const result = serviceDateResult();
+    return result.ok ? result.spec : null;
   }
 
   function bulkOperationDateListValues() {
@@ -465,20 +498,19 @@
     setMessage('');
   }
 
+  function bulkServiceDateResult() {
+    return adminUtils.dateSelectionResult({
+      mode: $('bulkServiceDateMode').value,
+      single: $('serviceDate').value,
+      dates: bulkOperationDateListValues(),
+      start: $('bulkServiceDateStart').value,
+      end: $('bulkServiceDateEnd').value,
+    });
+  }
+
   function collectBulkServiceDates() {
-    const mode = $('bulkServiceDateMode').value;
-    const baseDate = normalizedDate($('serviceDate').value);
-    if (mode === 'multiple') {
-      const serviceDates = bulkOperationDateListValues();
-      return serviceDates.length ? {serviceDateMode: mode, serviceDate: serviceDates[0], serviceDates} : null;
-    }
-    if (mode === 'range') {
-      const serviceDateStart = normalizedDate($('bulkServiceDateStart').value);
-      const serviceDateEnd = normalizedDate($('bulkServiceDateEnd').value);
-      return serviceDateStart && serviceDateEnd && serviceDateStart <= serviceDateEnd
-        ? {serviceDateMode: mode, serviceDate: serviceDateStart, serviceDateStart, serviceDateEnd} : null;
-    }
-    return baseDate ? {serviceDateMode: 'single', serviceDate: baseDate, serviceDates: [baseDate]} : null;
+    const result = bulkServiceDateResult();
+    return result.ok ? result.spec : null;
   }
 
   function renderTimeRows(schedule, changes) {
@@ -618,11 +650,12 @@
   }
 
   async function save(status) {
-    const payload = formPayload(status);
-    if (!collectServiceDates()) {
-      setMessage('運転日の指定が正しくありません。複数日はカンマ区切り、期間は開始日から終了日の順で入力してください。', 'error');
+    const dateResult = serviceDateResult();
+    if (!dateResult.ok) {
+      setMessage(dateResult.message, 'error');
       return;
     }
+    const payload = Object.assign(formPayload(status), dateResult.spec);
     if (!payload.title || !payload.trainNumber || !payload.serviceDate || !payload.operationKind || !payload.operationState) {
       setMessage('表題・列車番号・施行日・手配区分・活休区分は必須です。', 'error');
       return;
@@ -704,7 +737,11 @@
     $('pdfPreview').disabled = true;
     markDirty();
   });
-  $('pdfPreview').addEventListener('click', () => { if (currentNotice) window.open(`notice.html?id=${encodeURIComponent(currentNotice.id)}&print=1`, '_blank', 'noopener'); });
+  $('pdfPreview').addEventListener('click', () => {
+    if (!currentNotice) return;
+    const serviceDate = normalizedDate($('serviceDate').value) || currentNotice.serviceDate;
+    window.open(`notice.html?id=${encodeURIComponent(currentNotice.id)}&serviceDate=${encodeURIComponent(serviceDate)}&print=1`, '_blank', 'noopener');
+  });
   $('operationKind').addEventListener('change', syncKindAndState);
   $('serviceDateMode').addEventListener('change', () => {
     if ($('serviceDateMode').value === 'multiple' && !operationDateListValues().length) {

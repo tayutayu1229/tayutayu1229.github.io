@@ -3,7 +3,9 @@
   const API_ORIGIN = ['127.0.0.1', 'localhost'].includes(location.hostname)
     ? 'http://127.0.0.1:5119' : 'https://secure.tayunet-traininfo.com';
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-  const id = new URLSearchParams(location.search).get('id') || '';
+  const query = new URLSearchParams(location.search);
+  const id = query.get('id') || '';
+  const serviceDate = query.get('serviceDate') || '';
 
   function replaceMarkup(target, markup) {
     const range = document.createRange();
@@ -12,7 +14,9 @@
   }
 
   async function fetchNotice() {
-    const response = await fetch(new URL(`/public/api/operation-notices/${encodeURIComponent(id)}`, API_ORIGIN), {
+    const url = new URL(`/public/api/operation-notices/${encodeURIComponent(id)}`, API_ORIGIN);
+    if (serviceDate) url.searchParams.set('serviceDate', serviceDate);
+    const response = await fetch(url, {
       cache:'no-store', headers:{Accept:'application/json'},
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -50,7 +54,7 @@
   try {
     if (!id) throw new Error('通達IDがありません');
     render(await fetchNotice());
-    if (new URLSearchParams(location.search).get('print') === '1') setTimeout(() => window.print(), 400);
+    if (query.get('print') === '1') setTimeout(() => window.print(), 400);
   } catch (error) {
     replaceMarkup(document.getElementById('paper'), `<h1>運転活休通達</h1><p>読込に失敗しました: ${escapeHtml(error.message)}</p>`);
   }

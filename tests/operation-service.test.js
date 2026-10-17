@@ -13,6 +13,7 @@ const noticeJs = fs.readFileSync('operation-service/notice.js', 'utf8');
 const authGuard = fs.readFileSync('auth_guard.js', 'utf8');
 const periodHtml = fs.readFileSync('operation-service/diagram-periods.html', 'utf8');
 const guideHtml = fs.readFileSync('operation-service/guide.html', 'utf8');
+const adminUtils = require('../operation-service/admin-utils.js');
 
 assert.match(css, /--face:\s*#ece9d8/i, 'Windowsクラシック配色を使うこと');
 assert.match(css, /border-radius:\s*0\s*!important/, '角丸を全面禁止すること');
@@ -55,6 +56,9 @@ assert.match(adminJs, /operationState === 'unknown'[\s\S]*未入力状態は公�
 assert.match(adminJs, /title:\s*operate\s*\?[^:]+:\s*'運転休止'/, '一括運休の表題を運転休止とすること');
 assert.doesNotMatch(adminJs, /100列車まで/, '一括登録の件数を100列車に制限しないこと');
 assert.match(adminJs, /Promise\.all\(Array\.from\(\{length:\s*Math\.min\(4,\s*trains\.length\)\}/, '大量一括登録を4件並行で処理すること');
+assert.match(adminHtml, /id="bulkResultPanel"[\s\S]*id="bulkFailureRows"/, '一括処理の全失敗詳細を表示すること');
+assert.doesNotMatch(adminJs, /failed\.slice\(/, '失敗詳細を先頭数件に切り捨てないこと');
+assert.match(adminJs, /bulkOperationRunning[\s\S]*setBulkOperationRunning/, '一括処理中の二重実行と選択変更を防ぐこと');
 assert.match(adminJs, /function existingNoticeForTrain[\s\S]*scheduleKey === train\.scheduleKey[\s\S]*sameIntegratedTrain/, 'ダイヤ原簿の選択から登録済み活休を復元できること');
 assert.match(adminJs, /sameUniqueTrainNumber[\s\S]*catalog\.filter/, '旧統合データも列車番号が一意なら登録済み活休を復元すること');
 assert.match(adminJs, /if \(existing\) \{[\s\S]*editNotice\(existing, train\)/, '登録済み列車の選択時は新規入力ではなく編集表示すること');
@@ -74,5 +78,19 @@ assert.match(css, /\.summary-strip\s*\{[\s\S]*display:\s*flex[\s\S]*flex-wrap:\s
 assert.match(css, /\.summary-value\s*\{[\s\S]*min-width:\s*40px[\s\S]*text-align:\s*right[\s\S]*font-variant-numeric:\s*tabular-nums/, '集計値を固定幅の凹み欄にすること');
 assert.match(css, /body\s*\{[\s\S]*height:\s*100dvh[\s\S]*overflow:\s*hidden/, 'デスクトップ表示でページ全体をスクロールさせないこと');
 assert.doesNotMatch(css, /calc\(100vh\s*-/, '固定値を引く高さ計算を使わないこと');
+
+assert.equal(adminUtils.normalizeDate('2026/10/15'), '2026-10-15');
+assert.equal(adminUtils.normalizeDate('2026/02/29'), '', '存在しない日付を受け入れないこと');
+assert.equal(adminUtils.normalizeDate('2026/02/31'), '', '日の範囲外を受け入れないこと');
+assert.match(adminUtils.dateSelectionResult({mode:'single', single:'2026/02/31'}).message, /^単日/);
+assert.match(adminUtils.dateSelectionResult({mode:'multiple', dates:[]}).message, /日付追加/);
+assert.match(adminUtils.dateSelectionResult({mode:'range', start:'2026/10/18', end:'2026/10/17'}).message, /開始日が終了日以前/);
+assert.deepEqual(adminUtils.dateSelectionResult({mode:'multiple', dates:['2026/10/17', '2026/10/15']}).spec.serviceDates, ['2026-10-15', '2026-10-17']);
+const failures = Array.from({length: 7}, (_, index) => ({trainNumber: `9${index}`, reason: `失敗${index}`}));
+const bulkResult = adminUtils.bulkResultModel('一括運休', 2, failures, 9);
+assert.equal(bulkResult.failed.length, 7, '6件以上の失敗もすべて保持すること');
+assert.deepEqual(bulkResult.failed.map(item => item.trainNumber), failures.map(item => item.trainNumber));
+assert.match(publicJs, /notice\.html\?id=.*serviceDate=/, '公開側PDFに一覧の運転日を渡すこと');
+assert.match(noticeJs, /searchParams\.set\('serviceDate'/, '通達詳細も指定日の現行原簿を参照すること');
 
 console.log('operation service tests: ok');
