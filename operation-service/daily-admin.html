@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja" data-no-site-brand>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>運転活休情報システム 日別管理</title>
+  <link rel="stylesheet" href="styles.css?v=20261018-1"><link rel="stylesheet" href="daily.css?v=20261018-1">
+  <style>html[data-no-site-brand] .site-brand-link {display:none!important}</style>
+</head>
+<body>
+  <header class="app-titlebar"><h1>■ 運転活休情報システム［日別管理］</h1><span id="operatorName">認証確認中</span></header>
+  <nav class="menubar"><a href="index.html">公開一覧</a><a href="guide.html">ご利用案内</a><a href="admin.html">旧列車別管理・履歴</a></nav>
+  <main id="main-content" class="window-body" data-auth-display="flex" style="display:none">
+    <div class="toolbar">
+      <label>施行日 <input id="dayDate" class="date-input" placeholder="YYYY/MM/DD" maxlength="10"></label><button id="loadDay">日付を開く</button>
+      <button id="saveDay">日別下書き保存</button><button id="previewDay">PDFプレビュー</button><button id="publishDay" class="primary">この日全体を発表</button><button id="withdrawDay" class="danger">この日全体を取下げ</button>
+      <span id="dayIdentity">未読込</span>
+    </div>
+    <div id="dayMessage" class="message" role="status">行を編集して一覧へ反映 → 日別下書き保存 → 日全体を発表。下書きは公開側へ反映されません。</div>
+    <div class="daily-layout">
+      <div class="daily-common"><label for="commonRemarks">日別共通記事</label><textarea id="commonRemarks" maxlength="8000"></textarea></div>
+      <div class="toolbar">
+        <button id="selectAll">全選択</button><button id="selectNone">選択解除</button><label>選択列車の活休 <select id="bulkState"><option value="operate">運転</option><option value="suspend">運休</option><option value="changed">時刻変更</option><option value="prohibited">運転禁止</option><option value="unknown">未入力</option></select></label><button id="applyState">選択行へ反映</button>
+        <label>原簿種類 <select id="sourceDayType"><option value="">施行日から自動</option><option>平日</option><option>土休日</option></select></label><button id="loadCatalog">追加用原簿を読込</button>
+        <label>原簿検索 <input id="catalogQuery" type="search" placeholder="列番・駅・線区"></label>
+        <label>列車 <select id="catalogTrain" multiple size="3" style="max-width:260px" aria-label="追加する列車（複数選択可）"></select></label><button id="selectCatalogAll">候補を全選択</button><button id="addTrain">選択列車を一覧へ追加</button>
+      </div>
+      <div class="data-wrap"><table class="daily-grid" aria-label="その日の活休一覧">
+        <colgroup><col style="width:24px"><col style="width:36px"><col style="width:64px"><col style="width:95px"><col style="width:65px"><col style="width:90px"><col style="width:90px"><col style="width:75px"><col style="width:150px"><col></colgroup>
+        <thead><tr><th class="check">選</th><th>No.</th><th>区分</th><th>列車番号</th><th>種別</th><th>始発駅</th><th>終着駅</th><th>活休</th><th>適用区間</th><th>手配内容・備考</th></tr></thead><tbody id="dailyRows"></tbody>
+      </table></div>
+      <section class="daily-editor" id="rowEditor" hidden>
+        <strong id="editTrain"></strong>
+        <label>活休 <select id="editState"><option value="operate">運転</option><option value="suspend">運休</option><option value="changed">時刻変更</option><option value="prohibited">運転禁止</option><option value="unknown">未入力</option></select></label>
+        <label>適用区間 自 <input id="editStart" list="stationChoices" maxlength="80"></label><label>至 <input id="editEnd" list="stationChoices" maxlength="80"></label><datalist id="stationChoices"></datalist>
+        <label>備考 <textarea id="editRemarks" maxlength="4000"></textarea></label><label>禁止・制限 <textarea id="editRestriction" maxlength="1000"></textarea></label>
+        <button id="commitRow">編集を一覧へ反映</button><button id="cancelRow">行編集を閉じる</button>
+        <details><summary>詳細時刻表・時刻変更（変更する項目だけ編集）</summary><table><thead><tr><th>駅</th><th>着</th><th>発</th><th>番線</th><th>変更記事</th></tr></thead><tbody id="dailyTimeRows"></tbody></table></details>
+      </section>
+      <div class="toolbar">
+        <span>選択行を別の日の下書きにも反映：</span><select id="applyDateMode"><option value="single">単日</option><option value="multiple">複数日</option><option value="range">期間</option></select>
+        <label>日付／開始 <input id="applyDateStart" type="date"></label><label id="rangeEndLabel" hidden>終了 <input id="applyDateEnd" type="date"></label>
+        <button id="addApplyDate" hidden>日付追加</button><select id="applyDateList" multiple size="2" aria-label="反映する複数日" hidden></select><button id="removeApplyDate" hidden>選択日を削除</button>
+        <button id="applyDates">選択行を指定日へ保存（発表はしない）</button>
+      </div>
+    </div>
+  </main>
+  <footer class="statusbar"><span id="dailyStatus">認証確認中</span></footer>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="/T-time/firebase-data-auth.js"></script><script src="/auth_guard.js?v=2026.10.15.2"></script>
+  <script src="admin-utils.js?v=20261018-1"></script><script src="daily-utils.js?v=20261018-1"></script><script src="daily-admin.js?v=20261018-1"></script>
+  <script src="/assets/js/back-navigation.js" defer></script>
+</body>
+</html>
