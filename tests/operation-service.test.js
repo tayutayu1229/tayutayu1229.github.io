@@ -45,7 +45,7 @@ assert.match(adminHtml, /運転日指定[\s\S]*id="serviceDateMode"[\s\S]*id="op
 assert.match(adminHtml, /id="catalogSort"[\s\S]*線区順/, 'ダイヤ原簿を線区でソートできること');
 assert.match(adminHtml, /id="trainLine"/, '管理画面で線区絞り込みができること');
 assert.match(publicHtml, /id="lineFilter"/, '公開画面で線区絞り込みができること');
-assert.match(publicHtml, />発表件数</, '公開画面の件数表示は「発表件数」とすること');
+assert.match(publicHtml, />全件数</, '公開画面の件数表示は「全件数」とすること');
 assert.doesNotMatch(publicHtml, />公表件数</, '「公表件数」の旧表記を残さないこと');
 assert.match(publicHtml, /href="guide\.html">ご利用案内/, '公開画面から専用のご利用案内を開けること');
 assert.match(adminHtml, /href="guide\.html">ご利用案内/, '管理画面から専用のご利用案内を開けること');

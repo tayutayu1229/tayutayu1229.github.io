@@ -32,6 +32,26 @@ assert.match(preview, /if \(ready\) window\.print\(\)/);
 assert.match(preview, /下書きプレビュー・未発表/);
 assert.match(admin, /先に行の編集を一覧へ反映し/);
 assert.match(admin, /選択行を指定日|発表は行いません/);
+const sample = {trainNumber:'回8002', category:'planned_extra', trainType:'試験貨物', lines:['試験線'],
+  operationState:'suspend', scheduleSnapshot:{origin:'甲駅', destination:'乙駅', stops:[{station:'途中駅', departure:'09:00'}]}, remarks:'手配確認'};
+assert.equal(U.matches(sample, {query:'途中 駅', category:'planned_extra', line:'試験線', state:'suspend'}), true);
+for (const filters of [{query:'不存在'}, {category:'extra'}, {line:'別線'}, {state:'operate'}]) assert.equal(U.matches(sample, filters), false);
+assert.equal(U.matches(sample, {query:'手配確認'}), true);
+assert.equal(U.matches(sample, {query:'試験貨物'}), true);
+assert.equal(U.categoryFor('回 8002M'), 'planned_extra');
+assert.equal(U.categoryFor('9001'), 'extra');
+assert.equal(U.categoryFor('5091'), 'regular');
+assert.ok(U.compare({trainNumber:'10'}, {trainNumber:'2'}, 'number') > 0);
+assert.ok(U.compare(sample, {trainNumber:'1', stops:[{departure:'10:00'}]}, 'time') < 0);
+assert.ok(U.compare({trainNumber:'1'}, sample, 'time') > 0);
+assert.ok(U.compare({trainNumber:'1', lines:['A']}, {trainNumber:'2', lines:['B']}, 'line') < 0);
+const adminHtml = fs.readFileSync('operation-service/daily-admin.html', 'utf8');
+for (const id of ['newRow','duplicateRow','clearRow','editKind','editTitle','editNumber','editType','catalogCategory','catalogLine','catalogSort','dailyQuery','dailyState','dailyLine','dailySort','updatedAt']) assert.ok(adminHtml.includes(`id="${id}"`), id);
+assert.match(admin, /duplicate|複製元の保存済み内容/);
+assert.match(admin, /同じ列車番号は既に一覧にあります/);
+assert.match(admin, /if \(U.matches\(item, filters\('daily'\)\)\) selected.add\(index\)/);
+assert.match(fs.readFileSync('operation-service/index.html', 'utf8'), />全件数</);
+assert.match(fs.readFileSync('operation-service/public.js', 'utf8'), /最終更新/);
 
 // Run the real preview entry: fetching/rendering must not start printing.
 (async () => {

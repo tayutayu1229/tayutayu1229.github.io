@@ -34,5 +34,32 @@
       timeChanges: [], remarks: '', restriction: '', scheduleKey: train.scheduleKey,
       diagramPeriodId: train.diagramPeriod?.id || '', scheduleSnapshot: train, timetableDayType: sourceType};
   }
-  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain};
+  function matches(item, filters = {}) {
+    if (filters.category && item.category !== filters.category) return false;
+    if (filters.state && (item.operationState || 'unknown') !== filters.state) return false;
+    if (filters.line && !(item.lines || []).includes(filters.line)) return false;
+    const snapshot = item.scheduleSnapshot || item;
+    const text = [item.trainNumber, ...(item.trainNumbers || []), item.trainType, item.title,
+      item.sectionStart, item.sectionEnd, snapshot.origin, snapshot.destination, ...(item.lines || []),
+      ...(snapshot.stops || []).map(stop => stop.station), item.remarks, item.restriction].join('');
+    const normalized = value => String(value || '').toLowerCase().replace(/[\s　]/g, '');
+    return normalized(text).includes(normalized(filters.query));
+  }
+  function compare(left, right, order) {
+    const number = () => String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric:true});
+    if (order === 'line') return String(left.lines?.[0] || '').localeCompare(String(right.lines?.[0] || ''), 'ja') || number();
+    if (order === 'time') {
+      const time = item => {
+        const stops = (item.scheduleSnapshot || item).stops || [];
+        return stops[0]?.departure || stops[0]?.arrival || '99:99';
+      };
+      return time(left).localeCompare(time(right)) || number();
+    }
+    return number();
+  }
+  function categoryFor(number) {
+    const value = Number(String(number).match(/\d+/)?.[0] || -1);
+    return value >= 6000 && value <= 8999 ? 'planned_extra' : value >= 9000 && value <= 9999 ? 'extra' : 'regular';
+  }
+  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor};
 }));
