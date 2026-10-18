@@ -69,6 +69,8 @@ assert.doesNotMatch(adminHtml, /<details><summary>詳細時刻表/);
 assert.match(adminHtml, /class="data-grid time-edit-table daily-time-table"/);
 assert.match(css, /daily-time-table th \{ position:sticky; top:0/);
 assert.doesNotMatch(css, /max-height:35vh/);
+assert.match(css, /\.daily-admin-body \.daily-grid \{ min-width:760px; \}/);
+assert.match(adminHtml, /width:46px.*width:68px.*width:56px.*width:66px.*width:66px.*width:58px.*width:110px/);
 assert.match(admin, /if \(editorDirty\) commitEditor\(\)/);
 assert.match(admin, /\$\('saveRow'\)\.addEventListener\('click', \(\) => run\(saveDay\)\)/);
 
