@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>運転活休情報システム 日別管理</title>
-  <link rel="stylesheet" href="styles.css?v=20261018-1"><link rel="stylesheet" href="daily.css?v=20261018-2">
+  <link rel="stylesheet" href="styles.css?v=20261018-1"><link rel="stylesheet" href="daily.css?v=20261018-3">
   <style>html[data-no-site-brand] .site-brand-link {display:none!important}</style>
 </head>
 <body class="daily-admin-body">
@@ -16,6 +16,7 @@
       <span id="dayIdentity">未読込</span>
     </div>
     <div id="dayMessage" class="message" role="status">行を編集して一覧へ反映 → 日別下書き保存 → 日全体を発表。下書きは公開側へ反映されません。</div>
+    <div class="daily-workspace">
     <div class="daily-layout">
       <div class="daily-common"><label for="commonRemarks">日別共通記事</label><textarea id="commonRemarks" maxlength="8000"></textarea></div>
       <div class="toolbar">
@@ -41,17 +42,6 @@
         <colgroup><col style="width:24px"><col style="width:36px"><col style="width:64px"><col style="width:95px"><col style="width:65px"><col style="width:90px"><col style="width:90px"><col style="width:75px"><col style="width:150px"><col></colgroup>
         <thead><tr><th class="check">選</th><th>No.</th><th>区分</th><th>列車番号</th><th>種別</th><th>始発駅</th><th>終着駅</th><th>活休</th><th>適用区間</th><th>手配内容・備考</th></tr></thead><tbody id="dailyRows"></tbody>
       </table></div>
-      <section class="daily-editor" id="rowEditor" hidden>
-        <strong id="editTrain"></strong>
-        <label>表題 <input id="editTitle" maxlength="160"></label><label>列車番号 <input id="editNumber" maxlength="40"></label><label>種別 <input id="editType" maxlength="80"></label>
-        <label>手配区分 <select id="editKind"><option value="unconfirmed">未入力</option><option value="operation">全区間運転</option><option value="suspension">全区間運休</option><option value="partial">一部区間</option><option value="time_change">時刻変更</option><option value="prohibition">運転禁止</option><option value="other">その他</option></select></label>
-        <label>活休 <select id="editState"><option value="operate">運転</option><option value="suspend">運休</option><option value="changed">時刻変更</option><option value="prohibited">運転禁止</option><option value="unknown">未入力</option></select></label>
-        <label>適用区間 自 <input id="editStart" list="stationChoices" maxlength="80"></label><label>至 <input id="editEnd" list="stationChoices" maxlength="80"></label><datalist id="stationChoices"></datalist>
-        <label>始発駅 <input id="editOrigin" maxlength="80"></label><label>終着駅 <input id="editDestination" maxlength="80"></label><label>線区（読点区切り）<input id="editLines" maxlength="1000"></label>
-        <label>備考 <textarea id="editRemarks" maxlength="4000"></textarea></label><label>禁止・制限 <textarea id="editRestriction" maxlength="1000"></textarea></label>
-        <button id="commitRow">編集を一覧へ反映</button><button id="clearRow">活休未入力へ戻す</button><button id="duplicateRow">複製して新規</button><button id="cancelRow">行編集を閉じる</button><span id="rowDates"></span>
-        <details><summary>詳細時刻表・時刻変更（変更する項目だけ編集）</summary><table><thead><tr><th>駅</th><th>着</th><th>発</th><th>番線</th><th>変更記事</th></tr></thead><tbody id="dailyTimeRows"></tbody></table></details>
-      </section>
       <div class="toolbar">
         <span>選択行を別の日の下書きにも反映：</span><select id="applyDateMode"><option value="single">単日</option><option value="multiple">複数日</option><option value="range">期間</option></select>
         <label>日付／開始 <input id="applyDateStart" type="date"></label><label id="rangeEndLabel" hidden>終了 <input id="applyDateEnd" type="date"></label>
@@ -59,11 +49,41 @@
         <button id="applyDates">選択行を指定日へ保存（発表はしない）</button>
       </div>
     </div>
+      <section class="daily-editor panel" id="rowEditor" aria-label="活休情報・列車時刻表の編集" hidden>
+        <div class="panel-title"><strong id="editTrain"></strong><span>活休情報入力・編集</span></div>
+        <div class="daily-editor-fields">
+          <div class="daily-form-grid">
+            <label for="editTitle">表題</label><input id="editTitle" maxlength="160" class="span-3">
+            <label for="editNumber">列車番号</label><input id="editNumber" maxlength="40"><label for="editType">種別</label><input id="editType" maxlength="80">
+            <label for="editKind">手配区分</label><select id="editKind"><option value="unconfirmed">未入力</option><option value="operation">全区間運転</option><option value="suspension">全区間運休</option><option value="partial">一部区間</option><option value="time_change">時刻変更</option><option value="prohibition">運転禁止</option><option value="other">その他</option></select>
+            <label for="editState">活休</label><select id="editState"><option value="operate">運転</option><option value="suspend">運休</option><option value="changed">時刻変更</option><option value="prohibited">運転禁止</option><option value="unknown">未入力</option></select>
+            <label for="editStart">適用区間 自</label><input id="editStart" list="stationChoices" maxlength="80"><label for="editEnd">至</label><input id="editEnd" list="stationChoices" maxlength="80"><datalist id="stationChoices"></datalist>
+            <label for="editOrigin">始発駅</label><input id="editOrigin" maxlength="80"><label for="editDestination">終着駅</label><input id="editDestination" maxlength="80">
+            <label for="editLines">線区（読点区切り）</label><input id="editLines" maxlength="1000" class="span-3">
+            <label for="editRemarks">備考</label><textarea id="editRemarks" maxlength="4000" class="span-3"></textarea>
+            <label for="editRestriction">禁止・制限</label><textarea id="editRestriction" maxlength="1000" class="span-3"></textarea>
+          </div>
+          <div id="rowDates"></div>
+        </div>
+        <div class="daily-time-title">時刻変更・列車時刻表（変更するセルだけ上書き）</div>
+        <div class="daily-time-help">Tabで次の項目へ移動。黄色のセルは原簿からの変更箇所です。時刻変更の発表時は活休も「時刻変更」に設定してください。</div>
+        <div class="daily-time-wrap inset" id="dailyTimeWrap">
+          <table class="data-grid time-edit-table daily-time-table" aria-label="列車時刻表の編集">
+            <colgroup><col style="width:105px"><col style="width:82px"><col style="width:82px"><col style="width:70px"><col></colgroup>
+            <thead><tr><th>駅名</th><th>着</th><th>発</th><th>番線</th><th>変更記事</th></tr></thead><tbody id="dailyTimeRows"></tbody>
+          </table>
+        </div>
+        <div class="editor-actions daily-editor-actions">
+          <button id="saveRow" class="primary">編集を反映して下書き保存</button><button id="commitRow">編集を一覧へ反映</button>
+          <button id="clearRow">活休未入力へ戻す</button><button id="duplicateRow">複製して新規</button><button id="cancelRow">行編集を閉じる</button><span id="rowEditState">未変更</span>
+        </div>
+      </section>
+    </div>
   </main>
    <footer class="statusbar"><span id="dailyStatus">認証確認中</span><span id="updatedAt"></span></footer>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
   <script src="/T-time/firebase-data-auth.js"></script><script src="/auth_guard.js?v=2026.10.15.2"></script>
-  <script src="admin-utils.js?v=20261018-1"></script><script src="daily-utils.js?v=20261018-2"></script><script src="daily-admin.js?v=20261018-2"></script>
+  <script src="admin-utils.js?v=20261018-1"></script><script src="daily-utils.js?v=20261018-3"></script><script src="daily-admin.js?v=20261018-3"></script>
   <script src="/assets/js/back-navigation.js" defer></script>
 </body>
 </html>
