@@ -4,9 +4,9 @@
   const U = window.OperationDailyUtils;
   const D = window.OperationServiceAdminUtils;
   const origin = ['localhost', '127.0.0.1'].includes(location.hostname) ? 'http://127.0.0.1:5119' : 'https://secure.tayunet-traininfo.com';
-  let day = null, loadedDate = '', source = [], sourceType = '', dirty = false, editorDirty = false, editing = -1, busy = false, admin = false;
+  let day = null, loadedDate = '', source = [], sourceType = '', sourcePeriod = '', dirty = false, editorDirty = false, editing = -1, busy = false, admin = false, pendingRow = null;
   const selected = new Set();
-  const writeControls = ['saveDay', 'publishDay', 'withdrawDay', 'applyState', 'addTrain', 'commitRow', 'applyDates'];
+  const writeControls = ['saveDay', 'publishDay', 'withdrawDay', 'applyState', 'addTrain', 'commitRow', 'applyDates', 'newRow', 'duplicateRow', 'clearRow'];
   function markup(element, html) {
     const range = document.createRange(); range.selectNodeContents(element);
     element.replaceChildren(range.createContextualFragment(html));
@@ -17,6 +17,7 @@
   }
   function identity() {
     $('dayIdentity').textContent = day ? `${day.noticeNumber || '未採番'}／発表第${day.edition}版／下書き v${day.version}${dirty || editorDirty ? '（未保存）' : day.version !== day.publishedVersion ? '（未発表の下書き）' : ''}` : '未読込';
+    $('updatedAt').textContent = `最終更新 ${day?.updatedAt || '―'}`;
   }
   async function api(path, body) {
     const options = {cache:'no-store', credentials:'include', headers:{Accept:'application/json'}};
@@ -55,7 +56,7 @@
   function render() {
     const selectedNumbers = new Set([...selected].map(index => U.key(day.items[index])));
     const editedNumber = editing >= 0 ? U.key(day.items[editing]) : null;
-    day.items.sort((left, right) => U.key(left) < U.key(right) ? -1 : U.key(left) > U.key(right) ? 1 : 0);
+    day.items.sort((left, right) => U.compare(left, right, $('dailySort').value));
     selected.clear();
     day.items.forEach((item, index) => { if (selectedNumbers.has(U.key(item))) selected.add(index); });
     if (editedNumber) editing = day.items.findIndex(item => U.key(item) === editedNumber);
@@ -67,17 +68,48 @@
       row.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target === row) openEditor(index); });
       const check = row.querySelector('input');
       check.checked = selected.has(index);
-      check.addEventListener('change', () => { check.checked ? selected.add(index) : selected.delete(index); });
+      check.addEventListener('change', () => { check.checked ? selected.add(index) : selected.delete(index); filterRows(); });
     });
-    identity();
+    populateLines('dailyLine', day.items);
+    filterRows(); renderCatalog(); identity();
+  }
+  function populateLines(id, items) {
+    const previous = $(id).value;
+    const lines = [...new Set(items.flatMap(item => item.lines || []))].sort((a, b) => a.localeCompare(b, 'ja'));
+    markup($(id), '<option value="">すべて</option>' + lines.map(line => `<option value="${U.escapeHtml(line)}">${U.escapeHtml(line)}</option>`).join(''));
+    $(id).value = lines.includes(previous) ? previous : '';
+  }
+  function filters(prefix) {
+    return {query:$(prefix === 'catalog' ? 'catalogQuery' : 'dailyQuery').value,
+      category:$(prefix + 'Category').value, line:$(prefix + 'Line').value,
+      state:prefix === 'daily' ? $('dailyState').value : ''};
+  }
+  function filterRows() {
+    if (!day) return;
+    let visible = 0;
+    $('dailyRows').querySelectorAll('tr[data-index]').forEach(row => {
+      row.hidden = !U.matches(day.items[Number(row.dataset.index)], filters('daily'));
+      if (!row.hidden) visible++;
+    });
+    $('dailyMeta').textContent = `表示 ${visible}／全 ${day.items.length}件　選択 ${selected.size}件`;
   }
   function openEditor(index) {
     if (busy || (editorDirty && !confirm('一覧へ反映していない行編集を破棄しますか？'))) return;
-    editing = index; editorDirty = false;
-    const item = day.items[index];
+    editing = index; editorDirty = false; pendingRow = null;
+    fillEditor(day.items[index]);
+  }
+  function fillEditor(item) {
     $('rowEditor').hidden = false;
     $('editTrain').textContent = `${item.trainNumber}　${item.timetableDayType ? `${item.timetableDayType}原簿を指定` : '施行日の原簿'}`;
     $('editState').value = item.operationState || 'unknown';
+    $('editTitle').value = item.title || '日別活休';
+    $('editNumber').value = item.trainNumber || '';
+    $('editType').value = item.trainType || '';
+    $('editKind').value = item.operationKind || 'unconfirmed';
+    $('editOrigin').value = item.scheduleSnapshot?.origin || item.sectionStart || '';
+    $('editDestination').value = item.scheduleSnapshot?.destination || item.sectionEnd || '';
+    $('editLines').value = (item.lines || []).join('、');
+    $('rowDates').textContent = `作成日時 ${item.createdAt || '―'}　更新日時 ${item.updatedAt || '―'}`;
     $('editStart').value = item.sectionStart || '';
     $('editEnd').value = item.sectionEnd || '';
     $('editRemarks').value = item.remarks || '';
@@ -92,12 +124,24 @@
     identity();
   }
   function commitEditor() {
-    if (editing < 0) return;
-    const item = day.items[editing];
+    if (editing < 0 && !pendingRow) return;
+    const item = pendingRow || day.items[editing];
+    const number = $('editNumber').value.trim();
+    if (!number) throw new Error('列車番号を入力してください。');
+    if (day.items.some((other, index) => index !== editing && U.key(other) === U.key({trainNumber:number}))) throw new Error('同じ列車番号は既に一覧にあります。既存行を編集してください。');
     const start = $('editStart').value.trim(), end = $('editEnd').value.trim();
     if (!start || !end) throw new Error('適用区間の始点・終点を入力してください。');
     item.operationState = $('editState').value;
-    item.operationKind = U.kinds[item.operationState];
+    item.operationKind = $('editKind').value;
+    item.title = $('editTitle').value.trim() || '日別活休';
+    item.trainType = $('editType').value.trim();
+    if (U.key(item) !== U.key({trainNumber:number})) {
+      item.scheduleKey = ''; item.diagramPeriodId = ''; delete item.source; delete item.id; delete item.timetableWarning;
+    }
+    item.trainNumber = number; item.category = U.categoryFor(number);
+    item.lines = $('editLines').value.split(/[、,]/).map(line => line.trim()).filter(Boolean);
+    item.scheduleSnapshot = {...item.scheduleSnapshot, trainNumber:number, trainType:item.trainType,
+      origin:$('editOrigin').value.trim(), destination:$('editDestination').value.trim(), lines:item.lines};
     item.sectionStart = start; item.sectionEnd = end;
     item.remarks = $('editRemarks').value; item.restriction = $('editRestriction').value;
     item.timeChanges = [...$('dailyTimeRows').querySelectorAll('tr[data-stop]')].map(row => {
@@ -109,29 +153,40 @@
       });
       return changed ? values : null;
     }).filter(Boolean);
-    dirty = true; editorDirty = false; editing = -1; $('rowEditor').hidden = true; render();
+    if (pendingRow) day.items.push(item);
+    pendingRow = null; dirty = true; editorDirty = false; editing = -1; $('rowEditor').hidden = true; render();
   }
   async function loadCatalog() {
     requireDay();
     const requestedType = $('sourceDayType').value;
     const params = new URLSearchParams({serviceDate:loadedDate});
     if (requestedType) params.set('dayType', requestedType);
+    const requestedPeriod = $('sourcePeriod').value;
+    if (requestedPeriod) params.set('diagramPeriodId', requestedPeriod);
     const result = await api(`/api/operation-service/catalog?${params}`);
-    source = result.items || []; sourceType = requestedType;
+    source = result.items || []; sourceType = requestedType; sourcePeriod = requestedPeriod;
+    const periods = result.availableDiagramPeriods || [];
+    markup($('sourcePeriod'), '<option value="">日付から自動選択</option>' + periods.map(period => `<option value="${U.escapeHtml(period.id)}">${U.escapeHtml(period.name)}${period.active ? '（適用中）' : '（切替期間）'}</option>`).join(''));
+    $('sourcePeriod').value = periods.some(period => period.id === requestedPeriod) ? requestedPeriod : '';
+    sourcePeriod = $('sourcePeriod').value;
+    populateLines('catalogLine', source);
+    $('periodText').textContent = result.diagramPeriod?.name || result.diagramPeriod?.id || '';
     renderCatalog();
   }
   function renderCatalog() {
-    const query = $('catalogQuery').value.toLowerCase().replace(/[\s　]/g, '');
-    markup($('catalogTrain'), source.map((train, index) => ({train, index})).filter(({train}) => !query ||
-      [train.trainNumber, train.origin, train.destination, ...(train.lines || [])].join(' ').toLowerCase().replace(/[\s　]/g, '').includes(query)
-    ).map(({train, index}) => `<option value="${index}">${U.escapeHtml(train.trainNumber)}　${U.escapeHtml(train.origin)}～${U.escapeHtml(train.destination)}</option>`).join(''));
+    const candidates = source.map((train, index) => ({train, index})).filter(({train}) => U.matches(train, filters('catalog')))
+      .sort((a, b) => U.compare(a.train, b.train, $('catalogSort').value));
+    const existing = new Map((day?.items || []).map(item => [U.key(item), item.operationState]));
+    markup($('catalogTrain'), candidates.map(({train, index}) => `<option value="${index}">${U.escapeHtml(train.trainNumber)}　${U.escapeHtml(U.categories[train.category] || '')}　${U.escapeHtml(train.trainType)}　${U.escapeHtml(train.origin)}～${U.escapeHtml(train.destination)}　${U.escapeHtml((train.lines || []).join('・'))}　${U.states[existing.get(U.key(train))] || '未登録'}</option>`).join(''));
+    $('catalogMeta').textContent = `候補 ${candidates.length}／原簿 ${source.length}列車`;
   }
   async function loadDay(discard = true) {
     if (discard && (dirty || editorDirty) && !confirm('未保存の変更を破棄して、日付を開き直しますか？')) return;
     const date = D.normalizeDate($('dayDate').value);
     if (!date) throw new Error('施行日を正しいYYYY/MM/DD形式で入力してください。');
     const result = await api(`/api/operation-service/daily?serviceDate=${date}`);
-    day = result; loadedDate = date; dirty = false; editorDirty = false; editing = -1; selected.clear();
+    day = result; loadedDate = date; dirty = false; editorDirty = false; editing = -1; pendingRow = null; selected.clear();
+    source = []; sourceType = ''; sourcePeriod = '';
     $('rowEditor').hidden = true; $('commonRemarks').value = day.commonRemarks;
     $('applyDateStart').value = date; $('applyDateEnd').value = date;
     $('applyDateList').replaceChildren();
@@ -144,20 +199,45 @@
     const result = await api('/api/operation-service/daily/save', {serviceDate:loadedDate, version:day.version,
       commonRemarks:$('commonRemarks').value, items:day.items});
     day.version = result.version; day.commonRemarks = $('commonRemarks').value; dirty = false;
+    await refreshTimestamp();
     message('日別下書きを保存しました。公開側はまだ変更していません。');
+  }
+  async function refreshTimestamp() {
+    day.updatedAt = '';
+    try {
+      const audit = await api(`/api/operation-service/daily/audit?serviceDate=${loadedDate}`);
+      day.updatedAt = audit.items.find(item => item.version === day.version)?.occurredAt || '';
+    }
+    catch (_) { /* The write already succeeded; a failed metadata read must not suggest otherwise. */ }
   }
   $('loadDay').addEventListener('click', () => run(() => loadDay()));
   $('loadCatalog').addEventListener('click', () => run(loadCatalog));
   $('catalogQuery').addEventListener('input', renderCatalog);
+  for (const id of ['catalogCategory', 'catalogLine', 'catalogSort']) $(id).addEventListener('change', renderCatalog);
+  for (const id of ['dailyQuery', 'dailyCategory', 'dailyState', 'dailyLine']) $(id).addEventListener(id === 'dailyQuery' ? 'input' : 'change', filterRows);
+  $('dailySort').addEventListener('change', () => { if (day) render(); });
+  $('editState').addEventListener('change', () => { $('editKind').value = U.kinds[$('editState').value]; });
+  function newEditor(copy) {
+    requireDay();
+    if (editorDirty && !confirm('行の未反映の編集を破棄しますか？')) return;
+    pendingRow = copy ? JSON.parse(JSON.stringify(copy)) : U.fromTrain({trainNumber:'', trainType:'', origin:'', destination:'', stops:[]});
+    if (copy) { pendingRow.trainNumber = ''; pendingRow.scheduleKey = ''; pendingRow.diagramPeriodId = ''; delete pendingRow.source; delete pendingRow.id; delete pendingRow.createdAt; delete pendingRow.updatedAt; }
+    editing = -1; editorDirty = true; fillEditor(pendingRow); $('editNumber').focus();
+    message(copy ? '複製元の保存済み内容をコピーしました。別の列車番号を入力してください。時刻表もコピーされるため、確認・修正してください。' : '原簿にない列車も入力できます。列車番号と区間を入力してください。');
+  }
+  $('newRow').addEventListener('click', () => run(async () => newEditor()));
+  $('duplicateRow').addEventListener('click', () => run(async () => newEditor(pendingRow || day.items[editing])));
+  $('clearRow').addEventListener('click', () => { if (!admin || busy) return; $('editState').value = 'unknown'; $('editKind').value = 'unconfirmed'; editorDirty = true; identity(); });
   $('selectCatalogAll').addEventListener('click', () => [...$('catalogTrain').options].forEach(option => { option.selected = true; }));
+  $('clearCatalogSelection').addEventListener('click', () => [...$('catalogTrain').options].forEach(option => { option.selected = false; }));
   $('saveDay').addEventListener('click', () => run(saveDay));
   $('commonRemarks').addEventListener('input', () => { dirty = true; identity(); });
   $('rowEditor').addEventListener('input', () => { editorDirty = true; identity(); });
   $('commitRow').addEventListener('click', () => run(async () => { requireDay(); commitEditor(); }));
   $('cancelRow').addEventListener('click', () => {
-    if (!editorDirty || confirm('行の未反映の編集を破棄しますか？')) { editing = -1; editorDirty = false; $('rowEditor').hidden = true; identity(); }
+    if (!editorDirty || confirm('行の未反映の編集を破棄しますか？')) { editing = -1; pendingRow = null; editorDirty = false; $('rowEditor').hidden = true; identity(); }
   });
-  $('selectAll').addEventListener('click', () => { if (!day) return; day.items.forEach((_, index) => selected.add(index)); render(); });
+  $('selectAll').addEventListener('click', () => { if (!day) return; day.items.forEach((item, index) => { if (U.matches(item, filters('daily'))) selected.add(index); }); render(); });
   $('selectNone').addEventListener('click', () => { selected.clear(); if (day) render(); });
   $('applyState').addEventListener('click', () => run(async () => {
     requireDay();
@@ -172,7 +252,7 @@
   }));
   $('addTrain').addEventListener('click', () => run(async () => {
     requireDay();
-    if ($('sourceDayType').value !== sourceType) throw new Error('原簿種類を変更した場合は、追加用原簿を読み込み直してください。');
+    if ($('sourceDayType').value !== sourceType || $('sourcePeriod').value !== sourcePeriod) throw new Error('原簿種類・改正を変更した場合は、追加用原簿を読み込み直してください。');
     const trains = [...$('catalogTrain').selectedOptions].map(option => source[Number(option.value)]).filter(Boolean);
     if (!trains.length) throw new Error('追加する列車を選んでください。');
     const existing = new Set(day.items.map(U.key));
@@ -197,7 +277,7 @@
       if (!confirm(`${loadedDate}の一覧全体を${action === 'publish' ? '発表' : '取下げ'}します。よろしいですか？`)) return;
       const result = await api('/api/operation-service/daily/publish', {serviceDate:loadedDate, version:day.version, action});
       day.version = result.version; day.publishedVersion = result.version; day.edition = result.edition;
-      day.noticeNumber = result.noticeNumber; day.publishedStatus = result.status;
+      day.noticeNumber = result.noticeNumber; day.publishedStatus = result.status; day.updatedAt = result.publishedAt;
       message(`${result.noticeNumber} 第${result.edition}版を${action === 'publish' ? '発表' : '取下げ'}しました。`);
     }));
   }
@@ -235,7 +315,7 @@
     $('dailyStatus').textContent = `保存中：${selected.size}列車 × ${dates.length}日。全対象をまとめて確定しています…`;
     const result = await api('/api/operation-service/daily/apply', {...spec, versions, items:[...selected].map(index => day.items[index])});
     const current = result.items.find(item => item.serviceDate === loadedDate);
-    if (current) day.version = current.version;
+    if (current) { day.version = current.version; await refreshTimestamp(); }
     message(`${result.items.length}日分の下書きへ保存しました。各日を開いて確認し、日別に発表してください。`);
   }));
   window.addEventListener('beforeunload', event => { if (dirty || editorDirty) { event.preventDefault(); event.returnValue = ''; } });

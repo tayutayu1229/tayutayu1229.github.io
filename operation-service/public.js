@@ -212,7 +212,7 @@
       latestChange = payload.latestChange || null;
       if (latestChange) {
         $('changeSummary').className = 'message';
-        $('changeSummary').textContent = `最新更新 ${latestChange.occurredAt}　追加 ${latestChange.addedCount}件／削除 ${latestChange.removedCount}件／変更 ${latestChange.changedCount}件${latestChange.commonRemarksChanged ? '／共通記事の変更あり' : ''}`;
+        $('changeSummary').textContent = `最終更新 ${latestChange.occurredAt}　追加 ${latestChange.addedCount}件／削除 ${latestChange.removedCount}件／変更 ${latestChange.changedCount}件${latestChange.commonRemarksChanged ? '／共通記事の変更あり' : ''}`;
       } else {
         $('changeSummary').className = 'message';
         $('changeSummary').textContent = '更新差分　追加 0件／削除 0件／変更 0件（ダイヤ原簿の予定臨は活休未判定として自動表示）';
