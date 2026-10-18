@@ -51,12 +51,6 @@
     loadNotices();
   }
 
-  function firstDeparture(item) {
-    const stops = item.scheduleSnapshot?.stops || [];
-    const stop = stops.find(value => value.departure && value.departure !== '=') || stops.find(value => value.arrival);
-    return stop?.departure && stop.departure !== '=' ? stop.departure.slice(0, 5) : (stop?.arrival || '―').slice(0, 5);
-  }
-
   function populatePeriodChoices(payload) {
     const choices = payload.availableDiagramPeriods || [];
     const previous = $('diagramPeriod').value;
@@ -107,7 +101,7 @@
     const unknownCount = notices.filter(item => item.operationState === 'unknown').length;
     $('dailyHeading').textContent = `${displayDate(serviceDate)}　運転列車 ${rows.length}件${unknownCount ? `（未判定 ${unknownCount}件）` : ''}`;
     if (!rows.length) {
-      replaceMarkup($('noticeRows'), '<tr><td colspan="12" class="empty-cell">該当する列車情報はありません。</td></tr>');
+      replaceMarkup($('noticeRows'), '<tr><td colspan="11" class="empty-cell">該当する列車情報はありません。</td></tr>');
       selectedId = '';
       renderDetail(null);
       return;
@@ -118,8 +112,8 @@
         <td class="category-${escapeHtml(item.category)}">${escapeHtml(categoryLabels[item.category] || item.category)}</td>
         <td>${escapeHtml(displayDate(item.serviceDate))}</td><td>${escapeHtml((item.lines || []).join('・') || '―')}</td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.trainType || '―')}</td>
-        <td>${escapeHtml(item.sectionStart || item.scheduleSnapshot?.origin || '―')}</td><td>${escapeHtml(firstDeparture(item))}</td>
-        <td title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</td><td>${escapeHtml(item.sectionEnd || item.scheduleSnapshot?.destination || '―')}</td>
+        <td>${escapeHtml(item.sectionStart || item.scheduleSnapshot?.origin || '―')}</td><td>${escapeHtml(item.sectionEnd || item.scheduleSnapshot?.destination || '―')}</td>
+        <td title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</td>
         <td title="${escapeHtml(item.remarks || '')}">${escapeHtml(item.remarks || '―')}</td><td>${escapeHtml(item.updatedAt || '未登録')}</td>
       </tr>`).join(''));
     $('noticeRows').querySelectorAll('tr[data-id]').forEach(row => {
