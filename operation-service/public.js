@@ -9,6 +9,7 @@
   let notices = [];
   let latestChange = null;
   let selectedId = '';
+  let dailyNotice = null;
 
   function tokyoToday() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
@@ -147,7 +148,9 @@
         <td>${timeCell(stop.arrival, change.arrival)}</td><td>${timeCell(stop.departure, change.departure)}</td>
         <td>${timeCell(stop.trackN, change.trackN)}</td></tr>`;
     }).join('');
-    const pdfLink = item.source === 'timetable' ? '' : ` <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}&serviceDate=${encodeURIComponent(item.serviceDate)}">PDF出力</a>`;
+    const pdfLink = dailyNotice
+      ? ` <a class="button" target="_blank" rel="noopener" href="daily-notice.html?serviceDate=${encodeURIComponent(item.serviceDate)}">日別一覧PDFプレビュー</a>`
+      : item.source === 'timetable' ? '' : ` <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}&serviceDate=${encodeURIComponent(item.serviceDate)}">PDF出力</a>`;
     replaceMarkup($('detail'), `
       <div class="detail-header"><div><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span> ${escapeHtml(categoryLabels[item.category] || '')}</div><h2>${escapeHtml(item.title)}</h2></div>
       <dl class="detail-meta">
@@ -198,12 +201,18 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       notices = Array.isArray(payload.items) ? payload.items : [];
+      dailyNotice = payload.dailyNotice || null;
+      $('diagramPeriod').disabled = Boolean(dailyNotice);
+      $('dailyPdfLink').href = `daily-notice.html?serviceDate=${encodeURIComponent(serviceDate)}`;
+      $('dailyNoticeMeta').className = dailyNotice ? 'message' : 'message hidden';
+      $('dailyNoticeMeta').textContent = dailyNotice
+        ? `${dailyNotice.noticeNumber}　第${dailyNotice.edition}版${dailyNotice.status === 'withdrawn' ? '（取下げ済み）' : ''}${dailyNotice.commonRemarks ? `　${dailyNotice.commonRemarks}` : ''}` : '';
       populateLineChoices();
       populatePeriodChoices(payload);
       latestChange = payload.latestChange || null;
       if (latestChange) {
         $('changeSummary').className = 'message';
-        $('changeSummary').textContent = `最新更新 ${latestChange.occurredAt}　追加 ${latestChange.addedCount}件／削除 ${latestChange.removedCount}件／変更 ${latestChange.changedCount}件`;
+        $('changeSummary').textContent = `最新更新 ${latestChange.occurredAt}　追加 ${latestChange.addedCount}件／削除 ${latestChange.removedCount}件／変更 ${latestChange.changedCount}件${latestChange.commonRemarksChanged ? '／共通記事の変更あり' : ''}`;
       } else {
         $('changeSummary').className = 'message';
         $('changeSummary').textContent = '更新差分　追加 0件／削除 0件／変更 0件（ダイヤ原簿の予定臨は活休未判定として自動表示）';
@@ -216,6 +225,8 @@
       history.replaceState(null, '', `?date=${encodeURIComponent(serviceDate)}`);
     } catch (error) {
       notices = [];
+      dailyNotice = null;
+      $('dailyNoticeMeta').className = 'message hidden';
       renderList();
       setMessage('公開情報を取得できませんでした。時間をおいて再度お試しください。', 'error');
       $('statusText').textContent = `読込失敗: ${error.message}`;

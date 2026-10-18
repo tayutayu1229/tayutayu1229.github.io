@@ -87,7 +87,9 @@
     }
     const payload = (response.headers.get('content-type') || '').includes('application/json') ? await response.json() : {};
     if (!response.ok) {
-      const error = new Error(payload.error || `HTTP ${response.status}`);
+      const error = new Error(payload.error === 'daily_management_required'
+        ? 'この日は日別管理へ移行済みです。メニューの「日別通達管理（新方式）」から編集してください。'
+        : payload.error || `HTTP ${response.status}`);
       error.status = response.status;
       error.code = payload.error;
       throw error;
