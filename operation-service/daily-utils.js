@@ -61,5 +61,19 @@
     const value = Number(String(number).match(/\d+/)?.[0] || -1);
     return value >= 6000 && value <= 8999 ? 'planned_extra' : value >= 9000 && value <= 9999 ? 'extra' : 'regular';
   }
-  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor};
+  function timeRowsMarkup(stops, changes = []) {
+    if (!stops.length) return '<tr><td colspan="5" class="empty-cell">列車時刻表はありません。</td></tr>';
+    const normalized = station => String(station).replace(/[\s　]/g, '');
+    const byStation = new Map(changes.map(change => [normalized(change.station), change]));
+    const labels = {arrival:'着', departure:'発', trackN:'番線', note:'変更記事'};
+    return stops.map((stop, index) => {
+      const change = byStation.get(normalized(stop.station)) || {};
+      return `<tr data-stop="${index}"><td>${escapeHtml(stop.station)}</td>${Object.keys(labels).map(field => {
+        const original = String(field === 'note' ? '' : stop[field] ?? '');
+        const value = String(change[field] ?? original);
+        return `<td><input data-field="${field}" value="${escapeHtml(value)}" data-original="${escapeHtml(original)}" class="${value.trim() !== original ? 'time-modified' : ''}" aria-label="${escapeHtml(stop.station)} ${labels[field]}" title="原簿：${escapeHtml(original || '空欄')}" maxlength="${field === 'note' ? 200 : field === 'trackN' ? 40 : 12}"></td>`;
+      }).join('')}</tr>`;
+    }).join('');
+  }
+  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor, timeRowsMarkup};
 }));

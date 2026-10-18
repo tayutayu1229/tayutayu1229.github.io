@@ -52,6 +52,25 @@ assert.match(admin, /同じ列車番号は既に一覧にあります/);
 assert.match(admin, /if \(U.matches\(item, filters\('daily'\)\)\) selected.add\(index\)/);
 assert.match(fs.readFileSync('operation-service/index.html', 'utf8'), />全件数</);
 assert.match(fs.readFileSync('operation-service/public.js', 'utf8'), /最終更新/);
+const timeHtml = U.timeRowsMarkup([
+  {station:'甲<&駅', arrival:'', departure:'10:00:00', trackN:'1'},
+  {station:'乙駅', arrival:'11:00:00', departure:'=', trackN:'2'},
+], [{station:'甲<&駅', departure:'10:05:00', note:'<script>変更</script>'}, {station:'乙駅', arrival:''}]);
+assert.equal((timeHtml.match(/<tr /g) || []).length, 2);
+assert.equal((timeHtml.match(/<input /g) || []).length, 8);
+assert.equal((timeHtml.match(/class="time-modified"/g) || []).length, 3);
+assert.match(timeHtml, /aria-label="甲&lt;&amp;駅 発"/);
+assert.match(timeHtml, /value="10:05:00" data-original="10:00:00"/);
+assert.match(timeHtml, /value="" data-original="11:00:00" class="time-modified"/);
+assert.doesNotMatch(timeHtml, /<script>/);
+assert.match(U.timeRowsMarkup([]), /列車時刻表はありません/);
+assert.match(adminHtml, /id="saveRow"/);
+assert.doesNotMatch(adminHtml, /<details><summary>詳細時刻表/);
+assert.match(adminHtml, /class="data-grid time-edit-table daily-time-table"/);
+assert.match(css, /daily-time-table th \{ position:sticky; top:0/);
+assert.doesNotMatch(css, /max-height:35vh/);
+assert.match(admin, /if \(editorDirty\) commitEditor\(\)/);
+assert.match(admin, /\$\('saveRow'\)\.addEventListener\('click', \(\) => run\(saveDay\)\)/);
 
 // Run the real preview entry: fetching/rendering must not start printing.
 (async () => {
