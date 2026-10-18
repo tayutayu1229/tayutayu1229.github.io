@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const css = fs.readFileSync('operation-service/styles.css', 'utf8');
 const publicHtml = fs.readFileSync('operation-service/index.html', 'utf8');
@@ -25,7 +26,12 @@ for (const html of [publicHtml, adminHtml, noticeHtml, periodHtml, guideHtml]) {
   assert.match(html, /back-navigation\.js/, '共通の戻る導線を読み込むこと');
 }
 assert.match(publicHtml, /id="viewMode"[\s\S]*線区毎[\s\S]*運転のみ[\s\S]*運休のみ/, '公開一覧の指定表示を備えること');
-assert.match(publicHtml, /運転日[\s\S]*線区[\s\S]*運転時刻[\s\S]*備考[\s\S]*更新日時/, '公開一覧に業務上必要な列を備えること');
+assert.match(publicHtml, /運転日[\s\S]*線区[\s\S]*始発駅[\s\S]*終着駅[\s\S]*備考[\s\S]*更新日時/, '公開一覧に業務上必要な列を備えること');
+const publicTable = publicHtml.match(/<table[^>]*public-notice-grid[\s\S]*?<\/table>/)[0];
+const publicHeaders = [...publicTable.matchAll(/<th>(.*?)<\/th>/g)].map(match => match[1]);
+assert.deepEqual(publicHeaders, ['活休', '区分', '運転日', '線区', '列車番号', '列車種別', '始発駅', '終着駅', '表題', '備考', '更新日時']);
+assert.equal([...publicTable.matchAll(/<col\s/g)].length, publicHeaders.length, '列幅の定義を見出しの列数と揃えること');
+assert.match(publicTable, /colspan="11"/, '読込中の表示は11列分にすること');
 assert.match(publicHtml, /id="diagramPeriod"/, '公開画面でも切替期間の改正を選べること');
 assert.match(publicJs, /latestChange[\s\S]*addedCount[\s\S]*removedCount[\s\S]*changedCount/, '公開差分を表示すること');
 assert.match(publicJs, /plannedHistory/, '予定臨の列車別履歴を表示すること');
@@ -92,5 +98,40 @@ assert.equal(bulkResult.failed.length, 7, '6件以上の失敗もすべて保持
 assert.deepEqual(bulkResult.failed.map(item => item.trainNumber), failures.map(item => item.trainNumber));
 assert.match(publicJs, /notice\.html\?id=.*serviceDate=/, '公開側PDFに一覧の運転日を渡すこと');
 assert.match(noticeJs, /searchParams\.set\('serviceDate'/, '通達詳細も指定日の現行原簿を参照すること');
+
+// Exercise the actual list renderer without fetching or modifying production data.
+const publicNodes = new Map();
+function publicNode(id) {
+  if (!publicNodes.has(id)) publicNodes.set(id, {
+    value: '', textContent: '', markup: '', classList: {toggle() {}},
+    addEventListener() {}, querySelectorAll() { return []; },
+    replaceChildren(markup) { this.markup = markup; },
+  });
+  return publicNodes.get(id);
+}
+const publicContext = {
+  document: {
+    getElementById: publicNode,
+    createRange: () => ({selectNodeContents() {}, createContextualFragment: markup => markup}),
+  },
+  location: {hostname: 'localhost', search: '?date=2026-10-18'},
+  URLSearchParams, Intl, Date,
+};
+const rendererSource = publicJs.replace(/  loadNotices\(\);\s*\}\)\(\);\s*$/, `  globalThis.renderTestList = items => { notices = items; renderList(); };
+})();`);
+assert.notEqual(rendererSource, publicJs, 'テスト時だけ初期API読込を一覧描画の入口に置き換えること');
+vm.runInNewContext(rendererSource, publicContext);
+publicContext.renderTestList([{
+  id: 'test', trainNumber: '5091', trainType: '貨物', category: 'regular', operationState: 'suspend',
+  serviceDate: '2026-10-18', sectionStart: '新鶴見', sectionEnd: '真鶴', title: '運転休止',
+  lines: ['東海道'], scheduleSnapshot: {stops: [{station: '新鶴見', departure: '02:44:00'}]},
+}]);
+const publicCells = [...publicNode('noticeRows').markup.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(match => match[1]);
+assert.equal(publicCells.length, publicHeaders.length, 'データ行と見出しの列数を揃えること');
+assert.deepEqual(publicCells.slice(6, 9), ['新鶴見', '真鶴', '運転休止'], '始発駅・終着駅を隣接させ、表題はその後に表示すること');
+assert.doesNotMatch(publicNode('noticeRows').markup, /02:44/, '一覧には運転時刻を表示しないこと');
+assert.match(publicNode('detail').markup, /02:44:00/, '詳細の列車時刻表は残すこと');
+publicContext.renderTestList([]);
+assert.match(publicNode('noticeRows').markup, /colspan="11"/, '該当なしの表示も11列分にすること');
 
 console.log('operation service tests: ok');
