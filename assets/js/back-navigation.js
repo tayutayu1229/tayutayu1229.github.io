@@ -3,7 +3,7 @@
 
   const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
   const rootPages = new Set(['/', '/index.html', '/toppage.html']);
-  if (rootPages.has(currentPath) || document.querySelector('[data-site-back-navigation]')) return;
+  if (rootPages.has(currentPath) || document.querySelector('[data-no-site-back-navigation], [data-site-back-navigation]')) return;
 
   const returnWords = /戻る|トップ(?:ページ|メニュー)?へ|メインメニュー|管理ホーム|ポータル(?:トップ)?へ|ゲームメニューへ/i;
   const hasExistingReturn = [...document.querySelectorAll('a, button, [role="button"]')].some((control) => {
