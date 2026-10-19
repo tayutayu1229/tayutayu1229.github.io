@@ -15,6 +15,10 @@ const authGuard = fs.readFileSync('auth_guard.js', 'utf8');
 const periodHtml = fs.readFileSync('operation-service/diagram-periods.html', 'utf8');
 const guideHtml = fs.readFileSync('operation-service/guide.html', 'utf8');
 const adminUtils = require('../operation-service/admin-utils.js');
+const topHtml = fs.readFileSync('toppage.html', 'utf8');
+assert.match(topHtml, /data-name="運転活休情報システム 公開 一覧 通達" onclick="location.href='operation-service\/index.html'"/);
+assert.match(topHtml, /運転活休情報一覧/);
+assert.doesNotMatch(topHtml, /onclick="location.href='operation-service\/admin.html'"/);
 
 assert.match(css, /--face:\s*#ece9d8/i, 'Windowsクラシック配色を使うこと');
 assert.match(css, /border-radius:\s*0\s*!important/, '角丸を全面禁止すること');
