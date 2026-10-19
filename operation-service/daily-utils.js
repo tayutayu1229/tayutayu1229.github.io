@@ -17,7 +17,7 @@
   function layers(item) {
     const state = item.operationState || 'unknown';
     return {base:['operate','suspend','unknown'].includes(item.baseActivity) ? item.baseActivity : ['changed','prohibited'].includes(state) ? 'operate' : state,
-      timeChanged:Boolean((item.timeChanged ?? (state === 'changed')) || item.timeChanges?.length),
+      timeChanged:item.timeChanged ?? (state === 'changed'),
       prohibited:item.prohibited ?? state === 'prohibited', sections:item.sectionOverrides || []};
   }
   function withBase(item, base) {
@@ -61,9 +61,7 @@
   function sectionNotes(item) {
     const sections = layers(item).sections;
     if (!sections.length) return '';
-    const resolved = resolvedSections(item);
-    return ['区間指定（後の指定を優先）', ...sections.map((s, i) => `${i + 1}. ${s.start}～${s.end} ${states[s.state]}${s.remarks ? `：${s.remarks}` : ''}`),
-      resolved ? `適用結果：${resolved.map(s => `${s.start}～${s.end} ${states[s.state]}`).join('、')}` : '原簿で区間順を確定できません。上記の区間指定を確認してください。'].join('\n');
+    return sections.map(s => `${s.start}～${s.end} ${states[s.state]}${s.remarks ? `：${s.remarks}` : ''}`).join('\n');
   }
   function parseNumbers(text) {
     return [...new Set(String(text || '').normalize('NFKC').split(/[\s,、;；]+/).map(value => value.trim()).filter(Boolean))];
@@ -80,7 +78,8 @@
   }
   function rowsMarkup(items, selectable = false) {
     return items.map((item, index) => {
-      let state = Object.hasOwn(states, item.operationState) ? item.operationState : 'unknown';
+      let state = withBase(item, layers(item).base).operationState;
+      if (!Object.hasOwn(states, state)) state = 'unknown';
       if (layers(item).sections.length) {
         const result = resolvedSections(item);
         state = result?.every(section => section.state === 'prohibited') ? 'prohibited' : result?.every(section => section.state === 'suspend') ? 'suspend' : 'operate';
@@ -90,10 +89,11 @@
       const timeSource = new Map((snapshot.stops || []).map(stop => [String(stop.station).replace(/[\s　]/g, ''), stop]));
       const changes = (item.timeChanges || []).map(change => {
         const original = timeSource.get(String(change.station).replace(/[\s　]/g, '')) || {};
-        return [change.station, ...Object.entries({arrival:'着', departure:'発', trackN:'番線'}).map(([field, label]) =>
-          Object.hasOwn(change, field) && String(change[field]) !== String(original[field] ?? '') ? `${label} ${change[field] || '（空欄）'}` : ''), change.note || ''].filter(Boolean).join(' ');
+        const values = [...Object.entries({arrival:'着', departure:'発', trackN:'番線'}).map(([field, label]) =>
+          Object.hasOwn(change, field) && change[field] && String(change[field]) !== String(original[field] ?? '') ? `${label} ${change[field]}` : ''), change.note || ''].filter(Boolean);
+        return values.length ? [change.station, ...values].join(' ') : '';
       });
-      const notes = [arrangementNotes(item), item.restriction, cleanRemarks(item.remarks), ...changes, source, item.timetableWarning].filter(Boolean).join('\n');
+      const notes = [arrangementNotes(item), item.restriction, cleanRemarks(item.remarks), ...changes, source].filter(Boolean).join('\n');
       return `<tr class="state-${state}" data-index="${index}"><td class="check">${selectable
         ? `<input type="checkbox" aria-label="${escapeHtml(item.trainNumber)}を選択" data-select="${index}">` : '□'}</td>
         <td>${index + 1}</td><td>${escapeHtml(categories[item.category] || '定期等')}</td>
@@ -157,7 +157,7 @@
       return `<tr data-stop="${index}"><td>${escapeHtml(stop.station)}</td>${Object.keys(labels).map(field => {
         const original = String(field === 'note' ? '' : stop[field] ?? '');
         const value = String(change[field] ?? original);
-        return `<td><input data-field="${field}" value="${escapeHtml(value)}" data-original="${escapeHtml(original)}" class="${value.trim() !== original ? 'time-modified' : ''}" aria-label="${escapeHtml(stop.station)} ${labels[field]}" title="原簿：${escapeHtml(original || '空欄')}" maxlength="${field === 'note' ? 200 : field === 'trackN' ? 40 : 12}"></td>`;
+        return `<td><input data-field="${field}" value="${escapeHtml(value)}" data-original="${escapeHtml(original)}" class="${value.trim() !== original ? 'time-modified' : ''}" aria-label="${escapeHtml(stop.station)} ${labels[field]}" title="${original ? `原簿：${escapeHtml(original)}` : ''}" maxlength="${field === 'note' ? 200 : field === 'trackN' ? 40 : 12}"></td>`;
       }).join('')}</tr>`;
     }).join('');
   }
