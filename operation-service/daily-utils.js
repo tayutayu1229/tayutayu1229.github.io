@@ -9,21 +9,97 @@
   const kinds = {operate: 'operation', suspend: 'suspension', changed: 'time_change', prohibited: 'prohibition', unknown: 'unconfirmed'};
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
   const key = item => String(item.trainNumber || '').toLowerCase().replace(/[\s　]/g, '').replace('列車', '');
+  function cleanRemarks(text) {
+    const value = String(text || '');
+    const cleaned = value.replace(/ダイヤ原簿設定あり[（(]活休未判定[）)]|管理画面の一括(?:運転|運休)で登録/g, '');
+    return cleaned === value ? value : cleaned.split(/\r?\n/).filter(line => line.trim()).join('\n').trim();
+  }
+  function layers(item) {
+    const state = item.operationState || 'unknown';
+    return {base:['operate','suspend','unknown'].includes(item.baseActivity) ? item.baseActivity : ['changed','prohibited'].includes(state) ? 'operate' : state,
+      timeChanged:Boolean((item.timeChanged ?? (state === 'changed')) || item.timeChanges?.length),
+      prohibited:item.prohibited ?? state === 'prohibited', sections:item.sectionOverrides || []};
+  }
+  function withBase(item, base) {
+    const value = layers(item);
+    return {...item, baseActivity:base, timeChanged:value.timeChanged, prohibited:value.prohibited,
+      operationState:value.prohibited ? 'prohibited' : base === 'suspend' ? 'suspend' : base === 'operate' && value.timeChanged ? 'changed' : base};
+  }
+  function resolvedSections(item) {
+    const value = layers(item), normalize = text => String(text || '').replace(/[\s　]/g, '');
+    const stops = item.scheduleSnapshot?.stops || [];
+    const names = stops.map(stop => normalize(stop.station));
+    if (!value.sections.length || stops.length < 2 || new Set(names).size !== names.length) return null;
+    const first = names.indexOf(normalize(item.sectionStart || item.scheduleSnapshot?.origin || stops[0].station));
+    const last = names.indexOf(normalize(item.sectionEnd || item.scheduleSnapshot?.destination || stops[stops.length - 1].station));
+    if (first < 0 || last <= first) return null;
+    const legs = Array(stops.length - 1).fill('unknown');
+    for (let i = first; i < last; i++) legs[i] = value.prohibited ? 'prohibited' : value.base;
+    for (const section of value.sections) {
+      const start = names.indexOf(normalize(section.start)), end = names.indexOf(normalize(section.end));
+      if (start < 0 || end <= start) return null;
+      for (let i = start; i < end; i++) legs[i] = section.state;
+    }
+    const result = [];
+    legs.forEach((state, i) => {
+      if (result.length && result[result.length - 1].state === state) result[result.length - 1].end = stops[i + 1].station;
+      else result.push({start:stops[i].station, end:stops[i + 1].station, state});
+    });
+    return result;
+  }
+  function activityMatches(item, state) {
+    const value = layers(item), resolved = resolvedSections(item);
+    if (state === 'changed') return value.timeChanged;
+    if (state === 'prohibited') return value.prohibited || (resolved || value.sections).some(section => section.state === state);
+    if (state === 'unknown') return value.base === 'unknown';
+    return resolved ? resolved.some(section => section.state === state) : value.base === state || value.sections.some(section => section.state === state);
+  }
+  function statusText(item) {
+    const value = layers(item);
+    return value.prohibited ? '運転禁止' : states[value.base] || '未入力';
+  }
+  function sectionNotes(item) {
+    const sections = layers(item).sections;
+    if (!sections.length) return '';
+    const resolved = resolvedSections(item);
+    return ['区間指定（後の指定を優先）', ...sections.map((s, i) => `${i + 1}. ${s.start}～${s.end} ${states[s.state]}${s.remarks ? `：${s.remarks}` : ''}`),
+      resolved ? `適用結果：${resolved.map(s => `${s.start}～${s.end} ${states[s.state]}`).join('、')}` : '原簿で区間順を確定できません。上記の区間指定を確認してください。'].join('\n');
+  }
+  function parseNumbers(text) {
+    return [...new Set(String(text || '').normalize('NFKC').split(/[\s,、;；]+/).map(value => value.trim()).filter(Boolean))];
+  }
+  function arrangementNotes(item) {
+    const value = layers(item);
+    return [value.timeChanged ? '時刻変更あり' : '', value.prohibited ? '運転禁止' : '', sectionNotes(item)].filter(Boolean).join('\n');
+  }
+  function sectionRowMarkup(section = {}) {
+    return `<td><input data-section-field="start" list="stationChoices" maxlength="80" aria-label="区間の始点" value="${escapeHtml(section.start)}"></td>
+      <td><input data-section-field="end" list="stationChoices" maxlength="80" aria-label="区間の終点" value="${escapeHtml(section.end)}"></td>
+      <td><select data-section-field="state" aria-label="区間の活休">${['suspend','operate','prohibited'].map(state => `<option value="${state}"${state === (section.state || 'suspend') ? ' selected' : ''}>${states[state]}</option>`).join('')}</select></td>
+      <td><input data-section-field="remarks" maxlength="1000" aria-label="区間の記事" value="${escapeHtml(section.remarks)}"></td><td><button type="button">削除</button></td>`;
+  }
   function rowsMarkup(items, selectable = false) {
     return items.map((item, index) => {
-      const state = Object.hasOwn(states, item.operationState) ? item.operationState : 'unknown';
+      let state = Object.hasOwn(states, item.operationState) ? item.operationState : 'unknown';
+      if (layers(item).sections.length) {
+        const result = resolvedSections(item);
+        state = result?.every(section => section.state === 'prohibited') ? 'prohibited' : result?.every(section => section.state === 'suspend') ? 'suspend' : 'operate';
+      }
       const snapshot = item.scheduleSnapshot || {};
       const source = item.timetableDayType ? `原簿：${item.timetableDayType}指定` : '';
-      const changes = (item.timeChanges || []).map(change => [change.station,
-        change.arrival ? `着 ${change.arrival}` : '', change.departure ? `発 ${change.departure}` : '',
-        change.trackN ? `番線 ${change.trackN}` : '', change.note || ''].filter(Boolean).join(' '));
-      const notes = [item.restriction, item.remarks, ...changes, source, item.timetableWarning].filter(Boolean).join('\n');
+      const timeSource = new Map((snapshot.stops || []).map(stop => [String(stop.station).replace(/[\s　]/g, ''), stop]));
+      const changes = (item.timeChanges || []).map(change => {
+        const original = timeSource.get(String(change.station).replace(/[\s　]/g, '')) || {};
+        return [change.station, ...Object.entries({arrival:'着', departure:'発', trackN:'番線'}).map(([field, label]) =>
+          Object.hasOwn(change, field) && String(change[field]) !== String(original[field] ?? '') ? `${label} ${change[field] || '（空欄）'}` : ''), change.note || ''].filter(Boolean).join(' ');
+      });
+      const notes = [arrangementNotes(item), item.restriction, cleanRemarks(item.remarks), ...changes, source, item.timetableWarning].filter(Boolean).join('\n');
       return `<tr class="state-${state}" data-index="${index}"><td class="check">${selectable
         ? `<input type="checkbox" aria-label="${escapeHtml(item.trainNumber)}を選択" data-select="${index}">` : '□'}</td>
         <td>${index + 1}</td><td>${escapeHtml(categories[item.category] || '定期等')}</td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.trainType || '―')}</td>
         <td>${escapeHtml(snapshot.origin || item.sectionStart || '―')}</td><td>${escapeHtml(snapshot.destination || item.sectionEnd || '―')}</td>
-        <td>${states[state]}</td><td>${escapeHtml([item.sectionStart || '―', item.sectionEnd || '―'].join('～'))}</td>
+        <td>${escapeHtml(statusText(item))}</td><td>${escapeHtml([item.sectionStart || '―', item.sectionEnd || '―'].join('～'))}</td>
         <td class="daily-remarks">${escapeHtml(notes)}</td></tr>`;
     }).join('');
   }
@@ -36,22 +112,32 @@
   }
   function matches(item, filters = {}) {
     if (filters.category && item.category !== filters.category) return false;
-    if (filters.state && (item.operationState || 'unknown') !== filters.state) return false;
+    if (filters.state && !activityMatches(item, filters.state)) return false;
     if (filters.line && !(item.lines || []).includes(filters.line)) return false;
     const snapshot = item.scheduleSnapshot || item;
     const text = [item.trainNumber, ...(item.trainNumbers || []), item.trainType, item.title,
       item.sectionStart, item.sectionEnd, snapshot.origin, snapshot.destination, ...(item.lines || []),
-      ...(snapshot.stops || []).map(stop => stop.station), item.remarks, item.restriction].join('');
+      ...(snapshot.stops || []).map(stop => stop.station), item.remarks, item.restriction, arrangementNotes(item)].join('');
     const normalized = value => String(value || '').toLowerCase().replace(/[\s　]/g, '');
     return normalized(text).includes(normalized(filters.query));
   }
   function compare(left, right, order) {
     const number = () => String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric:true});
     if (order === 'line') return String(left.lines?.[0] || '').localeCompare(String(right.lines?.[0] || ''), 'ja') || number();
+    if (order === 'category') {
+      const rank = item => ({planned_extra:0, extra:1, regular:2}[item.category] ?? 2);
+      return rank(left) - rank(right) || number();
+    }
+    if (order === 'activity') {
+      const rank = item => layers(item).prohibited ? 2 : {operate:0, suspend:1, unknown:3}[layers(item).base] ?? 3;
+      return rank(left) - rank(right) || number();
+    }
     if (order === 'time') {
       const time = item => {
         const stops = (item.scheduleSnapshot || item).stops || [];
-        return stops[0]?.departure || stops[0]?.arrival || '99:99';
+        const first = stops[0];
+        const change = (item.timeChanges || []).find(value => String(value.station).replace(/[\s　]/g, '') === String(first?.station).replace(/[\s　]/g, '')) || {};
+        return (change.departure ?? first?.departure) || (change.arrival ?? first?.arrival) || '99:99';
       };
       return time(left).localeCompare(time(right)) || number();
     }
@@ -75,5 +161,6 @@
       }).join('')}</tr>`;
     }).join('');
   }
-  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor, timeRowsMarkup};
+  return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor, timeRowsMarkup,
+    layers, withBase, activityMatches, statusText, sectionNotes, arrangementNotes, resolvedSections, parseNumbers, sectionRowMarkup, cleanRemarks};
 }));

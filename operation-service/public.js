@@ -5,6 +5,7 @@
     ? 'http://127.0.0.1:5119' : 'https://secure.tayunet-traininfo.com';
   const categoryLabels = {planned_extra: '予定臨', extra: '臨時列車', regular: '定期・その他'};
   const stateLabels = {operate: '運転', suspend: '運休', changed: '時刻変更', prohibited: '運転禁止', unknown: '未判定'};
+  const U = window.OperationDailyUtils;
   const $ = id => document.getElementById(id);
   let notices = [];
   let latestChange = null;
@@ -67,14 +68,14 @@
     const query = $('query').value.trim().toLowerCase().replace(/[\s　]/g, '');
     const mode = $('viewMode').value;
     const result = notices.filter(item => {
-      if (mode === 'operate' && item.operationState !== 'operate') return false;
-      if (mode === 'suspend' && item.operationState !== 'suspend') return false;
+      if (mode === 'operate' && !U.activityMatches(item, 'operate')) return false;
+      if (mode === 'suspend' && !U.activityMatches(item, 'suspend')) return false;
       if (category && item.category !== category) return false;
-      if (state && item.operationState !== state) return false;
+      if (state && !U.activityMatches(item, state)) return false;
       if (line && !(item.lines || []).includes(line)) return false;
       if (!query) return true;
       const haystack = [item.trainNumber, item.trainType, item.title, item.sectionStart, item.sectionEnd,
-        ...(item.lines || []), item.remarks, item.restriction].join('|').toLowerCase().replace(/[\s　]/g, '');
+        ...(item.lines || []), item.remarks, item.restriction, U.arrangementNotes(item)].join('|').toLowerCase().replace(/[\s　]/g, '');
       return haystack.includes(query);
     });
     if (mode === 'line') result.sort((left, right) => String(left.lines?.[0] || '').localeCompare(String(right.lines?.[0] || ''), 'ja') || String(left.trainNumber).localeCompare(String(right.trainNumber), 'ja', {numeric:true}));
@@ -93,10 +94,10 @@
     $('listCount').textContent = `${rows.length}件`;
     $('totalCount').textContent = notices.length;
     ['operate', 'suspend', 'changed', 'prohibited'].forEach(state => {
-      $(`${state}Count`).textContent = notices.filter(item => item.operationState === state).length;
+      $(`${state}Count`).textContent = notices.filter(item => U.activityMatches(item, state)).length;
     });
     ['suspend', 'prohibited'].forEach(state => {
-      $(`${state}Count`).classList.toggle('has-alert', notices.some(item => item.operationState === state));
+      $(`${state}Count`).classList.toggle('has-alert', notices.some(item => U.activityMatches(item, state)));
     });
     const serviceDate = normalizedDate($('serviceDate').value);
     const unknownCount = notices.filter(item => item.operationState === 'unknown').length;
@@ -109,13 +110,13 @@
     }
     replaceMarkup($('noticeRows'), rows.map(item => `
       <tr data-id="${escapeHtml(item.id)}" class="${item.id === selectedId ? 'selected' : ''}" tabindex="0">
-        <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span></td>
+        <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(U.statusText(item))}</span></td>
         <td class="category-${escapeHtml(item.category)}">${escapeHtml(categoryLabels[item.category] || item.category)}</td>
         <td>${escapeHtml(displayDate(item.serviceDate))}</td><td>${escapeHtml((item.lines || []).join('・') || '―')}</td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.trainType || '―')}</td>
         <td>${escapeHtml(item.sectionStart || item.scheduleSnapshot?.origin || '―')}</td><td>${escapeHtml(item.sectionEnd || item.scheduleSnapshot?.destination || '―')}</td>
         <td title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</td>
-        <td title="${escapeHtml(item.remarks || '')}">${escapeHtml(item.remarks || '―')}</td><td>${escapeHtml(item.updatedAt || '未登録')}</td>
+        <td title="${escapeHtml([U.arrangementNotes(item), item.remarks].filter(Boolean).join('\n'))}">${escapeHtml([U.arrangementNotes(item), item.remarks].filter(Boolean).join('\n') || '―')}</td><td>${escapeHtml(item.updatedAt || '未登録')}</td>
       </tr>`).join(''));
     $('noticeRows').querySelectorAll('tr[data-id]').forEach(row => {
       const select = () => { selectedId = row.dataset.id; renderList(); renderDetail(notices.find(item => item.id === selectedId)); };
@@ -127,8 +128,8 @@
   }
 
   function timeCell(original, changed) {
-    if (!changed || changed === original) return escapeHtml(original || '―');
-    return `<span class="changed-time">${escapeHtml(changed)}</span>${original ? `<br><span class="original-time">${escapeHtml(original)}</span>` : ''}`;
+    if (changed === undefined || changed === original) return escapeHtml(original || '―');
+    return `<span class="changed-time">${escapeHtml(changed || '（空欄）')}</span>${original ? `<br><span class="original-time">${escapeHtml(original)}</span>` : ''}`;
   }
 
   function renderDetail(item) {
@@ -152,7 +153,7 @@
       ? ` <a class="button" target="_blank" rel="noopener" href="daily-notice.html?serviceDate=${encodeURIComponent(item.serviceDate)}">日別一覧PDFプレビュー</a>`
       : item.source === 'timetable' ? '' : ` <a class="button" target="_blank" rel="noopener" href="notice.html?id=${encodeURIComponent(item.id)}&serviceDate=${encodeURIComponent(item.serviceDate)}">PDF出力</a>`;
     replaceMarkup($('detail'), `
-      <div class="detail-header"><div><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span> ${escapeHtml(categoryLabels[item.category] || '')}</div><h2>${escapeHtml(item.title)}</h2></div>
+      <div class="detail-header"><div><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(U.statusText(item))}</span> ${escapeHtml(categoryLabels[item.category] || '')}</div><h2>${escapeHtml(item.title)}</h2></div>
       <dl class="detail-meta">
         <dt>通達番号</dt><dd>${escapeHtml(item.noticeNumber || '未発行')} ${pdfLink}</dd><dt>運転日</dt><dd>${escapeHtml(displayDate(item.serviceDate))}</dd><dt>列車</dt><dd>${escapeHtml(item.trainType || '')} ${escapeHtml(item.trainNumber)}</dd>
         <dt>区間</dt><dd>${escapeHtml(item.sectionStart || '―')} ～ ${escapeHtml(item.sectionEnd || '―')}</dd>
@@ -160,6 +161,7 @@
       </dl>
       ${item.restriction ? `<div class="notice-text"><strong>運転上の制限・禁止事項</strong>\n${escapeHtml(item.restriction)}</div>` : ''}
       ${item.remarks ? `<div class="notice-text"><strong>記事</strong>\n${escapeHtml(item.remarks)}</div>` : ''}
+      ${U.arrangementNotes(item) ? `<div class="notice-text"><strong>時刻変更・区間ごとの活休</strong>\n${escapeHtml(U.arrangementNotes(item))}</div>` : ''}
       <div class="panel-title"><span>列車時刻表</span><span>${stops.length}駅</span></div>
       <div class="data-wrap inset"><table class="data-grid"><colgroup><col style="width:135px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>
         <thead><tr><th>駅名</th><th>着</th><th>発</th><th>番線</th></tr></thead>
@@ -179,7 +181,7 @@
       const payload = await response.json();
       if (!$('plannedHistory') || selectedId !== item.id) return;
       const history = (payload.items || []).sort((a,b) => String(b.serviceDate).localeCompare(String(a.serviceDate)));
-      replaceMarkup($('plannedHistory'), history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(serviceDatesText(entry))}</td><td>${escapeHtml(stateLabels[entry.operationState] || entry.operationState)}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml(entry.remarks || '')}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。');
+      replaceMarkup($('plannedHistory'), history.length ? `<table class="data-grid"><thead><tr><th>運転日</th><th>活休</th><th>区間</th><th>備考</th></tr></thead><tbody>${history.map(entry => `<tr><td>${escapeHtml(serviceDatesText(entry))}</td><td>${escapeHtml(U.statusText(entry))}</td><td>${escapeHtml(entry.sectionStart || '―')}～${escapeHtml(entry.sectionEnd || '―')}</td><td>${escapeHtml([U.arrangementNotes(entry), entry.remarks].filter(Boolean).join('\n'))}</td></tr>`).join('')}</tbody></table>` : '履歴はありません。');
     } catch (error) { if ($('plannedHistory')) $('plannedHistory').textContent = `履歴を取得できませんでした: ${error.message}`; }
   }
 
@@ -215,7 +217,7 @@
         $('changeSummary').textContent = `最終更新 ${latestChange.occurredAt}　追加 ${latestChange.addedCount}件／削除 ${latestChange.removedCount}件／変更 ${latestChange.changedCount}件${latestChange.commonRemarksChanged ? '／共通記事の変更あり' : ''}`;
       } else {
         $('changeSummary').className = 'message';
-        $('changeSummary').textContent = '更新差分　追加 0件／削除 0件／変更 0件（ダイヤ原簿の予定臨は活休未判定として自動表示）';
+        $('changeSummary').textContent = '更新差分　追加 0件／削除 0件／変更 0件';
       }
       selectedId = notices.some(item => item.id === selectedId) ? selectedId : '';
       renderList();

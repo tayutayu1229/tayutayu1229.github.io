@@ -5,18 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>運転活休情報システム 管理</title>
   <link rel="stylesheet" href="styles.css?v=20261018-1">
+  <link rel="stylesheet" href="daily.css?v=20261019-2">
   <link rel="icon" href="/favicon.ico">
   <style>html[data-no-site-brand] .site-brand-link { display:none !important; }</style>
 </head>
-<body>
+<body class="train-admin-body" data-no-site-back-navigation>
   <header class="app-titlebar">
-    <h1><span class="system-mark">■</span>運転活休情報システム［旧列車別管理・履歴］</h1>
+    <h1><span class="system-mark">■</span>運転活休情報システム［列車別入力・日別共有］</h1>
     <span id="operatorName">認証確認中</span>
   </header>
   <nav class="menubar" aria-label="メニュー">
     <a href="/toppage.html">システム一覧へ</a><a href="daily-admin.html">日別通達管理（新方式）</a><a href="index.html">公開閲覧画面</a><a href="guide.html">ご利用案内</a><a href="diagram-periods.html">ダイヤ改正マスタ</a><a href="#" id="newNoticeMenu">新規作成</a>
   </nav>
   <div class="toolbar">
+    <label>管理対象 <select id="managementWorkflow"><option value="daily">日別共有データ（現在の方式）</option><option value="legacy">旧列車別通達・履歴（旧方式）</option></select></label>
     <label>原簿表示日 <input type="text" id="serviceDate" class="date-input" inputmode="numeric" maxlength="10" placeholder="YYYY/MM/DD"></label>
     <label>曜日
       <select id="dayType"><option value="">自動判定</option><option value="平日">平日</option><option value="土休日">土休日</option></select>
@@ -56,6 +58,7 @@
   </div>
 
   <main id="main-content" class="window-body" data-auth-display="flex" style="display:none">
+    <div id="dailySaveExplanation" class="message">この画面でも日別管理と同じデータを編集できます。保存で対象日全体の公開一覧・PDFも更新します。時刻変更・区間指定は備考に表示されます。</div>
     <div id="message" class="message hidden" role="status"></div>
     <section id="bulkResultPanel" class="panel bulk-result-panel hidden" aria-live="polite">
       <div class="panel-title"><span>一括処理結果</span><span id="bulkResultState">待機中</span></div>
@@ -82,6 +85,7 @@
               <tbody id="catalogRows"><tr><td colspan="8" class="empty-cell">施行日を指定してダイヤを読み込んでください。</td></tr></tbody>
             </table>
           </div>
+
         </section>
         <section class="panel">
           <div class="panel-title"><span>登録済み活休情報</span><span id="noticeMeta">0件</span></div>
@@ -131,6 +135,17 @@
             <label>更新日時</label><span id="updatedAtDisplay" class="readout">―</span>
           </div>
 
+          <fieldset id="dailyLayerControls" class="group-box">
+            <legend>日別共有：時刻変更・区間ごとの活休（運転／運休と併用）</legend>
+            <label><input id="dailyTimeChanged" type="checkbox">時刻変更あり</label>
+            <label><input id="dailyProhibited" type="checkbox">運転禁止</label>
+            <details id="dailySectionDetails"><summary>区間ごとの設定（必要な場合）</summary>
+              <button id="addDailySection" type="button">区間指定を追加</button>
+              <p>同じ区間は後の指定を優先します。補足は活休欄ではなく備考へ表示します。</p>
+              <datalist id="stationChoices"></datalist>
+              <table class="daily-section-table"><thead><tr><th>自</th><th>至</th><th>活休</th><th>記事</th><th>削除</th></tr></thead><tbody id="dailySectionRows"></tbody></table>
+            </details>
+          </fieldset>
           <fieldset class="group-box">
             <legend>時刻変更・列車時刻表（変更するセルだけ上書き）</legend>
             <div class="data-wrap inset time-table-wrap">
@@ -162,7 +177,8 @@
   <script src="/T-time/firebase-data-auth.js"></script>
   <script src="/auth_guard.js?v=2026.10.15.2"></script>
   <script src="admin-utils.js?v=20261018-1"></script>
-  <script src="admin.js?v=20261018-2"></script>
-  <script src="/assets/js/back-navigation.js" defer></script>
+  <script src="daily-utils.js?v=20261019-2"></script>
+  <script src="admin.js?v=20261019-2"></script>
+  <script src="/assets/js/back-navigation.js?v=20261019-1" defer></script>
 </body>
 </html>

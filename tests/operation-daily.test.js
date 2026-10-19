@@ -30,8 +30,8 @@ assert.match(css, /size:A4 landscape/);
 assert.doesNotMatch(preview, /setTimeout|print=1/);
 assert.match(preview, /if \(ready\) window\.print\(\)/);
 assert.match(preview, /下書きプレビュー・未発表/);
-assert.match(admin, /先に行の編集を一覧へ反映し/);
-assert.match(admin, /選択行を指定日|発表は行いません/);
+assert.match(admin, /daily\/commit/);
+assert.match(admin, /daily\/apply-publish/);
 const sample = {trainNumber:'回8002', category:'planned_extra', trainType:'試験貨物', lines:['試験線'],
   operationState:'suspend', scheduleSnapshot:{origin:'甲駅', destination:'乙駅', stops:[{station:'途中駅', departure:'09:00'}]}, remarks:'手配確認'};
 assert.equal(U.matches(sample, {query:'途中 駅', category:'planned_extra', line:'試験線', state:'suspend'}), true);
@@ -73,27 +73,65 @@ assert.match(css, /\.daily-admin-body \.daily-grid \{ min-width:760px; \}/);
 assert.match(adminHtml, /width:46px.*width:68px.*width:56px.*width:66px.*width:66px.*width:58px.*width:110px/);
 assert.match(admin, /if \(editorDirty\) commitEditor\(\)/);
 assert.match(admin, /\$\('saveRow'\)\.addEventListener\('click', \(\) => run\(saveDay\)\)/);
+assert.doesNotMatch(adminHtml, /id="publishDay"/);
+for (const id of ['numberOperate','numberSuspend','bulkOperate','bulkSuspend','editTimeChanged','editProhibited','sectionRows','applyMode']) assert.ok(adminHtml.includes(`id="${id}"`), id);
+assert.deepEqual(U.parseNumbers('８００１,8002\n8001、回8003M'), ['8001','8002','回8003M']);
+const layered = {trainNumber:'8001', operationState:'changed', timeChanges:[{station:'乙', departure:'11:05'}],
+  scheduleSnapshot:{stops:['甲','乙','丙','丁'].map(station => ({station}))},
+  sectionOverrides:[{start:'乙', end:'丁', state:'suspend'}, {start:'丙', end:'丁', state:'operate'}]};
+const suspended = U.withBase(layered, 'suspend');
+assert.equal(suspended.timeChanged, true);
+assert.equal(suspended.operationState, 'suspend');
+assert.equal(suspended.timeChanges, layered.timeChanges);
+assert.equal(suspended.sectionOverrides, layered.sectionOverrides);
+assert.deepEqual(U.resolvedSections(layered), [{start:'甲', end:'乙', state:'operate'}, {start:'乙', end:'丙', state:'suspend'}, {start:'丙', end:'丁', state:'operate'}]);
+assert.equal(U.activityMatches(layered, 'operate'), true);
+assert.equal(U.activityMatches(layered, 'suspend'), true);
+assert.equal(U.activityMatches(suspended, 'changed'), true);
+assert.equal(U.statusText(suspended), '運休');
+assert.match(U.arrangementNotes(suspended), /時刻変更あり/);
+assert.doesNotMatch(U.statusText(layered), /区間指定|時刻変更/);
+assert.match(U.sectionNotes(layered), /適用結果：甲～乙 運転、乙～丙 運休、丙～丁 運転/);
+assert.doesNotMatch(U.rowsMarkup([suspended]), /state-suspend/); // Mixed sections must not get a full cancellation line.
+assert.equal(U.layers({operationState:'changed', timeChanged:false}).timeChanged, false);
+assert.equal(U.resolvedSections({...layered, sectionOverrides:[{start:'原簿外', end:'丁', state:'suspend'}]}), null);
+assert.match(U.sectionNotes({...layered, sectionOverrides:[{start:'<script>', end:'丁', state:'suspend'}]}), /区間順を確定できません/);
+assert.doesNotMatch(U.rowsMarkup([{...layered, sectionOverrides:[{start:'<script>', end:'丁', state:'suspend'}]}]), /<script>/);
+assert.equal(U.cleanRemarks('手入力\n管理画面の一括運休で登録\n残す記事'), '手入力\n残す記事');
+assert.equal(U.cleanRemarks('ダイヤ原簿設定あり（活休未判定）'), '');
+assert.equal(U.cleanRemarks('管理画面の一括運転で登録'), '');
+assert.equal(U.cleanRemarks('  手入力\n\n記事  '), '  手入力\n\n記事  ');
+assert.doesNotMatch(U.rowsMarkup([{trainNumber:'1', remarks:'ダイヤ原簿設定あり（活休未判定）'}]), /ダイヤ原簿設定あり/);
+assert.ok(U.compare({trainNumber:'1', category:'planned_extra'}, {trainNumber:'2', category:'regular'}, 'category') < 0);
+assert.ok(U.compare({operationState:'operate'}, {operationState:'suspend'}, 'activity') < 0);
+assert.ok(U.compare({scheduleSnapshot:{stops:[{station:'甲',departure:'09:00'}]}, timeChanges:[{station:'甲', departure:'11:00'}]}, {stops:[{station:'甲', departure:'10:00'}]}, 'time') > 0);
 
 // Run the real preview entry: fetching/rendering must not start printing.
 (async () => {
   const nodes = new Map();
-  for (const id of ['main-content','printDaily','closeDaily','previewStatus']) nodes.set(id, {
+  for (const id of ['main-content','printDaily','closeDaily','previewStatus','dailyPdfSort','dailyPreviewRows']) nodes.set(id, {
     disabled:true, textContent:'', html:'', events:{},
     addEventListener(type, fn) { this.events[type] = fn; },
     replaceChildren(value) { this.html = value; },
   });
   let printCount = 0;
+  const sourceItems = [{trainNumber:'8001', category:'planned_extra', operationState:'operate'}, {trainNumber:'7001', category:'planned_extra', operationState:'suspend'}];
   const context = {
     window:{OperationDailyUtils:U, OperationServiceAdminUtils:require('../operation-service/admin-utils.js'), print() { printCount++; }, close() {}},
     location:{search:'?serviceDate=2026-10-20', hostname:'localhost'}, URLSearchParams,
     document:{getElementById:id => nodes.get(id), createRange:() => ({selectNodeContents() {}, createContextualFragment:html => html})},
     fetch:async () => ({ok:true, json:async () => ({serviceDate:'2026-10-20', status:'published', edition:1,
-      noticeNumber:'運転活休通達第2026-001号', items:[{trainNumber:'8001', category:'planned_extra', operationState:'suspend'}]})}),
+      noticeNumber:'運転活休通達第2026-001号', items:sourceItems})}),
   };
   await vm.runInNewContext(preview, context);
   assert.equal(printCount, 0);
   assert.equal(nodes.get('printDaily').disabled, false);
   assert.match(nodes.get('main-content').html, /運転活休通達第2026-001号/);
+  assert.ok(nodes.get('main-content').html.indexOf('7001') < nodes.get('main-content').html.indexOf('8001'));
+  nodes.get('dailyPdfSort').value = 'activity'; nodes.get('dailyPdfSort').events.change();
+  assert.ok(nodes.get('dailyPreviewRows').html.indexOf('8001') < nodes.get('dailyPreviewRows').html.indexOf('7001'));
+  assert.equal(sourceItems[0].trainNumber, '8001');
+  assert.equal(printCount, 0);
   nodes.get('printDaily').events.click();
   assert.equal(printCount, 1);
   console.log('operation daily tests: ok');

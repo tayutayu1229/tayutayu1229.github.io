@@ -16,6 +16,108 @@
   let bulkOperationRunning = false;
   const selectedCatalogKeys = new Set();
   const adminUtils = window.OperationServiceAdminUtils;
+  const U = window.OperationDailyUtils;
+  let dailyDay = null, dailyBusy = false, isAdmin = false, loadedWorkflow = 'daily';
+  const dailyMode = () => $('managementWorkflow').value === 'daily';
+
+  function setDailyControls() {
+    const active = dailyMode();
+    $('dailyLayerControls').hidden = !active;
+    $('dailySaveExplanation').hidden = !active;
+    $('saveDraft').textContent = active ? '保存（公開も自動更新）' : '下書き保存';
+    $('publish').hidden = active;
+    $('withdraw').hidden = active;
+    [...$('operationState').options].forEach(option => { option.hidden = active && ['changed','prohibited'].includes(option.value); });
+  }
+  function fillDailyLayers(item = {}) {
+    const value = U.layers(item);
+    $('dailyTimeChanged').checked = value.timeChanged;
+    $('dailyProhibited').checked = value.prohibited;
+    replaceMarkup($('dailySectionRows'), '');
+    value.sections.forEach(addDailySection);
+    $('dailySectionDetails').open = value.sections.length > 0;
+    replaceMarkup($('stationChoices'), (item.scheduleSnapshot?.stops || selectedSchedule?.stops || []).map(stop => `<option value="${escapeHtml(stop.station)}"></option>`).join(''));
+  }
+  function addDailySection(section = {}) {
+    const row = document.createElement('tr');
+    replaceMarkup(row, U.sectionRowMarkup(section));
+    row.querySelector('button').addEventListener('click', () => { if (!isAdmin || dailyBusy) return; row.remove(); markDirty(); });
+    $('dailySectionRows').append(row);
+  }
+  function datesFor(spec) {
+    if (spec.serviceDateMode !== 'range') return spec.serviceDates || [spec.serviceDate];
+    const first = Date.parse(spec.serviceDateStart + 'T00:00:00Z'), last = Date.parse(spec.serviceDateEnd + 'T00:00:00Z');
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last < first || last - first > 365 * 86400000) throw new Error('期間は1～366日で指定してください。');
+    return Array.from({length:(last-first)/86400000+1}, (_, i) => new Date(first + i * 86400000).toISOString().slice(0,10));
+  }
+  function requireDailyLoaded() {
+    if (!dailyDay || dailyDay.serviceDate !== normalizedDate($('serviceDate').value)) throw new Error('施行日を変更した場合はダイヤを読み込み直してください。');
+  }
+  async function dailyVersions(spec) {
+    requireDailyLoaded();
+    const dates = datesFor(spec), versions = {}, drafts = [];
+    if (!dates.length || dates.length > 366) throw new Error('対象日は1～366日で指定してください。');
+    for (let i=0; i<dates.length; i+=4) await Promise.all(dates.slice(i,i+4).map(async date => {
+      const day = date === dailyDay.serviceDate ? dailyDay : await api(`/api/operation-service/daily?serviceDate=${date}`);
+      versions[date] = day.version;
+      if (day.version && day.version !== day.publishedVersion) drafts.push(date);
+    }));
+    return {dates, versions, drafts};
+  }
+  async function dailyAction(action) {
+    if (dailyBusy) return;
+    if (!isAdmin) { setMessage('保存には管理者権限が必要です。', 'error'); return; }
+    dailyBusy = true;
+    const controls = [...document.querySelectorAll('button, input, select, textarea')];
+    const previous = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    try { await action(); }
+    catch (error) { setMessage(`保存・公開更新に失敗しました: ${error.status === 409 ? '別の画面で更新されています。入力内容を控えて再読込してください。' : error.message}`, 'error'); }
+    finally { dailyBusy = false; controls.forEach((control, i) => { control.disabled = previous[i]; }); updateBulkSelection(); }
+  }
+  async function saveDailyFromTrain(status) {
+    return dailyAction(async () => {
+      requireDailyLoaded();
+      if (status === 'withdrawn') throw new Error('列車単位の取下げではなく、基本活休を未入力にしてください。日全体の取下げは日別一覧画面から行えます。');
+      const selection = serviceDateResult();
+      if (!selection.ok) throw new Error(selection.message);
+      let row = {...(currentNotice || {}), ...formPayload('draft'), timetableDayType:currentNotice?.timetableDayType || $('dayType').value};
+      if (!row.trainNumber || !row.title) throw new Error('列車番号・表題を入力してください。');
+      const duplicate = dailyDay.items.some(item => U.key(item) === U.key(row) && U.key(item) !== U.key(currentNotice || {}));
+      if (duplicate) throw new Error('同じ列車番号は登録済みです。一覧から既存の列車を選んで編集してください。');
+      row.timeChanged = $('dailyTimeChanged').checked || row.timeChanges.length > 0;
+      row.prohibited = $('dailyProhibited').checked;
+      row.sectionOverrides = [...$('dailySectionRows').querySelectorAll('tr')].map(tr => Object.fromEntries([...tr.querySelectorAll('[data-section-field]')].map(input => [input.dataset.sectionField, input.value.trim()])));
+      row = U.withBase(row, ['operate','suspend','unknown'].includes($('operationState').value) ? $('operationState').value : 'unknown');
+      row.operationKind = row.prohibited ? 'prohibition' : row.sectionOverrides.length ? 'partial' : row.timeChanged ? 'time_change' : U.kinds[row.baseActivity];
+      const target = await dailyVersions(selection.spec);
+      if (!confirm(`${row.trainNumber}を${target.dates.length}日分に保存し、各日全体の公開一覧・PDFを更新します。他列車の旧未公開下書きも含まれます。${target.drafts.length ? `対象：${target.drafts.join('、')}。` : ''}よろしいですか？`)) return;
+      if (target.dates.length === 1 && target.dates[0] === dailyDay.serviceDate) {
+        const oldKey = U.key(currentNotice || row);
+        const items = dailyDay.items.filter(item => U.key(item) !== oldKey && U.key(item) !== U.key(row));
+        await api('/api/operation-service/daily/commit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({serviceDate:dailyDay.serviceDate, version:dailyDay.version, commonRemarks:dailyDay.commonRemarks, items:[...items,row]})});
+      } else {
+        await api('/api/operation-service/daily/apply-publish', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...selection.spec, versions:target.versions, applyMode:'replace', items:[row]})});
+      }
+      markDirty(false); selectedCatalogKeys.clear(); await loadDate();
+      const saved = notices.find(item => U.key(item) === U.key(row));
+      if (saved) editNotice(saved);
+      setMessage(`${row.trainNumber}を保存し、${target.dates.length}日分の公開一覧・PDFを更新しました。日別一覧画面と同じデータです。`, 'success');
+    });
+  }
+  async function bulkDailyFromTrain(state, trains, spec) {
+    return dailyAction(async () => {
+      requireDailyLoaded();
+      if (dirty) throw new Error('編集中の内容を先に保存するか、入力を破棄してから一括処理してください。');
+      const target = await dailyVersions(spec);
+      if (!confirm(`${trains.length}列車を${target.dates.length}日分、基本${stateLabels[state]}に保存・公開更新します。対象日の時刻変更・区間指定・禁止は維持し、各日全体（旧未公開下書きを含む）を公開更新します。よろしいですか？`)) return;
+      const items = trains.map(train => U.withBase(U.fromTrain(train, $('dayType').value), state));
+      await api('/api/operation-service/daily/apply-publish', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...spec, versions:target.versions, applyMode:'activity', items})});
+      selectedCatalogKeys.clear(); await loadDate();
+      renderBulkResult(`一括${stateLabels[state]}`, trains.length, [], trains.length);
+      setMessage(`${trains.length}列車・${target.dates.length}日分を保存・公開更新しました。`, 'success');
+    });
+  }
 
   function tokyoToday() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
@@ -87,8 +189,8 @@
     }
     const payload = (response.headers.get('content-type') || '').includes('application/json') ? await response.json() : {};
     if (!response.ok) {
-      const error = new Error(payload.error === 'daily_management_required'
-        ? 'この日は日別管理へ移行済みです。メニューの「日別通達管理（新方式）」から編集してください。'
+      const error = new Error(['daily_management_required','daily_workflow_update_required'].includes(payload.error)
+        ? 'この日は日別共有データで管理しています。管理対象を「日別共有データ（現在の方式）」に切り替えてください。'
         : payload.error || `HTTP ${response.status}`);
       error.status = response.status;
       error.code = payload.error;
@@ -135,7 +237,7 @@
       const state = notice?.operationState || '';
       const stateCell = !notice || notice.status === 'withdrawn' || state === 'unknown'
         ? '未入力'
-        : `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(stateLabels[state] || state)}</span>`;
+        : `<span class="badge badge-${escapeHtml(state)}" title="${escapeHtml(statusLabels[notice.status] || notice.status)}">${escapeHtml(dailyMode() ? U.statusText(notice) : stateLabels[state] || state)}</span>`;
       return `<tr data-key="${escapeHtml(train.scheduleKey)}" class="${train.scheduleKey === selectedSchedule?.scheduleKey ? 'selected' : ''}" tabindex="0">
         <td><input type="checkbox" class="catalog-check" aria-label="${escapeHtml(train.trainNumber)}を一括対象に選択" ${selectedCatalogKeys.has(train.scheduleKey) ? 'checked' : ''} ${bulkOperationRunning ? 'disabled' : ''}></td>
         <td>${stateCell}</td><td class="category-${escapeHtml(train.category)}">${escapeHtml(categoryLabels[train.category] || train.category)}</td>
@@ -158,9 +260,9 @@
   }
 
   function updateBulkSelection() {
-    $('bulkOperate').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
-    $('bulkSuspend').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
-    $('bulkClearActivity').disabled = bulkOperationRunning || selectedCatalogKeys.size === 0;
+    $('bulkOperate').disabled = !isAdmin || dailyBusy || bulkOperationRunning || selectedCatalogKeys.size === 0;
+    $('bulkSuspend').disabled = !isAdmin || dailyBusy || bulkOperationRunning || selectedCatalogKeys.size === 0;
+    $('bulkClearActivity').disabled = !isAdmin || dailyBusy || bulkOperationRunning || selectedCatalogKeys.size === 0;
     $('bulkOperate').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運転` : '選択列車を一括運転';
     $('bulkSuspend').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を一括運休` : '選択列車を一括運休';
     $('bulkClearActivity').textContent = selectedCatalogKeys.size ? `選択${selectedCatalogKeys.size}列車を活休未入力へ` : '選択列車を活休未入力へ';
@@ -202,6 +304,7 @@
       return;
     }
     const dateSpec = dateResult.spec;
+    if (dailyMode()) return bulkDailyFromTrain(mode, trains, dateSpec);
     const operate = mode === 'operate';
     const actionLabel = operate ? '一括運転' : '一括運休';
     const stateLabel = operate ? '運転' : '運休';
@@ -223,7 +326,7 @@
               operationKind: operate ? 'operation' : 'suspension', operationState: operate ? 'operate' : 'suspend',
               diagramPeriodId: $('diagramPeriod').value || train.diagramPeriod?.id || '', trainNumber: train.trainNumber,
               trainType: train.trainType || '', scheduleKey: train.scheduleKey, sectionStart: train.origin,
-              sectionEnd: train.destination, restriction: '', remarks: `管理画面の${actionLabel}で登録`, lines: train.lines || [],
+              sectionEnd: train.destination, restriction: '', remarks: '', lines: train.lines || [],
               timeChanges: [], scheduleSnapshot: train, noticeNumber: '',
             }, dateSpec)),
           });
@@ -255,6 +358,7 @@
       setMessage(`${bulk ? '一括操作：' : ''}${result.message || '対象列車を選択してください。'}`, 'error');
       return;
     }
+    if (dailyMode()) return bulkDailyFromTrain('unknown', trains, dateSpec);
     const label = bulk ? `${trains.length}列車` : `${trains[0].trainNumber}列車`;
     if (!confirm(`${label}の指定日の活休情報を未入力へ戻します。公開中の情報は取下げます。よろしいですか？`)) return;
     setBulkOperationRunning(bulk);
@@ -295,7 +399,7 @@
     replaceMarkup($('noticeRows'), notices.map(item => `
       <tr data-id="${escapeHtml(item.id)}" class="${item.id === currentNotice?.id ? 'selected' : ''}" tabindex="0">
         <td><span class="badge badge-${escapeHtml(item.status)}">${escapeHtml(statusLabels[item.status] || item.status)}</span></td>
-        <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(stateLabels[item.operationState] || item.operationState)}</span></td>
+        <td><span class="badge badge-${escapeHtml(item.operationState)}">${escapeHtml(dailyMode() ? U.statusText(item) : stateLabels[item.operationState] || item.operationState)}</span></td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.title)}</td>
         <td>${escapeHtml(item.sectionStart || '―')}～${escapeHtml(item.sectionEnd || '―')}</td>
       </tr>`).join(''));
@@ -327,7 +431,10 @@
     $('serviceDate').value = displayDate(serviceDate);
     setBulkOperationDates();
     loadingDate = true;
+    const previousWorkflowDisabled = $('managementWorkflow').disabled;
+    $('managementWorkflow').disabled = true;
     $('loadDate').disabled = true;
+    setDailyControls();
     setMessage('');
     $('statusText').textContent = 'ダイヤ原簿と活休情報を読み込んでいます…';
     const params = new URLSearchParams({serviceDate});
@@ -336,10 +443,12 @@
     try {
       const [catalogPayload, noticePayload] = await Promise.all([
         api(`/api/operation-service/catalog?${params}`),
-        api(`/api/operation-service/notices?serviceDate=${encodeURIComponent(serviceDate)}`),
+        api(dailyMode() ? `/api/operation-service/daily?serviceDate=${encodeURIComponent(serviceDate)}` : `/api/operation-service/notices?serviceDate=${encodeURIComponent(serviceDate)}`),
       ]);
       catalog = catalogPayload.items || [];
-      notices = noticePayload.items || [];
+      dailyDay = dailyMode() ? noticePayload : null;
+      notices = (noticePayload.items || []).map(item => dailyMode() ? {...item, version:dailyDay.version, noticeNumber:dailyDay.noticeNumber, updatedAt:dailyDay.updatedAt,
+        status:dailyDay.publishedStatus === 'published' && dailyDay.publishedVersion === dailyDay.version ? 'published' : 'draft'} : item);
       selectedCatalogKeys.clear();
       populateLineChoices();
       selectedSchedule = null;
@@ -348,13 +457,16 @@
       renderCatalog();
       renderNotices();
       resetForm();
+      loadedWorkflow = $('managementWorkflow').value;
       $('statusText').textContent = `${displayDate(catalogPayload.selectionDate || serviceDate)}基準の統合ダイヤ ${catalog.length}列車を読み込みました。`;
     } catch (error) {
+      $('managementWorkflow').value = loadedWorkflow; setDailyControls();
       setMessage(error.code === 'admin_required' ? '管理者権限がありません。' : `読込に失敗しました: ${error.message}`, 'error');
       $('statusText').textContent = '読込失敗';
     } finally {
       loadingDate = false;
       $('loadDate').disabled = false;
+      $('managementWorkflow').disabled = previousWorkflowDisabled;
     }
   }
 
@@ -525,9 +637,9 @@
     replaceMarkup($('timeRows'), stops.map(stop => {
       const change = changeMap.get(normalized(stop.station)) || {};
       return `<tr data-station="${escapeHtml(stop.station)}"><td>${escapeHtml(stop.station)}</td>
-        <td><input data-field="arrival" value="${escapeHtml(change.arrival || stop.arrival || '')}" data-original="${escapeHtml(stop.arrival || '')}"></td>
-        <td><input data-field="departure" value="${escapeHtml(change.departure || stop.departure || '')}" data-original="${escapeHtml(stop.departure || '')}"></td>
-        <td><input data-field="trackN" value="${escapeHtml(change.trackN || stop.trackN || '')}" data-original="${escapeHtml(stop.trackN || '')}"></td>
+        <td><input data-field="arrival" value="${escapeHtml(change.arrival ?? stop.arrival ?? '')}" data-original="${escapeHtml(stop.arrival || '')}"></td>
+        <td><input data-field="departure" value="${escapeHtml(change.departure ?? stop.departure ?? '')}" data-original="${escapeHtml(stop.departure || '')}"></td>
+        <td><input data-field="trackN" value="${escapeHtml(change.trackN ?? stop.trackN ?? '')}" data-original="${escapeHtml(stop.trackN || '')}"></td>
         <td><input data-field="note" value="${escapeHtml(change.note || '')}" data-original=""></td></tr>`;
     }).join(''));
     $('timeRows').querySelectorAll('input').forEach(input => input.addEventListener('input', () => markDirty()));
@@ -546,6 +658,7 @@
     $('title').value = train.defaultTitle || '列車運転';
     $('operationKind').value = '';
     $('operationState').value = '';
+    if (dailyMode()) { $('operationState').value = 'unknown'; $('operationKind').value = 'unconfirmed'; fillDailyLayers({scheduleSnapshot:train}); }
     $('trainNumber').value = train.trainNumber || '';
     $('trainType').value = train.trainType || '';
     $('restriction').value = '';
@@ -573,9 +686,11 @@
     selectedSchedule = catalogTrain || catalog.find(train => train.scheduleKey === item.scheduleKey)
       || catalog.find(train => sameIntegratedTrain(train, item))
       || catalog.find(train => sameUniqueTrainNumber(train, item)) || item.scheduleSnapshot || null;
+    if (dailyMode() && item.scheduleSnapshot) selectedSchedule = item.scheduleSnapshot;
     $('title').value = item.title || '';
     $('operationKind').value = item.operationKind || '';
-    $('operationState').value = item.operationState || '';
+    $('operationState').value = dailyMode() ? U.layers(item).base : item.operationState || '';
+    if (dailyMode()) fillDailyLayers(item);
     $('trainNumber').value = item.trainNumber || '';
     $('trainType').value = item.trainType || '';
     $('restriction').value = item.restriction || '';
@@ -589,7 +704,7 @@
     $('updatedAtDisplay').textContent = item.updatedAt || '―';
     $('withdraw').disabled = item.status !== 'published';
     $('clearActivity').disabled = item.status === 'withdrawn' && item.operationState === 'unknown';
-    $('pdfPreview').disabled = item.status !== 'published';
+    $('pdfPreview').disabled = dailyMode() ? !dailyDay.noticeNumber || dailyDay.publishedStatus !== 'published' : item.status !== 'published';
     markDirty(false);
     renderCatalog();
     renderNotices();
@@ -601,6 +716,7 @@
     ['title', 'trainNumber', 'trainType', 'restriction', 'remarks'].forEach(id => { $(id).value = ''; });
     $('operationKind').value = '';
     $('operationState').value = '';
+    if (dailyMode()) fillDailyLayers();
     setOperationDates();
     setSectionOptions(selectedSchedule?.stops || [], '', '');
     renderTimeRows(selectedSchedule, []);
@@ -652,6 +768,7 @@
   }
 
   async function save(status) {
+    if (dailyMode()) return saveDailyFromTrain(status);
     const dateResult = serviceDateResult();
     if (!dateResult.ok) {
       setMessage(dateResult.message, 'error');
@@ -692,6 +809,13 @@
   }
 
   function syncKindAndState() {
+    if (dailyMode()) {
+      const kind = $('operationKind').value;
+      if (kind === 'time_change') $('dailyTimeChanged').checked = true;
+      else if (kind === 'prohibition') $('dailyProhibited').checked = true;
+      else if (['operation','suspension','unconfirmed'].includes(kind)) $('operationState').value = {operation:'operate', suspension:'suspend', unconfirmed:'unknown'}[kind];
+      markDirty(); return;
+    }
     const map = {unconfirmed: 'unknown', operation: 'operate', suspension: 'suspend', time_change: 'changed', prohibition: 'prohibited'};
     if (map[$('operationKind').value]) $('operationState').value = map[$('operationKind').value];
     markDirty();
@@ -701,12 +825,20 @@
     $('serviceDate').value = displayDate(tokyoToday());
     const ready = await window.TayunetAuthReady;
     if (!ready.ok) return;
+    isAdmin = ready.profile.isAdmin === true;
+    $('saveDraft').disabled = !isAdmin; $('publish').disabled = !isAdmin;
     $('operatorName').textContent = `${ready.user.email || '利用者'} / ${ready.profile.isAdmin ? '管理者' : '閲覧権限'}`;
     if (!ready.profile.isAdmin) setMessage('閲覧はできますが、保存・公開には管理者権限が必要です。', 'error');
     await loadDate();
   }
 
   $('loadDate').addEventListener('click', loadDate);
+  $('managementWorkflow').addEventListener('change', () => {
+    if (dirty && !confirm('未保存の入力を破棄して管理対象を切り替えますか？')) { $('managementWorkflow').value = loadedWorkflow; return; }
+    markDirty(false); loadDate();
+  });
+  $('addDailySection').addEventListener('click', () => { if (!isAdmin || dailyBusy) return; if ($('dailySectionRows').children.length >= 100) return setMessage('区間指定は100件以内です。', 'error'); addDailySection(); markDirty(); });
+  $('dailySectionRows').addEventListener('input', () => markDirty());
   $('diagramPeriod').addEventListener('change', loadDate);
   $('trainQuery').addEventListener('input', renderCatalog);
   $('trainCategory').addEventListener('change', renderCatalog);
@@ -742,6 +874,7 @@
   $('pdfPreview').addEventListener('click', () => {
     if (!currentNotice) return;
     const serviceDate = normalizedDate($('serviceDate').value) || currentNotice.serviceDate;
+    if (dailyMode()) { window.open(`daily-notice.html?serviceDate=${encodeURIComponent(serviceDate)}&sort=${encodeURIComponent($('catalogSort').value)}`, '_blank', 'noopener'); return; }
     window.open(`notice.html?id=${encodeURIComponent(currentNotice.id)}&serviceDate=${encodeURIComponent(serviceDate)}&print=1`, '_blank', 'noopener');
   });
   $('operationKind').addEventListener('change', syncKindAndState);
