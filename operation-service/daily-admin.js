@@ -165,7 +165,6 @@
       });
       return changed ? values : null;
     }).filter(Boolean);
-    if (item.timeChanges.length) item.timeChanged = true;
     item.operationState = U.withBase(item, item.baseActivity).operationState;
     if (item.operationKind !== 'other') item.operationKind = item.prohibited ? 'prohibition' : item.sectionOverrides.length ? 'partial' : item.timeChanged ? 'time_change' : U.kinds[item.baseActivity];
     if (pendingRow) day.items.push(item);
