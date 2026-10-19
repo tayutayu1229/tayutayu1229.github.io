@@ -180,13 +180,22 @@
     const body = document.createElement('tbody');
     const add = (value = {}) => {
       const row = document.createElement('tr');
-      row.innerHTML = ['line','start','end'].map((field, index) => `<td><input data-line-field="${field}" maxlength="80" aria-label="${['線区','自駅','至駅'][index]}" value="${escapeHtml(value[field] || '')}"></td>`).join('') + '<td><button type="button">削除</button></td>';
-      row.querySelector('button').addEventListener('click', () => { row.remove(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+      ['line','start','end'].forEach((field, index) => {
+        const cell = document.createElement('td'), input = document.createElement('input');
+        input.dataset.lineField = field; input.maxLength = 80; input.setAttribute('aria-label', ['線区','自駅','至駅'][index]);
+        input.value = value[field] || ''; cell.append(input); row.append(cell);
+      });
+      const cell = document.createElement('td'), button = document.createElement('button');
+      button.type = 'button'; button.textContent = '削除';
+      button.addEventListener('click', () => { row.remove(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+      cell.append(button); row.append(cell);
       body.append(row);
     };
     const table = document.createElement('table');
     table.className = 'daily-section-table';
-    table.innerHTML = '<thead><tr><th>線区</th><th>自駅</th><th>至駅</th><th>操作</th></tr></thead>';
+    const head = document.createElement('thead'), heading = document.createElement('tr');
+    ['線区','自駅','至駅','操作'].forEach(label => { const cell = document.createElement('th'); cell.textContent = label; heading.append(cell); });
+    head.append(heading); table.append(head);
     table.append(body); container.append(table);
     ranges.forEach(add);
     const button = document.createElement('button'); button.type = 'button'; button.textContent = '線区を追加';
