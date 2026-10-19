@@ -155,6 +155,14 @@
     return fetchJson("/api/stations");
   }
 
+  async function fetchGdActivity(serviceDate) {
+    const payload = await fetchJson('/public/api/operation-gd', {serviceDate});
+    if (payload?.serviceDate !== serviceDate || !Array.isArray(payload.items)) {
+      throw new PrivateDataError('指定日の活休情報を取得できません。', 'invalid_response');
+    }
+    return payload;
+  }
+
   async function fetchLineAliases() {
     return fetchJson(LINE_ALIASES_PATH);
   }
@@ -172,6 +180,7 @@
     fetchTimetableBundle,
     fetchTimetables,
     fetchStations,
+    fetchGdActivity,
     fetchLineAliases,
     openLogin,
     showLoginNotice
