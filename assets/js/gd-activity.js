@@ -29,7 +29,11 @@
         const boundary = previous.stops.at(-1);
         previous.stops[previous.stops.length - 1] = {...boundary,...start,arrival:boundary.arrival};
         previous.stops.push(end); previous.lastStop = signature(pair[1]);
-      } else pieces.push({...train,stops:[start,end],gdState:style,gdCancelledAt:cancelledAt,gdTrainKey:trainKey,lastStop:signature(pair[1])});
+        previous.gdDetailStops.push({...pair[1]});
+      } else pieces.push({...train,stops:[start,end],gdDetailStops:pair.map(stop=>({...stop})),
+        gdDeclaredStart:item?.sectionStart || '',gdDeclaredEnd:item?.sectionEnd || '',
+        gdAvailableStart:item?.availableStart || '',gdAvailableEnd:item?.availableEnd || '',
+        gdState:style,gdCancelledAt:cancelledAt,gdTrainKey:trainKey,lastStop:signature(pair[1])});
       mergeAllowed = true;
     }
     for (let i = 0; i + 1 < original.length; i++) {
@@ -53,5 +57,10 @@
     }
     return pieces.map(({lastStop,...piece}) => piece);
   }
-  return {project,labels,styles};
+  function routeLabel(train) {
+    return train.gdDeclaredStart || train.gdDeclaredEnd
+      ? `${train.gdDeclaredStart || '—'} ～ ${train.gdDeclaredEnd || '—'}（通達区間）`
+      : `${train.origin || '—'} 〜 ${train.destination || '—'}`;
+  }
+  return {project,labels,styles,routeLabel};
 });
