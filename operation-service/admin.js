@@ -17,7 +17,7 @@
   const selectedCatalogKeys = new Set();
   const adminUtils = window.OperationServiceAdminUtils;
   const U = window.OperationDailyUtils;
-  let dailyDay = null, dailyBusy = false, isAdmin = false, loadedWorkflow = 'daily';
+  let dailyDay = null, dailyBusy = false, isAdmin = false, loadedWorkflow = 'daily', manualTimetable = false;
   const dailyMode = () => $('managementWorkflow').value === 'daily';
 
   function setDailyControls() {
@@ -82,6 +82,7 @@
       const selection = serviceDateResult();
       if (!selection.ok) throw new Error(selection.message);
       let row = {...(currentNotice || {}), ...formPayload('draft'), timetableDayType:currentNotice?.timetableDayType || $('dayType').value};
+      if (row.scheduleSnapshot.manualEntry) { row.timetableDayType = ''; row.scheduleKey = ''; delete row.source; }
       if (!row.trainNumber || !row.title) throw new Error('列車番号・表題を入力してください。');
       const duplicate = dailyDay.items.some(item => U.key(item) === U.key(row) && U.key(item) !== U.key(currentNotice || {}));
       if (duplicate) throw new Error('同じ列車番号は登録済みです。一覧から既存の列車を選んで編集してください。');
@@ -629,20 +630,33 @@
 
   function renderTimeRows(schedule, changes) {
     const stops = schedule?.stops || [];
-    const changeMap = new Map((changes || []).map(change => [normalized(change.station), change]));
-    if (!stops.length) {
-      replaceMarkup($('timeRows'), '<tr><td colspan="5" class="empty-cell">列車時刻表はありません。</td></tr>');
-      return;
+    U.configureTimeTable($('trainTimeTable'), manualTimetable);
+    replaceMarkup($('timeRows'), U.timeRowsMarkup(stops, changes || [], manualTimetable));
+    U.renderLineRanges($('trainManualLineRanges'), schedule?.lineRanges || []);
+    $('trainTimeEntryMode').textContent = manualTimetable ? '手入力の時刻表（元原簿は変更しません）' : '原簿基準';
+  }
+  function syncManualSectionChoices() {
+    if (!manualTimetable) return;
+    const names = U.inputTimeRows($('timeRows')).map(row => row.values.station).filter(Boolean);
+    setSectionOptions(names.map(station => ({station})), $('sectionStart').value, $('sectionEnd').value);
+    replaceMarkup($('stationChoices'), names.map(station => `<option value="${escapeHtml(station)}"></option>`).join(''));
+  }
+  function enableTrainManual(clear = false) {
+    if (clear) {
+      if ($('timeRows').querySelector('tr[data-stop]') && !confirm('表示中の時刻表を空にして新規作成します。元原簿は変更しません。よろしいですか？')) return false;
+      manualTimetable = true; renderTimeRows({stops:[]}, []);
+    } else if (!manualTimetable) {
+      const current = U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), false);
+      manualTimetable = true; renderTimeRows({...selectedSchedule, stops:current.stops}, current.timeChanges);
     }
-    replaceMarkup($('timeRows'), stops.map(stop => {
-      const change = changeMap.get(normalized(stop.station)) || {};
-      return `<tr data-station="${escapeHtml(stop.station)}"><td>${escapeHtml(stop.station)}</td>
-        <td><input data-field="arrival" value="${escapeHtml(change.arrival ?? stop.arrival ?? '')}" data-original="${escapeHtml(stop.arrival || '')}"></td>
-        <td><input data-field="departure" value="${escapeHtml(change.departure ?? stop.departure ?? '')}" data-original="${escapeHtml(stop.departure || '')}"></td>
-        <td><input data-field="trackN" value="${escapeHtml(change.trackN ?? stop.trackN ?? '')}" data-original="${escapeHtml(stop.trackN || '')}"></td>
-        <td><input data-field="note" value="${escapeHtml(change.note || '')}" data-original=""></td></tr>`;
-    }).join(''));
-    $('timeRows').querySelectorAll('input').forEach(input => input.addEventListener('input', () => markDirty()));
+    return true;
+  }
+  function appendTrainStop() {
+    if ($('timeRows').querySelectorAll('tr[data-stop]').length >= 300) throw new Error('手入力の時刻表は300駅以内にしてください。');
+    if (!enableTrainManual()) return;
+    $('timeRows').querySelectorAll('tr:not([data-stop])').forEach(row => row.remove());
+    const holder = document.createElement('tbody'); replaceMarkup(holder, U.timeRowsMarkup([{station:''}], [], true));
+    const row = holder.firstElementChild; row.dataset.stop = '-1'; $('timeRows').append(row); markDirty(); row.querySelector('input').focus();
   }
 
   function selectTrain(train) {
@@ -654,6 +668,7 @@
     }
     if (dirty && !confirm('未保存の入力を破棄して、選択列車で新規作成しますか？')) return;
     selectedSchedule = train;
+    manualTimetable = train.manualEntry === true;
     currentNotice = null;
     $('title').value = train.defaultTitle || '列車運転';
     $('operationKind').value = '';
@@ -686,7 +701,8 @@
     selectedSchedule = catalogTrain || catalog.find(train => train.scheduleKey === item.scheduleKey)
       || catalog.find(train => sameIntegratedTrain(train, item))
       || catalog.find(train => sameUniqueTrainNumber(train, item)) || item.scheduleSnapshot || null;
-    if (dailyMode() && item.scheduleSnapshot) selectedSchedule = item.scheduleSnapshot;
+    if ((dailyMode() || item.scheduleSnapshot?.manualEntry) && item.scheduleSnapshot) selectedSchedule = item.scheduleSnapshot;
+    manualTimetable = selectedSchedule?.manualEntry === true;
     $('title').value = item.title || '';
     $('operationKind').value = item.operationKind || '';
     $('operationState').value = dailyMode() ? U.layers(item).base : item.operationState || '';
@@ -713,6 +729,7 @@
   function resetForm(keepSchedule = false) {
     currentNotice = null;
     if (!keepSchedule) selectedSchedule = null;
+    manualTimetable = !selectedSchedule || selectedSchedule.manualEntry === true;
     ['title', 'trainNumber', 'trainType', 'restriction', 'remarks'].forEach(id => { $(id).value = ''; });
     $('operationKind').value = '';
     $('operationState').value = '';
@@ -733,6 +750,7 @@
   }
 
   function collectTimeChanges() {
+    if (manualTimetable) return U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), true).timeChanges;
     return Array.from($('timeRows').querySelectorAll('tr[data-station]')).map(row => {
       const values = {};
       let changed = false;
@@ -745,6 +763,13 @@
   }
 
   function formPayload(status) {
+    let snapshot = selectedSchedule || currentNotice?.scheduleSnapshot || {};
+    if (manualTimetable) {
+      const table = U.collectTimetable(snapshot, U.inputTimeRows($('timeRows')), true);
+      snapshot = {...snapshot, manualEntry:true, stops:table.stops, trainNumber:$('trainNumber').value.trim(), trainType:$('trainType').value.trim(),
+        lineRanges:U.collectLineRanges($('trainManualLineRanges'), table.stops),
+        origin:snapshot.origin || table.stops[0]?.station || '', destination:snapshot.destination || table.stops[table.stops.length-1]?.station || ''};
+    }
     return Object.assign({
       version: currentNotice?.version,
       status,
@@ -762,7 +787,7 @@
       remarks: $('remarks').value.trim(),
       lines: selectedSchedule?.lines || currentNotice?.lines || [],
       timeChanges: collectTimeChanges(),
-      scheduleSnapshot: selectedSchedule || currentNotice?.scheduleSnapshot || {},
+      scheduleSnapshot: snapshot,
       noticeNumber: currentNotice?.noticeNumber || '',
     }, collectServiceDates() || {});
   }
@@ -774,7 +799,9 @@
       setMessage(dateResult.message, 'error');
       return;
     }
-    const payload = Object.assign(formPayload(status), dateResult.spec);
+    let payload;
+    try { payload = Object.assign(formPayload(status), dateResult.spec); }
+    catch (error) { setMessage(error.message, 'error'); return; }
     if (!payload.title || !payload.trainNumber || !payload.serviceDate || !payload.operationKind || !payload.operationState) {
       setMessage('表題・列車番号・施行日・手配区分・活休区分は必須です。', 'error');
       return;
@@ -833,6 +860,18 @@
   }
 
   $('loadDate').addEventListener('click', loadDate);
+  $('createTrainTimetable').addEventListener('click', () => { if (!isAdmin || dailyBusy) return; try { if (enableTrainManual(true)) appendTrainStop(); } catch (error) { setMessage(error.message, 'error'); } });
+  $('addTrainStop').addEventListener('click', () => { if (!isAdmin || dailyBusy) return; try { appendTrainStop(); } catch (error) { setMessage(error.message, 'error'); } });
+  $('timeRows').addEventListener('input', event => { markDirty(); if (event.target.dataset.field === 'station') syncManualSectionChoices(); });
+  $('timeRows').addEventListener('click', event => {
+    const button = event.target.closest('button[data-stop-action]');
+    if (!button || !isAdmin || dailyBusy) return;
+    const row = button.closest('tr'), tbody = $('timeRows');
+    if (button.dataset.stopAction === 'remove') row.remove();
+    if (button.dataset.stopAction === 'up' && row.previousElementSibling) tbody.insertBefore(row, row.previousElementSibling);
+    if (button.dataset.stopAction === 'down' && row.nextElementSibling) tbody.insertBefore(row.nextElementSibling, row);
+    markDirty(); syncManualSectionChoices();
+  });
   $('managementWorkflow').addEventListener('change', () => {
     if (dirty && !confirm('未保存の入力を破棄して管理対象を切り替えますか？')) { $('managementWorkflow').value = loadedWorkflow; return; }
     markDirty(false); loadDate();
@@ -861,6 +900,14 @@
   });
   $('withdraw').addEventListener('click', () => { if (confirm('公開情報を取下げますか？通達番号と変更履歴は残ります。')) save('withdrawn'); });
   $('duplicate').addEventListener('click', () => {
+    let table;
+    try {
+      table = U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), manualTimetable);
+      table.lineRanges = manualTimetable ? U.collectLineRanges($('trainManualLineRanges'), table.stops) : [];
+    }
+    catch (error) { setMessage(error.message, 'error'); return; }
+    selectedSchedule = {...(selectedSchedule || {}), manualEntry:true, stops:table.stops, lineRanges:table.lineRanges};
+    manualTimetable = true; renderTimeRows(selectedSchedule, table.timeChanges);
     currentNotice = null;
     $('recordIdentity').textContent = '複製 / 新規';
     $('noticeNumberDisplay').textContent = '未採番（初回公開時に自動採番）';
@@ -905,6 +952,7 @@
   document.querySelectorAll('.editor-scroll input, .editor-scroll select, .editor-scroll textarea').forEach(control => {
     if (control.id !== 'operationKind') control.addEventListener('input', () => markDirty());
   });
+  $('trainManualLineRanges').addEventListener('input', markDirty);
   setInterval(() => { $('clock').textContent = new Date().toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'}); }, 1000);
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   initialize();

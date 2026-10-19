@@ -145,7 +145,8 @@
     const stops = item.scheduleSnapshot?.stops || [];
     const stopRows = stops.map(stop => {
       const change = changes.get(String(stop.station || '').replace(/[\s　]/g, '')) || {};
-      return `<tr><td>${escapeHtml(stop.station || '')}</td>
+      const stationNote = change.note ?? stop.note;
+      return `<tr><td>${escapeHtml(stop.station || '')}${stationNote ? `<br><small>${escapeHtml(stationNote)}</small>` : ''}</td>
         <td>${timeCell(stop.arrival, change.arrival)}</td><td>${timeCell(stop.departure, change.departure)}</td>
         <td>${timeCell(stop.trackN, change.trackN)}</td></tr>`;
     }).join('');

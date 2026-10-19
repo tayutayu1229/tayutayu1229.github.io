@@ -13,7 +13,10 @@
   function versionsForDate(candidates, dateValue, dayType) {
     const target = normalizedDate(dateValue);
     if (!target) return [];
-    const rows = (Array.isArray(candidates) ? candidates : []).filter(item => item && typeof item === 'object');
+    const rows = (Array.isArray(candidates) ? candidates : []).filter(item => item && typeof item === 'object' &&
+      (!normalizedDate(item.endDate) || target <= normalizedDate(item.endDate)) &&
+      !(item.operationExcludedDates || []).some(date => normalizedDate(date) === target) &&
+      (!item.operationServiceDate || target === normalizedDate(item.operationServiceDate)));
     const preferDayType = items => items.sort((a, b) => Number(b.dayType === dayType) - Number(a.dayType === dayType));
     const exact = preferDayType(rows.filter(item => normalizedDate(item.startDate) === target && (!item.dayType || item.dayType === dayType)));
     if (exact.length) return exact;

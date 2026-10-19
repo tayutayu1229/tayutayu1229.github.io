@@ -6,7 +6,7 @@ const source = fs.readFileSync('JREgyoumu/ATOSsys/select_timetable.html', 'utf8'
 assert.match(source, /indexedDB\.open\(CACHE_DATABASE, 1\)/, '列車一覧をタブ内キャッシュへ保存すること');
 assert.match(source, /const cached = forceRefresh \? null : await readTimetableCache\(\);[\s\S]*if \(cached\)[\s\S]*return;/, '通常表示はキャッシュがあれば保護APIを再取得しないこと');
 assert.ok(
-  source.indexOf('const cached = forceRefresh ? null : await readTimetableCache();') < source.indexOf('cachedAllData = await TayunetPrivateData.fetchTimetables();'),
+  source.indexOf('const cached = forceRefresh ? null : await readTimetableCache();') < source.indexOf('cachedAllData = await TayunetPrivateData.fetchTimetables({selectionList:1});'),
   '保護APIより先にキャッシュを確認すること',
 );
 assert.match(source, /refreshDataButton\.addEventListener\('click',[\s\S]*?loadTimetables\(true\);[\s\S]*?\}\);/, '利用者が新規登録分を強制更新できること');

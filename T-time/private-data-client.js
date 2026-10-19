@@ -117,7 +117,7 @@
   async function fetchTimetableBundle(params) {
     let manifest;
     try {
-      manifest = await fetchJson(TIMETABLE_MANIFEST_PATH);
+      manifest = await fetchJson(TIMETABLE_MANIFEST_PATH, params);
     } catch (error) {
       if (error?.code !== "not_found") throw error;
       const legacyPayload = await fetchJson("/api/timetables", params);
@@ -145,7 +145,10 @@
   }
 
   async function fetchTimetables(params) {
-    return (await fetchTimetableBundle(params)).items;
+    const items = (await fetchTimetableBundle(params)).items;
+    // Revision lists display the published replacement; date-aware consumers retain the source fallback.
+    return params?.selectionList ? items.filter(row => !(row.operationExcludedDates || []).some(date =>
+      String(date).replaceAll('-', '/') === String(row.startDate).replaceAll('-', '/'))) : items;
   }
 
   async function fetchStations() {

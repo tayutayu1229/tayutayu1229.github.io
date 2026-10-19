@@ -4,9 +4,9 @@
   const U = window.OperationDailyUtils;
   const D = window.OperationServiceAdminUtils;
   const origin = ['localhost', '127.0.0.1'].includes(location.hostname) ? 'http://127.0.0.1:5119' : 'https://secure.tayunet-traininfo.com';
-  let day = null, loadedDate = '', source = [], sourceType = '', sourcePeriod = '', dirty = false, editorDirty = false, editing = -1, busy = false, admin = false, pendingRow = null;
+  let day = null, loadedDate = '', source = [], sourceType = '', sourcePeriod = '', dirty = false, editorDirty = false, editing = -1, busy = false, admin = false, pendingRow = null, manualTimetable = false;
   const selected = new Set();
-  const writeControls = ['saveDay', 'saveRow', 'withdrawDay', 'applyState', 'addTrain', 'commitRow', 'applyDates', 'newRow', 'duplicateRow', 'clearRow', 'addSection', 'bulkOperate', 'bulkSuspend', 'numberOperate', 'numberSuspend'];
+  const writeControls = ['saveDay', 'saveRow', 'withdrawDay', 'applyState', 'addTrain', 'commitRow', 'applyDates', 'newRow', 'duplicateRow', 'clearRow', 'addSection', 'bulkOperate', 'bulkSuspend', 'numberOperate', 'numberSuspend', 'createTimetable', 'addStop'];
   function markup(element, html) {
     const range = document.createRange(); range.selectNodeContents(element);
     element.replaceChildren(range.createContextualFragment(html));
@@ -104,7 +104,8 @@
   }
   function fillEditor(item) {
     $('rowEditor').hidden = false;
-    $('editTrain').textContent = `${item.trainNumber}　${item.timetableDayType ? `${item.timetableDayType}原簿を指定` : '施行日の原簿'}`;
+    manualTimetable = item.scheduleSnapshot?.manualEntry === true;
+    $('editTrain').textContent = `${item.trainNumber}　${manualTimetable ? '手入力の時刻表' : item.timetableDayType ? `${item.timetableDayType}原簿を指定` : '施行日の原簿'}`;
     const layers = U.layers(item);
     $('editState').value = layers.base;
     $('editTimeChanged').checked = layers.timeChanged;
@@ -125,18 +126,55 @@
     $('editRestriction').value = item.restriction || '';
     const stops = item.scheduleSnapshot?.stops || [];
     markup($('stationChoices'), stops.map(stop => `<option value="${U.escapeHtml(stop.station)}"></option>`).join(''));
-    markup($('dailyTimeRows'), U.timeRowsMarkup(stops, item.timeChanges || []));
+    renderTimeTable(stops, item.timeChanges || []);
+    U.renderLineRanges($('manualLineRanges'), item.scheduleSnapshot?.lineRanges || []);
     $('dailyTimeWrap').scrollTop = 0;
     markEditingRow(); identity();
   }
+  function renderTimeTable(stops, changes) {
+    U.configureTimeTable($('dailyTimeTable'), manualTimetable);
+    markup($('dailyTimeRows'), U.timeRowsMarkup(stops, changes, manualTimetable));
+    $('timeEntryMode').textContent = manualTimetable ? '手入力：駅名・所定時刻を入力できます。元原簿は変更しません。' : '原簿基準：変更する時刻だけ上書き';
+  }
+  function enableManualTimetable(clear = false) {
+    const item = pendingRow || day?.items[editing];
+    if (!item) throw new Error('編集する列車を開いてください。');
+    if (clear) {
+      if ($('dailyTimeRows').querySelector('tr[data-stop]') && !confirm('表示中の時刻表を空にして新規作成します。元原簿は変更しません。よろしいですか？')) return false;
+      manualTimetable = true; renderTimeTable([], []);
+      U.renderLineRanges($('manualLineRanges'), []);
+    } else if (!manualTimetable) {
+      const current = U.collectTimetable(item.scheduleSnapshot || {}, U.inputTimeRows($('dailyTimeRows')), false);
+      manualTimetable = true; renderTimeTable(current.stops, current.timeChanges);
+    }
+    return true;
+  }
+  function appendStop() {
+    if ($('dailyTimeRows').querySelectorAll('tr[data-stop]').length >= 300) throw new Error('手入力の時刻表は300駅以内にしてください。');
+    if (!enableManualTimetable()) return;
+    $('dailyTimeRows').querySelectorAll('tr:not([data-stop])').forEach(row => row.remove());
+    const holder = document.createElement('tbody'); markup(holder, U.timeRowsMarkup([{station:''}], [], true));
+    const row = holder.firstElementChild; row.dataset.stop = '-1'; $('dailyTimeRows').append(row);
+    editorDirty = true; identity(); row.querySelector('input').focus();
+  }
+  $('createTimetable').addEventListener('click', () => { if (!admin || busy) return; try { if (enableManualTimetable(true)) appendStop(); } catch (error) { message(error.message, true); } });
+  $('addStop').addEventListener('click', () => { if (!admin || busy) return; try { appendStop(); } catch (error) { message(error.message, true); } });
+  $('dailyTimeRows').addEventListener('click', event => {
+    const button = event.target.closest('button[data-stop-action]');
+    if (!button || !admin || busy) return;
+    const row = button.closest('tr'), tbody = $('dailyTimeRows');
+    if (button.dataset.stopAction === 'remove') row.remove();
+    if (button.dataset.stopAction === 'up' && row.previousElementSibling) tbody.insertBefore(row, row.previousElementSibling);
+    if (button.dataset.stopAction === 'down' && row.nextElementSibling) tbody.insertBefore(row.nextElementSibling, row);
+    editorDirty = true; identity();
+  });
   function commitEditor() {
     if (editing < 0 && !pendingRow) return;
-    const item = pendingRow || day.items[editing];
+    const item = {...(pendingRow || day.items[editing])};
     const number = $('editNumber').value.trim();
     if (!number) throw new Error('列車番号を入力してください。');
     if (day.items.some((other, index) => index !== editing && U.key(other) === U.key({trainNumber:number}))) throw new Error('同じ列車番号は既に一覧にあります。既存行を編集してください。');
     const start = $('editStart').value.trim(), end = $('editEnd').value.trim();
-    if (!start || !end) throw new Error('適用区間の始点・終点を入力してください。');
     item.baseActivity = $('editState').value;
     item.timeChanged = $('editTimeChanged').checked;
     item.prohibited = $('editProhibited').checked;
@@ -156,20 +194,24 @@
       origin:$('editOrigin').value.trim(), destination:$('editDestination').value.trim(), lines:item.lines};
     item.sectionStart = start; item.sectionEnd = end;
     item.remarks = $('editRemarks').value; item.restriction = $('editRestriction').value;
-    item.timeChanges = [...$('dailyTimeRows').querySelectorAll('tr[data-stop]')].map(row => {
-      const values = {station:item.scheduleSnapshot.stops[Number(row.dataset.stop)].station};
-      let changed = false;
-      row.querySelectorAll('input').forEach(input => {
-        values[input.dataset.field] = input.value.trim();
-        if (values[input.dataset.field] !== input.dataset.original) changed = true;
-      });
-      return changed ? values : null;
-    }).filter(Boolean);
+    const timetable = U.collectTimetable(item.scheduleSnapshot, U.inputTimeRows($('dailyTimeRows')), manualTimetable);
+    item.timeChanges = timetable.timeChanges;
+    if (manualTimetable) {
+      const lineRanges = U.collectLineRanges($('manualLineRanges'), timetable.stops);
+      item.scheduleSnapshot = {...item.scheduleSnapshot, manualEntry:true, stops:timetable.stops,
+        lineRanges,
+        origin:item.scheduleSnapshot.origin || timetable.stops[0]?.station || '', destination:item.scheduleSnapshot.destination || timetable.stops[timetable.stops.length - 1]?.station || ''};
+      item.scheduleKey = ''; item.timetableDayType = '';
+      delete item.source;
+      $('editOrigin').value = item.scheduleSnapshot.origin; $('editDestination').value = item.scheduleSnapshot.destination;
+      if (lineRanges.length) { item.lines = [...new Set(lineRanges.map(range => range.line))]; $('editLines').value = item.lines.join('、'); }
+    }
     item.operationState = U.withBase(item, item.baseActivity).operationState;
     if (item.operationKind !== 'other') item.operationKind = item.prohibited ? 'prohibition' : item.sectionOverrides.length ? 'partial' : item.timeChanged ? 'time_change' : U.kinds[item.baseActivity];
-    if (pendingRow) day.items.push(item);
+    if (pendingRow) day.items.push(item); else day.items[editing] = item;
     pendingRow = null; dirty = true; editorDirty = false; editing = day.items.indexOf(item);
-    $('editTrain').textContent = `${item.trainNumber}　${item.timetableDayType ? `${item.timetableDayType}原簿を指定` : '施行日の原簿'}`;
+    $('editTrain').textContent = `${item.trainNumber}　${manualTimetable ? '手入力の時刻表' : item.timetableDayType ? `${item.timetableDayType}原簿を指定` : '施行日の原簿'}`;
+    if (manualTimetable) { const scroll = $('dailyTimeWrap').scrollTop; renderTimeTable(timetable.stops, item.timeChanges); $('dailyTimeWrap').scrollTop = scroll; }
     render();
   }
   async function loadCatalog() {
@@ -250,6 +292,7 @@
     requireDay();
     if (editorDirty && !confirm('行の未反映の編集を破棄しますか？')) return;
     pendingRow = copy ? JSON.parse(JSON.stringify(copy)) : U.fromTrain({trainNumber:'', trainType:'', origin:'', destination:'', stops:[]});
+    pendingRow.scheduleSnapshot = {...pendingRow.scheduleSnapshot, manualEntry:true};
     if (copy) { pendingRow.trainNumber = ''; pendingRow.scheduleKey = ''; pendingRow.diagramPeriodId = ''; delete pendingRow.source; delete pendingRow.id; delete pendingRow.createdAt; delete pendingRow.updatedAt; }
     editing = -1; editorDirty = true; fillEditor(pendingRow); $('editNumber').focus();
     message(copy ? '複製元の保存済み内容をコピーしました。別の列車番号を入力してください。時刻表もコピーされるため、確認・修正してください。' : '原簿にない列車も入力できます。列車番号と区間を入力してください。');

@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const navigate = (isStaff) => {
         if (!selectedTrainGroup) return;
+        if (selectedTrainGroup.some(train => train.operationServiceDate && train.operationServiceDate.replaceAll('-', '/') !== selectedFinalDate.replaceAll('-', '/'))) {
+            alert('この手入力時刻表は登録された施行日だけ使用できます。施行日を合わせてください。'); return;
+        }
         sessionStorage.setItem('selectedTrainData', JSON.stringify(selectedTrainGroup));
         const baseUrl = isStaff ? 'train_staff.html' : 'train_timetable.html';
         window.location.href = `${baseUrl}?id=${encodeURIComponent(selectedTargetId)}&date=${encodeURIComponent(selectedFinalDate)}`;
@@ -67,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadTimetables = async () => {
         try {
             await privateDataReady;
-            cachedAllData = await TayunetPrivateData.fetchTimetables();
+            cachedAllData = await TayunetPrivateData.fetchTimetables({selectionList:1});
             renderTimetableList(cachedAllData);
         } catch (error) {
             listBody.innerHTML =

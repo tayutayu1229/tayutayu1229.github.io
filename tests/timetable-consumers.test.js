@@ -28,7 +28,7 @@ for (const file of sourceFiles) {
 assert.deepEqual(directLoads, [], `時刻表JSONを直接取得する画面があります: ${directLoads.join(', ')}`);
 
 const editor = fs.readFileSync('timeedit.html', 'utf8');
-assert.match(editor, /fetchTimetableBundle\(\)/);
+assert.match(editor, /fetchTimetableBundle\(\{sourceOnly:'1'\}\)/, '元JSON編集では日別公開の仮想ファイルを保存対象にしないこと');
 assert.match(editor, /link\.download = selectedName/);
 assert.doesNotMatch(editor, /link\.download = ['"]timetables\.json['"]/);
 

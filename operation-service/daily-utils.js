@@ -93,13 +93,14 @@
           Object.hasOwn(change, field) && change[field] && String(change[field]) !== String(original[field] ?? '') ? `${label} ${change[field]}` : ''), change.note || ''].filter(Boolean);
         return values.length ? [change.station, ...values].join(' ') : '';
       });
-      const notes = [arrangementNotes(item), item.restriction, cleanRemarks(item.remarks), ...changes, source].filter(Boolean).join('\n');
+      const manualNotes = snapshot.manualEntry ? (snapshot.stops || []).filter(stop => stop.note && !(item.timeChanges || []).some(change => String(change.station).replace(/[\s　]/g, '') === String(stop.station).replace(/[\s　]/g, '') && Object.hasOwn(change, 'note'))).map(stop => `${stop.station} ${stop.note}`) : [];
+      const notes = [arrangementNotes(item), item.restriction, cleanRemarks(item.remarks), ...manualNotes, ...changes, source].filter(Boolean).join('\n');
       return `<tr class="state-${state}" data-index="${index}"><td class="check">${selectable
         ? `<input type="checkbox" aria-label="${escapeHtml(item.trainNumber)}を選択" data-select="${index}">` : '□'}</td>
         <td>${index + 1}</td><td>${escapeHtml(categories[item.category] || '定期等')}</td>
         <td>${escapeHtml(item.trainNumber)}</td><td>${escapeHtml(item.trainType || '―')}</td>
         <td>${escapeHtml(snapshot.origin || item.sectionStart || '―')}</td><td>${escapeHtml(snapshot.destination || item.sectionEnd || '―')}</td>
-        <td>${escapeHtml(statusText(item))}</td><td>${escapeHtml([item.sectionStart || '―', item.sectionEnd || '―'].join('～'))}</td>
+        <td>${escapeHtml(statusText(item))}</td><td>${escapeHtml(item.sectionStart || item.sectionEnd ? [item.sectionStart || '―', item.sectionEnd || '―'].join('～') : '―')}</td>
         <td class="daily-remarks">${escapeHtml(notes)}</td></tr>`;
     }).join('');
   }
@@ -147,20 +148,100 @@
     const value = Number(String(number).match(/\d+/)?.[0] || -1);
     return value >= 6000 && value <= 8999 ? 'planned_extra' : value >= 9000 && value <= 9999 ? 'extra' : 'regular';
   }
-  function timeRowsMarkup(stops, changes = []) {
-    if (!stops.length) return '<tr><td colspan="5" class="empty-cell">列車時刻表はありません。</td></tr>';
+  function timeRowsMarkup(stops, changes = [], manual = false) {
+    if (!stops.length) return `<tr><td colspan="${manual ? 6 : 5}" class="empty-cell">列車時刻表はありません。手入力する場合は「駅を追加」を押してください。</td></tr>`;
     const normalized = station => String(station).replace(/[\s　]/g, '');
     const byStation = new Map(changes.map(change => [normalized(change.station), change]));
     const labels = {arrival:'着', departure:'発', trackN:'番線', note:'変更記事'};
     return stops.map((stop, index) => {
       const change = byStation.get(normalized(stop.station)) || {};
-      return `<tr data-stop="${index}"><td>${escapeHtml(stop.station)}</td>${Object.keys(labels).map(field => {
-        const original = String(field === 'note' ? '' : stop[field] ?? '');
+      return `<tr data-stop="${index}" data-station="${escapeHtml(stop.station)}"><td>${manual ? `<input data-field="station" value="${escapeHtml(stop.station)}" data-original="${escapeHtml(stop.station)}" maxlength="80" aria-label="駅名">` : escapeHtml(stop.station)}</td>${Object.keys(labels).map(field => {
+        const original = String(field === 'note' && !manual ? '' : stop[field] ?? '');
         const value = String(change[field] ?? original);
         return `<td><input data-field="${field}" value="${escapeHtml(value)}" data-original="${escapeHtml(original)}" class="${value.trim() !== original ? 'time-modified' : ''}" aria-label="${escapeHtml(stop.station)} ${labels[field]}" title="${original ? `原簿：${escapeHtml(original)}` : ''}" maxlength="${field === 'note' ? 200 : field === 'trackN' ? 40 : 12}"></td>`;
-      }).join('')}</tr>`;
+      }).join('')}${manual ? '<td class="manual-stop-actions"><button type="button" data-stop-action="up" aria-label="駅を上へ">↑</button><button type="button" data-stop-action="down" aria-label="駅を下へ">↓</button><button type="button" data-stop-action="remove" aria-label="駅を削除">削除</button></td>' : ''}</tr>`;
     }).join('');
   }
+  function configureTimeTable(table, manual) {
+    table.querySelectorAll('[data-manual-column]').forEach(node => node.remove());
+    table.classList.toggle('manual-time-table', manual);
+    if (!manual) return;
+    const doc = table.ownerDocument, col = doc.createElement('col'), th = doc.createElement('th');
+    col.dataset.manualColumn = ''; col.style.width = '90px';
+    th.dataset.manualColumn = ''; th.textContent = '行操作';
+    table.querySelector('colgroup').append(col); table.querySelector('thead tr').append(th);
+  }
+  function inputTimeRows(tbody) {
+    return [...tbody.querySelectorAll('tr[data-stop]')].map(row => ({index:Number(row.dataset.stop),
+      values:Object.fromEntries([...row.querySelectorAll('input[data-field]')].map(input => [input.dataset.field, input.value.trim()]))}));
+  }
+  function renderLineRanges(container, ranges = []) {
+    container.replaceChildren();
+    const body = document.createElement('tbody');
+    const add = (value = {}) => {
+      const row = document.createElement('tr');
+      ['line','start','end'].forEach((field, index) => {
+        const cell = document.createElement('td'), input = document.createElement('input');
+        input.dataset.lineField = field; input.maxLength = 80; input.setAttribute('aria-label', ['線区','自駅','至駅'][index]);
+        input.value = value[field] || ''; cell.append(input); row.append(cell);
+      });
+      const cell = document.createElement('td'), button = document.createElement('button');
+      button.type = 'button'; button.textContent = '削除';
+      button.addEventListener('click', () => { row.remove(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+      cell.append(button); row.append(cell);
+      body.append(row);
+    };
+    const table = document.createElement('table');
+    table.className = 'daily-section-table';
+    const head = document.createElement('thead'), heading = document.createElement('tr');
+    ['線区','自駅','至駅','操作'].forEach(label => { const cell = document.createElement('th'); cell.textContent = label; heading.append(cell); });
+    head.append(heading); table.append(head);
+    table.append(body); container.append(table);
+    ranges.forEach(add);
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = '線区を追加';
+    button.addEventListener('click', () => { add(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+    container.append(button);
+  }
+  function collectLineRanges(container, stops) {
+    const ranges = [...container.querySelectorAll('tbody tr')].map(row => Object.fromEntries([...row.querySelectorAll('[data-line-field]')].map(input => [input.dataset.lineField, input.value.trim()])));
+    const normalize = value => String(value).replace(/[\s　]/g, '');
+    const names = stops.map(stop => normalize(stop.station));
+    if (ranges.length > 100) throw new Error('線区は100区間以内にしてください。');
+    if (ranges.some(range => !range.line || !names.includes(normalize(range.start)) || !names.includes(normalize(range.end)))) throw new Error('線区名と、時刻表に存在する自駅・至駅を入力してください。');
+    ranges.sort((a,b) => names.indexOf(normalize(a.start)) - names.indexOf(normalize(b.start)));
+    let next = 0;
+    for (const range of ranges) {
+      const start = names.indexOf(normalize(range.start)), end = names.indexOf(normalize(range.end));
+      if (start !== next || end <= start) throw new Error('線区は始発から終着まで、抜け・重複なく指定してください。');
+      range.start = stops[start].station; range.end = stops[end].station; next = end;
+    }
+    if (ranges.length && next !== stops.length - 1) throw new Error('線区は終着駅まで指定してください。');
+    return ranges;
+  }
+  function collectTimetable(snapshot, rows, manual) {
+    const original = snapshot.stops || [], stops = [], timeChanges = [], seen = new Set();
+    if (manual && rows.length > 300) throw new Error('手入力の時刻表は300駅以内にしてください。');
+    for (const row of rows) {
+      const old = original[row.index];
+      const station = manual ? String(row.values.station || '').trim() : old?.station;
+      if (!station) throw new Error('時刻表の駅名を入力してください。');
+      const stationKey = String(station).replace(/[\s　]/g, '');
+      if (manual && seen.has(stationKey)) throw new Error('同じ駅名を重複して入力できません。');
+      seen.add(stationKey);
+      const isNew = manual && (!old || stationKey !== String(old.station).replace(/[\s　]/g, ''));
+      const base = isNew ? {station, ...Object.fromEntries(['arrival','departure','trackN','note'].map(field => [field,row.values[field] || '']))} : {...old, station};
+      if (manual) for (const field of ['arrival','departure','trackN','note']) base[field] = String(base[field] ?? '');
+      const change = {station}; let changed = false;
+      for (const field of ['arrival','departure','trackN','note']) {
+        change[field] = row.values[field] || '';
+        if (change[field] !== String(field === 'note' && !manual ? '' : base[field] ?? '')) changed = true;
+      }
+      stops.push(base);
+      if (changed) timeChanges.push(change);
+    }
+    return {stops:manual ? stops : original, timeChanges};
+  }
   return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor, timeRowsMarkup,
-    layers, withBase, activityMatches, statusText, sectionNotes, arrangementNotes, resolvedSections, parseNumbers, sectionRowMarkup, cleanRemarks};
+    layers, withBase, activityMatches, statusText, sectionNotes, arrangementNotes, resolvedSections, parseNumbers, sectionRowMarkup, cleanRemarks,
+    configureTimeTable, inputTimeRows, collectTimetable, renderLineRanges, collectLineRanges};
 }));
