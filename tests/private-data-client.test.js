@@ -62,6 +62,12 @@ context.window.TayunetPrivateData.fetchTimetableBundle().then(bundle => {
   return context.window.TayunetPrivateData.fetchTimetables();
 }).then(items => {
   assert.equal(items.length, 3, 'date-aware consumers keep the original revision for later dates');
+  payloads['/public/api/operation-gd'] = {serviceDate:'2026-10-20',items:[],status:'legacy'};
+  return context.window.TayunetPrivateData.fetchGdActivity('2026-10-20');
+}).then(async activity => {
+  assert.equal(activity.serviceDate, '2026-10-20');
+  payloads['/public/api/operation-gd'].serviceDate = '2026-10-21';
+  await assert.rejects(context.window.TayunetPrivateData.fetchGdActivity('2026-10-20'), /指定日の活休情報/);
   console.log('private data multi-file bundle test: ok');
 }).catch(error => {
   console.error(error);
