@@ -16,8 +16,9 @@ async function loadStaff() {
   const target = document.getElementById('render-target');
   try {
     let group = readTransferredTrain();
-    if (!group.length) group = findTrain(await fetchTimetables());
+    if (!group.length || group.some(item => item.source === 'operation-service')) group = findTrain(await fetchTimetables());
     if (!group.length) throw new Error(targetId ? '該当する列車がありません。' : '列車が選択されていません。');
+    if (group.some(item => !manualDateMatches(item, specifiedDate))) throw new Error('この手入力時刻表は登録された施行日だけ使用できます。列車一覧から選び直してください。');
     renderedTrain = mergeTrainSegments(dedupeSegments(group));
     setupToolbar();
     setupDateControl(renderedTrain.startDate);
@@ -67,6 +68,11 @@ function setupDateControl(fallbackDate) {
     const [y,m,d] = initial.split('/'); input.value = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
   }
   button.addEventListener('click', () => {
+    if (renderedTrain && !manualDateMatches(renderedTrain, input.value)) {
+      alert('この手入力時刻表は登録された施行日だけ使用できます。');
+      input.value = renderedTrain.operationServiceDate;
+      return;
+    }
     specifiedDate = input.value;
     if (specifiedDate) params.set('date',specifiedDate); else params.delete('date');
     history.replaceState(null,'',`${location.pathname}?${params.toString()}`);
@@ -82,7 +88,11 @@ function readTransferredTrain() {
 }
 
 async function fetchTimetables() {
-  return TayunetPrivateData.fetchTimetables();
+  return TayunetPrivateData.fetchTimetables({selectionList:1});
+}
+
+function manualDateMatches(train, value) {
+  return !train.operationServiceDate || String(train.operationServiceDate).replaceAll('-', '/') === String(value || '').replaceAll('-', '/');
 }
 
 function findTrain(allData) {
@@ -129,10 +139,9 @@ function esc(value) {
 }
 
 function rawTime(value) {
-  const text = String(value ?? '').trim();
-  if (!text || ['||','↓','…','=','＝','=='].includes(text)) return null;
-  const [h = '0', m = '0', s = '0'] = text.split(':');
-  return { h:Number(h), m:Number(m), s:Number(s) };
+  const text = String(value ?? '').trim().replace(/^[#$¥￥]+/, '');
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  return match ? {h:Number(match[1]),m:Number(match[2]),s:Number(match[3] || 0)} : null;
 }
 
 function isSymbol(value) { return ['||','↓','…'].includes(String(value ?? '').trim()); }
@@ -150,7 +159,9 @@ function timeCell(value, passing, abbreviated) {
   if (['=','＝','=='].includes(text)) return '<div class="endmark" aria-label="終端"></div>';
   const t = rawTime(text);
   if (!t) return '';
-  return `<div class="time${passing ? ' pass' : ''}">
+  const symbol = text.match(/^[#$¥￥]+/)?.[0] || '';
+  const flag = symbol ? `<span class="operation-symbol" title="運休 $／時刻変更 #／運転禁止 ¥">${esc(symbol)}</span>` : '';
+  return `<div class="time${passing ? ' pass' : ''}">${flag}
     <span class="hour-part">${abbreviated ? '' : `${t.h}.`}</span>
     <span class="minute-group"><span class="minute-part">${String(t.m).padStart(2,'0')}</span><span class="second-part">${t.s ? String(t.s).padStart(2,'0') : ''}</span></span>
   </div>`;
@@ -251,7 +262,7 @@ function cardHtml(train, stops, offset, continued, hasNext) {
       <td>${timeCell(stop.departure,passing,departureAbbr)}</td>
       <td class="track"><span class="track-glyph len-${trackLength}">${esc(trackText)}</span></td>
       <td class="limit">${esc(stop.speedLimit)}</td>
-      <td class="memo">${esc(stop.memo)}</td>
+      <td class="memo">${esc(stop.memo || stop.article || stop.note)}</td>
     </tr>`;
   }).join('');
   return `<section class="card">

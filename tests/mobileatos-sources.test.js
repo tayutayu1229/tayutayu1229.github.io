@@ -122,6 +122,17 @@ vm.runInContext('updateSummaryAndTable = (...args) => { window.captured = args; 
   assert.equal(captured[0].line, '東北貨物');
   assert.equal(captured[0].origin, '倉賀野');
 
+  vm.runInContext(`rawJsonData = [
+    {line:'東北貨物',trainNumber:'4074',startDate:'2026/09/19',dayType:'土休日',operationExcludedDates:['2026-09-19'],origin:'従来始発',stops:[{station:'甲',departure:'09:00'}]},
+    {source:'operation-service',operationServiceDate:'2026-09-19',endDate:'2026/09/19',line:'東北貨物',trainNumber:'4074',startDate:'2026/09/19',dayType:'',origin:'手入力始発',stops:[{station:'甲',departure:'#10:35'}]}
+  ];`, context);
+  await vm.runInContext('performSearch()', context);
+  assert.equal(context.window.captured[0].origin, '手入力始発', 'same-day authored version must win without losing the original');
+  assert.equal(context.window.captured[0].stops[0].departure, '#10:35');
+  elements.get('dateInput').value = '2026-09-26';
+  await vm.runInContext('performSearch()', context);
+  assert.equal(context.window.captured[0].origin, '従来始発', 'later dates must return to the applicable source version');
+
   vm.runInContext(`renderTable({type: '普通', stops: [{station: '$取手', arrival: '20:00',
     arrivalActual: '20:01:00', arrivalDelaySeconds: 60, departure: '=', departureActual: '20:02:00',
     departureDelaySeconds: 120, hasHistory: true, trackN: '1', trainType:'快速'}]})`, context);
