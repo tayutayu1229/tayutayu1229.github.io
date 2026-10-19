@@ -91,12 +91,26 @@ assert.equal(U.activityMatches(suspended, 'changed'), true);
 assert.equal(U.statusText(suspended), '運休');
 assert.match(U.arrangementNotes(suspended), /時刻変更あり/);
 assert.doesNotMatch(U.statusText(layered), /区間指定|時刻変更/);
-assert.match(U.sectionNotes(layered), /適用結果：甲～乙 運転、乙～丙 運休、丙～丁 運転/);
+assert.equal(U.sectionNotes(layered), '乙～丁 運休\n丙～丁 運転');
 assert.doesNotMatch(U.rowsMarkup([suspended]), /state-suspend/); // Mixed sections must not get a full cancellation line.
 assert.equal(U.layers({operationState:'changed', timeChanged:false}).timeChanged, false);
 assert.equal(U.resolvedSections({...layered, sectionOverrides:[{start:'原簿外', end:'丁', state:'suspend'}]}), null);
-assert.match(U.sectionNotes({...layered, sectionOverrides:[{start:'<script>', end:'丁', state:'suspend'}]}), /区間順を確定できません/);
+assert.doesNotMatch(U.sectionNotes(layered), /適用結果|後の指定を優先/);
 assert.doesNotMatch(U.rowsMarkup([{...layered, sectionOverrides:[{start:'<script>', end:'丁', state:'suspend'}]}]), /<script>/);
+const unchecked = {...layered, operationState:'changed', baseActivity:'operate', timeChanged:false, sectionOverrides:[]};
+assert.equal(U.layers(unchecked).timeChanged, false);
+assert.equal(U.activityMatches(unchecked, 'changed'), false);
+assert.equal(U.withBase(unchecked, 'operate').operationState, 'operate');
+assert.match(U.rowsMarkup([unchecked]), /class="state-operate"/);
+assert.doesNotMatch(U.rowsMarkup([{...unchecked, timetableWarning:'施行日の指定原簿に該当なし。保存時刻表を参照'}]), /施行日の指定原簿/);
+assert.doesNotMatch(admin, /if \(item\.timeChanges\.length\) item\.timeChanged = true/);
+assert.doesNotMatch(U.rowsMarkup([{trainNumber:'1', timeChanges:[{station:'甲', departure:''}], scheduleSnapshot:{stops:[{station:'甲', departure:'10:00'}]}}]), /（空欄）/);
+const oldAdminCode = fs.readFileSync('operation-service/admin.js', 'utf8');
+assert.doesNotMatch(oldAdminCode, /checked \|\| row\.timeChanges\.length/);
+for (const id of ['numberTools','catalogTools','dateApplyTools']) {
+  const tag = adminHtml.match(new RegExp('<details[^>]*id="'+id+'"[^>]*>'))?.[0];
+  assert.ok(tag, id); assert.doesNotMatch(tag, /\bopen\b/);
+}
 assert.equal(U.cleanRemarks('手入力\n管理画面の一括運休で登録\n残す記事'), '手入力\n残す記事');
 assert.equal(U.cleanRemarks('ダイヤ原簿設定あり（活休未判定）'), '');
 assert.equal(U.cleanRemarks('管理画面の一括運転で登録'), '');

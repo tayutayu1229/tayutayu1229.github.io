@@ -201,7 +201,6 @@
       delete item.source;
       $('editOrigin').value = item.scheduleSnapshot.origin; $('editDestination').value = item.scheduleSnapshot.destination;
     }
-    if (item.timeChanges.length) item.timeChanged = true;
     item.operationState = U.withBase(item, item.baseActivity).operationState;
     if (item.operationKind !== 'other') item.operationKind = item.prohibited ? 'prohibition' : item.sectionOverrides.length ? 'partial' : item.timeChanged ? 'time_change' : U.kinds[item.baseActivity];
     if (pendingRow) day.items.push(item); else day.items[editing] = item;

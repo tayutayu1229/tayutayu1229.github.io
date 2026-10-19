@@ -153,7 +153,7 @@ publicContext.renderTestList([layeredPublic]);
 assert.match(publicNode('noticeRows').markup, /badge-suspend">運休<\/span>/);
 assert.match(publicNode('noticeRows').markup, /時刻変更あり/);
 assert.match(publicNode('detail').markup, /区間ごとの活休/);
-assert.match(publicNode('detail').markup, /（空欄）/);
+assert.doesNotMatch(publicNode('detail').markup, /（空欄）/);
 assert.equal(publicNode('operateCount').textContent, 1);
 assert.equal(publicNode('suspendCount').textContent, 1);
 assert.equal(publicNode('changedCount').textContent, 1);

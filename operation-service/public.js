@@ -129,7 +129,7 @@
 
   function timeCell(original, changed) {
     if (changed === undefined || changed === original) return escapeHtml(original || '―');
-    return `<span class="changed-time">${escapeHtml(changed || '（空欄）')}</span>${original ? `<br><span class="original-time">${escapeHtml(original)}</span>` : ''}`;
+    return `<span class="changed-time">${escapeHtml(changed || '')}</span>${original ? `<br><span class="original-time">${escapeHtml(original)}</span>` : ''}`;
   }
 
   function renderDetail(item) {

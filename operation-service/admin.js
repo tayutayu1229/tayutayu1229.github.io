@@ -86,7 +86,7 @@
       if (!row.trainNumber || !row.title) throw new Error('列車番号・表題を入力してください。');
       const duplicate = dailyDay.items.some(item => U.key(item) === U.key(row) && U.key(item) !== U.key(currentNotice || {}));
       if (duplicate) throw new Error('同じ列車番号は登録済みです。一覧から既存の列車を選んで編集してください。');
-      row.timeChanged = $('dailyTimeChanged').checked || row.timeChanges.length > 0;
+      row.timeChanged = $('dailyTimeChanged').checked;
       row.prohibited = $('dailyProhibited').checked;
       row.sectionOverrides = [...$('dailySectionRows').querySelectorAll('tr')].map(tr => Object.fromEntries([...tr.querySelectorAll('[data-section-field]')].map(input => [input.dataset.sectionField, input.value.trim()])));
       row = U.withBase(row, ['operate','suspend','unknown'].includes($('operationState').value) ? $('operationState').value : 'unknown');
