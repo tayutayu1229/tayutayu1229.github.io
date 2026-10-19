@@ -38,6 +38,13 @@ assert.match(publicJs, /plannedHistory/, '予定臨の列車別履歴を表示�
 assert.match(adminHtml, /id="diagramPeriod"/, 'ダイヤ改正を選択できること');
 assert.match(adminHtml, /運転報PDF/, '運転活休通達PDFへの導線を備えること');
 assert.match(adminJs, /diagramPeriodId/, '選択した改正をAPIへ渡すこと');
+assert.match(adminHtml, /id="managementWorkflow"[\s\S]*value="daily"/);
+assert.match(adminHtml, /class="editor-scroll"[\s\S]*id="dailyLayerControls"/);
+assert.match(adminJs, /if \(dailyMode\(\)\) return saveDailyFromTrain\(status\)/);
+assert.match(adminJs, /daily\/commit/);
+assert.match(adminJs, /daily\/apply-publish/);
+assert.match(adminJs, /selectedCatalogKeys\.clear\(\); await loadDate\(\)/);
+assert.doesNotMatch(adminJs, /remarks: `管理画面の/);
 assert.match(adminJs, /timeChanges:\s*collectTimeChanges\(\)/, '駅ごとの時刻変更を保存すること');
 assert.match(adminHtml, /id="serviceDateMode"[\s\S]*複数日[\s\S]*期間/, '運転日を単日・複数日・期間で指定できること');
 assert.match(adminHtml, /id="bulkServiceDateMode"[\s\S]*id="bulkOperationDatePicker"[\s\S]*id="bulkOperationDateList"/, '一括操作の複数日を日付追加式で指定できること');
@@ -110,6 +117,7 @@ function publicNode(id) {
   return publicNodes.get(id);
 }
 const publicContext = {
+  window: {OperationDailyUtils:require('../operation-service/daily-utils.js')},
   document: {
     getElementById: publicNode,
     createRange: () => ({selectNodeContents() {}, createContextualFragment: markup => markup}),
@@ -131,6 +139,20 @@ assert.equal(publicCells.length, publicHeaders.length, 'データ行と見出し
 assert.deepEqual(publicCells.slice(6, 9), ['新鶴見', '真鶴', '運転休止'], '始発駅・終着駅を隣接させ、表題はその後に表示すること');
 assert.doesNotMatch(publicNode('noticeRows').markup, /02:44/, '一覧には運転時刻を表示しないこと');
 assert.match(publicNode('detail').markup, /02:44:00/, '詳細の列車時刻表は残すこと');
+const layeredPublic = {
+  id:'layered', trainNumber:'1001', category:'regular', serviceDate:'2026-10-18', title:'複合手配',
+  operationState:'suspend', baseActivity:'suspend', timeChanged:true,
+  sectionStart:'甲', sectionEnd:'丙', scheduleSnapshot:{stops:[{station:'甲', departure:'10:00'}, {station:'乙'}, {station:'丙'}]},
+  timeChanges:[{station:'甲', departure:''}], sectionOverrides:[{start:'乙', end:'丙', state:'operate'}],
+};
+publicContext.renderTestList([layeredPublic]);
+assert.match(publicNode('noticeRows').markup, /badge-suspend">運休<\/span>/);
+assert.match(publicNode('noticeRows').markup, /時刻変更あり/);
+assert.match(publicNode('detail').markup, /区間ごとの活休/);
+assert.match(publicNode('detail').markup, /（空欄）/);
+assert.equal(publicNode('operateCount').textContent, 1);
+assert.equal(publicNode('suspendCount').textContent, 1);
+assert.equal(publicNode('changedCount').textContent, 1);
 publicContext.renderTestList([]);
 assert.match(publicNode('noticeRows').markup, /colspan="11"/, '該当なしの表示も11列分にすること');
 
