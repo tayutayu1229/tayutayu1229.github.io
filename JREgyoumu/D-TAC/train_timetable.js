@@ -27,8 +27,9 @@ async function init() {
   setupMarkerMenu();
   try {
     let group = readTransferredTrain();
-    if (!group.length) group = findTrain(await fetchTimetables());
+    if (!group.length || group.some(item => item.source === 'operation-service')) group = findTrain(await fetchTimetables());
     if (!group.length) throw new Error(targetId ? '該当する列車がありません。' : '列車が選択されていません。');
+    if (group.some(item => !manualDateMatches(item, params.get('date') || item.startDate))) throw new Error('この手入力時刻表は登録された施行日だけ使用できます。列車一覧から選び直してください。');
     train = mergeTrainSegments(dedupeSegments(group));
     loadMarkers();
     renderSummary(train);
@@ -110,7 +111,11 @@ function readTransferredTrain() {
 }
 
 async function fetchTimetables() {
-  return TayunetPrivateData.fetchTimetables();
+  return TayunetPrivateData.fetchTimetables({selectionList:1});
+}
+
+function manualDateMatches(train, value) {
+  return !train.operationServiceDate || String(train.operationServiceDate).replaceAll('-', '/') === String(value || '').replaceAll('-', '/');
 }
 
 function findTrain(allData) {
@@ -194,16 +199,15 @@ function rowHtml(stop,index,stops) {
     <div class="time-cell${passing ? ' pass' : ''}">${timeMarkup(stop.departure,passing)}</div>
     <div class="track">${esc(displayTrack(stop.trackN))}</div>
     <div class="limit">${esc(stop.speedLimit || '')}</div>
-    <div class="memo">${esc(stop.memo || stop.article || '')}</div>
+    <div class="memo">${esc(stop.memo || stop.article || stop.note || '')}</div>
     <button class="marker-button${marker ? ` has-marker marker-${marker.color}` : ''}" type="button" aria-label="マーカー">${esc(marker?.text || '')}</button>
   </section>`;
 }
 
 function rawTime(value) {
-  const text = String(value ?? '').trim();
-  if (!text || ['||','↓','…','=','＝','=='].includes(text)) return null;
-  const [h='0',m='0',s='0'] = text.split(':');
-  return {h:Number(h),m:Number(m),s:Number(s)};
+  const text = String(value ?? '').trim().replace(/^[#$¥￥]+/, '');
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  return match ? {h:Number(match[1]),m:Number(match[2]),s:Number(match[3] || 0)} : null;
 }
 
 function timeMarkup(value,passing) {
@@ -215,7 +219,9 @@ function timeMarkup(value,passing) {
   if (!t) return '';
   const showHour = !passing || lastEventHour === null || lastEventHour !== t.h;
   lastEventHour = t.h;
-  return `<span class="time-main"><span class="time-hour">${showHour ? `${t.h}.` : ''}</span><span class="time-minute">${String(t.m).padStart(2,'0')}</span><small class="time-sec">${t.s ? String(t.s).padStart(2,'0') : ''}</small></span>`;
+  const symbol = text.match(/^[#$¥￥]+/)?.[0] || '';
+  const flag = symbol ? `<span class="operation-symbol" title="運休 $／時刻変更 #／運転禁止 ¥">${esc(symbol)}</span>` : '';
+  return `${flag}<span class="time-main"><span class="time-hour">${showHour ? `${t.h}.` : ''}</span><span class="time-minute">${String(t.m).padStart(2,'0')}</span><small class="time-sec">${t.s ? String(t.s).padStart(2,'0') : ''}</small></span>`;
 }
 
 function isPassing(stop,index,length) {

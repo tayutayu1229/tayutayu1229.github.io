@@ -332,9 +332,9 @@
     return [...latest.values()];
   }
   function liveTrainFor(number){const key=normalizeNumber(number);return state.live.find(train=>normalizeNumber(train["odpt:trainNumber"])===key);}
-  function timeMinutes(value){const match=String(value||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);return match?Number(match[1])*60+Number(match[2])+Number(match[3]||0)/60:Number.POSITIVE_INFINITY;}
+  function timeMinutes(value){const match=String(value||"").replace(/^#+/,"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);return match?Number(match[1])*60+Number(match[2])+Number(match[3]||0)/60:Number.POSITIVE_INFINITY;}
   function predictedTime(value,delay){
-    const match=String(value||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);if(!match||!delay)return "";
+    const match=String(value||"").replace(/^#+/,"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);if(!match||!delay)return "";
     const total=Number(match[1])*3600+Number(match[2])*60+Number(match[3]||0)+delay*60;
     return `${String(Math.floor(total/3600)).padStart(2,"0")}:${String(Math.floor(total%3600/60)).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`;
   }
