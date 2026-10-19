@@ -175,6 +175,40 @@
     return [...tbody.querySelectorAll('tr[data-stop]')].map(row => ({index:Number(row.dataset.stop),
       values:Object.fromEntries([...row.querySelectorAll('input[data-field]')].map(input => [input.dataset.field, input.value.trim()]))}));
   }
+  function renderLineRanges(container, ranges = []) {
+    container.replaceChildren();
+    const body = document.createElement('tbody');
+    const add = (value = {}) => {
+      const row = document.createElement('tr');
+      row.innerHTML = ['line','start','end'].map((field, index) => `<td><input data-line-field="${field}" maxlength="80" aria-label="${['線区','自駅','至駅'][index]}" value="${escapeHtml(value[field] || '')}"></td>`).join('') + '<td><button type="button">削除</button></td>';
+      row.querySelector('button').addEventListener('click', () => { row.remove(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+      body.append(row);
+    };
+    const table = document.createElement('table');
+    table.className = 'daily-section-table';
+    table.innerHTML = '<thead><tr><th>線区</th><th>自駅</th><th>至駅</th><th>操作</th></tr></thead>';
+    table.append(body); container.append(table);
+    ranges.forEach(add);
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = '線区を追加';
+    button.addEventListener('click', () => { add(); container.dispatchEvent(new Event('input', {bubbles:true})); });
+    container.append(button);
+  }
+  function collectLineRanges(container, stops) {
+    const ranges = [...container.querySelectorAll('tbody tr')].map(row => Object.fromEntries([...row.querySelectorAll('[data-line-field]')].map(input => [input.dataset.lineField, input.value.trim()])));
+    const normalize = value => String(value).replace(/[\s　]/g, '');
+    const names = stops.map(stop => normalize(stop.station));
+    if (ranges.length > 100) throw new Error('線区は100区間以内にしてください。');
+    if (ranges.some(range => !range.line || !names.includes(normalize(range.start)) || !names.includes(normalize(range.end)))) throw new Error('線区名と、時刻表に存在する自駅・至駅を入力してください。');
+    ranges.sort((a,b) => names.indexOf(normalize(a.start)) - names.indexOf(normalize(b.start)));
+    let next = 0;
+    for (const range of ranges) {
+      const start = names.indexOf(normalize(range.start)), end = names.indexOf(normalize(range.end));
+      if (start !== next || end <= start) throw new Error('線区は始発から終着まで、抜け・重複なく指定してください。');
+      range.start = stops[start].station; range.end = stops[end].station; next = end;
+    }
+    if (ranges.length && next !== stops.length - 1) throw new Error('線区は終着駅まで指定してください。');
+    return ranges;
+  }
   function collectTimetable(snapshot, rows, manual) {
     const original = snapshot.stops || [], stops = [], timeChanges = [], seen = new Set();
     if (manual && rows.length > 300) throw new Error('手入力の時刻表は300駅以内にしてください。');
@@ -200,5 +234,5 @@
   }
   return {states, categories, kinds, escapeHtml, key, rowsMarkup, fromTrain, matches, compare, categoryFor, timeRowsMarkup,
     layers, withBase, activityMatches, statusText, sectionNotes, arrangementNotes, resolvedSections, parseNumbers, sectionRowMarkup, cleanRemarks,
-    configureTimeTable, inputTimeRows, collectTimetable};
+    configureTimeTable, inputTimeRows, collectTimetable, renderLineRanges, collectLineRanges};
 }));

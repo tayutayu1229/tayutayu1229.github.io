@@ -54,6 +54,14 @@ context.window.TayunetPrivateData.fetchTimetableBundle().then(bundle => {
 }).then(aliases => {
   assert.equal(aliases.lines[0].canonical, '中央');
   assert.equal(requested.at(-1), '/api/line-aliases');
+  payloads['/api/timetables/timetables.json'].items[0].startDate = '2026/10/20';
+  payloads['/api/timetables/timetables.json'].items[0].operationExcludedDates = ['2026-10-20'];
+  return context.window.TayunetPrivateData.fetchTimetables({selectionList:1});
+}).then(items => {
+  assert.deepEqual(Array.from(items, item => item.trainNumber), ['2M', '3M']);
+  return context.window.TayunetPrivateData.fetchTimetables();
+}).then(items => {
+  assert.equal(items.length, 3, 'date-aware consumers keep the original revision for later dates');
   console.log('private data multi-file bundle test: ok');
 }).catch(error => {
   console.error(error);

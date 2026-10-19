@@ -127,6 +127,7 @@
     const stops = item.scheduleSnapshot?.stops || [];
     markup($('stationChoices'), stops.map(stop => `<option value="${U.escapeHtml(stop.station)}"></option>`).join(''));
     renderTimeTable(stops, item.timeChanges || []);
+    U.renderLineRanges($('manualLineRanges'), item.scheduleSnapshot?.lineRanges || []);
     $('dailyTimeWrap').scrollTop = 0;
     markEditingRow(); identity();
   }
@@ -141,6 +142,7 @@
     if (clear) {
       if ($('dailyTimeRows').querySelector('tr[data-stop]') && !confirm('表示中の時刻表を空にして新規作成します。元原簿は変更しません。よろしいですか？')) return false;
       manualTimetable = true; renderTimeTable([], []);
+      U.renderLineRanges($('manualLineRanges'), []);
     } else if (!manualTimetable) {
       const current = U.collectTimetable(item.scheduleSnapshot || {}, U.inputTimeRows($('dailyTimeRows')), false);
       manualTimetable = true; renderTimeTable(current.stops, current.timeChanges);
@@ -195,11 +197,14 @@
     const timetable = U.collectTimetable(item.scheduleSnapshot, U.inputTimeRows($('dailyTimeRows')), manualTimetable);
     item.timeChanges = timetable.timeChanges;
     if (manualTimetable) {
+      const lineRanges = U.collectLineRanges($('manualLineRanges'), timetable.stops);
       item.scheduleSnapshot = {...item.scheduleSnapshot, manualEntry:true, stops:timetable.stops,
+        lineRanges,
         origin:item.scheduleSnapshot.origin || timetable.stops[0]?.station || '', destination:item.scheduleSnapshot.destination || timetable.stops[timetable.stops.length - 1]?.station || ''};
       item.scheduleKey = ''; item.timetableDayType = '';
       delete item.source;
       $('editOrigin').value = item.scheduleSnapshot.origin; $('editDestination').value = item.scheduleSnapshot.destination;
+      if (lineRanges.length) { item.lines = [...new Set(lineRanges.map(range => range.line))]; $('editLines').value = item.lines.join('、'); }
     }
     item.operationState = U.withBase(item, item.baseActivity).operationState;
     if (item.operationKind !== 'other') item.operationKind = item.prohibited ? 'prohibition' : item.sectionOverrides.length ? 'partial' : item.timeChanged ? 'time_change' : U.kinds[item.baseActivity];

@@ -15,6 +15,14 @@ assert.equal(versions.selectForDate(rows, '2026-04-07', '平日').marker, 'dated
 assert.equal(versions.selectForDate(rows, '2026-04-30', '平日').marker, 'dated-change');
 assert.equal(versions.selectForDate(rows, '2026-03-20', '平日').marker, 'base-weekday');
 assert.equal(versions.selectForDate(rows, '2026-03-15', '平日'), null);
+const manual = {startDate:'2026/04/07', endDate:'2026/04/07', operationServiceDate:'2026-04-07', dayType:'', marker:'manual'};
+assert.equal(versions.selectForDate([manual], '2026-04-07', '平日').marker, 'manual');
+assert.equal(versions.selectForDate([manual], '2026-04-08', '平日'), null);
+assert.equal(versions.selectForDate([manual], '2026-04-06', '平日'), null);
+assert.equal(versions.selectForDate([rows[0], manual], '2026-04-08', '平日').marker, 'base-weekday');
+const sameDateBase = {startDate:'2026/04/07', dayType:'平日', operationExcludedDates:['2026-04-07'], marker:'same-date-base'};
+assert.equal(versions.selectForDate([sameDateBase, manual], '2026-04-07', '平日').marker, 'manual');
+assert.equal(versions.selectForDate([sameDateBase, manual], '2026-04-08', '平日').marker, 'same-date-base');
 assert.equal(versions.selectForDate([
   {startDate:'2026/04/07', dayType:'', marker:'generic'},
   {startDate:'2026/04/07', dayType:'平日', marker:'weekday'}

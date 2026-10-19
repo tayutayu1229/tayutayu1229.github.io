@@ -632,6 +632,7 @@
     const stops = schedule?.stops || [];
     U.configureTimeTable($('trainTimeTable'), manualTimetable);
     replaceMarkup($('timeRows'), U.timeRowsMarkup(stops, changes || [], manualTimetable));
+    U.renderLineRanges($('trainManualLineRanges'), schedule?.lineRanges || []);
     $('trainTimeEntryMode').textContent = manualTimetable ? '手入力の時刻表（元原簿は変更しません）' : '原簿基準';
   }
   function syncManualSectionChoices() {
@@ -646,7 +647,7 @@
       manualTimetable = true; renderTimeRows({stops:[]}, []);
     } else if (!manualTimetable) {
       const current = U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), false);
-      manualTimetable = true; renderTimeRows({stops:current.stops}, current.timeChanges);
+      manualTimetable = true; renderTimeRows({...selectedSchedule, stops:current.stops}, current.timeChanges);
     }
     return true;
   }
@@ -766,6 +767,7 @@
     if (manualTimetable) {
       const table = U.collectTimetable(snapshot, U.inputTimeRows($('timeRows')), true);
       snapshot = {...snapshot, manualEntry:true, stops:table.stops, trainNumber:$('trainNumber').value.trim(), trainType:$('trainType').value.trim(),
+        lineRanges:U.collectLineRanges($('trainManualLineRanges'), table.stops),
         origin:snapshot.origin || table.stops[0]?.station || '', destination:snapshot.destination || table.stops[table.stops.length-1]?.station || ''};
     }
     return Object.assign({
@@ -899,9 +901,12 @@
   $('withdraw').addEventListener('click', () => { if (confirm('公開情報を取下げますか？通達番号と変更履歴は残ります。')) save('withdrawn'); });
   $('duplicate').addEventListener('click', () => {
     let table;
-    try { table = U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), manualTimetable); }
+    try {
+      table = U.collectTimetable(selectedSchedule || {}, U.inputTimeRows($('timeRows')), manualTimetable);
+      table.lineRanges = manualTimetable ? U.collectLineRanges($('trainManualLineRanges'), table.stops) : [];
+    }
     catch (error) { setMessage(error.message, 'error'); return; }
-    selectedSchedule = {...(selectedSchedule || {}), manualEntry:true, stops:table.stops};
+    selectedSchedule = {...(selectedSchedule || {}), manualEntry:true, stops:table.stops, lineRanges:table.lineRanges};
     manualTimetable = true; renderTimeRows(selectedSchedule, table.timeChanges);
     currentNotice = null;
     $('recordIdentity').textContent = '複製 / 新規';
@@ -947,6 +952,7 @@
   document.querySelectorAll('.editor-scroll input, .editor-scroll select, .editor-scroll textarea').forEach(control => {
     if (control.id !== 'operationKind') control.addEventListener('input', () => markDirty());
   });
+  $('trainManualLineRanges').addEventListener('input', markDirty);
   setInterval(() => { $('clock').textContent = new Date().toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'}); }, 1000);
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   initialize();
