@@ -1,0 +1,60 @@
+name: Dependency security checks
+
+on:
+  pull_request:
+    paths:
+      - "server/timetable-output/package.json"
+      - "server/timetable-output/package-lock.json"
+      - "server/photo-archive/requirements.txt"
+      - "server/photo-archive/**/*.py"
+      - ".github/workflows/dependency-security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "server/timetable-output/package.json"
+      - "server/timetable-output/package-lock.json"
+      - "server/photo-archive/requirements.txt"
+      - "server/photo-archive/**/*.py"
+      - ".github/workflows/dependency-security.yml"
+  schedule:
+    - cron: "30 18 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/timetable-output
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/timetable-output/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+
+  photo-archive:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/photo-archive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/photo-archive/requirements.txt
+      - run: pip install -r requirements.txt pip-audit
+      - run: pip-audit -r requirements.txt
+      - name: Run application tests
+        env:
+          PHOTO_ARCHIVE_ROOT: /tmp/photo-archive-test
+          PHOTO_ARCHIVE_DB: /tmp/photo-archive-test/archive.sqlite3
+        run: python -m unittest discover -v -s . -p 'test_*.py'
