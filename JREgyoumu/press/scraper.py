@@ -10,13 +10,14 @@ import os
 import re
 import sys
 import time
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -180,20 +181,89 @@ def discord_embed(item: Item) -> dict:
     }
 
 
+MAX_PDF_BYTES = 20 * 1024 * 1024
+MAX_PREVIEW_PAGES = 4
+
+
+def pdf_previews(item: Item) -> list[tuple[str, bytes]]:
+    """PDFの先頭4ページを画像化する。失敗しても通常通知は継続する。"""
+    if not urlsplit(item.url).path.lower().endswith(".pdf"):
+        return []
+    try:
+        import pymupdf
+
+        request = Request(item.url, headers={"User-Agent": USER_AGENT})
+        with urlopen(request, timeout=30) as response:
+            document_bytes = response.read(MAX_PDF_BYTES + 1)
+        if len(document_bytes) > MAX_PDF_BYTES:
+            raise ValueError("PDFが20MBを超えています")
+        previews = []
+        with pymupdf.open(stream=document_bytes, filetype="pdf") as document:
+            for index in range(min(len(document), MAX_PREVIEW_PAGES)):
+                page = document[index]
+                scale = min(1.5, 1400 / max(page.rect.width, page.rect.height))
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+                previews.append((f"page-{index + 1}.jpg", pixmap.tobytes("jpeg", jpg_quality=80)))
+        return previews
+    except Exception as error:
+        # URLやWebhookの機密情報をログへ出さない。
+        print(f"PDFプレビューを省略します（{type(error).__name__}）。通常通知を送ります。", file=sys.stderr)
+        return []
+
+
+def discord_request(webhook_url: str, payload: dict, previews: list[tuple[str, bytes]]) -> Request:
+    headers = {"User-Agent": USER_AGENT}
+    if not previews:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    else:
+        boundary = "----press-" + uuid.uuid4().hex
+        payload["attachments"] = [{"id": index, "filename": name} for index, (name, _) in enumerate(previews)]
+        parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n'.encode(),
+                 json.dumps(payload, ensure_ascii=False).encode("utf-8"), b"\r\n"]
+        for index, (name, image) in enumerate(previews):
+            parts.extend([f'--{boundary}\r\nContent-Disposition: form-data; name="files[{index}]"; filename="{name}"\r\nContent-Type: image/jpeg\r\n\r\n'.encode(), image, b"\r\n"])
+        parts.append(f"--{boundary}--\r\n".encode())
+        body = b"".join(parts)
+        headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+    return Request(webhook_url, data=body, headers=headers, method="POST")
+
+
 def post_discord(webhook_url: str, items: list[Item]) -> None:
-    for offset in range(0, len(items), 10):
-        batch = items[offset:offset + 10]
-        payload = json.dumps({
+    # 記事ごとに送信し、添付画像と元の記事の対応を明確にする。
+    for item in items:
+        previews = pdf_previews(item)
+        payload = {
             "username": "JR東日本 新着通知",
-            "content": f"JR東日本から新着が{len(batch)}件あります。",
-            "embeds": [discord_embed(item) for item in batch],
-        }, ensure_ascii=False).encode("utf-8")
-        request = Request(webhook_url, data=payload, headers={"Content-Type": "application/json", "User-Agent": USER_AGENT}, method="POST")
-        try:
-            with urlopen(request, timeout=30) as response:
-                response.read()
-        except (HTTPError, URLError, TimeoutError) as error:
-            raise RuntimeError(f"Discordへの送信に失敗しました: {error}") from error
+            "content": "JR東日本から新着があります。",
+            "allowed_mentions": {"parse": []},
+            "embeds": [discord_embed(item)],
+        }
+        for attempt in range(4):
+            request = discord_request(webhook_url, payload, previews)
+            try:
+                with urlopen(request, timeout=30) as response:
+                    response.read()
+                break
+            except HTTPError as error:
+                if previews and error.code in (400, 413):
+                    previews = []
+                    payload.pop("attachments", None)
+                    continue
+                if error.code == 429 and attempt < 3:
+                    try:
+                        delay = float(json.loads(error.read()).get("retry_after", 2))
+                    except (ValueError, TypeError, AttributeError):
+                        delay = 2
+                    if not 0 <= delay <= 60:
+                        raise RuntimeError("Discordの待機時間が上限を超えました") from None
+                    time.sleep(delay + 0.1)
+                    continue
+                raise RuntimeError(f"Discordへの送信に失敗しました（HTTP {error.code}）") from None
+            except (URLError, TimeoutError) as error:
+                raise RuntimeError(f"Discordへの送信に失敗しました（{type(error).__name__}）") from None
+        else:
+            raise RuntimeError("Discordへの送信の再試行回数を超えました")
 
 
 def render_site(items: list[Item], output_dir: Path, error_message: str | None = None) -> None:

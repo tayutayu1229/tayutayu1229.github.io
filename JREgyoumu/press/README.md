@@ -1,6 +1,6 @@
 # JR東日本 新着Webサイト・Discord通知
 
-JR東日本の[ニュースリリース](https://www.jreast.co.jp/press/)と[お知らせ](https://www.jreast.co.jp/information/)を確認し、一覧サイトを `tayutayu1229.github.io/JREgyoumu/press/` へ公開するとともに、新着だけをDiscord Webhookへ通知します。外部ライブラリは不要です。
+JR東日本の[ニュースリリース](https://www.jreast.co.jp/press/)と[お知らせ](https://www.jreast.co.jp/information/)を確認し、一覧サイトを `tayutayu1229.github.io/JREgyoumu/press/` へ公開するとともに、新着だけをDiscord Webhookへ通知します。PDFの記事は先頭4ページをJPEG画像で添付します（Discord側の表示により並び方は変わります）。画像生成にはPyMuPDFを使用します。20MBを超えるPDFや取得・変換に失敗したPDFは、通常の本文・リンクのみ通知します。
 
 ## 最初の設定
 
@@ -37,6 +37,7 @@ tayutayu1229.github.io/
 Discordへ送らず取得内容を見るには次を実行します。
 
 ```sh
+python3 -m pip install -r JREgyoumu/press/requirements.txt
 python3 JREgyoumu/press/scraper.py --dry-run --output JREgyoumu/press
 ```
 
