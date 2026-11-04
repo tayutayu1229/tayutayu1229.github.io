@@ -16,7 +16,11 @@
     const token=await context.user.getIdToken(false);
     const response=await fetch(API+path,{cache:'no-store',...options,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(options.headers||{})}});
     let payload={};try{payload=await response.json();}catch(_){throw new Error(`監視API HTTP ${response.status}`);}
-    if(!response.ok)throw new Error(payload.error||`監視API HTTP ${response.status}`);
+    if(!response.ok){
+      const hints={firebase_token_required:'ログイン情報がありません。ログインし直してください。',firebase_token_invalid:'ログインの有効期限または認証情報を確認してください。',firebase_unavailable:'認証サービスに接続できません。時間を置いて再試行してください。',origin_not_allowed:'許可された管理ページからアクセスしてください。',confirmation_required:'対象名を確認してから操作してください。',action_in_progress:'別の操作を実行中です。完了後に再試行してください。'};
+      const code=payload.error||'unknown_error',hint=payload.message||hints[code]||'処理に失敗しました。更新後も続く場合は管理ログを確認してください。';
+      throw new Error(`${hint}（HTTP ${response.status} / ${code}${payload.requestId?` / 追跡ID ${payload.requestId}`:''}）`);
+    }
     return payload;
   }
   function setKpi(id,value,sub,kind='ok'){const node=$(id);node.querySelector('.value').textContent=value;node.querySelector('.sub').textContent=sub;node.classList.toggle('red',kind==='critical');node.classList.toggle('amber',kind==='warning');}
