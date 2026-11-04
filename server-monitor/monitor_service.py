@@ -8,6 +8,9 @@ both a Firebase ID token and the explicit administrator email allowlist.
 
 from __future__ import annotations
 
+from zoneinfo import ZoneInfo
+from external_status import provider_status, notify_changes, security_updates
+
 import hashlib
 import http.client
 import json
@@ -21,6 +24,8 @@ import subprocess
 import threading
 import time
 import traceback
+import uuid
+import sys
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -140,6 +145,14 @@ def init_db() -> None:
           code TEXT NOT NULL,
           message TEXT NOT NULL,
           detail TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS notification_outbox (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT NOT NULL,
+          body TEXT NOT NULL,
+          severity TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          next_attempt REAL NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS actions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -406,7 +419,22 @@ def system_checks() -> dict:
 def backup_status() -> dict:
     status_file = DATA_DIR / "backup-status.json"
     try:
-        return json.loads(status_file.read_text())
+        data = json.loads(status_file.read_text())
+        runs = data.get("runs", {})
+        problems = []
+        for mode, max_age in (("local", 8 * 3600), ("cloud", 30 * 3600)):
+            entry = runs.get(mode, {})
+            try:
+                age = time.time() - datetime.fromisoformat(entry["finishedAt"]).timestamp()
+                stale = age > max_age or age < -300
+            except (KeyError, TypeError, ValueError):
+                stale = True
+            if entry.get("ok") is not True or stale:
+                problems.append(mode + (": 記録が古い・未取得" if stale else ": 失敗"))
+        data["ok"] = not problems
+        if problems:
+            data["detail"] = " / ".join(problems)
+        return data
     except (OSError, ValueError, json.JSONDecodeError):
         return {"configured": False, "lastRun": None, "ok": None, "detail": "Google Drive認証待ち"}
 
@@ -430,13 +458,23 @@ def severity(value, threshold_name: str, reverse=False) -> str:
 
 def derive_alerts(snapshot: dict) -> list[dict]:
     alerts = []
+    if snapshot.get("backup", {}).get("ok") is not True:
+        alerts.append({"code": "backup", "severity": "warning", "message": "バックアップ異常: " + snapshot.get("backup", {}).get("detail", "記録未取得")})
+    updates = snapshot.get("securityUpdates", {})
+    if updates.get("available") and updates.get("security", 0):
+        alerts.append({"code": "security-updates", "severity": "warning", "message": f"Ubuntuセキュリティ更新 {updates['security']}件（APT索引基準）"})
     checks = [
         ("cpu", "CPU使用率", snapshot["cpu"]["usedPercent"], "cpu", "%"),
         ("memory", "メモリ使用率", snapshot["memory"]["usedPercent"], "memory", "%"),
-        ("swap", "Swap使用率", snapshot["memory"]["swapUsedPercent"], "swap", "%"),
         ("iowait", "ディスクI/O待ち", snapshot["cpu"]["iowaitPercent"], "iowait", "%"),
         ("packet-loss", "パケットロス", snapshot["network"]["packetLossPercent"], "packet_loss", "%"),
     ]
+    # Linux may retain cold, inactive pages in Swap even after plenty of RAM
+    # becomes available again. Treating Swap occupancy alone as an incident
+    # causes persistent false alarms after backup jobs. Only alert on Swap when
+    # RAM is also under pressure; the raw occupancy remains visible in metrics.
+    if snapshot["memory"]["usedPercent"] >= THRESHOLDS["memory"]["warning"]:
+        checks.append(("swap", "Swap使用率", snapshot["memory"]["swapUsedPercent"], "swap", "%"))
     for code, label, value, threshold, suffix in checks:
         level = severity(value, threshold)
         if level in ("warning", "critical"):
@@ -487,12 +525,12 @@ def load_discord_token() -> str | None:
     return None
 
 
-def send_discord(title: str, description: str, severity_name="info") -> bool:
+def send_discord(title: str, description: str, severity_name="info", mention=False) -> bool:
     token = load_discord_token()
     if not token or not CHANNEL_ID:
         return False
     colors = {"critical": 0xC62828, "warning": 0xE08A00, "ok": 0x0A9B63, "info": 0x1267A3}
-    body = json.dumps({"embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
+    body = json.dumps({"content": "<@&1489628881135730851>" if mention else "", "allowed_mentions": {"parse": [], "roles": ["1489628881135730851"] if mention else []}, "embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
     request = Request(
         f"https://discord.com/api/v10/channels/{quote(CHANNEL_ID)}/messages",
         data=body,
@@ -519,10 +557,48 @@ def redact_sensitive(value: str) -> str:
 
 
 def record_event(severity_name: str, code: str, message: str, detail="", notify=True) -> None:
-    db_execute("INSERT INTO events(created_at,severity,code,message,detail) VALUES(?,?,?,?,?)", (iso_now(), severity_name, code, message, detail[-8000:]))
-    if notify:
-        safe_detail = redact_sensitive(detail[-1800:])
-        send_discord("Tayunet Ubuntu監視", message + ("\n```\n" + safe_detail + "\n```" if safe_detail else ""), severity_name)
+    safe_detail = redact_sensitive(detail[-8000:])
+    with sqlite3.connect(DB_PATH, timeout=15) as db:
+        db.execute("INSERT INTO events(created_at,severity,code,message,detail) VALUES(?,?,?,?,?)", (iso_now(), severity_name, code, message, safe_detail))
+        if notify:
+            body = redact_sensitive(message) + ("\n```\n" + safe_detail[-1800:] + "\n```" if safe_detail else "")
+            db.execute("INSERT INTO notification_outbox(created_at,body,severity) VALUES(?,?,?)", (iso_now(), body, severity_name))
+
+
+def flush_notifications() -> None:
+    rows = db_rows("SELECT * FROM notification_outbox ORDER BY id LIMIT 3")
+    for row in rows:
+        if row["next_attempt"] > time.time():
+            break
+        if send_discord("Tayunet Ubuntu監視", row["body"], row["severity"], mention=True):
+            db_execute("DELETE FROM notification_outbox WHERE id=?", (row["id"],))
+        else:
+            attempts = row["attempts"] + 1
+            delay = min(1800, 60 * 2 ** min(attempts - 1, 5))
+            db_execute("UPDATE notification_outbox SET attempts=?,next_attempt=? WHERE id=?", (attempts, time.time() + delay, row["id"]))
+            break
+
+
+def restore_alerts() -> None:
+    global active_alerts
+    path = DATA_DIR / "active-alerts.json"
+    try:
+        data = json.loads(path.read_text())
+        active_alerts = {k: v for k, v in data.items() if isinstance(v, dict) and v.get("code") == k and "message" in v}
+    except (OSError, ValueError, AttributeError):
+        rows = db_rows("SELECT payload FROM metrics ORDER BY collected_at DESC LIMIT 1")
+        if rows:
+            for item in json.loads(rows[0]["payload"]).get("alerts", []):
+                events = db_rows("SELECT code FROM events WHERE code IN (?,?) ORDER BY id DESC LIMIT 1", (item["code"], "recovered:" + item["code"]))
+                if events and events[0]["code"] == item["code"]:
+                    active_alerts[item["code"]] = item
+
+
+def persist_alerts() -> None:
+    path = DATA_DIR / "active-alerts.json"
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(active_alerts, ensure_ascii=False))
+    temporary.replace(path)
 
 
 def network_diagnostics() -> str:
@@ -607,6 +683,7 @@ def process_alerts(alerts: list[dict]) -> None:
     for code in list(alert_streaks):
         if code not in seen:
             alert_streaks.pop(code, None)
+    persist_alerts()
 
 
 def save_snapshot(snapshot: dict) -> None:
@@ -636,17 +713,56 @@ def collect() -> dict:
         "vmstat": read_vmstat(), "disks": read_disks(), "temperature": read_temperature(),
         "network": read_network(), "docker": docker_status(), "pm2": pm2_status(),
         "endpoints": endpoints, "tls": unique_tls, "smart": smart_status(),
-        "system": system_checks(), "backup": backup_status(),
+        "system": system_checks(), "backup": backup_status(), "externalServices": provider_status(), "securityUpdates": security_updates(),
         "thresholds": THRESHOLDS,
+        "notificationQueue": db_rows("SELECT COUNT(*) AS pending FROM notification_outbox")[0]["pending"],
     }
     snapshot["alerts"] = derive_alerts(snapshot)
     snapshot["status"] = "critical" if any(x["severity"] == "critical" for x in snapshot["alerts"]) else "warning" if snapshot["alerts"] else "ok"
     return snapshot
 
 
+def scheduled_report(snapshot: dict) -> None:
+    now = datetime.now(ZoneInfo("Asia/Tokyo"))
+    if now.hour not in (9, 10, 12, 16, 17, 20) or now.minute >= 5:
+        return
+    slot = now.strftime("%Y-%m-%d %H")
+    marker = DATA_DIR / "last-report-slot"
+    try:
+        if marker.read_text().strip() == slot:
+            return
+    except FileNotFoundError:
+        pass
+    mem = snapshot["memory"]
+    lines = [
+        now.strftime("計測 %Y/%m/%d %H:%M JST"),
+        f"状態: {snapshot['status']} / 稼働 {snapshot['uptimeSeconds'] // 3600}時間",
+        f"CPU {snapshot['cpu']['usedPercent']}% / メモリ {mem['usedPercent']}%（利用可能 {(mem['totalBytes']-mem['usedBytes'])/1024**3:.1f}GiB）",
+    ]
+    for disk in snapshot["disks"]:
+        lines.append(f"ディスク {disk['mount']}: {disk.get('usedPercent', '?')}%")
+    lines.append(f"Docker {sum(x.get('state') == 'running' for x in snapshot['docker'])}/{len(snapshot['docker'])} / PM2 {sum(x.get('status') == 'online' for x in snapshot['pm2'])}/{len(snapshot['pm2'])}")
+    lines.append("バックアップ: " + ("正常" if snapshot['backup'].get('ok') else snapshot['backup'].get('detail', '不明')))
+    lines.extend("・" + item["message"] for item in snapshot["alerts"])
+    updates = snapshot.get("securityUpdates", {})
+    lines.append(f"Ubuntu更新: 全{updates.get('total', '?')}件 / セキュリティ{updates.get('security', '?')}件 / 再起動要求 {'あり' if updates.get('rebootRequired') else 'なし'}")
+    lines.append("外部サービス（公式発表・本システムへの影響は別途確認）")
+    for provider in snapshot.get("externalServices", []):
+        lines.append(provider["name"] + ": " + provider["description"])
+        lines.extend("・" + x["name"] for x in provider.get("incidents", [])[:3])
+        lines.extend("保守予定: " + x["name"] for x in provider.get("maintenance", [])[:2])
+    if send_discord("Ubuntuサーバー 定時報", "\n".join(lines), mention=False):
+        temporary = marker.with_suffix(".tmp")
+        temporary.write_text(slot)
+        temporary.replace(marker)
+    else:
+        record_event("warning", "scheduled-report-failed", "定時報のDiscord配信失敗", notify=False)
+
+
 def collector_loop() -> None:
     global current_state
     time.sleep(1)
+    last_collector_error = 0.0
     while True:
         started = time.monotonic()
         try:
@@ -655,11 +771,17 @@ def collector_loop() -> None:
                 current_state = snapshot
             save_snapshot(snapshot)
             process_alerts(snapshot["alerts"])
+            flush_notifications()
+            scheduled_report(snapshot)
+            notify_changes(snapshot.get("externalServices", []), DATA_DIR, send_discord)
         except Exception as error:
             detail = traceback.format_exc()
             with state_lock:
                 current_state = {"status": "error", "collectedAt": iso_now(), "error": str(error)}
-            record_event("critical", "collector-error", "監視情報の収集に失敗", detail)
+            if time.monotonic() - last_collector_error >= 1800 or last_collector_error == 0:
+                record_event("critical", "collector-error", "監視情報の収集に失敗", detail)
+                last_collector_error = time.monotonic()
+            flush_notifications()
         time.sleep(max(1, 60 - (time.monotonic() - started)))
 
 
@@ -759,6 +881,17 @@ class Handler(BaseHTTPRequestHandler):
         scheme, separator, value = authorization.partition(" ")
         return value.strip() if separator and scheme.lower() == "bearer" else ""
 
+    def internal_error(self):
+        reference = uuid.uuid4().hex[:16]
+        detail = redact_sensitive(traceback.format_exc())
+        try:
+            record_event("critical", "api-error:" + reference,
+                         "管理API内部エラー（追跡ID: " + reference + "）", detail, notify=False)
+        except Exception:
+            print("monitor-api-error " + reference + " " + detail, file=sys.stderr)
+        return self.send_json(500, {"error": "internal_error", "requestId": reference,
+                                   "message": "管理APIの処理に失敗しました。追跡IDで障害・復旧イベントを確認してください。"})
+
     def send_json(self, status: int, payload: dict | list) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
         self.send_response(status)
@@ -830,7 +963,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, OSError) as error:
             return self.send_json(400, {"error": str(error)})
         except Exception:
-            return self.send_json(500, {"error": "internal_error"})
+            return self.internal_error()
 
     def do_POST(self):
         try:
@@ -853,7 +986,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError) as error:
             return self.send_json(400, {"error": str(error)})
         except Exception:
-            return self.send_json(500, {"error": "internal_error"})
+            return self.internal_error()
 
     def log_message(self, *_args):
         return
@@ -861,6 +994,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     init_db()
+    restore_alerts()
     threading.Thread(target=collector_loop, daemon=True, name="collector").start()
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 

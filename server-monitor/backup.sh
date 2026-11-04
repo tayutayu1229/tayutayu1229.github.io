@@ -19,6 +19,11 @@ started="$(date --iso-8601=seconds)"
 repository="$LOCAL_REPOSITORY"
 [[ "$MODE" == "cloud" ]] && repository="$CLOUD_REPOSITORY"
 export RESTIC_PASSWORD_FILE RCLONE_CONFIG RESTIC_REPOSITORY="$repository"
+RESTIC_COMMAND=(nice -n 10)
+if command -v ionice >/dev/null 2>&1; then
+  RESTIC_COMMAND+=(ionice -c 2 -n 7)
+fi
+RESTIC_COMMAND+=(restic)
 
 sources=(
   /mnt/hdd/atos-delay-history
@@ -32,41 +37,13 @@ for source in "${sources[@]}"; do [[ -e "$source" ]] && existing+=("$source"); d
 
 detail=""
 ok=false
-if [[ ! -s "$RESTIC_PASSWORD_FILE" ]]; then
-  detail="restic暗号化キーがありません"
-elif ! command -v restic >/dev/null 2>&1; then
-  detail="resticがインストールされていません"
-elif [[ "$MODE" == "cloud" ]] && ! command -v rclone >/dev/null 2>&1; then
-  detail="rcloneがインストールされていません"
-else
-  if ! restic snapshots >/dev/null 2>&1; then restic init; fi
-  if output=$(restic backup --one-file-system --tag "$MODE" --exclude-caches "${existing[@]}" 2>&1); then
-    stream_ok=true
-    archive_dir="$MONITOR_DATA/container-archives"
-    mkdir -p "$archive_dir"
-    for item in "incident-share:/data:incident-share-data.tar" "jreast-press-bot-press-release-bot-1:/app/data:press-bot-data.tar"; do
-      container="${item%%:*}"; rest="${item#*:}"; container_path="${rest%%:*}"; archive_name="${rest#*:}"
-      archive_path="$archive_dir/$archive_name"
-      stream_output=""
-      if docker cp "$container:$container_path/." - > "$archive_path" && stream_output=$(restic backup "$archive_path" --tag "$MODE" 2>&1); then
-        output="$output $stream_output"
-      else
-        output="$output $stream_output"
-        stream_ok=false
-      fi
-    done
-    if [[ "$stream_ok" == true ]]; then
-      restic forget --tag "$MODE" --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune >/dev/null
-      detail="$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
-      ok=true
-    else
-      detail="Docker業務データのストリーム取得に失敗: $(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
-    fi
-  else
-    detail="$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
+write_status() {
+  result=$?
+  trap - EXIT
+  if [[ "$result" != 0 ]]; then
+    ok=false
+    detail="${detail:-バックアップが途中で失敗しました（終了コード: $result）}"
   fi
-fi
-
 finished="$(date --iso-8601=seconds)"
 python3 - "$STATUS_FILE" "$MODE" "$started" "$finished" "$ok" "$detail" <<'PY'
 import json, os, sys
@@ -81,5 +58,46 @@ tmp=path+'.tmp'
 with open(tmp,'w') as f: json.dump(data,f,ensure_ascii=False,indent=2)
 os.replace(tmp,path)
 PY
+
+}
+trap write_status EXIT
+if [[ ! -s "$RESTIC_PASSWORD_FILE" ]]; then
+  detail="restic暗号化キーがありません"
+elif ! command -v restic >/dev/null 2>&1; then
+  detail="resticがインストールされていません"
+elif [[ "$MODE" == "cloud" ]] && ! command -v rclone >/dev/null 2>&1; then
+  detail="rcloneがインストールされていません"
+else
+  if ! output=$("${RESTIC_COMMAND[@]}" snapshots 2>&1); then
+    detail="リポジトリの読み取り失敗: $(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
+    exit 1
+  fi
+  if output=$("${RESTIC_COMMAND[@]}" backup --one-file-system --tag "$MODE" --exclude-caches "${existing[@]}" 2>&1); then
+    stream_ok=true
+    archive_dir="$MONITOR_DATA/container-archives"
+    mkdir -p "$archive_dir"
+    for item in "incident-share:/data:incident-share-data.tar" "jreast-press-bot-press-release-bot-1:/app/data:press-bot-data.tar"; do
+      container="${item%%:*}"; rest="${item#*:}"; container_path="${rest%%:*}"; archive_name="${rest#*:}"
+      archive_path="$archive_dir/$archive_name"
+      stream_output=""
+      if docker cp "$container:$container_path/." - > "$archive_path" && stream_output=$("${RESTIC_COMMAND[@]}" backup "$archive_path" --tag "$MODE" 2>&1); then
+        output="$output $stream_output"
+      else
+        output="$output $stream_output"
+        stream_ok=false
+      fi
+    done
+    if [[ "$stream_ok" == true ]]; then
+      "${RESTIC_COMMAND[@]}" forget --tag "$MODE" --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune >/dev/null
+      detail="$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
+      ok=true
+    else
+      detail="Docker業務データのストリーム取得に失敗: $(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
+    fi
+  else
+    detail="$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
+  fi
+fi
+
 
 [[ "$ok" == true ]]
