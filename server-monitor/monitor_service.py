@@ -722,6 +722,18 @@ def collect() -> dict:
     return snapshot
 
 
+def recent_resource_summary() -> dict:
+    cutoff = datetime.fromtimestamp(time.time() - 86400, timezone.utc).isoformat()
+    rows = db_rows("SELECT collected_at,payload FROM metrics WHERE collected_at>=? ORDER BY collected_at", (cutoff,))
+    result = {"samples": len(rows), "firstAt": rows[0]["collected_at"] if rows else None,
+              "lastAt": rows[-1]["collected_at"] if rows else None}
+    decoded = [json.loads(row["payload"]) for row in rows]
+    for name, parent, field in (("cpu", "cpu", "usedPercent"), ("memory", "memory", "usedPercent"), ("iowait", "cpu", "iowaitPercent")):
+        values = [x[parent][field] for x in decoded if isinstance(x.get(parent, {}).get(field), (int, float))]
+        result[name] = {"average": round(sum(values) / len(values), 1), "maximum": max(values)} if values else None
+    return result
+
+
 def scheduled_report(snapshot: dict) -> None:
     now = datetime.now(ZoneInfo("Asia/Tokyo"))
     if now.hour not in (9, 10, 12, 16, 17, 20) or now.minute >= 5:
@@ -742,6 +754,12 @@ def scheduled_report(snapshot: dict) -> None:
     for disk in snapshot["disks"]:
         lines.append(f"ディスク {disk['mount']}: {disk.get('usedPercent', '?')}%")
     lines.append(f"Docker {sum(x.get('state') == 'running' for x in snapshot['docker'])}/{len(snapshot['docker'])} / PM2 {sum(x.get('status') == 'online' for x in snapshot['pm2'])}/{len(snapshot['pm2'])}")
+    history = recent_resource_summary()
+    lines.append(f"直近24時間の取得分: {history['samples']}標本")
+    for name, label in (("cpu", "CPU"), ("memory", "メモリ"), ("iowait", "I/O待ち")):
+        values = history.get(name)
+        if values:
+            lines.append(f"{label} 平均{values['average']}% / 最大{values['maximum']}%")
     lines.append("バックアップ: " + ("正常" if snapshot['backup'].get('ok') else snapshot['backup'].get('detail', '不明')))
     lines.extend("・" + item["message"] for item in snapshot["alerts"])
     updates = snapshot.get("securityUpdates", {})

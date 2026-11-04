@@ -22,7 +22,7 @@ class Changes(unittest.TestCase):
   class Clock:
    @classmethod
    def now(cls,tz): return datetime(2026,11,5,9,0,tzinfo=tz)
-  self.ns['datetime']=Clock; calls=[]
+  self.ns['datetime']=Clock; self.ns['recent_resource_summary']=lambda:{'samples':1}; calls=[]
   self.ns['send_discord']=lambda *a,**kw: calls.append((a,kw)) or True
   snapshot={'status':'ok','uptimeSeconds':3600,'cpu':{'usedPercent':2},'memory':{'usedPercent':30,'totalBytes':100,'usedBytes':30},'disks':[],'docker':[{'state':'running'}],'pm2':[],'backup':{'ok':True},'alerts':[]}
   self.ns['scheduled_report'](snapshot);self.ns['scheduled_report'](snapshot)

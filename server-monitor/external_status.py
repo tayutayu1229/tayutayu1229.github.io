@@ -42,6 +42,7 @@ def provider_status():
                 continue
         item['maintenance'] = upcoming
         results.append(item)
+    results.extend(google_status())
     _cached, _checked = results, time.monotonic()
     return results
 
@@ -93,3 +94,36 @@ def security_updates():
         result['detail'] = '更新情報を取得できませんでした。正常とは判定していません。'
     _security_cache, _security_checked = result, time.monotonic()
     return result
+
+
+def google_status():
+    sources = (
+        ('google-workspace', 'Google Drive / Sheets', 'https://www.google.com/appsstatus/dashboard/', ('drive', 'sheets')),
+        ('firebase', 'Firebase Auth / Firestore', 'https://status.firebase.google.com/', ('authentication', 'firestore')),
+    )
+    results = []
+    for key, name, base, products in sources:
+        item = {'id': key, 'name': name, 'source': base, 'checkedAt': datetime.now(timezone.utc).isoformat(),
+                'impact': '対象サービスの公式発表。本システムへの影響は別途確認', 'incidents': [], 'maintenance': []}
+        try:
+            request = Request(base + 'incidents.json', headers={'User-Agent': 'TayunetMonitor/1.0'})
+            with urlopen(request, timeout=8) as response:
+                rows = json.loads(response.read(4_000_000))
+            for row in rows:
+                names = [row.get('service_name', '')] + [x.get('title', '') for x in row.get('affected_products', [])]
+                if not any(product in title.casefold() for title in names for product in products):
+                    continue
+                end, begin = row.get('end'), row.get('begin')
+                if end and datetime.fromisoformat(end.replace('Z', '+00:00')).timestamp() <= time.time():
+                    continue
+                if begin and datetime.fromisoformat(begin.replace('Z', '+00:00')).timestamp() > time.time():
+                    continue
+                item['incidents'].append({'id': row['id'], 'name': (row.get('external_desc') or ', '.join(names))[:500],
+                                          'status': row.get('most_recent_update', {}).get('status', 'reported'),
+                                          'url': base + row.get('uri', ''), 'updatedAt': row.get('modified')})
+            item.update(available=True, indicator='minor' if item['incidents'] else 'none',
+                        description='対象サービスの継続障害あり' if item['incidents'] else '対象サービスの継続障害の発表なし')
+        except Exception as error:
+            item.update(available=False, indicator='unknown', description='公式情報取得失敗: ' + type(error).__name__)
+        results.append(item)
+    return results
