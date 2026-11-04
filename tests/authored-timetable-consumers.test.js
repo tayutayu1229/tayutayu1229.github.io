@@ -49,7 +49,7 @@ async function checkDtac(file, staff) {
 
   // A transferred authored snapshot must be revalidated against the published feed.
   // An empty feed represents withdrawal and must not display the stale cached copy.
-  if (!staff) vm.runInContext('fitDevice=setupClock=setupControls=setupMarkerMenu=()=>{};', context);
+  if (!staff) vm.runInContext('fitDevice=setupClock=setupControls=setupMarkerMenu=setupDtacFeatures=showView=renderOperationState=()=>{};', context);
   await (staff ? context.loadStaff() : context.init());
   assert.equal(fetches, 1);
   assert.match(getNode(staff ? 'render-target' : 'timetable-body').innerHTML, /該当する列車がありません/);

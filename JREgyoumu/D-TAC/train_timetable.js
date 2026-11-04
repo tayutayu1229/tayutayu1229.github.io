@@ -3,11 +3,15 @@ const targetId = params.get('id');
 const FILES_API = TayunetDocumentAPI.apiBase + '/files';
 const FILE_BASE = TayunetDocumentAPI.fileBase;
 const MARKER_COLORS = ['red','green','blue','yellow','brown'];
-const MARKER_TEXTS = ['無地','徐行','規制','注意','両数','停車','始発','時変','合図'];
+const MARKER_TEXTS = ['無地','停車','徐行','両数','規制','時変','合図'];
 
 let train = null;
 let isRunning = false;
-let locationEnabled = true;
+let locationEnabled = false;
+let markingMode = false;
+let selectedMarkerText = '';
+let workTrains = [];
+let currentView = 'timetable';
 let activePosition = null;
 let lastEventHour = null;
 let markerTarget = null;
@@ -25,30 +29,32 @@ async function init() {
   setupClock();
   setupControls();
   setupMarkerMenu();
+  setupDtacFeatures();
+  showView('timetable');
   try {
     let group = readTransferredTrain();
+    if (targetId && group.length && !findTrain(group).length) group = [];
     if (!group.length || group.some(item => item.source === 'operation-service')) group = findTrain(await fetchTimetables());
     if (!group.length) throw new Error(targetId ? '該当する列車がありません。' : '列車が選択されていません。');
     if (group.some(item => !manualDateMatches(item, params.get('date') || item.startDate))) throw new Error('この手入力時刻表は登録された施行日だけ使用できます。列車一覧から選び直してください。');
     train = mergeTrainSegments(dedupeSegments(group));
+    workTrains = [train];
+    await loadWorkTrains();
     loadMarkers();
     renderSummary(train);
     renderTimetable(train);
     renderOperationState();
+    renderHako();
   } catch (error) {
+    document.getElementById('run-button').disabled = true;
+    renderOperationState();
     document.getElementById('timetable-body').innerHTML = `<div class="error">${esc(error.message || '時刻表を読み込めませんでした。')}</div>`;
   }
 }
 
 function fitDevice() {
-  const apply = () => {
-    // 実機同様の3:4を維持し、PCでは高さに合わせて横幅まで細くしない。
-    const scale = Math.min(1,innerWidth/768);
-    document.documentElement.style.setProperty('--scale',String(Math.max(.3,scale)));
-  };
-  apply();
-  addEventListener('resize',apply,{passive:true});
-  addEventListener('orientationchange',apply,{passive:true});
+  // Match TRViS breakpoints in CSS; never scale the text down with the whole screen.
+  addEventListener('resize', () => renderHako(), {passive:true});
 }
 
 function setupClock() {
@@ -72,7 +78,10 @@ function setupControls() {
   document.getElementById('step-prev').addEventListener('click',() => stepPosition(-1));
   document.getElementById('step-next').addEventListener('click',() => stepPosition(1));
   document.getElementById('collapse-button').addEventListener('click',toggleSummary);
-  document.getElementById('remarks-toggle').addEventListener('click',() => document.getElementById('remarks-panel').classList.toggle('open'));
+  document.getElementById('remarks-toggle').addEventListener('click',event => {
+    const open = document.getElementById('remarks-panel').classList.toggle('open');
+    event.currentTarget.setAttribute('aria-expanded',String(open));
+  });
   document.getElementById('attachments-reload').addEventListener('click',() => loadAttachments(true));
   document.getElementById('attachment-search').addEventListener('input',renderAttachments);
   document.getElementById('document-close').addEventListener('click',closeDocument);
@@ -95,12 +104,19 @@ function closeMenu() {
 
 function showView(view) {
   closeMenu();
-  const attachments = view === 'attachments';
-  document.querySelectorAll('.timetable-view').forEach(element => { element.hidden = attachments; });
-  document.getElementById('attachments-view').hidden = !attachments;
-  document.getElementById('timetable-tab').classList.toggle('active',!attachments);
-  document.getElementById('attachments-tab').classList.toggle('active',attachments);
-  if (attachments) loadAttachments();
+  currentView = view;
+  document.querySelectorAll('.timetable-view').forEach(element => { element.hidden = view !== 'timetable'; });
+  document.getElementById('remarks-panel').hidden = view === 'attachments';
+  document.getElementById('attachments-view').hidden = view !== 'attachments';
+  document.getElementById('hako-view').hidden = view !== 'hako';
+  document.querySelectorAll('#hako-tab,#timetable-tab,#attachments-tab').forEach(button => {
+    const active = button.dataset.view === view;
+    button.classList.toggle('active',active);
+    button.setAttribute('role','tab');
+    button.setAttribute('aria-selected',String(active));
+  });
+  if (view === 'attachments') loadAttachments();
+  if (view === 'hako') renderHako();
 }
 
 function readTransferredTrain() {
@@ -158,6 +174,11 @@ function renderSummary(data) {
   document.getElementById('execution-date').textContent = displayDate(date);
   document.getElementById('work-name').textContent = data.workName || `${data.lines?.[0] || data.line || 'D-TAC'} 行路`;
   document.getElementById('train-number').textContent = data.trainNumber || '―';
+  document.getElementById('max-speed').textContent = data.maxSpeed || '';
+  document.getElementById('train-info').textContent = data.trainInfo || '';
+  document.getElementById('before-departure').textContent = data.beforeDeparture || '';
+  document.getElementById('next-day').textContent = data.isNextDay || (rawTime(data.stops?.[0]?.departure)?.h >= 24) ? '(翌)' : '';
+  document.getElementById('horizontal-button').hidden = !data.horizontalTimetable;
   document.getElementById('speed-type').textContent = data.speed || '';
   document.getElementById('power').textContent = data.power || '';
   document.getElementById('car-count').textContent = data.carCount ? `${data.carCount} 両` : '';
@@ -169,7 +190,9 @@ function renderSummary(data) {
 function renderTimetable(data) {
   lastEventHour = null;
   const body = document.getElementById('timetable-body');
-  body.innerHTML = data.stops.map((stop,index) => rowHtml(stop,index,data.stops)).join('');
+  body.innerHTML = data.stops.map((stop,index) => rowHtml(stop,index,data.stops)).join('') + afterTrainMarkup(data);
+  body.querySelector('[data-next-train]')?.addEventListener('click',nextWorkTrain);
+  data.stops.forEach((_,index) => refreshMarker(index));
   body.querySelectorAll('.station').forEach(cell => cell.addEventListener('click',event => {
     if (!isRunning) return;
     setPosition('station',Number(event.currentTarget.closest('.timetable-row').dataset.index),true);
@@ -181,33 +204,39 @@ function renderTimetable(data) {
   }));
   body.querySelectorAll('.marker-button').forEach(button => button.addEventListener('click',event => {
     event.stopPropagation();
-    openMarkerMenu(Number(button.closest('.timetable-row').dataset.index));
+    if (!markingMode) return;
+    const index = Number(button.closest('.timetable-row').dataset.index);
+    if (markers.has(index)) { markers.delete(index); saveMarkers(); refreshMarker(index); }
+    else { markerTarget = index; applyMarker(selectedMarkerText); }
   }));
 }
 
 function rowHtml(stop,index,stops) {
+  if (stop.isInfoRow) return `<section class="info-row">${esc(stop.station || stop.memo || '')}</section>`;
   const passing = isPassing(stop,index,stops.length);
   const previousTime = previousDeparture(stops,index);
   const currentTime = seconds(stop.arrival) ?? seconds(stop.departure);
-  const runtime = index ? formatDuration(previousTime,currentTime) : '';
+  const runtime = stop.driveTimeMM != null ? `<span>${esc(String(stop.driveTimeMM).length > 2 ? '**' : stop.driveTimeMM)}</span><small class="small-sec">${esc(stop.driveTimeSS || '')}</small>` : index ? formatDuration(previousTime,currentTime) : '';
   const arrival = passing && !String(stop.arrival ?? '').trim() && rawTime(stop.departure) ? '↓' : stop.arrival;
   const marker = markers.get(index);
+  const track = stop.arrivalTrack && stop.departureTrack && stop.arrivalTrack !== stop.departureTrack ? `着${displayTrack(stop.arrivalTrack)}\n発${displayTrack(stop.departureTrack)}` : displayTrack(stop.trackN || stop.arrivalTrack || stop.departureTrack);
+  const trackLength = Math.max(2,...track.split('\n').map(line => Array.from(line).length));
   return `<section class="timetable-row timetable-grid" data-index="${index}">
     <div class="run-time" title="駅間を選択">${runtime}</div>
     <div class="station${passing ? ' pass' : ''}" title="駅を選択">${stationMarkup(stop.station)}</div>
     <div class="time-cell${passing ? ' pass' : ''}">${timeMarkup(arrival,passing)}</div>
     <div class="time-cell${passing ? ' pass' : ''}">${timeMarkup(stop.departure,passing)}</div>
-    <div class="track">${esc(displayTrack(stop.trackN))}</div>
-    <div class="limit">${esc(stop.speedLimit || '')}</div>
+    <div class="track" style="--track-scale:${Math.min(1,2/trackLength)}">${esc(track)}</div>
+    <div class="limit">${esc([stop.runInLimit,stop.runOutLimit].filter(v => v != null && v !== '').join('\n') || stop.speedLimit || '')}</div>
     <div class="memo">${esc(stop.memo || stop.article || stop.note || '')}</div>
-    <button class="marker-button${marker ? ` has-marker marker-${marker.color}` : ''}" type="button" aria-label="マーカー">${esc(marker?.text || '')}</button>
+    <button class="marker-button${marker ? ` has-marker marker-${marker.color}` : ''}" type="button" aria-label="${esc(stop.station)}のマーカー">${esc(marker?.text || '')}</button>
   </section>`;
 }
 
 function rawTime(value) {
-  const text = String(value ?? '').trim().replace(/^[#$¥￥]+/, '');
+  const text = String(value ?? '').trim().replace(/^[#$¥￥]+/, '').replace(/^[([（［]/,'').replace(/[)\]）］]$/,'');
   const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
-  return match ? {h:Number(match[1]),m:Number(match[2]),s:Number(match[3] || 0)} : null;
+  return match && Number(match[2]) < 60 && Number(match[3] || 0) < 60 ? {h:Number(match[1]),m:Number(match[2]),s:Number(match[3] || 0)} : null;
 }
 
 function timeMarkup(value,passing) {
@@ -216,15 +245,18 @@ function timeMarkup(value,passing) {
   if (['||','↓','…'].includes(text)) return '<span class="pass-arrow">↓</span>';
   if (['=','＝','=='].includes(text)) return '<span class="end-mark"></span>';
   const t = rawTime(text);
-  if (!t) return '';
+  if (!t) return esc(text);
   const showHour = !passing || lastEventHour === null || lastEventHour !== t.h;
   lastEventHour = t.h;
   const symbol = text.match(/^[#$¥￥]+/)?.[0] || '';
   const flag = symbol ? `<span class="operation-symbol" title="運休 $／時刻変更 #／運転禁止 ¥">${esc(symbol)}</span>` : '';
-  return `${flag}<span class="time-main"><span class="time-hour">${showHour ? `${t.h}.` : ''}</span><span class="time-minute">${String(t.m).padStart(2,'0')}</span><small class="time-sec">${t.s ? String(t.s).padStart(2,'0') : ''}</small></span>`;
+  const open = /^[([（［]/.test(text) ? esc(text[0]) : '';
+  const close = /[)\]）］]$/.test(text) ? esc(text.at(-1)) : '';
+  return `${flag}${open}<span class="time-main"><span class="time-hour">${showHour ? `${t.h % 24}.` : ''}</span><span class="time-minute">${String(t.m).padStart(2,'0')}</span><small class="time-sec">${t.s ? String(t.s).padStart(2,'0') : ''}</small></span>${close}`;
 }
 
 function isPassing(stop,index,length) {
+  if (typeof stop.isPass === 'boolean') return stop.isPass;
   const a = String(stop.arrival ?? '').trim();
   const d = String(stop.departure ?? '').trim();
   const symbol = value => ['||','↓','…'].includes(value);
@@ -245,12 +277,14 @@ function formatDuration(start,end) {
   if (diff < 0) diff += 86400;
   const min = Math.floor(diff/60);
   const sec = diff%60;
-  return `<span>${min}</span>${sec ? `<small class="small-sec">${String(sec).padStart(2,'0')}</small>` : ''}`;
+  return `<span>${min > 99 ? '**' : min}</span>${sec ? `<small class="small-sec">${String(sec).padStart(2,'0')}</small>` : ''}`;
 }
 
 function toggleRun() {
+  if (!train?.stops?.length) return;
   isRunning = !isRunning;
-  if (isRunning) setPosition('station',0,true);
+  if (!isRunning) setLocation(false);
+  if (isRunning) setPosition('station',Math.max(0,train.stops.findIndex(stop => !stop.isInfoRow)),true);
   else activePosition = null;
   renderOperationState();
 }
@@ -259,6 +293,10 @@ function renderOperationState() {
   const button = document.getElementById('run-button');
   button.classList.toggle('running',isRunning);
   button.innerHTML = isRunning ? '<span class="run-icon">⊘</span> 運行終了' : '<span class="run-icon">▶</span> 運行開始';
+  document.querySelector('.step-buttons').hidden = !isRunning || locationEnabled;
+  document.getElementById('location-on').disabled = !isRunning || !hasCoordinates();
+  document.getElementById('location-off').disabled = !isRunning;
+  button.setAttribute('aria-pressed',String(isRunning));
   document.getElementById('step-prev').disabled = !isRunning;
   document.getElementById('step-next').disabled = !isRunning;
   document.querySelectorAll('.timetable-row').forEach(row => {
@@ -273,6 +311,7 @@ function setPosition(kind,index,scroll) {
   if (!train?.stops?.length || !isRunning) return;
   index = Math.max(0,Math.min(train.stops.length-1,index));
   if (kind === 'between' && index === 0) kind = 'station';
+  if (train.stops[index].isInfoRow) return;
   activePosition = {kind,index};
   renderOperationState();
   if (scroll) document.querySelector(`.timetable-row[data-index="${index}"]`)?.scrollIntoView({block:'center',behavior:'smooth'});
@@ -281,22 +320,36 @@ function setPosition(kind,index,scroll) {
 function stepPosition(direction) {
   if (!isRunning || !train?.stops?.length) return;
   let ordinal = activePosition?.kind === 'between' ? activePosition.index*2-1 : (activePosition?.index || 0)*2;
-  ordinal = Math.max(0,Math.min(train.stops.length*2-2,ordinal+direction));
+  const max = train.stops.length*2-2;
+  do {
+    const next = Math.max(0,Math.min(max,ordinal+direction));
+    if (next === ordinal) break;
+    ordinal = next;
+    const rowIndex = ordinal % 2 ? (ordinal+1)/2 : ordinal/2;
+    if (!train.stops[rowIndex].isInfoRow) break;
+  } while (ordinal > 0 && ordinal < max);
   const kind = ordinal%2 ? 'between' : 'station';
   const index = kind === 'between' ? (ordinal+1)/2 : ordinal/2;
   setPosition(kind,index,true);
 }
 
 function setLocation(value) {
-  locationEnabled = value;
-  document.getElementById('location-on').classList.toggle('selected',value);
-  document.getElementById('location-off').classList.toggle('selected',!value);
+  locationEnabled = value && isRunning && hasCoordinates();
+  document.getElementById('location-on').classList.toggle('selected',locationEnabled);
+  document.getElementById('location-off').classList.toggle('selected',!locationEnabled);
+  document.getElementById('location-on').setAttribute('aria-pressed',String(locationEnabled));
+  document.getElementById('location-off').setAttribute('aria-pressed',String(!locationEnabled));
+  updateLocationWatch();
+  renderOperationState();
 }
 
 function toggleSummary() {
-  const summary = document.getElementById('train-summary');
-  const collapsed = summary.classList.toggle('collapsed');
-  document.getElementById('collapse-button').textContent = collapsed ? '⌄' : '⌃';
+  const expanded = document.getElementById('expanded-info');
+  expanded.hidden = !expanded.hidden;
+  const button = document.getElementById('collapse-button');
+  button.textContent = expanded.hidden ? '⌄' : '⌃';
+  button.setAttribute('aria-expanded',String(!expanded.hidden));
+  button.setAttribute('aria-label',expanded.hidden ? '列車情報を展開する' : '列車情報を折りたたむ');
 }
 
 function setupMarkerMenu() {
@@ -316,20 +369,23 @@ function setupMarkerMenu() {
 
 function openMarkerMenu(index) {
   markerTarget = index;
+  document.getElementById('marker-clear').hidden = index === null;
   const existing = markers.get(index);
-  markerColor = existing?.color || 'green';
+  markerColor = existing?.color || markerColor;
   document.getElementById('marker-custom-text').value = existing?.text || '';
   selectMarkerColor(markerColor);
   document.getElementById('marker-menu').hidden = false;
+  document.querySelector('.marker-color.selected')?.focus();
 }
-function closeMarkerMenu() { document.getElementById('marker-menu').hidden = true; markerTarget = null; }
+function closeMarkerMenu() { document.getElementById('marker-menu').hidden = true; markerTarget = null; document.getElementById('marker-mode').focus(); }
 function selectMarkerColor(color) {
   markerColor = color;
   document.querySelectorAll('.marker-color').forEach(button => button.classList.toggle('selected',button.dataset.color === color));
 }
 function applyMarker(text) {
-  if (markerTarget === null) return;
-  markers.set(markerTarget,{color:markerColor,text:String(text).slice(0,4)});
+  selectedMarkerText = limitMarkerText(text);
+  if (markerTarget === null) { closeMarkerMenu(); return; }
+  markers.set(markerTarget,{color:markerColor,text:selectedMarkerText});
   saveMarkers();
   refreshMarker(markerTarget);
   closeMarkerMenu();
@@ -346,9 +402,14 @@ function refreshMarker(index) {
   if (!button) return;
   const marker = markers.get(index);
   button.className = `marker-button${marker ? ` has-marker marker-${marker.color}` : ''}`;
-  button.textContent = marker?.text || '';
+  button.textContent = limitMarkerText(marker?.text || '');
+  button.hidden = !markingMode && !marker;
+  button.disabled = !markingMode;
+  const row = button.closest('.timetable-row');
+  row.dataset.markerColor = marker?.color || '';
+  row.style.setProperty('--marker-tint', marker ? MARKER_TINTS[marker.color] || 'transparent' : 'transparent');
 }
-function markerStorageKey() { return `dtac-markers:${targetId || train?.trainNumber || 'train'}`; }
+function markerStorageKey() { return `dtac-markers:${params.get('date') || train?.startDate || ''}:${train?.trainNumber || targetId || 'train'}`; }
 function loadMarkers() {
   try { markers = new Map(JSON.parse(localStorage.getItem(markerStorageKey()) || '[]')); } catch { markers = new Map(); }
 }
@@ -450,7 +511,7 @@ function stationMarkup(value) {
   const classes = ['station-glyphs'];
   if (chars.length === 1) classes.push('single');
   if (chars.length > 4) classes.push('long');
-  return `<span class="${classes.join(' ')}">${chars.map(char => `<span>${esc(char)}</span>`).join('')}</span>`;
+  return `<span class="${classes.join(' ')}" style="--station-scale:${Math.min(1,4/Math.max(1,chars.length))}">${chars.map(char => `<span>${esc(char)}</span>`).join('')}</span>`;
 }
 function displayDate(value) {
   const text = String(value || '').trim();

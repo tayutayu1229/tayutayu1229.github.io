@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#2f711d">
   <title>D-TAC 列車運転時刻表</title>
-  <link rel="stylesheet" href="train_timetable.css?v=20260716-3">
+  <link rel="stylesheet" href="train_timetable.css?v=20261104-trvis-1">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="icon" href="/favicon.ico">
@@ -20,21 +20,21 @@
     <div id="app" class="dtac-app">
       <header class="app-bar">
         <button id="menu-button" class="app-bar-button" type="button" aria-label="メニュー" aria-expanded="false">
-          <span class="hamburger" aria-hidden="true"><i></i><i></i><i></i></span><span>メニュー</span>
+          <span class="hamburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="sr-only">メニュー</span>
         </button>
         <strong id="work-name" class="work-name">D-TAC</strong>
-        <time id="live-clock" class="live-clock">--:--:--</time>
+        <div class="app-bar-right"><time id="live-clock" class="live-clock">--:--:--</time><a class="system-home" href="/toppage.html" aria-label="東京圏輸送情報システム トップ"><img src="/apple-touch-icon.png" alt=""></a><button id="theme-button" type="button" aria-label="ダークモードに切り替える">☾</button></div>
       </header>
 
       <aside id="menu-drawer" class="menu-drawer" aria-hidden="true">
         <button id="back-button" type="button">列車選択へ戻る</button>
-        <button type="button" data-open-view="timetable">時刻表</button>
+        <button type="button" data-open-view="hako">ハコ</button><button type="button" data-open-view="timetable">時刻表</button>
         <button type="button" data-open-view="attachments">行路添付</button>
       </aside>
       <button id="menu-scrim" class="menu-scrim" type="button" aria-label="メニューを閉じる"></button>
 
-      <nav class="tabs" aria-label="表示切替">
-        <button type="button" disabled>ハ コ</button>
+      <nav class="tabs" aria-label="表示切替" role="tablist">
+        <button id="hako-tab" type="button" data-view="hako">ハ コ</button>
         <button id="timetable-tab" type="button" class="active" data-view="timetable">時刻表</button>
         <button id="attachments-tab" type="button" data-view="attachments">行路添付</button>
       </nav>
@@ -42,16 +42,17 @@
       <section class="operation-panel timetable-view">
         <div class="execution-date">行路施行日<strong id="execution-date">----</strong></div>
         <div class="operation-actions">
+          <button id="horizontal-button" class="horizontal-button" type="button" hidden>電車時刻表</button>
           <button id="run-button" class="run-button" type="button"><span class="run-icon">▶</span> 運行開始</button>
           <div class="location-toggle" role="group" aria-label="位置連動">
-            <button id="location-on" class="selected" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.1 7-13A7 7 0 1 0 5 9c0 5.9 7 13 7 13Zm0-9.5A3.5 3.5 0 1 1 12 5a3.5 3.5 0 0 1 0 7.5Z"/></svg>ON</button>
-            <button id="location-off" type="button">OFF</button>
+            <button id="location-on" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.1 7-13A7 7 0 1 0 5 9c0 5.9 7 13 7 13Zm0-9.5A3.5 3.5 0 1 1 12 5a3.5 3.5 0 0 1 0 7.5Z"/></svg>ON</button>
+            <button id="location-off" class="selected" type="button">OFF</button>
           </div>
-          <div class="step-buttons">
+          <div class="step-buttons" hidden>
             <button id="step-prev" type="button" aria-label="一つ前">▲</button>
             <button id="step-next" type="button" aria-label="一つ次">▼</button>
           </div>
-          <button id="collapse-button" class="collapse-button" type="button" aria-label="列車情報を折りたたむ">⌃</button>
+          <button id="collapse-button" class="collapse-button" type="button" aria-label="列車情報を展開する" aria-expanded="false">⌄</button>
         </div>
       </section>
 
@@ -60,8 +61,9 @@
           <span>列　車</span><span>最高速度<br>（Km／h）</span><span>速度種別</span><span>けん引定数</span>
         </div>
         <div class="summary-grid summary-values">
-          <strong id="train-number">―</strong><span></span><strong id="speed-type"></strong><span id="power"></span>
+          <strong id="train-number">―</strong><span id="max-speed"></span><strong id="speed-type"></strong><span id="power"></span>
         </div>
+        <div id="expanded-info" class="expanded-info" hidden><div id="train-info"></div><div class="before-departure"><span>発前</span><span id="before-departure"></span></div></div>
         <div class="consist-row">
           <span id="next-day" class="next-day"></span>
           <span id="car-count" class="car-count"></span>
@@ -72,15 +74,16 @@
 
       <div class="timetable-header timetable-grid timetable-view">
         <div>運転<br>時分</div><div>停車場名</div><div class="arrival-heading">着</div><div>発（通）</div>
-        <div>着線<br>発線</div><div>制限<br>速度</div><div>記事</div><div class="marker-heading">マーカー<span>✎</span></div>
+        <div>着線<br>発線</div><div>制限<br>速度</div><div>記事</div><button id="marker-mode" class="marker-heading" type="button" aria-label="マーカー設定" aria-pressed="false">マーカー<span>✎</span></button>
       </div>
 
       <main id="timetable-scroll" class="timetable-scroll timetable-view" tabindex="0">
         <div id="timetable-body" class="timetable-body"><div class="loading">時刻表を読み込んでいます…</div></div>
       </main>
 
+      <section id="hako-view" class="hako-view" hidden><header class="hako-header"><div>行路施行日<strong id="hako-date"></strong></div><button id="hako-layout" type="button" aria-label="ハコの表示形式を切り替える">ダイヤ表示</button><div><strong id="hako-work"></strong><span id="hako-group"></span></div></header><div id="hako-body" class="hako-body"></div></section>
       <section id="remarks-panel" class="remarks-panel timetable-view">
-        <button id="remarks-toggle" type="button"><strong>注意事項</strong><span>⌃</span></button>
+        <button id="remarks-toggle" type="button" aria-expanded="false"><strong>注意事項</strong><span>⌃</span></button>
         <div id="remarks-content" class="remarks-content"></div>
       </section>
 
@@ -112,6 +115,7 @@
   <script src="../../auth_guard.js"></script>
   <script src="../../T-time/private-data-client.js"></script>
   <script src="../../T-time/protected-document-client.js"></script>
-  <script src="train_timetable.js?v=20261019-authored-1"></script>
+  <script src="dtac-features.js?v=20261104-trvis-1"></script>
+  <script src="train_timetable.js?v=20261104-trvis-1"></script>
 </body>
 </html>
