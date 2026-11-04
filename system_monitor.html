@@ -74,6 +74,11 @@
         const data=await response.json(),health=await healthResponse.json();
         if(validate(target,data).length||!Array.isArray(data.trains)||!Array.isArray(data.routes)||!Array.isArray(data.incidents))throw new Error('貨物JSONの形式が不正です');
         if(data.ok!==true||health.ok!==true)throw new Error(`公式HPの取得失敗: ${health.error||data.error||'取得結果を確認してください'}（最終試行 ${Ops.fmtDate(health.checkedAt)}／最終成功 ${Ops.fmtDate(health.lastSuccessAt)}）`);
+        if(health.available===false&&health.reason==='outside_service_hours'){
+          const checked=Date.parse(health.checkedAt);
+          if(!Number.isFinite(checked)||Date.now()-checked>target.maxAge*60000)throw new Error('サービス時間外の確認結果が古いため再取得が必要です');
+          return success({itemCount:data.trains.length,dataDate:data.proxiedAt,ageLabel:'公式サービス時間外（前回情報）',freshnessStatus:'unknown',detail:`公式HP: サービス時間外の案内を確認\n公式確認: ${Ops.fmtDate(health.checkedAt)}\n輸送情報の最終取得成功: ${Ops.fmtDate(health.lastSuccessAt)}\n前回情報を保持し、現在の運行状況として自動反映しません。`});
+        }
         const date=new Date(data.proxiedAt);
         if(isNaN(date)||date.getTime()>Date.now()+300000)throw new Error('貨物取得日時が不正です');
         const ageMinutes=Math.max(0,Math.floor((Date.now()-date.getTime())/60000));

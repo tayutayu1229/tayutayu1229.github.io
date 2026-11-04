@@ -19,7 +19,10 @@ vm.runInContext(prefix+'window.checkTarget=check;window.targets=TARGETS;})();',c
  const failed=await context.window.checkTarget(target);
  assert.equal(failed.status,'error','旧データが正常でも取得処理の失敗を検知');
  assert(failed.detail.includes('ValueError'));
- health.ok=true;data.proxiedAt=new Date(Date.now()-3*3600000).toISOString();
+ health.ok=true;health.available=false;health.reason='outside_service_hours';
+ const closed=await context.window.checkTarget(target);
+ assert.equal(closed.status,'ok');assert.equal(closed.freshnessStatus,'unknown');assert(closed.detail.includes('サービス時間外'));
+ health.available=true;health.reason=null;data.proxiedAt=new Date(Date.now()-3*3600000).toISOString();
  const stale=await context.window.checkTarget(target);
  assert.equal(stale.freshnessStatus,'error','公開し直しても取得時刻を新しく扱わない');
  const admin=fs.readFileSync('system_admin.html','utf8');

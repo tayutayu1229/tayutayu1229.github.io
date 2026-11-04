@@ -97,3 +97,25 @@ class FetchHealthTest(unittest.TestCase):
                 self.assertEqual(scraper.main(), 0)
                 self.assertEqual(fetch.call_count, 2)
                 self.assertIn('1055', output.read_text())
+
+    def test_official_outside_service_hours_preserves_report_and_is_not_failure(self):
+        import tempfile
+        import subprocess
+        import json
+        from unittest.mock import patch
+        notice = b'<div class="base_daiya"><div class="day">2026-11-05</div></div>' + '<div id="pbBlock91536">只今の時間帯はサービス時間外となります。</div>'.encode()
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            output=root/'index.html'; output.write_text('previous report')
+            payload=root/'status.json'; payload.write_text('{"previous":true}')
+            health=root/'health.json'; health.write_text('{"lastSuccessAt":"2026-11-05T01:30:05+09:00"}')
+            with patch.object(sys,'argv',['scraper.py','--output',str(output),'--json-output',str(payload),'--health-output',str(health)]), patch.object(scraper,'fetch',return_value=notice) as fetch:
+                self.assertEqual(scraper.main(),0)
+                self.assertEqual(fetch.call_count,1,'時間外を何度も再取得しない')
+            state=json.loads(health.read_text())
+            self.assertTrue(state['ok'])
+            self.assertFalse(state['available'])
+            self.assertEqual(state['reason'],'outside_service_hours')
+            self.assertEqual(state['lastSuccessAt'],'2026-11-05T01:30:05+09:00')
+            self.assertEqual(output.read_text(),'previous report')
+            self.assertEqual(payload.read_text(),'{"previous":true}')
