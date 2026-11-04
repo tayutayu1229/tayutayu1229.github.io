@@ -14,6 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnStaff = document.getElementById('btn-staff');
     const btnClose = document.getElementById('btn-close');
 
+    const resultCount = document.getElementById('result-count');
+    const reservePanelSpace = () => document.documentElement.style.setProperty('--action-panel-height', actionPanel.hidden ? '0px' : `${actionPanel.getBoundingClientRect().height + 24}px`);
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(reservePanelSpace).observe(actionPanel);
+    window.addEventListener('resize', reservePanelSpace);
+
     let cachedAllData = [];
     let selectedTrainGroup = null;
     let selectedTargetId = null;
@@ -32,18 +37,25 @@ document.addEventListener('DOMContentLoaded', () => {
         panelRoute.textContent = `${t.origin} 〜 ${t.destination}　／　施行日：${finalDate}`;
 
         // 選択行ハイライト
-        if (selectedRow) selectedRow.classList.remove('selected');
+        if (selectedRow) { selectedRow.classList.remove('selected'); selectedRow.querySelector('.train-select')?.setAttribute('aria-pressed','false'); }
         selectedRow = row;
         row.classList.add('selected');
 
+        row.querySelector('.train-select')?.setAttribute('aria-pressed','true');
+        actionPanel.hidden = false;
         actionPanel.classList.add('open');
+        reservePanelSpace();
+        btnDigital.focus({preventScroll:true});
     };
 
-    const closePanel = () => {
+    const closePanel = (restoreFocus = false) => {
+        if (restoreFocus) selectedRow?.querySelector('.train-select')?.focus({preventScroll:true});
+        actionPanel.hidden = true;
         actionPanel.classList.remove('open');
-        if (selectedRow) selectedRow.classList.remove('selected');
+        if (selectedRow) { selectedRow.classList.remove('selected'); selectedRow.querySelector('.train-select')?.setAttribute('aria-pressed','false'); }
         selectedRow = null;
         selectedTrainGroup = null;
+        reservePanelSpace();
     };
 
     const navigate = (isStaff) => {
@@ -58,7 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnDigital.addEventListener('click', () => navigate(false));
     btnStaff.addEventListener('click', () => navigate(true));
-    btnClose.addEventListener('click', closePanel);
+    btnClose.addEventListener('click', () => closePanel(true));
+    document.addEventListener('keydown',event => { if (event.key === 'Escape' && !actionPanel.hidden) closePanel(true); });
+    executionDateInput.addEventListener('change',() => closePanel());
 
     // ─── データ読み込み ───
     const loadTimetables = async () => {
@@ -67,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTimetableList(cachedAllData);
         } catch (error) {
             listBody.innerHTML =
-                '<tr><td colspan="4" style="text-align:center; color:red; padding:32px;">データの読み込みに失敗しました。</td></tr>';
+                '<tr><td colspan="4" class="table-message table-error">データを読み込めませんでした。ログイン状態を確認してから、ページを再読み込みしてください。</td></tr>';
+            resultCount.textContent = '読み込みに失敗しました';
         }
     };
 
@@ -78,7 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.length === 0) {
             listBody.innerHTML =
-                '<tr><td colspan="4" style="text-align:center; color:#7a8c82; padding:32px;">該当データなし</td></tr>';
+                '<tr><td colspan="4" class="table-message">条件に一致する列車はありません。検索条件を変更してください。</td></tr>';
+            resultCount.textContent = '0件';
             return;
         }
 
@@ -90,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
 
+        resultCount.textContent = `${Object.keys(grouped).length}件`;
         Object.keys(grouped).forEach(key => {
             const trainGroup = grouped[key];
             const t = trainGroup[0];
@@ -98,7 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = listBody.insertRow();
             row.insertCell().textContent = originalDate;
             row.insertCell().textContent = t.type === '選択なし' ? '' : (t.type || '');
-            row.insertCell().textContent = t.trainNumber || '―';
+            const trainButton = document.createElement('button');
+            trainButton.type = 'button';
+            trainButton.className = 'train-select';
+            trainButton.textContent = t.trainNumber || '―';
+            trainButton.setAttribute('aria-label',`${t.trainNumber || '列車'}の表示形式を選択`);
+            trainButton.setAttribute('aria-pressed','false');
+            trainButton.setAttribute('aria-controls','action-panel');
+            row.insertCell().appendChild(trainButton);
             row.insertCell().textContent = `${t.origin} 〜 ${t.destination}`;
 
             row.addEventListener('click', () => {
@@ -122,7 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const numberFilter = searchNumberInput.value.trim().toLowerCase();
 
         const filtered = cachedAllData.filter(train => {
-            const dateMatch = !dateFilter || (train.startDate || '').includes(dateFilter);
+            const normalizeDate = value => String(value || '').split(/[\/-]/).map(part => /^\d+$/.test(part) ? Number(part) : part).join('-');
+            const dateMatch = !dateFilter || normalizeDate(train.startDate || train.dayType) === normalizeDate(dateFilter);
             const numberMatch = !numberFilter || (train.trainNumber || '').toLowerCase().includes(numberFilter);
             return dateMatch && numberMatch;
         });
@@ -130,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTimetableList(filtered);
     };
 
-    searchButton.addEventListener('click', applySearchFilter);
+    document.getElementById('search-form').addEventListener('submit',event => { event.preventDefault(); applySearchFilter(); });
 
     resetButton.addEventListener('click', () => {
         searchDateInput.value = '';
