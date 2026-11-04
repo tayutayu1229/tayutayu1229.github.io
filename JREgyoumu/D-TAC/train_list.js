@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', reservePanelSpace);
 
     let cachedAllData = [];
+    let displayedData = [];
+    let sortKey = null;
+    let sortDirection = 'ascending';
     let selectedTrainGroup = null;
     let selectedTargetId = null;
     let selectedFinalDate = null;
@@ -78,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadTimetables = async () => {
         try {
             cachedAllData = await TayunetPrivateData.fetchTimetables({selectionList:1});
+            document.querySelectorAll('[data-sort]').forEach(button => { button.disabled = false; });
             renderTimetableList(cachedAllData);
         } catch (error) {
             listBody.innerHTML =
@@ -88,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ─── テーブル描画 ───
     const renderTimetableList = (data) => {
+        displayedData = data;
         listBody.innerHTML = '';
         closePanel();
 
@@ -107,8 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, {});
 
         resultCount.textContent = `${Object.keys(grouped).length}件`;
-        Object.keys(grouped).forEach(key => {
-            const trainGroup = grouped[key];
+        sortTrainGroups(Object.values(grouped),sortKey,sortDirection).forEach(trainGroup => {
             const t = trainGroup[0];
             const originalDate = t.startDate || t.dayType || '―';
 
@@ -140,6 +144,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    document.querySelectorAll('[data-sort]').forEach(button => {
+        button.addEventListener('click',() => {
+            const key = button.dataset.sort;
+            sortDirection = sortKey === key && sortDirection === 'ascending' ? 'descending' : 'ascending';
+            sortKey = key;
+            document.querySelectorAll('[data-sort]').forEach(control => {
+                const active = control.dataset.sort === sortKey;
+                const label = control.childNodes[0].textContent.trim();
+                control.closest('th').setAttribute('aria-sort',active ? sortDirection : 'none');
+                control.querySelector('.sort-icon').textContent = active ? (sortDirection === 'ascending' ? '▲' : '▼') : '↕';
+                control.setAttribute('aria-label',`${label}で${active && sortDirection === 'ascending' ? '降順' : '昇順'}に並べ替え`);
+            });
+            const label = button.childNodes[0].textContent.trim();
+            document.getElementById('sort-status').textContent = `${label}の${sortDirection === 'ascending' ? '昇順' : '降順'}で表示しています。`;
+            renderTimetableList(displayedData);
+        });
+    });
+
     // ─── 検索 ───
     const applySearchFilter = () => {
         const dateFilter = searchDateInput.value.trim();
@@ -166,3 +188,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadTimetables();
 });
+
+// Sort whole train groups so route segments and their navigation data stay together.
+function sortTrainGroups(groups,key,direction) {
+    if (!key) return [...groups];
+    const collator = new Intl.Collator('ja',{numeric:true,sensitivity:'base'});
+    const normalized = value => String(value ?? '').normalize('NFKC').trim();
+    const valueFor = group => {
+        const train = group[0] || {};
+        switch (key) {
+            case 'date': return normalized(train.startDate || train.dayType);
+            case 'type': return train.type === '選択なし' ? '' : normalized(train.type);
+            case 'number': return normalized(train.trainNumber);
+            case 'route': return normalized(`${train.origin || ''} 〜 ${train.destination || ''}`);
+            default: return '';
+        }
+    };
+    const dateValue = value => {
+        const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(value);
+        return match ? Number(match[1])*10000 + Number(match[2])*100 + Number(match[3]) : null;
+    };
+    return [...groups].sort((left,right) => {
+        const a = valueFor(left), b = valueFor(right);
+        // Missing values stay at the end in both directions.
+        if (!a || !b) return a ? -1 : b ? 1 : 0;
+        const da = key === 'date' ? dateValue(a) : null;
+        const db = key === 'date' ? dateValue(b) : null;
+        const comparison = da !== null && db !== null ? da-db : collator.compare(a,b);
+        return direction === 'descending' ? -comparison : comparison;
+    });
+}
