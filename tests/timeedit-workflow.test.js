@@ -194,3 +194,28 @@ assert.equal(inboundRecord.yardMovement.arrivalTrack, '１５番');
 assert.deepEqual(inboundRecord.stops, [{station: '池　袋', arrival: '', departure: '19:09:00', trackN: '山貨下'}]);
 
 console.log('timeedit workflow: ok');
+
+// Editing identity must not leave an automatically selected yard category stuck.
+elements.get('trainNumber').value = '出9820M';
+elements.get('type').value = '出区';
+elements.get('dataKind').value = '出区';
+vm.runInContext('dataKindOverride = null; updateJSON()', context);
+elements.get('trainNumber').value = '入9820M';
+vm.runInContext('handleTrainIdentityChange(true)', context);
+assert.equal(JSON.parse(elements.get('jsonOutput').value).yardMovement.category, '入区');
+elements.get('type').value = '出区';
+vm.runInContext('handleTrainIdentityChange(false)', context);
+assert.equal(JSON.parse(elements.get('jsonOutput').value).yardMovement.category, '出区');
+elements.get('dataKind').value = '';
+vm.runInContext('handleDataKindChange(); updateJSON()', context);
+assert.equal(elements.get('dataKind').value, '');
+assert.equal(JSON.parse(elements.get('jsonOutput').value).yardMovement, undefined);
+assert.equal(elements.get('trainNumber').value, '入9820M', '通常への切替で列番を勝手に変更しない');
+elements.get('trainNumber').value = '101M';
+vm.runInContext('handleTrainIdentityChange(true)', context);
+assert.equal(JSON.parse(elements.get('jsonOutput').value).yardMovement, undefined);
+elements.get('trainNumber').value = '出9820M';
+vm.runInContext('handleTrainIdentityChange(true)', context);
+elements.get('tr2').value = '102M';
+vm.runInContext('updateUI = () => updateJSON(); prepareNextSection()', context);
+assert.equal(JSON.parse(elements.get('jsonOutput').value).yardMovement, undefined, '次区間に入出区区分を持ち越さない');

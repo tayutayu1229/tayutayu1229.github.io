@@ -516,6 +516,7 @@ h2 {
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="../../auth_guard.js"></script>
     <script src="../../T-time/private-data-client.js"></script>
+    <script src="../../assets/js/timetable-selection-cache.js?v=20261105"></script>
     <script>
         // JavaScript
         document.addEventListener('DOMContentLoaded', () => {
@@ -533,74 +534,9 @@ h2 {
             const WORKBASE_URL = 'https://tayunet-traininfo.com/JREgyoumu/workdata/workbase.json';
             const OUTPUT_LOCATION_KEY = 'atosSelectedOutputLocation';
             const VIEW_STATE_KEY = 'atosTimetableSelectionView:v1';
-            const CACHE_SESSION_KEY = 'atosTimetableCacheSession:v1';
-            const CACHE_DATABASE = 'tayunetTimetableSelectionCache';
-            const CACHE_STORE = 'bundles';
-            const CACHE_MAX_AGE = 10 * 60 * 1000;
-            
             let cachedAllData = [];
-
-            const cacheSessionId = (() => {
-                try {
-                    let value = sessionStorage.getItem(CACHE_SESSION_KEY);
-                    if (!value) {
-                        value = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-                        sessionStorage.setItem(CACHE_SESSION_KEY, value);
-                    }
-                    return value;
-                } catch (_error) {
-                    return '';
-                }
-            })();
-
-            const openTimetableCache = () => new Promise((resolve, reject) => {
-                if (!cacheSessionId || !window.indexedDB) { resolve(null); return; }
-                const request = indexedDB.open(CACHE_DATABASE, 1);
-                request.onupgradeneeded = () => {
-                    if (!request.result.objectStoreNames.contains(CACHE_STORE)) {
-                        request.result.createObjectStore(CACHE_STORE);
-                    }
-                };
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-
-            const readTimetableCache = async () => {
-                let database;
-                try {
-                    database = await openTimetableCache();
-                    if (!database) return null;
-                    const record = await new Promise((resolve, reject) => {
-                        const request = database.transaction(CACHE_STORE, 'readonly').objectStore(CACHE_STORE).get(cacheSessionId);
-                        request.onsuccess = () => resolve(request.result || null);
-                        request.onerror = () => reject(request.error);
-                    });
-                    if (!record || !Array.isArray(record.items) || Date.now() - Number(record.savedAt || 0) > CACHE_MAX_AGE) return null;
-                    return record.items;
-                } catch (error) {
-                    console.warn('列車一覧の一時保存を読み込めませんでした。', error);
-                    return null;
-                } finally {
-                    database?.close();
-                }
-            };
-
-            const writeTimetableCache = async (items) => {
-                let database;
-                try {
-                    database = await openTimetableCache();
-                    if (!database) return;
-                    await new Promise((resolve, reject) => {
-                        const request = database.transaction(CACHE_STORE, 'readwrite').objectStore(CACHE_STORE).put({savedAt: Date.now(), items}, cacheSessionId);
-                        request.onsuccess = () => resolve();
-                        request.onerror = () => reject(request.error);
-                    });
-                } catch (error) {
-                    console.warn('列車一覧を一時保存できませんでした。', error);
-                } finally {
-                    database?.close();
-                }
-            };
+            const readTimetableCache = () => TayunetTimetableSelectionCache.read();
+            const writeTimetableCache = items => TayunetTimetableSelectionCache.write(items);
 
             const loadOutputLocations = async () => {
                 try {
@@ -662,7 +598,8 @@ h2 {
                         restoreViewState();
                         applySearchFilter();
                         restoreScrollPosition();
-                        dataStatus.textContent = `保留データ ${cached.length.toLocaleString('ja-JP')}件を表示中。新規登録分は「最新データに更新」で取得できます。`;
+                        dataStatus.textContent = `保存データ ${cached.length.toLocaleString('ja-JP')}件を表示中（保存: ${TayunetTimetableSelectionCache.savedLabel()}、最大7日間保持）。`;
+                        if (TayunetTimetableSelectionCache.needsRefresh()) setTimeout(() => loadTimetables(true), 0);
                         return;
                     }
                     cachedAllData = await TayunetPrivateData.fetchTimetables({selectionList:1});

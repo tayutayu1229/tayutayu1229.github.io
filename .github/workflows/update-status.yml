@@ -3,16 +3,23 @@ name: JR Freight status update
 on:
   schedule:
     # GitHub ActionsのcronはUTCです。
-    # 15分おきに実行します。
-    - cron: "*/15 * * * *"
+    # 7分おきに実行します。
+    - cron: "*/7 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "JRF_status/scraper.py"
+      - "JRF_status/requirements.txt"
+      - ".github/workflows/update-status.yml"
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: jr-freight-status-update
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update:
@@ -22,6 +29,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,12 +42,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r JRF_status/requirements.txt
 
-      - name: Fetch and build
-        run: python JRF_status/scraper.py --output JRF_status/index.html
+      - name: Test status parser
+        run: python -m unittest discover -s JRF_status/tests
 
-      - name: Commit updated page
+      - name: Fetch and build both views from the same official response
+        id: build
+        run: python JRF_status/scraper.py --output JRF_status/index.html --json-output JRF_status/JRF-gtfs/data/freight-status.json --health-output JRF_status/JRF-gtfs/data/fetch-health.json
+
+      - name: Commit updated page and fetch health
+        id: save
+        if: ${{ always() && steps.build.outcome != 'skipped' && steps.build.outcome != '' }}
         run: |
-          if git diff --quiet -- JRF_status/index.html; then
+          if git diff --quiet -- JRF_status/index.html JRF_status/JRF-gtfs/data/freight-status.json JRF_status/JRF-gtfs/data/fetch-health.json; then
             echo "No changes"
             exit 0
           fi
@@ -46,6 +61,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add JRF_status/index.html
+          git add JRF_status/index.html JRF_status/JRF-gtfs/data/freight-status.json JRF_status/JRF-gtfs/data/fetch-health.json
           git commit -m "Update JR Freight status"
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish refreshed status on GitHub Pages
+        if: ${{ always() && steps.save.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds"

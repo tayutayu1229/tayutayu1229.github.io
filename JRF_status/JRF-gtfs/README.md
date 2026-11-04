@@ -23,7 +23,7 @@ npm run serve
 
 ブラウザで `http://localhost:4173` を開きます。ローカルファイルを直接開く方式ではデータを読み込めません。
 
-`npm run serve` は画面配信に加え、`/api/freight-status` でJR貨物公式発表を整形した既存システムから遅延情報を取得します。Pythonの簡易サーバーでは遅延情報を取得できません。
+遅延情報は取得済みの `data/freight-status.json` を表示します。更新にはPython 3とBeautiful Soupが必要です。リポジトリルートで `python3 -m pip install -r JRF_status/requirements.txt` を実行してください。
 
 ## GitHub Pagesで公開
 
@@ -33,7 +33,7 @@ npm run serve
 tayutayu1229.github.io/
 ├── .github/
 │   └── workflows/
-│       └── update-jrf-gtfs-status.yml
+│       └── update-status.yml
 └── JRF_status/
     └── JRF-gtfs/
         ├── index.html
@@ -46,11 +46,11 @@ tayutayu1229.github.io/
 重要: `.github` フォルダは `JRF_status/JRF-gtfs` の中ではなく、リポジトリの最上部へ置きます。
 
 1. このフォルダ内のWebアプリ一式を `JRF_status/JRF-gtfs/` へpushします。
-2. `.github/workflows/update-jrf-gtfs-status.yml` だけは、リポジトリ最上部の同じパスへpushします。
+2. `.github/workflows/update-status.yml` だけは、リポジトリ最上部の同じパスへpushします。
 3. **Settings → Pages → Source** は、既存サイトと同じ **Deploy from a branch / main / (root)** のままにします。
-4. **Actions → Update JRF GTFS status → Run workflow** を一度実行します。
+4. **Actions → JR Freight status update → Run workflow** を一度実行します。
 
-以後は毎時12分・42分に遅延情報を取得し、変更があると `JRF_status/JRF-gtfs/data/freight-status.json` だけを自動コミットします。手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
+以後は約7分おきに公式ページを1回取得し、輸送状況HTMLと `JRF_status/JRF-gtfs/data/freight-status.json` を同じ内容で更新します。手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
 
 ```sh
 npm run fetch-status
@@ -66,13 +66,15 @@ ODPTからGTFS zipを取得した後、次を実行します。
 node scripts/prepare-data.mjs /path/to/JR-Freight-Train-GTFS-2500.zip
 ```
 
-2500m版と1000m版は同じ処理で切り替えられます。このプロジェクトは非公開の業務利用を前提に、指定されたODPTアクセストークンを `app.js` に保持しています。公開環境へ移す場合は、サーバー側の環境変数へ移してください。
+2500m版と1000m版は同じ処理で切り替えられます。ODPT接続はCloudflare Workerを経由し、資格情報をブラウザーに保持しません。
 
 ## 表示上の注意
 
 - 本データは計画時刻表で、リアルタイム在線情報ではありません。
 - 地図上の列車位置は時刻と経路形状からの概算です。
 - 地図の緑線と「レ」は鉄道、橙の点線と「便」はオフレール輸送です。「配送」はGTFSの便番号が設定されていない道路接続を示します。
-- 遅延は公式発表とGTFSの列車番号を照合し、同じ列車番号を含む輸送計画へ適用します。表示される到着見込・推定位置は概算です。
+- 遅延は公式発表とGTFSの出発日・列車番号を照合します。取得から2時間以上経った情報や取得失敗後の前回情報は、到着見込へ自動反映しません。表示される到着見込・推定位置は概算です。
 - 配布元の説明に基づき、休日・曜日による運休情報は反映していません。
 - 利用・公開時はODPTデータセットのライセンスとクレジット条件を確認してください。
+
+背景地図は国土地理院の地理院タイルを利用し、連続した取得失敗時はOpenStreetMapへ切り替えます。共通処理の `assets/js/base-map.js` もリポジトリに含めてください。

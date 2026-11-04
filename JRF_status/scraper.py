@@ -5,15 +5,19 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
+import os
+import unicodedata
 import re
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 
 SOURCE_URL = "https://www.jrfreight.co.jp/i_daiya.html"
@@ -47,75 +51,129 @@ def fetch(url: str) -> bytes:
         return response.read().decode(charset, errors="replace").encode("utf-8")
 
 
+def section_lines(heading: Tag, content: Tag) -> list[str]:
+    """Preserve BR/paragraph boundaries without splitting inline spans into rows."""
+    chunks = []
+    for node in heading.next_elements:
+        if isinstance(node, Tag) and node.name == "h2":
+            break
+        if content not in node.parents:
+            break
+        if isinstance(node, Tag) and node.name in ("br", "p", "li", "tr"):
+            chunks.append("\n")
+        elif isinstance(node, NavigableString) and node.parent.name not in ("h2", "script", "style"):
+            chunks.append(str(node))
+    return [line.strip() for line in "".join(chunks).splitlines() if line.strip()]
+
+
+def parse_train(line: str) -> tuple[str, str, str]:
+    normalized = unicodedata.normalize("NFKC", line)
+    service = re.match(r"^((?:\d{1,2}日発)?[\d～〜~・、/\-\s]+列車(?:\s*\([^)]*\))?)\s*(.*)$", normalized)
+    if not service:
+        raise ValueError(f"列車情報の形式を認識できません: {clean(line)}")
+    tail = service.group(2)
+    state = re.search(r"[+]\s*\d|(?:約)?\d+\s*(?:時間|分)|運休|抑止|停車|遅延|定時|運転再開|運転見合わせ", tail)
+    if state:
+        place, status = tail[:state.start()], tail[state.start():]
+    else:
+        parts = re.split(r"\s{2,}", tail.strip(), maxsplit=1)
+        if len(parts) != 2:
+            raise ValueError(f"現在地と状況を分離できません: {clean(line)}")
+        place, status = parts
+    # Full-width spaces inside station names are typography, not column breaks.
+    place = re.sub(r"\s+", "", place)
+    if not place or not status.strip():
+        raise ValueError(f"現在地または状況が空です: {clean(line)}")
+    return clean(service.group(1)), place, clean(status)
+
+
 def parse(source: bytes) -> Status:
-    soup = BeautifulSoup(source, "html.parser")
+    soup = BeautifulSoup(source.decode("utf-8-sig"), "html.parser")
     content = soup.select_one(".base_daiya-content")
     if content is None:
         raise ValueError("輸送状況の本文が見つかりません（サイト構造が変わった可能性があります）")
-
     day = soup.select_one(".base_daiya .day")
-    day_text = clean(day.get_text(" ", strip=True)) if day else ""
-    date_match = re.search(r"\d{4}年\d{1,2}月\d{1,2}日", day_text)
+    date_match = re.search(r"\d{4}年\d{1,2}月\d{1,2}日", day.get_text() if day else "")
     time_node = soup.select_one(".base_daiya .time")
-    title_node = soup.select_one("#pbBlock91536")
-
+    if not date_match or not time_node or not re.search(r"\d+時", time_node.get_text()):
+        raise ValueError("公式発表の日付または時刻を取得できません")
     headings = content.find_all("h2")
     overview_heading = next((h for h in headings if "発生時刻" in clean(h.get_text())), None)
-    route_heading = next((h for h in headings if "線" in clean(h.get_text()).replace(" ", "")), None)
+    route_heading = next((h for h in headings if "線区" in re.sub(r"\s+", "", h.get_text())), None)
     if overview_heading is None or route_heading is None:
         raise ValueError("概要または線区の見出しが見つかりません")
-
-    overview_p = overview_heading.find_next("p")
-    route_p = route_heading.find_next("p")
-    if overview_p is None or route_p is None:
-        raise ValueError("概要または列車情報が見つかりません")
-
-    overview_lines = [clean(line) for line in overview_p.get_text("\n").splitlines() if clean(line)]
+    title_heading = next((h for h in soup.find_all("h2") if re.sub(r"\s+", "", h.get_text()) == "標題"), None)
+    title_node = title_heading.find_next("p") if title_heading else soup.select_one("#pbBlock91536")
     incidents: list[tuple[str, str]] = []
-    i = 0
-    while i < len(overview_lines):
-        if re.match(r"^\(\d+\)", overview_lines[i]):
-            when = re.sub(r"^\(\d+\)", "", overview_lines[i]).strip()
-            detail = overview_lines[i + 1] if i + 1 < len(overview_lines) else ""
-            incidents.append((when, detail))
-            i += 2
-        else:
-            if incidents:
-                when, detail = incidents[-1]
-                incidents[-1] = (when, clean(f"{detail} {overview_lines[i]}"))
-            i += 1
-
-    # 列車・現在地・状況の区切りには複数の全角空白が使われるため、
-    # この段階では空白を正規化しない。
-    route_lines = [line.strip() for line in route_p.get_text("\n").splitlines() if line.strip()]
+    for line in section_lines(overview_heading, content):
+        line = clean(line)
+        match = re.match(r"^[（(]\d+[）)]\s*(.*)", line)
+        if match:
+            incidents.append((match.group(1), ""))
+        elif incidents:
+            when, detail = incidents[-1]
+            incidents[-1] = (when, clean(f"{detail} {line}"))
     sections: list[Section] = []
     current: Section | None = None
-    for line in route_lines:
+    for line in section_lines(route_heading, content):
         header = re.match(r"^[<＜](.+?)[>＞]$", line)
         if header:
             current = Section(clean(header.group(1)), [])
             sections.append(current)
-            continue
-        if current is None:
-            continue
-        # 元ページは列車・現在地・遅延を全角スペースで桁揃えしている。
-        parts = [clean(p) for p in re.split(r"(?:\u3000| ){2,}", line) if clean(p)]
-        if len(parts) >= 3:
-            current.trains.append((parts[0], parts[1], " ".join(parts[2:])))
-        else:
-            # 空白の仕様変更時にもデータを捨てず、列車情報として表示する。
-            current.trains.append((line, "—", "—"))
-
-    if not incidents and not sections:
-        raise ValueError("障害情報も列車情報も取得できませんでした")
-
+        elif "列車" in line and re.search(r"\d", line):
+            if current is None:
+                raise ValueError("列車情報の線区が不明です")
+            current.trains.append(parse_train(line))
+        elif current and not line.startswith(("※", "注")):
+            raise ValueError(f"未対応の線区情報があります: {clean(line)}")
+    if not any(section.trains for section in sections) and not incidents:
+        if not re.search(r"ありません|平常|正常|定刻", content.get_text()):
+            raise ValueError("障害情報も列車情報も取得できませんでした")
     return Status(
-        published_date=date_match.group(0) if date_match else "日付不明",
-        as_of=clean(time_node.get_text(" ", strip=True)) if time_node else "時刻不明",
+        published_date=date_match.group(0),
+        as_of=clean(time_node.get_text(" ", strip=True)),
         title=clean(title_node.get_text(" ", strip=True)) if title_node else "JR貨物 輸送状況",
         incidents=incidents,
-        sections=[s for s in sections if s.trains],
+        sections=[section for section in sections if section.trains],
     )
+
+
+def departure_date(service: str, published: datetime) -> str | None:
+    match = re.match(r"(\d{1,2})日発", service)
+    if not match:
+        return None
+    day = int(match.group(1))
+    # A report at the start of a month may contain trains from last month.
+    for offset in range(32):
+        candidate = published - timedelta(days=offset)
+        if candidate.day == day:
+            return candidate.date().isoformat()
+    raise ValueError("列車の出発日が不正です")
+
+
+def as_json(data: Status, fetched_at: datetime) -> dict:
+    published = datetime.strptime(data.published_date, "%Y年%m月%d日").replace(tzinfo=JST)
+    routes = []
+    for section in data.sections:
+        trains = []
+        for service, location, status in section.trains:
+            number_text = re.sub(r"^\d+日発", "", service.split("列車")[0])
+            trains.append({"service": service, "location": location, "status": status, "route": section.name,
+                           "trainNumbers": [str(int(n)) for n in re.findall(r"\d+", number_text)],
+                           "departureDate": departure_date(service, published)})
+        routes.append({"name": section.name, "trains": trains})
+    return {"ok": True, "announcementDate": data.published_date, "asOf": data.as_of, "title": data.title,
+            "incidents": [{"time": when, "detail": detail} for when, detail in data.incidents],
+            "routes": routes, "trains": [train for route in routes for train in route["trains"]],
+            "fetchedLabel": fetched_at.strftime("%Y年%m月%d日 %H:%M JST"), "source": SOURCE_URL,
+            "proxiedAt": fetched_at.isoformat()}
+
+
+def atomic_write(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(value, encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def status_class(status: str) -> str:
@@ -159,15 +217,46 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, help="テスト用の取得済みHTML")
     parser.add_argument("--output", type=Path, default=Path("index.html"))
+    parser.add_argument("--json-output", type=Path, help="同じ取得結果を輸送計画画面のJSONにも出力")
+    parser.add_argument("--health-output", type=Path, help="取得結果と監視時刻を保存")
     args = parser.parse_args()
+    attempted_at = datetime.now(JST).isoformat()
+    previous_health = {}
+    if args.health_output:
+        try:
+            previous_health = json.loads(args.health_output.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    def health(ok, error=None):
+        if args.health_output:
+            atomic_write(args.health_output, json.dumps({"ok": ok, "checkedAt": attempted_at,
+                "lastSuccessAt": datetime.now(JST).isoformat() if ok else previous_health.get("lastSuccessAt"),
+                "error": error, "source": SOURCE_URL}, ensure_ascii=False, indent=2) + "\n")
     try:
-        source = args.input.read_bytes() if args.input else fetch(SOURCE_URL)
-        data = parse(source)
-        output = render(data, datetime.now(JST))
-        args.output.write_text(output, encoding="utf-8")
+        if args.input:
+            source = args.input.read_bytes()
+            data = parse(source)
+        else:
+            for attempt in range(3):
+                try:
+                    source = fetch(SOURCE_URL)
+                    data = parse(source)
+                    break
+                except (OSError, TimeoutError, ValueError):
+                    if attempt == 2:
+                        raise
+                    time.sleep(2 ** attempt)
+        fetched_at = datetime.now(JST)
+        output = render(data, fetched_at)
+        json_output = json.dumps(as_json(data, fetched_at), ensure_ascii=False, indent=2) + "\n"
+        atomic_write(args.output, output)
+        if args.json_output:
+            atomic_write(args.json_output, json_output)
+        health(True)
         print(f"生成完了: {args.output} ({len(data.incidents)}件の概要、{len(data.sections)}線区)")
         return 0
     except Exception as exc:
+        health(False, f"{type(exc).__name__}: {exc}")
         print(f"エラー: {exc}", file=sys.stderr)
         return 1
 

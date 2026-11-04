@@ -121,8 +121,8 @@
     <h2>1. 列車基本情報</h2>
     <div class="grid-info">
       <label><span>データ形式</span><select id="dataKind" onchange="handleDataKindChange()"><option value="">通常列車</option><option value="出区">出区</option><option value="入区">入区</option></select></label>
-      <label><span>列車番号</span><input id="trainNumber" type="text" oninput="updateJSON()"></label>
-      <label><span>列車種別</span><input id="type" type="text" oninput="updateJSON()"></label>
+      <label><span>列車番号</span><input id="trainNumber" type="text" oninput="handleTrainIdentityChange(true)"></label>
+      <label><span>列車種別</span><input id="type" type="text" oninput="handleTrainIdentityChange(false)"></label>
       <label><span>平日/土休日</span><input id="dayType" type="text" placeholder="平日" oninput="updateJSON()"></label>
       <label><span>始発駅発日</span><input id="startDate" type="date" oninput="updateJSON()"></label>
       <label><span>路線名 (引用キー)</span><input id="line" type="text" list="lineList" oninput="handleLineChange()"></label>
@@ -158,7 +158,7 @@
   <h2>3. 入出区ダイヤ</h2>
   <p class="subtle-note">列車番号が「出」「入」で始まる、または列車種別が「出区」「入区」の場合に使います。時刻と番線は専用の入出区画面に表示されます。</p>
   <div class="yard-grid">
-    <label><span>区分</span><select id="yardCategory" data-yard-field="category" onchange="updateJSON()"><option value="出区">出区</option><option value="入区">入区</option></select></label>
+    <label><span>区分</span><select id="yardCategory" data-yard-field="category" onchange="handleYardCategoryChange()"><option value="出区">出区</option><option value="入区">入区</option></select></label>
     <label><span>運行</span><input data-yard-field="operation" placeholder="例：運転" oninput="updateJSON()"></label>
     <label><span>前運用列番</span><input data-yard-field="previousTrainNumber" placeholder="例：回9240M" oninput="updateJSON()"></label>
     <label><span>後運用列番</span><input data-yard-field="nextTrainNumber" placeholder="例：回9241M" oninput="updateJSON()"></label>
@@ -534,14 +534,30 @@
     return [...document.querySelectorAll('[data-yard-field]')];
   }
 
+  let dataKindOverride = null;
+
   function yardCategoryForCurrentTrain() {
-    const selected = document.getElementById('dataKind')?.value || '';
-    if(selected === '出区' || selected === '入区') return selected;
     const type = document.getElementById('type').value.trim();
     const number = document.getElementById('trainNumber').value.trim();
-    if(type === '出区' || number.startsWith('出')) return '出区';
-    if(type === '入区' || number.startsWith('入')) return '入区';
+    if(dataKindOverride && dataKindOverride.type === type && dataKindOverride.number === number) {
+      return dataKindOverride.value;
+    }
+    dataKindOverride = null;
+    if(type === '出区' || type === '入区') return type;
+    if(number.startsWith('出')) return '出区';
+    if(number.startsWith('入')) return '入区';
     return '';
+  }
+
+  function handleTrainIdentityChange(numberChanged) {
+    dataKindOverride = null;
+    if(numberChanged) {
+      const number = document.getElementById('trainNumber').value.trim();
+      const type = document.getElementById('type');
+      const category = number.startsWith('出') ? '出区' : number.startsWith('入') ? '入区' : '';
+      if(category || type.value === '出区' || type.value === '入区') type.value = category;
+    }
+    updateJSON();
   }
 
   function handleDataKindChange() {
@@ -549,7 +565,13 @@
     const type = document.getElementById('type');
     if(selected === '出区' || selected === '入区') type.value = selected;
     else if(type.value === '出区' || type.value === '入区') type.value = '';
+    dataKindOverride = {value: selected, type: type.value.trim(), number: document.getElementById('trainNumber').value.trim()};
     updateJSON();
+  }
+
+  function handleYardCategoryChange() {
+    document.getElementById('dataKind').value = document.getElementById('yardCategory').value;
+    handleDataKindChange();
   }
 
   function setYardConnectionStop() {
@@ -641,6 +663,7 @@
     const connectionStation = connectionStop?.station || document.getElementById('destination').value.trim();
     const detail = connectionStation ? `接続駅「${connectionStation}」を次区間の先頭に残します。` : '停車駅は空の状態で開始します。';
     if(!confirm(`${nextTr}の編集へ進みますか？\n${detail}`)) return;
+    dataKindOverride = null;
     document.getElementById("trainNumber").value = nextTr;
     if(wasYard) document.getElementById('type').value = '';
     yardFields().forEach(input => { if(input.dataset.yardField !== 'category') input.value = ''; });
@@ -664,7 +687,9 @@
     document.getElementById("startDate").value = d.startDate ? String(d.startDate).replace(/\//g, '-') : '';
     const footnotes = Array.isArray(d.footnotes) ? d.footnotes : String(d.footnote || '').split(/\r?\n/);
     document.getElementById('footnote').value = footnotes.map(value => String(value || '').trim()).filter(Boolean).join('\n');
+    dataKindOverride = null;
     document.getElementById('dataKind').value = d.yardMovement?.category || (d.type === '出区' || d.type === '入区' ? d.type : '');
+    if(d.yardMovement?.category) dataKindOverride = {value: d.yardMovement.category, number: document.getElementById('trainNumber').value.trim(), type: document.getElementById('type').value.trim()};
     yardFields().forEach(input => {
       const field = input.dataset.yardField;
       input.value = d.yardMovement?.[field] || (field === 'category' ? '出区' : '');

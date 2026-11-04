@@ -59,10 +59,10 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="/auth_guard.js"></script>
 <script src="/assets/js/system-telemetry.js"></script>
-<script src="/assets/js/system-admin-core.js"></script>
+<script src="/assets/js/system-admin-core.js?v=20261105"></script>
 <script>
 (() => {
-  const MONITOR_TARGET_COUNT = 13;
+  const MONITOR_TARGET_COUNT = 16;
   const severityLabel = value => ({ critical:'重大', error:'エラー', warning:'警告', info:'情報' }[value] || '情報');
   const severityStatus = value => value === 'critical' || value === 'error' ? 'error' : value === 'warning' ? 'warning' : 'unknown';
   const setKpi = (id, value, sub) => { const node=Ops.$(id); node.querySelector('.value').textContent=value; if(sub) node.querySelector('.sub').textContent=sub; };
@@ -79,10 +79,11 @@
     const recentErrors = events.filter(e => e.type !== 'page_view' && ['critical','error'].includes(e.severity) && (e.createdAt?.toDate?.().getTime() || new Date(e.clientTime || 0).getTime()) >= oneDayAgo);
     const importantEvents = events.filter(e => e.type !== 'page_view' && ['critical','error','warning'].includes(e.severity));
     const failed = monitor.filter(item => item.status === 'error');
-    const stale = monitor.filter(item => item.freshnessStatus === 'warning' || item.freshnessStatus === 'error');
+    const stale = monitor.filter(item => item.status === 'ok' && (item.freshnessStatus === 'warning' || item.freshnessStatus === 'error'));
     const unknownFreshness = monitor.filter(item => item.status === 'ok' && item.freshnessStatus === 'unknown');
-    const monitorComplete = monitor.length >= MONITOR_TARGET_COUNT;
-    if (failed.length) alerts.push({severity:'critical',title:`${failed.length}件の監視対象が停止`,detail:failed.map(x=>x.name).join('、')});
+    const monitorComplete = monitor.length >= MONITOR_TARGET_COUNT && monitor.every(item=>Date.now()-Date.parse(item.checkedAt)<30*60000);
+    if(monitor.length && !monitorComplete && monitor.length>=MONITOR_TARGET_COUNT) alerts.push({severity:'warning',title:'監視結果が30分以上更新されていません',detail:'監視・公開状態で再診断してください。保存済みの結果は現在の稼働状態を保証しません。'});
+    if (failed.length) alerts.push({severity:'critical',title:`${failed.length}件の監視対象で取得失敗`,detail:failed.map(x=>`${x.name}：${(x.detail||'原因不明').split('\n')[0]}（確認 ${Ops.fmtDate(x.checkedAt)}）`).join('／')});
     if (stale.length) alerts.push({severity:'warning',title:`${stale.length}件でデータ鮮度低下`,detail:stale.map(x=>`${x.name}（${x.ageLabel || '不明'}）`).join('、')});
     if (recentErrors.length) alerts.push({severity:'warning',title:`24時間以内に${recentErrors.length}件のエラー`,detail:'診断・データ管理から発生画面と内容を確認してください。'});
     const pending = users.filter(u => u.status === 'pending');

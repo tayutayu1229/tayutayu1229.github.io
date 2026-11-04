@@ -1,24 +1,23 @@
 # JR貨物 輸送状況ビューア
 
-JR貨物公式サイトの公開情報を定期取得し、スマートフォンでも見やすい `index.html` を生成します。
+JR貨物公式サイトを約7分おきに1回取得し、輸送状況HTMLと輸送計画システム用JSONを同じ内容から生成します。GitHub Actionsの混雑で更新が遅れる場合があります。
 
-## 使い方
+## 更新方法
 
-1. このフォルダーをGitHubリポジトリへpushします。
-2. GitHubの **Settings → Pages** で、`Deploy from a branch`、対象を `main` / `(root)` に設定します。
-3. Actionsが毎時15分に更新します。最初だけ **Actions → JR Freight status update → Run workflow** から手動実行できます。
+リポジトリルートで実行します。
 
-ローカル実行は次のとおりです。
-
-```bash
-python -m pip install -r requirements.txt
-python scraper.py
+```sh
+python3 -m pip install -r JRF_status/requirements.txt
+python3 -m unittest discover -s JRF_status/tests
+python3 JRF_status/scraper.py --output JRF_status/index.html --json-output JRF_status/JRF-gtfs/data/freight-status.json
 ```
 
-取得や解析に失敗した場合、処理はエラー終了し、公開済みの `index.html` は上書きされません。
+GitHubでは **Actions → JR Freight status update → Run workflow** から更新できます。定期更新は `.github/workflows/update-status.yml` にまとめています。コミットの作成者はGitHub Actionsのbotです。
 
-## 注意
+## 取得と表示
 
-- 表示内容はJR貨物公式サイトの公開情報を再構成したものです。正確な最新情報は必ず公式ページで確認してください。
-- 取得頻度は先方サイトへの負荷を考慮して毎時1回にしています。
-- JR貨物公式サイトのHTML構造が変わった場合は `scraper.py` の調整が必要になることがあります。
+- 改行・段落で行を分け、列車情報は列車名・現在地・状況を意味に基づいて分離します。駅名内の桁揃え空白は列の区切りとして扱いません。
+- 複数列車番号と出発日を保存します。月初に前月発の列車が掲載される場合にも対応します。
+- 取得・解析に失敗した場合はエラー終了し、公開済みのデータを更新しません。未認識の行を捨てて正常扱いにしません。
+- 掲載のない状態は公式本文に明示されている場合に受け付けます。
+- 正確な最新情報は [JR貨物公式サイト](https://www.jrfreight.co.jp/i_daiya.html) も確認してください。

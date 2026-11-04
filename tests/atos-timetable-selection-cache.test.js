@@ -3,7 +3,7 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('JREgyoumu/ATOSsys/select_timetable.html', 'utf8');
 
-assert.match(source, /indexedDB\.open\(CACHE_DATABASE, 1\)/, '列車一覧をタブ内キャッシュへ保存すること');
+assert.match(source, /timetable-selection-cache\.js/, '利用者別の保存処理を読み込むこと');
 assert.match(source, /const cached = forceRefresh \? null : await readTimetableCache\(\);[\s\S]*if \(cached\)[\s\S]*return;/, '通常表示はキャッシュがあれば保護APIを再取得しないこと');
 assert.ok(
   source.indexOf('const cached = forceRefresh ? null : await readTimetableCache();') < source.indexOf('cachedAllData = await TayunetPrivateData.fetchTimetables({selectionList:1});'),
@@ -21,6 +21,6 @@ assert.match(source, /<input type="search" id="search-date"[\s\S]*YYYY\/MM\/DD�
 assert.match(source, /#search-date \{ display: none; \}[\s\S]*@media \(max-width: 600px\)[\s\S]*#search-date \{ display: block; \}/, '施行日の直接入力欄はスマホだけに表示すること');
 assert.match(source, /<div class="search-actions">[\s\S]*id="search-button"[\s\S]*id="refresh-data-button"/, '検索と更新の操作を同じ欄にまとめること');
 assert.match(source, /searchDateInput\.value\.trim\(\)\.toLowerCase\(\)\.replace\(\/-\/g, '\/'\)/, '直接入力したハイフン区切りの日付でも検索できること');
-assert.doesNotMatch(source, /localStorage\.setItem\([^\n]*TimetableCache/i, '保護時刻表を永続保存しないこと');
+assert.doesNotMatch(source, /localStorage\.setItem\([^\n]*TimetableCache/i, '時刻表は期限と利用者を管理する保存処理を使うこと');
 
 console.log('ATOS timetable selection cache: ok');

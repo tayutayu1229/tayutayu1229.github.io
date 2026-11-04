@@ -8,7 +8,7 @@
   <div class="ops-page-head"><div><h2>API・データ稼働監視</h2><p>実際に各取得先へ接続し、応答時間・形式・最終成功・連続失敗・鮮度を診断します。</p></div><div class="ops-actions"><select class="ops-btn" id="auto-interval" aria-label="自動診断間隔"><option value="0">自動診断なし</option><option value="60000">1分ごと</option><option value="300000" selected>5分ごと</option><option value="900000">15分ごと</option></select><button class="ops-btn primary" id="run-all">全項目を診断</button></div></div>
   <section class="ops-alerts" id="monitor-alerts"><div class="ops-alert info"><div><b>診断待ち</b><p>「全項目を診断」を押すと、すべての取得先を確認します。</p></div></div></section>
   <section class="ops-kpis"><div class="ops-kpi" id="m-ok"><div class="label">正常</div><div class="value">0</div><div class="sub">監視対象</div></div><div class="ops-kpi red" id="m-error"><div class="label">停止・破損</div><div class="value">0</div><div class="sub">即時確認</div></div><div class="ops-kpi amber" id="m-stale"><div class="label">鮮度警告</div><div class="value">0</div><div class="sub">更新時刻</div></div><div class="ops-kpi blue" id="m-average"><div class="label">平均応答</div><div class="value">-</div><div class="sub">正常対象</div></div><div class="ops-kpi" id="m-last"><div class="label">最終診断</div><div class="value" style="font-size:1.15rem">未実施</div><div class="sub">この端末</div></div><div class="ops-kpi amber" id="m-fail"><div class="label">最大連続失敗</div><div class="value">0</div><div class="sub">回</div></div></section>
-  <section class="ops-card span-12"><div class="ops-card-head"><h3>監視対象一覧</h3><small id="monitor-progress">待機中</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>状態</th><th>対象</th><th>種別</th><th>応答時間</th><th>データ鮮度</th><th>最終成功</th><th>連続失敗</th><th>詳細</th><th>操作</th></tr></thead><tbody id="monitor-body"></tbody></table></div></section>
+  <section class="ops-card span-12"><div class="ops-card-head"><h3>監視対象一覧</h3><small id="monitor-progress">待機中</small></div><div class="ops-table-wrap"><table class="ops-table"><thead><tr><th>状態</th><th>対象</th><th>種別</th><th>応答時間</th><th>データ鮮度</th><th>監視確認日時／最終成功</th><th>連続失敗</th><th>詳細</th><th>操作</th></tr></thead><tbody id="monitor-body"></tbody></table></div></section>
   <section class="ops-grid" style="margin-top:12px">
     <article class="ops-card span-8"><div class="ops-card-head"><h3>GitHub公開状態</h3><button class="ops-btn" id="refresh-deploy">再確認</button></div><div class="ops-card-body" id="deploy-status"><div class="ops-empty">公開状態を確認しています。</div></div></article>
     <article class="ops-card"><div class="ops-card-head"><h3>定期診断</h3><small>画面表示中に実行</small></div><div class="ops-card-body"><ul class="ops-list"><li><div><b>実行間隔</b><small id="schedule-label">5分ごと</small></div><span class="ops-status ok">有効</span></li><li><div><b>次回診断</b><small id="next-run">待機中</small></div></li><li><div><b>履歴保存</b><small>直近50回・この端末</small></div><span class="ops-status ok">有効</span></li></ul></div></article>
@@ -17,7 +17,7 @@
   <footer class="ops-footer"><span>実際の応答とJSON内容を検査します。ブラウザや接続先のCORS制限は詳細欄へ表示されます。</span><span>Ver.<span data-version>-</span></span></footer>
 </main></div>
 <div class="ops-modal" id="detail-modal"><div class="ops-modal-box"><div class="ops-modal-head"><h3 id="detail-title">診断詳細</h3><button class="ops-btn" onclick="document.getElementById('detail-modal').classList.remove('open')">閉じる</button></div><div class="ops-modal-body"><pre class="ops-code" id="detail-content"></pre></div></div></div>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/system-admin-core.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/system-admin-core.js?v=20261105"></script>
 <script>
 (() => {
   const TARGETS = [
@@ -34,7 +34,7 @@
     {id:'photo-archive-api',name:'撮影記録・撮影地・運転情報API',kind:'Ubuntu業務API',url:'https://photo-api.tayunet-traininfo.com/health',custom:'photoArchive',array:false,maxAge:1440,required:['ok','version','photos','shootingSpots','storage','operationDispatch']},
     {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetable-files',custom:'timetables',maxAge:10080},
     {id:'workbase',name:'ATOS出力箇所',kind:'JSON',url:'/JREgyoumu/workdata/workbase.json',array:true,maxAge:10080},
-    {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,maxAge:1440,required:['ok']},
+    {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,custom:'freight',maxAge:120,required:['ok','proxiedAt','trains','routes','incidents']},
     {id:'incidents',name:'運行情報履歴',kind:'JSON',url:'/JREgyoumu/JRchr/incidents.json',array:true,maxAge:1440,required:['title','datetime']},
     {id:'version',name:'システムバージョン',kind:'JSON',url:'/system-version.json',array:false,maxAge:43200,required:['version','publishedAt']}
   ];
@@ -64,6 +64,20 @@
         const lastSuccess=payload.last_success?new Date(payload.last_success):null,ageMinutes=lastSuccess&&!isNaN(lastSuccess)?Math.max(0,Math.round((Date.now()-lastSuccess.getTime())/60000)):null;
         const storage=payload.storage||{},folderGb=Number(storage.folderBytes||0)/1024/1024/1024,maxGb=Number(storage.maxGigabytes||0),usage=Number(storage.usagePercent||0);
         return success({itemCount:Number(payload.observation_count||0),dataDate:lastSuccess?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1?'1分未満':`${ageMinutes}分前`,freshnessStatus:payload.ok&&ageMinutes!==null&&ageMinutes<=target.maxAge?'ok':'warning',detail:`収集状態: ${payload.ok?'正常':'要確認'}\n取得間隔: ${payload.interval_seconds}秒\n保存実績: ${Number(payload.observation_count||0).toLocaleString('ja-JP')}件\n保存期間: ${payload.retention_days}日\n容量: ${folderGb.toFixed(2)}GB / ${maxGb}GB（${usage.toFixed(2)}%）\n容量整理: ${Number(payload.storage_deleted_observations||0).toLocaleString('ja-JP')}件削除`});
+      }
+      if(target.custom==='freight'){
+        const [response, healthResponse]=await Promise.all([
+          fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal}),
+          fetch(`/JRF_status/JRF-gtfs/data/fetch-health.json?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal})
+        ]);
+        if(!response.ok||!healthResponse.ok)throw new Error(`貨物取得結果 HTTP ${response.status}/${healthResponse.status}`);
+        const data=await response.json(),health=await healthResponse.json();
+        if(validate(target,data).length||!Array.isArray(data.trains)||!Array.isArray(data.routes)||!Array.isArray(data.incidents))throw new Error('貨物JSONの形式が不正です');
+        if(data.ok!==true||health.ok!==true)throw new Error(`公式HPの取得失敗: ${health.error||data.error||'取得結果を確認してください'}（最終試行 ${Ops.fmtDate(health.checkedAt)}／最終成功 ${Ops.fmtDate(health.lastSuccessAt)}）`);
+        const date=new Date(data.proxiedAt);
+        if(isNaN(date)||date.getTime()>Date.now()+300000)throw new Error('貨物取得日時が不正です');
+        const ageMinutes=Math.max(0,Math.floor((Date.now()-date.getTime())/60000));
+        return success({itemCount:data.trains.length,dataDate:date.toISOString(),ageMinutes,ageLabel:`${ageMinutes}分前`,freshnessStatus:ageMinutes>target.maxAge?'error':'ok',detail:`公式HP取得: 成功\n公式発表: ${data.announcementDate} ${data.asOf}\n取得試行: ${Ops.fmtDate(health.checkedAt)}\n取得成功: ${Ops.fmtDate(health.lastSuccessAt)}\n列車: ${data.trains.length}件／線区: ${data.routes.length}件`});
       }
       if(target.custom==='photoArchive'){
         const response=await fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
@@ -97,8 +111,10 @@
   const statusHtml=r=>`<span class="ops-status ${Ops.escapeHtml(r?.status||'unknown')}"><span class="ops-dot"></span>${r?.status==='ok'?'正常':r?.status==='error'?'異常':'未診断'}</span>`;
   function render(){
     const map=byId();
+    const checked=results.map(r=>Date.parse(r.checkedAt)).filter(Number.isFinite);
+    Ops.$('m-last').querySelector('.value').textContent=checked.length?Ops.fmtDate(new Date(Math.max(...checked))):'-';
     const current=TARGETS.map(t=>map[t.id]).filter(Boolean);
-    Ops.$('monitor-body').innerHTML=TARGETS.map(t=>{const r=map[t.id],id=Ops.escapeHtml(t.id);return`<tr><td>${statusHtml(r)}</td><td><b>${Ops.escapeHtml(t.name)}</b><br><span class="muted mono">${Ops.escapeHtml(t.url)}</span></td><td>${Ops.escapeHtml(t.kind)}</td><td>${r?`${Number(r.responseMs)||0}ms`:'-'}</td><td>${r?`<span class="ops-status ${Ops.escapeHtml(r.freshnessStatus)}">${Ops.escapeHtml(r.ageLabel)}</span>`:'-'}</td><td>${r?.lastSuccess?Ops.fmtDate(r.lastSuccess):'-'}</td><td>${Number(r?.consecutiveFailures)||0}回</td><td>${r?Ops.escapeHtml((r.detail||'').split('\n')[0]):'-'}</td><td><button class="ops-btn" data-monitor-action="check" data-id="${id}">診断</button>${r?` <button class="ops-btn" data-monitor-action="detail" data-id="${id}">詳細</button>`:''}</td></tr>`}).join('');
+    Ops.$('monitor-body').innerHTML=TARGETS.map(t=>{const r=map[t.id],id=Ops.escapeHtml(t.id);return`<tr><td>${statusHtml(r)}</td><td><b>${Ops.escapeHtml(t.name)}</b><br><span class="muted mono">${Ops.escapeHtml(t.url)}</span></td><td>${Ops.escapeHtml(t.kind)}</td><td>${r?`${Number(r.responseMs)||0}ms`:'-'}</td><td>${r?`<span class="ops-status ${Ops.escapeHtml(r.freshnessStatus)}">${Ops.escapeHtml(r.ageLabel)}</span>`:'-'}</td><td>${r?.checkedAt?Ops.fmtDate(r.checkedAt):'-'}<br><small>最終成功 ${r?.lastSuccess?Ops.fmtDate(r.lastSuccess):'-'}</small></td><td>${Number(r?.consecutiveFailures)||0}回</td><td>${r?Ops.escapeHtml((r.detail||'').split('\n')[0]):'-'}</td><td><button class="ops-btn" data-monitor-action="check" data-id="${id}">診断</button>${r?` <button class="ops-btn" data-monitor-action="detail" data-id="${id}">詳細</button>`:''}</td></tr>`}).join('');
     const ok=current.filter(r=>r.status==='ok').length;
     const errors=current.filter(r=>r.status==='error').length;
     const untested=TARGETS.length-current.length;

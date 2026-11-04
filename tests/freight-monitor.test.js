@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const html=fs.readFileSync('system_monitor.html','utf8');
+const source=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+const prefix=source.slice(0,source.indexOf("  Ops.$('monitor-body').addEventListener"));
+let health={ok:true,checkedAt:new Date().toISOString(),lastSuccessAt:new Date().toISOString()};
+let data={ok:true,proxiedAt:new Date().toISOString(),trains:[],routes:[],incidents:[],announcementDate:'2026年11月5日',asOf:'0時現在'};
+const context=vm.createContext({window:{},Ops:{storageGet:()=>[],fmtDate:v=>v||'-'},Date,performance,setTimeout,clearTimeout,AbortController,console,
+fetch:async url=>({ok:true,status:200,json:async()=>url.includes('fetch-health')?health:data})});
+vm.runInContext(prefix+'window.checkTarget=check;window.targets=TARGETS;})();',context);
+(async()=>{
+ const target=context.window.targets.find(t=>t.id==='freight');
+ const result=await context.window.checkTarget(target);
+ assert.equal(result.status,'ok');
+ assert.equal(result.freshnessStatus,'ok');
+ assert(result.detail.includes('公式発表:'));
+ health={...health,ok:false,error:'ValueError: 列車の現在地を取得できません'};
+ const failed=await context.window.checkTarget(target);
+ assert.equal(failed.status,'error','旧データが正常でも取得処理の失敗を検知');
+ assert(failed.detail.includes('ValueError'));
+ health.ok=true;data.proxiedAt=new Date(Date.now()-3*3600000).toISOString();
+ const stale=await context.window.checkTarget(target);
+ assert.equal(stale.freshnessStatus,'error','公開し直しても取得時刻を新しく扱わない');
+ const admin=fs.readFileSync('system_admin.html','utf8');
+ assert.equal(Number(admin.match(/MONITOR_TARGET_COUNT = (\d+)/)[1]),context.window.targets.length,'管理ホームと監視対象数が一致');
+ console.log('freight monitor failure and timestamps: ok');
+})().catch(e=>{console.error(e);process.exitCode=1;});

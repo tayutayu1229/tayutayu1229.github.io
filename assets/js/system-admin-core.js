@@ -6,7 +6,7 @@
   const fmtDate = (value, fallback = '-') => {
     if (!value) return fallback;
     const date = value.toDate ? value.toDate() : new Date(value);
-    return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString('ja-JP');
+    return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString('ja-JP', {timeZone:'Asia/Tokyo', hour12:false});
   };
   const relativeAge = (value) => {
     if (!value) return '不明';

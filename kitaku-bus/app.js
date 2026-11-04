@@ -42,10 +42,7 @@
   function initializeMap() {
     if (!window.L) throw new Error('地図ライブラリを読み込めませんでした');
     map = L.map('map', { zoomControl: true, minZoom: 12, maxZoom: 19, tap: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20,
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-    }).addTo(map);
+    TayunetBaseMap.createLayer().addTo(map);
     routeLayer = L.featureGroup().addTo(map);
     const colors = { SHP0001: '#0b6b47', SHP0002: '#e97824' };
     Object.entries(data.shapes).forEach(([id, points]) => {
