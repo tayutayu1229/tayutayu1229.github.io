@@ -785,6 +785,16 @@ def collector_loop() -> None:
         time.sleep(max(1, 60 - (time.monotonic() - started)))
 
 
+def monitor_health(state: dict) -> dict:
+    try:
+        age = time.time() - datetime.fromisoformat(state["collectedAt"]).timestamp()
+        fresh = -300 <= age <= 180
+    except (KeyError, TypeError, ValueError):
+        fresh = False
+    return {"ok": fresh and state.get("status") in ("ok", "warning", "critical"),
+            "status": state.get("status", "unknown"), "collectedAt": state.get("collectedAt")}
+
+
 class AuthError(Exception):
     def __init__(self, code: str, status=401):
         super().__init__(code)
@@ -930,7 +940,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if request_path == "/health":
                 with state_lock:
-                    return self.send_json(200, {"ok": True, "status": current_state.get("status"), "collectedAt": current_state.get("collectedAt")})
+                    health = monitor_health(current_state)
+                    return self.send_json(200 if health["ok"] else 503, health)
             identity = self.authorize()
             if request_path == "/api/status":
                 with state_lock:
