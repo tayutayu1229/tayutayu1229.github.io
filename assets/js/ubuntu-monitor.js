@@ -90,9 +90,10 @@
     const left=40,right=880,top=12,bottom=150,start=rows[0].at,end=rows.at(-1).at,span=Math.max(1,end-start);
     const x=t=>left+(t-start)/span*(right-left),y=v=>bottom-Math.min(100,Math.max(0,v||0))*(bottom-top)/100;
     const stamp=t=>new Date(t).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+    const intervals=rows.slice(1).map((r,i)=>r.at-rows[i].at).filter(v=>v>0).sort((a,b)=>a-b),cadence=intervals[Math.floor((intervals.length-1)/2)]||300000;
     const lines=[['cpu',m=>m.cpu.usedPercent],['memory',m=>m.memory.usedPercent],['iowait',m=>m.cpu.iowaitPercent]];
     let markup=[0,50,100].map(v=>`<line class="grid" x1="${left}" y1="${y(v)}" x2="${right}" y2="${y(v)}"/><text x="4" y="${y(v)+4}" font-size="11" fill="#65736b">${v}%</text>`).join('');
-    for(const [name,get] of lines){let segments=[],part=[];rows.forEach((r,i)=>{if(i&&r.at-rows[i-1].at>Math.max(180000,span/rows.length*3)){if(part.length)segments.push(part);part=[];}part.push(`${x(r.at)},${y(get(r.m))}`);});if(part.length)segments.push(part);markup+=segments.map(points=>`<polyline class="${name}" points="${points.join(' ')}"/>`).join('');}
+    for(const [name,get] of lines){let segments=[],part=[];rows.forEach((r,i)=>{if(i&&r.at-rows[i-1].at>Math.max(180000,cadence*3)){if(part.length)segments.push(part);part=[];}part.push(`${x(r.at)},${y(get(r.m))}`);});if(part.length)segments.push(part);markup+=segments.map(points=>`<polyline class="${name}" points="${points.join(' ')}"/>`).join('');}
     markup+=rows.map(r=>`<circle cx="${x(r.at)}" cy="${y(r.m.cpu.usedPercent)}" r="5" fill="transparent"><title>${esc(stamp(r.at))} JST CPU ${r.m.cpu.usedPercent}% / メモリ ${r.m.memory.usedPercent}% / I/O ${r.m.cpu.iowaitPercent}%</title></circle>`).join('');
     markup+=[0,.25,.5,.75,1].map(f=>`<text x="${left+f*(right-left)}" y="175" text-anchor="${f===0?'start':f===1?'end':'middle'}" font-size="11" fill="#65736b">${esc(stamp(start+f*span))}</text>`).join('');
     svg.innerHTML=markup+'<text x="880" y="188" text-anchor="end" font-size="10" fill="#65736b">日本時間 JST</text>';
