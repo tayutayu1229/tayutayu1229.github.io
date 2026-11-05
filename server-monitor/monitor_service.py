@@ -445,6 +445,20 @@ def backup_status() -> dict:
                 reason = "実行記録がないため、保存状況を確認できません" if not entry else "保存容量が不足しています" if "storageQuotaExceeded" in entry.get("detail", "") else "最後の実行で失敗しました" if entry.get("ok") is not True else "長時間更新されていません"
                 action = "保存先の空き容量とバックアップ処理を確認してください"
                 problems.append(f"{label}: {reason}。{action}。")
+        data["transferOk"] = not problems
+        validation = None
+        try:
+            validation = json.loads((DATA_DIR / "backup-restore-validation.json").read_text())
+            if not isinstance(validation, dict) or validation.get("state") not in ("passed", "failed"):
+                raise ValueError("invalid restore validation record")
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError):
+            validation = {"state": "unknown", "detail": "復元検査の記録を読み取れません"}
+        if validation:
+            data["restoreValidation"] = validation
+            if validation["state"] != "passed":
+                problems.append("履歴DBの復元検査が不合格・未確認です。整合コピーからの再保存と復元確認が必要です")
         data["ok"] = not problems
         if problems:
             data["detail"] = " / ".join(problems)

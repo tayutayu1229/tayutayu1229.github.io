@@ -14,6 +14,15 @@ class Changes(unittest.TestCase):
   for cloud,want in [({'ok':True,'finishedAt':now},True),({'ok':False,'finishedAt':now},False),({'ok':True,'finishedAt':'2026-01-01T00:00:00+00:00'},False),({},False)]:
    (self.ns['DATA_DIR']/'backup-status.json').write_text(json.dumps({'ok':True,'runs':{'local':{'ok':True,'finishedAt':now},'cloud':cloud}}))
    self.assertEqual(self.ns['backup_status']()['ok'],want)
+ def test_restore_failure_is_not_transfer_success(self):
+  now=datetime.now(timezone.utc).isoformat()
+  (self.ns['DATA_DIR']/'backup-status.json').write_text(json.dumps({'ok':True,'runs':{mode:{'ok':True,'finishedAt':now} for mode in ('local','cloud')}}))
+  proof=self.ns['DATA_DIR']/'backup-restore-validation.json'
+  proof.write_text(json.dumps({'state':'failed','snapshotId':'old-snapshot'}))
+  result=self.ns['backup_status']();self.assertFalse(result['ok']);self.assertTrue(result['transferOk']);self.assertEqual(result['restoreValidation']['state'],'failed')
+  proof.write_text(json.dumps({'state':'passed','snapshotId':'verified-snapshot'}))
+  self.assertTrue(self.ns['backup_status']()['ok'])
+  proof.write_text('[]');result=self.ns['backup_status']();self.assertFalse(result['ok']);self.assertEqual(result['restoreValidation']['state'],'unknown')
  def test_malformed_backup_record(self):
   for data in [None, [], {'runs':[]}, {'runs':{'cloud':None}}]:
    (self.ns['DATA_DIR']/'backup-status.json').write_text(json.dumps(data))
