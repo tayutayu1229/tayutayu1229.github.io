@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from zoneinfo import ZoneInfo
 from external_status import provider_status, notify_changes, security_updates
+from cloud_storage import cloud_storage_status, cloud_storage_alerts
 from freight_feed import from_config as freight_from_config
 
 import hashlib
@@ -470,7 +471,7 @@ def severity(value, threshold_name: str, reverse=False) -> str:
 
 
 def derive_alerts(snapshot: dict) -> list[dict]:
-    alerts = []
+    alerts = cloud_storage_alerts(snapshot.get("cloudStorage", {}))
     if snapshot.get("backup", {}).get("ok") is not True:
         alerts.append({"code": "backup", "severity": "warning", "message": "バックアップ異常: " + snapshot.get("backup", {}).get("detail", "記録未取得")})
     updates = snapshot.get("securityUpdates", {})
@@ -728,6 +729,7 @@ def collect() -> dict:
         "endpoints": endpoints, "tls": unique_tls, "smart": smart_status(),
         "system": system_checks(), "backup": backup_status(), "externalServices": provider_status(), "securityUpdates": security_updates(),
         "thresholds": THRESHOLDS,
+        "cloudStorage": cloud_storage_status(),
         "notificationQueue": db_rows("SELECT COUNT(*) AS pending FROM notification_outbox")[0]["pending"],
     }
     snapshot["alerts"] = derive_alerts(snapshot)
@@ -789,6 +791,11 @@ def scheduled_report(snapshot: dict) -> None:
     if history.get("invalidSamples"):
         lines.append(f"読み取れない計測記録: {history['invalidSamples']}件（集計から除外）")
     lines.append("バックアップ: " + ("正常" if snapshot['backup'].get('ok') else snapshot['backup'].get('detail', '不明')))
+    quota = snapshot.get("cloudStorage", {})
+    if quota.get("available"):
+        lines.append(f"Google Drive 空き {quota['freeBytes']/1024**3:.1f}GiB / 全体 {quota['totalBytes']/1024**3:.1f}GiB")
+    elif quota:
+        lines.append("Google Driveの空き容量: 確認できません（バックアップの成否とは別）")
     lines.extend("・" + item["message"] for item in snapshot["alerts"])
     updates = snapshot.get("securityUpdates", {})
     lines.append(f"Ubuntu更新: 全{updates.get('total', '?')}件 / セキュリティ{updates.get('security', '?')}件 / 再起動要求 {'あり' if updates.get('rebootRequired') else 'なし'}")
