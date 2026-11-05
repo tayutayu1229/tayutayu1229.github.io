@@ -54,8 +54,26 @@ class Changes(unittest.TestCase):
    Clock.hour=hour
    self.ns['scheduled_report'](snapshot)
   self.assertEqual(len(calls),6)
+  self.assertEqual([call[0][1].splitlines()[0] for call in calls], [f'計測 2026/11/05 {hour:02}:00 JST' for hour in (9,10,12,16,17,20)])
   self.assertTrue(all(not call[1]['mention'] for call in calls))
   Clock.hour=9;Clock.minute=5
   self.ns['scheduled_report'](snapshot)
   self.assertEqual(len(calls),6)
+ def test_report_includes_measured_period_and_dependency_scope_without_ping(self):
+  class Clock(datetime):
+   @classmethod
+   def now(cls,tz): return cls(2026,11,5,16,0,tzinfo=tz)
+  self.ns['datetime']=Clock
+  self.ns['recent_resource_summary']=lambda:{'samples':100,'firstAt':'2026-11-04T07:00:00+00:00','lastAt':'2026-11-05T07:00:00+00:00','cpu':{'average':3.2,'maximum':40}}
+  calls=[];self.ns['send_discord']=lambda *a,**kw:calls.append((a,kw)) or True
+  snapshot={'status':'warning','uptimeSeconds':3600,'cpu':{'usedPercent':2},'memory':{'usedPercent':30,'totalBytes':100,'usedBytes':30},'disks':[],'docker':[],'pm2':[],'backup':{'ok':True},'alerts':[],
+   'dependencySecurity':{'detail':'直近の対象依存検査は合格です。','scope':'PDF出力のNode本番依存（high以上）／撮影記録のPython依存。','auditedAt':'2026-11-04T16:14:59Z'}}
+  self.ns['scheduled_report'](snapshot)
+  self.assertEqual(len(calls),1);self.assertFalse(calls[0][1]['mention'])
+  body=calls[0][0][1]
+  self.assertIn('11/04 16:00〜11/05 16:00 JST',body)
+  self.assertIn('CPU 平均3.2% / 最大40%',body)
+  self.assertIn('依存検査: 直近の対象依存検査は合格です。',body)
+  self.assertIn('Node本番依存（high以上）',body)
+  self.assertIn('最終検査: 2026/11/05 01:14 JST',body)
 if __name__=='__main__':unittest.main()
