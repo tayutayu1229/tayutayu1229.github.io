@@ -7,14 +7,16 @@
   if(!target)return;
   if(!markup){target.replaceChildren();return;}
   const template=document.createElement('template');
-  template.innerHTML=String(markup);
+  const svg=target.namespaceURI==='http://www.w3.org/2000/svg';
+  template.innerHTML=svg?'<svg>'+String(markup)+'</svg>':String(markup);
   function clean(parent){for(const node of [...parent.childNodes]){
    if(node.nodeType===3)continue;
    if(node.nodeType!==1||!tags.has(node.localName)){node.remove();continue;}
    for(const attribute of [...node.attributes]){if((!attributes.has(attribute.name)&&!/^aria-[a-z-]+$/.test(attribute.name))||(['fill','stroke'].includes(attribute.name)&&! /^(?:#[0-9a-fA-F]{3,8}|none)$/.test(attribute.value)))node.removeAttribute(attribute.name);}
    clean(node);
   }}
-  clean(template.content);target.replaceChildren(template.content);
+  clean(template.content);
+  target.replaceChildren(...(svg?template.content.firstElementChild.childNodes:template.content.childNodes));
  }
  window.BotDom=Object.freeze({render});
 })();
