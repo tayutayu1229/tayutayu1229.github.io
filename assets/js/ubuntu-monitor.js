@@ -102,7 +102,7 @@
   }
   function renderChart(history){
     const svg=$('resource-chart'),rows=(Array.isArray(history)?history:[]).map(x=>({at:Date.parse(x.metrics?.collectedAt||x.at),m:x.metrics})).filter(x=>Number.isFinite(x.at)&&x.m?.cpu&&x.m?.memory);
-    if(rows.length<2){svg.innerHTML='<text x="450" y="100" text-anchor="middle" fill="#65736b">履歴を収集中です</text>';return;}
+    if(rows.length<2){svg.innerHTML='<text x="450" y="100" text-anchor="middle" fill="#65736b">履歴を収集中です</text>';const period=$('resource-chart-period'),detail=$('resource-chart-detail');if(period)period.textContent='計測範囲：履歴を収集中です';if(detail)detail.textContent='2点以上の履歴が揃うと日時と値を表示します。';svg.onpointerdown=svg.onpointermove=svg.onkeydown=null;return;}
     const left=40,right=880,top=12,bottom=150,start=rows[0].at,end=rows.at(-1).at,span=Math.max(1,end-start);
     const x=t=>left+(t-start)/span*(right-left),y=v=>bottom-Math.min(100,Math.max(0,v||0))*(bottom-top)/100;
     const stamp=t=>new Date(t).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
