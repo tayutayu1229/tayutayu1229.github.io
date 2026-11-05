@@ -52,7 +52,13 @@ def provider_status():
     return results
 
 def notify_changes(providers, data_dir, send):
-    """Persist only delivered states; retry delivery failures on the next collection."""
+    """Advance state only after delivery or durable enqueue has succeeded.
+
+    Production supplies the SQLite outbox callback, keeping every observed
+    transition even if Discord remains unavailable until after recovery.
+    A crash between enqueue and this marker can repeat a notification; it
+    cannot discard a committed notification.
+    """
     path = data_dir / 'external-notification-state.json'
     try:
         previous = json.loads(path.read_text())

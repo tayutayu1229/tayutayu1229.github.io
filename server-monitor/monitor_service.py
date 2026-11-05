@@ -595,12 +595,25 @@ def record_event(severity_name: str, code: str, message: str, detail="", notify=
             db.execute("INSERT INTO notification_outbox(created_at,body,severity) VALUES(?,?,?)", (iso_now(), body, severity_name))
 
 
+def queue_external_notification(title, description, severity_name="info", mention=False) -> bool:
+    # Commit the event and outbox entry together before advancing the observed
+    # provider state. A Discord outage must not erase an incident that recovers.
+    record_event(severity_name, "external-service", title, description)
+    return True
+
+
 def flush_notifications() -> None:
+    from zoneinfo import ZoneInfo
     rows = db_rows("SELECT * FROM notification_outbox ORDER BY id LIMIT 3")
     for row in rows:
         if row["next_attempt"] > time.time():
             break
-        if send_discord("Tayunet Ubuntu監視", row["body"], row["severity"], mention=row["severity"] in ("warning", "critical", "error")):
+        try:
+            recorded = datetime.fromisoformat(row["created_at"]).astimezone(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M:%S JST")
+        except (TypeError, ValueError):
+            recorded = "日時不明"
+        body = "記録: " + recorded + "\n" + row["body"]
+        if send_discord("Tayunet Ubuntu監視", body, row["severity"], mention=row["severity"] in ("warning", "critical", "error")):
             db_execute("DELETE FROM notification_outbox WHERE id=?", (row["id"],))
         else:
             attempts = row["attempts"] + 1
@@ -847,9 +860,9 @@ def collector_loop() -> None:
                 current_state = snapshot
             save_snapshot(snapshot)
             process_alerts(snapshot["alerts"])
+            notify_changes(snapshot.get("externalServices", []), DATA_DIR, queue_external_notification)
             flush_notifications()
             scheduled_report(snapshot)
-            notify_changes(snapshot.get("externalServices", []), DATA_DIR, send_discord)
         except Exception as error:
             detail = traceback.format_exc()
             with state_lock:
