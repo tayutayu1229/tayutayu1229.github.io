@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 TARGETS = [
+    ("Ubuntu監視", "https://incident-api.tayunet-traininfo.com/server-monitor/health", {200}, True, True),
     ("Tayunetトップ", "https://tayunet-traininfo.com/", {200}, False),
     ("Tayunet API", "https://api.tayunet-traininfo.com/", {401}, True),
     ("遅延履歴API", "https://history.tayunet-traininfo.com/health", {200}, True),
@@ -23,7 +24,7 @@ TARGETS = [
 ]
 
 
-def probe(name, url, expected, require_json):
+def probe(name, url, expected, require_json, require_health=False):
     started = time.monotonic()
     try:
         try:
@@ -32,14 +33,22 @@ def probe(name, url, expected, require_json):
             response = error
         body = response.read(1024 * 1024)
         json_valid = None
+        health_valid = None
         if require_json:
             try:
-                json.loads(body)
+                data = json.loads(body)
                 json_valid = True
+                if require_health:
+                    health_valid = isinstance(data, dict) and data.get("ok") is True
             except (ValueError, json.JSONDecodeError):
                 json_valid = False
         elapsed = round((time.monotonic() - started) * 1000)
-        return {"name": name, "url": url, "ok": response.status in expected and json_valid is not False and elapsed < 10000, "status": response.status, "responseMs": elapsed, "jsonValid": json_valid}
+        result = {"name": name, "url": url, "ok": response.status in expected and json_valid is not False and (not require_health or health_valid is True) and elapsed < 10000, "status": response.status, "responseMs": elapsed, "jsonValid": json_valid, "healthValid": health_valid}
+        if json_valid is False:
+            result["error"] = "応答をJSONとして読み取れません"
+        elif require_health and health_valid is not True:
+            result["error"] = "監視の収集状態が正常と確認できません。最終収集時刻と監視プロセスを確認してください"
+        return result
     except (URLError, OSError, TimeoutError) as error:
         return {"name": name, "url": url, "ok": False, "status": 0, "responseMs": round((time.monotonic() - started) * 1000), "error": str(error)}
 
@@ -68,7 +77,7 @@ def main():
         final = rows
         if attempt < 2:
             time.sleep(20)
-    hosts = sorted({url.split("/")[2] for _, url, _, _ in TARGETS})
+    hosts = sorted({target[1].split("/")[2] for target in TARGETS})
     certificates = [tls(host) for host in hosts]
     payload = {"checkedAt": datetime.now(timezone.utc).isoformat(), "targets": final, "tls": certificates}
     print(json.dumps(payload, ensure_ascii=False, indent=2))

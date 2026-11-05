@@ -48,7 +48,7 @@ jobs:
           failed=[x for x in result.get('targets',[]) if not x.get('ok')]+[x for x in result.get('tls',[]) if not x.get('ok')]
           notify=(outcome=='failure' and previous!='failure') or (outcome=='success' and previous=='failure')
           title='【障害】外形監視で異常を検出' if outcome=='failure' else '【復旧】外形監視が正常に戻りました'
-          detail='\n'.join(f"• {x.get('name',x.get('host'))}: HTTP {x.get('status','-')} / {x.get('responseMs','-')}ms" for x in failed) or '9サービスのHTTP・JSON・TLS確認が正常です。'
+          detail='\n'.join(f"• {x.get('name',x.get('host'))}: HTTP {x.get('status','-')} / {x.get('responseMs','-')}ms {x.get('error','')}" for x in failed) or f"{len(result.get('targets',[]))}対象のHTTP・JSON・TLSとUbuntu監視の収集状態が正常です。"
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
               f.write(f"notify={'true' if notify else 'false'}\n")
               f.write(f"title={title}\n")
