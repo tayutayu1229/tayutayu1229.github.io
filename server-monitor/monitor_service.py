@@ -542,7 +542,7 @@ def send_discord(title: str, description: str, severity_name="info", mention=Fal
     if not token or not CHANNEL_ID:
         return False
     colors = {"critical": 0xC62828, "warning": 0xE08A00, "ok": 0x0A9B63, "info": 0x1267A3}
-    body = json.dumps({"content": "<@&1489628881135730851>" if mention else "", "allowed_mentions": {"parse": [], "roles": ["1489628881135730851"] if mention else []}, "embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
+    body = json.dumps({"content": "<@&1489628881135730852>" if mention else "", "allowed_mentions": {"parse": [], "roles": ["1489628881135730852"] if mention else []}, "embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
     request = Request(
         f"https://discord.com/api/v10/channels/{quote(CHANNEL_ID)}/messages",
         data=body,
