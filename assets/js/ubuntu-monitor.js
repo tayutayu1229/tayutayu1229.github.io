@@ -67,7 +67,7 @@
     document.querySelectorAll('[data-restart-kind]').forEach(button=>button.addEventListener('click',()=>confirmRestart(button.dataset.restartKind,button.dataset.target)));
   }
   function renderExternal(){
-    $('endpoint-body').innerHTML=(status.endpoints||[]).map(x=>`<tr><td>${badge(x.ok?'ok':'critical')}</td><td><b>${esc(x.name)}</b><br><span class="muted mono">${esc(x.url)}</span></td><td>${x.status||'-'}</td><td>${x.responseMs}ms</td><td>${x.jsonValid==null?'-':x.jsonValid?'正常':'不正'}</td></tr>`).join('');
+    $('endpoint-body').innerHTML=(status.endpoints||[]).map(x=>`<tr><td>${badge(x.ok?'ok':'critical')}</td><td><b>${esc(x.name)}</b>${x.ok&&x.status===401&&x.expected?.includes(401)?'<br><span class="muted">認証保護は正常（未認証アクセスを拒否）。認証後のデータ取得は未確認です。</span>':''}<br><span class="muted mono">${esc(x.url)}</span></td><td>${x.status||'-'}</td><td>${x.responseMs}ms</td><td>${x.jsonValid==null?'-':x.jsonValid?'正常':'不正'}</td></tr>`).join('');
     $('tls-list').innerHTML=(status.tls||[]).map(x=>`<li><div><b>${esc(x.host)}</b><small>${x.expiresAt?new Date(x.expiresAt).toLocaleDateString('ja-JP'):'取得失敗'}／${esc(x.issuer||x.error||'')}</small></div>${badge(!x.ok?'critical':x.daysRemaining<=7?'critical':x.daysRemaining<=30?'warning':'ok')}<small>${x.daysRemaining??'-'}日</small></li>`).join('');
   }
   function setShootingApiStatus(kind,label){

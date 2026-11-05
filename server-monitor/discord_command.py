@@ -75,7 +75,9 @@ def output(args, config):
         lines = ['サービス稼働状況', freshness]
         lines += ['• Docker ' + x.get('name', '?') + ': ' + ('稼働' if x.get('state') == 'running' else '停止・未確認') for x in state['docker']]
         lines += ['• PM2 ' + x.get('name', '?') + ': ' + ('稼働' if x.get('status') == 'online' else '停止・未確認') + ' / 再起動 ' + str(x.get('restarts', '?')) + '回' for x in state['pm2']]
-        lines += ['• ' + x['name'] + ': ' + ('正常' if x['ok'] else '異常') + ' / HTTP ' + str(x.get('status', '?')) for x in state['endpoints']]
+        lines += ['• ' + x['name'] + ': ' + ('認証保護は正常（未認証アクセスを拒否）' if x['ok'] and x.get('status') == 401 and 401 in x.get('expected', []) else '正常' if x['ok'] else '異常') + ' / HTTP ' + str(x.get('status', '?')) for x in state['endpoints']]
+        if any(x['ok'] and x.get('status') == 401 and 401 in x.get('expected', []) for x in state['endpoints']):
+            lines.append('※ 認証保護の確認です。認証後のデータ取得は、この監視では未確認です。')
         return '\n'.join(lines)
     if command == 'report':
         now = datetime.fromisoformat(state['collectedAt']).astimezone(ZoneInfo('Asia/Tokyo'))
