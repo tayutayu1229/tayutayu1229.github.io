@@ -75,6 +75,14 @@ else
     detail="リポジトリの読み取り失敗: $(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
     exit 1
   fi
+  if [[ "$MODE" == "cloud" ]]; then
+    # Failed uploads can leave unreferenced packs. Reclaim them before trying
+    # another upload, rather than letting failed attempts accumulate.
+    if ! preclean_output=$("${RESTIC_COMMAND[@]}" prune --max-repack-size 0 2>&1); then
+      detail="バックアップ開始前の不要データ整理に失敗しました: $(printf '%s' "$preclean_output" | tail -n 12 | tr '\n' ' ')"
+      exit 1
+    fi
+  fi
   if output=$("${RESTIC_COMMAND[@]}" backup --one-file-system --tag "$MODE" --exclude-caches "${existing[@]}" 2>&1); then
     stream_ok=true
     archive_dir="$MONITOR_DATA/container-archives"
