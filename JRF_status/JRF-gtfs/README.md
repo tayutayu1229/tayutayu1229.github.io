@@ -23,7 +23,7 @@ npm run serve
 
 ブラウザで `http://localhost:4173` を開きます。ローカルファイルを直接開く方式ではデータを読み込めません。
 
-遅延情報は取得済みの `data/freight-status.json` を表示します。更新にはPython 3とBeautiful Soupが必要です。リポジトリルートで `python3 -m pip install -r JRF_status/requirements.txt` を実行してください。
+遅延情報は本番の定期取得APIを優先し、接続できない場合は取得済みの `data/freight-status.json` を表示します。更新にはPython 3とBeautiful Soupが必要です。リポジトリルートで `python3 -m pip install -r JRF_status/requirements.txt` を実行してください。
 
 ## GitHub Pagesで公開
 
@@ -50,7 +50,7 @@ tayutayu1229.github.io/
 3. **Settings → Pages → Source** は、既存サイトと同じ **Deploy from a branch / main / (root)** のままにします。
 4. **Actions → JR Freight status update → Run workflow** を一度実行します。
 
-以後は約7分おきに公式ページを1回取得し、輸送状況HTMLと `JRF_status/JRF-gtfs/data/freight-status.json` を同じ内容で更新します。手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
+本番は既存サーバーから7分周期の取得結果を受け取ります。GitHub Actionsは毎時の静的予備データ更新です。APIに接続できない場合は取得日時を示して予備データを使います。手動更新はActions画面の **Run workflow**、ローカルでの遅延JSON生成は次で実行できます。
 
 ```sh
 npm run fetch-status
@@ -73,7 +73,7 @@ node scripts/prepare-data.mjs /path/to/JR-Freight-Train-GTFS-2500.zip
 - 本データは計画時刻表で、リアルタイム在線情報ではありません。
 - 地図上の列車位置は時刻と経路形状からの概算です。
 - 地図の緑線と「レ」は鉄道、橙の点線と「便」はオフレール輸送です。「配送」はGTFSの便番号が設定されていない道路接続を示します。
-- 遅延は公式発表とGTFSの出発日・列車番号を照合します。取得から2時間以上経った情報や取得失敗後の前回情報は、到着見込へ自動反映しません。表示される到着見込・推定位置は概算です。
+- 遅延は公式発表とGTFSの出発日・列車番号を照合します。直近20分以内に取得を確認できない情報や取得失敗後の前回情報は、到着見込へ自動反映しません。表示される到着見込・推定位置は概算です。
 - 配布元の説明に基づき、休日・曜日による運休情報は反映していません。
 - 利用・公開時はODPTデータセットのライセンスとクレジット条件を確認してください。
 

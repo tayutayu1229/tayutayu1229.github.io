@@ -5,7 +5,7 @@ const state = {
   db:null, infos:new Map(), stations:[], stationTrips:new Map(), favorites:new Set(), compare:new Set(), shards:new Map(), status:null, logs:[],
   view:'dashboard', selected:null, selectedStation:null, visibleTrips:60, boardMode:'all', mapMode:'network',
   map:null, mapBase:0, mapLayers:[], networkLayer:null, routeLayer:null, routeStops:null, trainMarker:null, detailMap:null,
-  settings:{theme:'light',density:'comfortable',delay:true,estimate:true,autoRefresh:false}, autoTimer:null
+  settings:{theme:'light',density:'comfortable',delay:true,estimate:true,autoRefresh:true}, autoTimer:null
 };
 
 function esc(value=''){return String(value).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
@@ -74,9 +74,10 @@ async function fetchFreightStatus({quiet=false}={}){
   const panel=$('liveStatusPanel');panel.className='live-status loading';$('liveStatusTitle').textContent='現在の遅延情報を確認しています';$('liveStatusMeta').textContent='公式情報との接続を開始しました';
   if(!quiet)logEvent('info','JR貨物の輸送状況を取得しています','./data/freight-status.json');
   try{
-    const response=await fetch(`./data/freight-status.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();if(!data.ok||!Array.isArray(data.trains)||!Array.isArray(data.routes)||!Array.isArray(data.incidents))throw new Error(data.error||'遅延情報の形式が不正です');data.stale=!statusIsFresh(data);const healthResponse=await fetch(`./data/fetch-health.json?t=${Date.now()}`,{cache:'no-store'});
-    if(!healthResponse.ok)throw new Error(`取得結果 HTTP ${healthResponse.status}`);
-    const health=await healthResponse.json();data.fetchHealth=health;
+    const bundle=await TayunetFreightStatus.load();
+    const data=bundle.data,health=bundle.health;
+    data.transport=bundle.transport;data.transportError=bundle.transportError;
+    data.stale=!statusIsFresh(data)||!TayunetFreightStatus.isCurrent(bundle);data.fetchHealth=health;
     if(health.available===false){data.stale=true;data.error=health.reason==='outside_service_hours'?'公式サイトのサービス時間外です': '公式情報は現在利用できません';}
     if(health.ok!==true){data.stale=true;data.error=health.error||'公式ページを取得できませんでした';}
     state.status=data;renderLiveStatus();
@@ -86,7 +87,7 @@ async function fetchFreightStatus({quiet=false}={}){
 }
 function renderLiveStatus(){
   const panel=$('liveStatusPanel'),data=state.status;if(!data?.ok){panel.className='live-status error';panel.querySelector('.live-status-icon').textContent='!';$('liveStatusTime').textContent='取得失敗';$('liveStatusTitle').textContent='遅延情報へ接続できません';$('liveStatusMeta').textContent='計画時刻表は引き続き利用できます。設定のコンソールで原因を確認してください。';$('delayTrainCount').textContent='—';$('delayRouteCount').textContent='—';return;}
-  const stale=!statusIsFresh(data);const delayed=data.trains.length>0;panel.className=`live-status ${data.fetchHealth?.reason==='outside_service_hours'?'delay':stale?'error':delayed?'delay':''}`;panel.querySelector('.live-status-icon').textContent=stale||delayed?'!':'✓';$('liveStatusTime').textContent=`${data.announcementDate||''} ${data.asOf||''}`.trim();$('liveStatusTitle').textContent=data.fetchHealth?.reason==='outside_service_hours'?'公式サイトはサービス時間外です（前回情報）':data.title|| (delayed?'貨物列車に遅れが発生しています':'現在、遅延情報はありません');$('liveStatusMeta').textContent=stale?`更新を確認できません。前回取得分を表示中（${data.fetchedLabel||data.proxiedAt}）。${data.error?`原因: ${data.error}。`:''}到着見込への自動反映は停止しています。`:delayed?`${data.routes.length}線区・${data.trains.length}列車｜同じ出発日・列車番号の計画へ反映中`:'公式発表では遅延列車の掲載はありません';$('delayTrainCount').textContent=data.trains.length;$('delayRouteCount').textContent=data.routes.length;
+  const stale=!statusIsFresh(data);const delayed=data.trains.length>0;panel.className=`live-status ${data.fetchHealth?.reason==='outside_service_hours'?'delay':stale?'error':delayed?'delay':''}`;panel.querySelector('.live-status-icon').textContent=stale||delayed?'!':'✓';$('liveStatusTime').textContent=`${data.announcementDate||''} ${data.asOf||''}`.trim();$('liveStatusTitle').textContent=data.fetchHealth?.reason==='outside_service_hours'?'公式サイトはサービス時間外です（前回情報）':data.title|| (delayed?'貨物列車に遅れが発生しています':'現在、遅延情報はありません');$('liveStatusMeta').textContent=stale?`更新を確認できません。前回取得分を表示中（${data.fetchedLabel||data.proxiedAt}）。${data.error?`原因: ${data.error}。`:''}到着見込への自動反映は停止しています。`:data.transport==='pages'?`${data.transportError}（取得成功 ${data.fetchedLabel||data.proxiedAt}）`:delayed?`${data.routes.length}線区・${data.trains.length}列車｜同じ出発日・列車番号の計画へ反映中`:'公式発表では遅延列車の掲載はありません';$('delayTrainCount').textContent=data.trains.length;$('delayRouteCount').textContent=data.routes.length;
 }
 function renderDelayDialog(){
   const data=state.status;if(!data?.ok){$('delayDialogContent').innerHTML=`<div class="empty-state"><span class="large-icon">!</span><h2>遅延情報を取得できません</h2><p>${esc(data?.error||'接続を確認してください')}</p></div>`;return;}

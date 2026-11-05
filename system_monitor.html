@@ -17,7 +17,7 @@
   <footer class="ops-footer"><span>実際の応答とJSON内容を検査します。ブラウザや接続先のCORS制限は詳細欄へ表示されます。</span><span>Ver.<span data-version>-</span></span></footer>
 </main></div>
 <div class="ops-modal" id="detail-modal"><div class="ops-modal-box"><div class="ops-modal-head"><h3 id="detail-title">診断詳細</h3><button class="ops-btn" onclick="document.getElementById('detail-modal').classList.remove('open')">閉じる</button></div><div class="ops-modal-body"><pre class="ops-code" id="detail-content"></pre></div></div></div>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/system-admin-core.js?v=20261105-2"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/freight-status-client.js?v=20261105-live"></script><script src="/assets/js/system-admin-core.js?v=20261105-2"></script>
 <script>
 (() => {
   const TARGETS = [
@@ -34,7 +34,7 @@
     {id:'photo-archive-api',name:'撮影記録・撮影地・運転情報API',kind:'Ubuntu業務API',url:'https://photo-api.tayunet-traininfo.com/health',custom:'photoArchive',array:false,maxAge:1440,required:['ok','version','photos','shootingSpots','storage','operationDispatch']},
     {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetable-files',custom:'timetables',maxAge:10080},
     {id:'workbase',name:'ATOS出力箇所',kind:'JSON',url:'/JREgyoumu/workdata/workbase.json',array:true,maxAge:10080},
-    {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,custom:'freight',maxAge:120,required:['ok','proxiedAt','trains','routes','incidents']},
+    {id:'freight',name:'貨物輸送状態',kind:'JSON',url:'/JRF_status/JRF-gtfs/data/freight-status.json',array:false,custom:'freight',maxAge:20,required:['ok','proxiedAt','trains','routes','incidents']},
     {id:'incidents',name:'運行情報履歴',kind:'JSON',url:'/JREgyoumu/JRchr/incidents.json',array:true,maxAge:1440,required:['title','datetime']},
     {id:'version',name:'システムバージョン',kind:'JSON',url:'/system-version.json',array:false,maxAge:43200,required:['version','publishedAt']}
   ];
@@ -66,14 +66,11 @@
         return success({itemCount:Number(payload.observation_count||0),dataDate:lastSuccess?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<1?'1分未満':`${ageMinutes}分前`,freshnessStatus:payload.ok&&ageMinutes!==null&&ageMinutes<=target.maxAge?'ok':'warning',detail:`収集状態: ${payload.ok?'正常':'要確認'}\n取得間隔: ${payload.interval_seconds}秒\n保存実績: ${Number(payload.observation_count||0).toLocaleString('ja-JP')}件\n保存期間: ${payload.retention_days}日\n容量: ${folderGb.toFixed(2)}GB / ${maxGb}GB（${usage.toFixed(2)}%）\n容量整理: ${Number(payload.storage_deleted_observations||0).toLocaleString('ja-JP')}件削除`});
       }
       if(target.custom==='freight'){
-        const [response, healthResponse]=await Promise.all([
-          fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal}),
-          fetch(`/JRF_status/JRF-gtfs/data/fetch-health.json?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal})
-        ]);
-        if(!response.ok||!healthResponse.ok)throw new Error(`貨物取得結果 HTTP ${response.status}/${healthResponse.status}`);
-        const data=await response.json(),health=await healthResponse.json();
+        const bundle=await TayunetFreightStatus.load({signal:controller.signal});
+        const data=bundle.data,health=bundle.health;
         if(validate(target,data).length||!Array.isArray(data.trains)||!Array.isArray(data.routes)||!Array.isArray(data.incidents))throw new Error('貨物JSONの形式が不正です');
         if(data.ok!==true||health.ok!==true)throw new Error(`公式HPの取得失敗: ${health.error||data.error||'取得結果を確認してください'}（最終試行 ${Ops.fmtDate(health.checkedAt)}／最終成功 ${Ops.fmtDate(health.lastSuccessAt)}）`);
+        if(!Number.isFinite(Date.parse(health.checkedAt||''))||Date.parse(health.checkedAt)>Date.now()+300000)throw new Error('公式確認日時が不正です');
         if(health.available===false&&health.reason==='outside_service_hours'){
           const checked=Date.parse(health.checkedAt);
           if(!Number.isFinite(checked)||Date.now()-checked>target.maxAge*60000)throw new Error('サービス時間外の確認結果が古いため再取得が必要です');
@@ -82,7 +79,7 @@
         const date=new Date(data.proxiedAt);
         if(isNaN(date)||date.getTime()>Date.now()+300000)throw new Error('貨物取得日時が不正です');
         const ageMinutes=Math.max(0,Math.floor((Date.now()-date.getTime())/60000));
-        return success({itemCount:data.trains.length,dataDate:date.toISOString(),ageMinutes,ageLabel:`${ageMinutes}分前`,freshnessStatus:ageMinutes>target.maxAge?'error':'ok',detail:`公式HP取得: 成功\n公式発表: ${data.announcementDate} ${data.asOf}\n取得試行: ${Ops.fmtDate(health.checkedAt)}\n取得成功: ${Ops.fmtDate(health.lastSuccessAt)}\n列車: ${data.trains.length}件／線区: ${data.routes.length}件`});
+        return success({itemCount:data.trains.length,dataDate:date.toISOString(),ageMinutes,ageLabel:`${ageMinutes}分前`,freshnessStatus:ageMinutes>target.maxAge?'error':'ok',detail:`公式HP取得: 成功\n配信経路: ${bundle.transport==='live'?'定期取得サーバー':'公開済みデータ（接続代替）'}\n次回取得予定: ${Ops.fmtDate(bundle.collector?.nextCheckAt)}\n公式発表: ${data.announcementDate} ${data.asOf}\n取得試行: ${Ops.fmtDate(health.checkedAt)}\n取得成功: ${Ops.fmtDate(health.lastSuccessAt)}\n列車: ${data.trains.length}件／線区: ${data.routes.length}件`});
       }
       if(target.custom==='photoArchive'){
         const response=await fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
@@ -113,19 +110,22 @@
       return success({itemCount:Array.isArray(data)?data.length:Object.keys(data||{}).length,dataDate:dataDate?.toISOString()||null,ageMinutes,ageLabel:ageMinutes==null?'取得日時なし':ageMinutes<60?`${ageMinutes}分前`:ageMinutes<1440?`${Math.floor(ageMinutes/60)}時間前`:`${Math.floor(ageMinutes/1440)}日前`,freshnessStatus,detail:`HTTP ${response.status}\nContent-Type: ${response.headers.get('content-type')||'-'}\n項目数: ${Array.isArray(data)?data.length:Object.keys(data||{}).length}\nJSON検証: 正常\n取得日時: ${dataDate?.toLocaleString('ja-JP')||'データ内に日時なし'}`});
     }catch(error){return{id:target.id,name:target.name,kind:target.kind,url:target.url,status:'error',responseMs:Math.round(performance.now()-started),lastSuccess:previous.lastSuccess||null,checkedAt:new Date().toISOString(),consecutiveFailures:(previous.consecutiveFailures||0)+1,itemCount:0,dataDate:null,ageMinutes:null,ageLabel:'取得不能',freshnessStatus:'error',detail:`${error.name==='AbortError'?'12秒でタイムアウト':error.message}\nURL: ${target.url}`};}finally{clearTimeout(timeout);}
   }
-  const statusHtml=r=>`<span class="ops-status ${Ops.escapeHtml(r?.status||'unknown')}"><span class="ops-dot"></span>${r?.status==='ok'?'正常':r?.status==='error'?'異常':'未診断'}</span>`;
+  const monitorIsRecent=r=>{const at=Date.parse(r?.checkedAt||'');return Number.isFinite(at)&&Date.now()-at>=-300000&&Date.now()-at<30*60000;};
+  const statusHtml=r=>r&&!monitorIsRecent(r)?'<span class="ops-status warning">再診断が必要</span>': `<span class="ops-status ${Ops.escapeHtml(r?.status||'unknown')}"><span class="ops-dot"></span>${r?.status==='ok'?'正常':r?.status==='error'?'異常':'未診断'}</span>`;
   function render(){
     const map=byId();
     const checked=results.map(r=>Date.parse(r.checkedAt)).filter(Number.isFinite);
     Ops.$('m-last').querySelector('.value').textContent=checked.length?Ops.fmtDate(new Date(Math.max(...checked))):'-';
     const current=TARGETS.map(t=>map[t.id]).filter(Boolean);
     Ops.$('monitor-body').innerHTML=TARGETS.map(t=>{const r=map[t.id],id=Ops.escapeHtml(t.id);return`<tr><td>${statusHtml(r)}</td><td><b>${Ops.escapeHtml(t.name)}</b><br><span class="muted mono">${Ops.escapeHtml(t.url)}</span></td><td>${Ops.escapeHtml(t.kind)}</td><td>${r?`${Number(r.responseMs)||0}ms`:'-'}</td><td>${r?`<span class="ops-status ${Ops.escapeHtml(r.freshnessStatus)}">${Ops.escapeHtml(r.ageLabel)}</span>`:'-'}</td><td>${r?.checkedAt?Ops.fmtDate(r.checkedAt):'-'}<br><small>最終成功 ${r?.lastSuccess?Ops.fmtDate(r.lastSuccess):'-'}</small></td><td>${Number(r?.consecutiveFailures)||0}回</td><td>${r?Ops.escapeHtml((r.detail||'').split('\n')[0]):'-'}</td><td><button class="ops-btn" data-monitor-action="check" data-id="${id}">診断</button>${r?` <button class="ops-btn" data-monitor-action="detail" data-id="${id}">詳細</button>`:''}</td></tr>`}).join('');
-    const ok=current.filter(r=>r.status==='ok').length;
-    const errors=current.filter(r=>r.status==='error').length;
+    const outdated=current.filter(r=>!monitorIsRecent(r));
+    const recent=current.filter(monitorIsRecent);
+    const ok=recent.filter(r=>r.status==='ok').length;
+    const errors=recent.filter(r=>r.status==='error').length;
     const untested=TARGETS.length-current.length;
-    const stale=current.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).length;
-    const unknownFreshness=current.filter(r=>r.status==='ok'&&r.freshnessStatus==='unknown').length;
-    const avg=Math.round(current.filter(r=>r.status==='ok').reduce((s,r)=>s+r.responseMs,0)/(ok||1));
+    const stale=recent.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).length;
+    const unknownFreshness=recent.filter(r=>r.status==='ok'&&r.freshnessStatus==='unknown').length;
+    const avg=Math.round(recent.filter(r=>r.status==='ok').reduce((s,r)=>s+r.responseMs,0)/(ok||1));
     const maxFail=Math.max(0,...current.map(r=>r.consecutiveFailures||0));
     Ops.$('m-ok').querySelector('.value').textContent=`${ok}/${TARGETS.length}`;
     Ops.$('m-error').querySelector('.value').textContent=errors;
@@ -133,8 +133,9 @@
     Ops.$('m-average').querySelector('.value').textContent=ok?`${avg}ms`:'-';
     Ops.$('m-fail').querySelector('.value').textContent=maxFail;
     const alerts=[];
-    current.filter(r=>r.status==='error').forEach(r=>alerts.push(`<div class="ops-alert critical"><div><b>${r.name}：取得失敗</b><p>${Ops.escapeHtml((r.detail||'').split('\n')[0])}／連続${r.consecutiveFailures}回</p></div></div>`));
-    current.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).forEach(r=>alerts.push(`<div class="ops-alert warning"><div><b>${r.name}：データが古い可能性</b><p>推定更新 ${r.ageLabel}／基準 ${TARGETS.find(t=>t.id===r.id)?.maxAge}分</p></div></div>`));
+    if(outdated.length) alerts.push(`<div class="ops-alert warning"><div><b>${outdated.length}件は前回の診断から30分以上経過しています</b><p>保存済みの結果です。現在の状態を確認するには再診断してください。</p></div></div>`);
+    recent.filter(r=>r.status==='error').forEach(r=>alerts.push(`<div class="ops-alert critical"><div><b>${r.name}：取得失敗</b><p>${Ops.escapeHtml((r.detail||'').split('\n')[0])}／連続${r.consecutiveFailures}回</p></div></div>`));
+    recent.filter(r=>r.status==='ok'&&['warning','error'].includes(r.freshnessStatus)).forEach(r=>alerts.push(`<div class="ops-alert warning"><div><b>${r.name}：データが古い可能性</b><p>推定更新 ${r.ageLabel}／基準 ${TARGETS.find(t=>t.id===r.id)?.maxAge}分</p></div></div>`));
     if(untested) alerts.push(`<div class="ops-alert warning"><div><b>${untested}件が未診断です</b><p>全${TARGETS.length}件のうち${current.length}件だけ診断済みです。</p></div></div>`);
     if(!untested&&unknownFreshness) alerts.push(`<div class="ops-alert info"><div><b>${unknownFreshness}件は鮮度を判定できません</b><p>応答と形式は正常ですが、データ内に更新日時がありません。</p></div></div>`);
     if(!alerts.length&&current.length===TARGETS.length) alerts.push('<div class="ops-alert ok"><div><b>全監視対象が正常です</b><p>API応答・JSON形式・データ鮮度に重大な問題はありません。</p></div></div>');

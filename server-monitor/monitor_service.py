@@ -2,7 +2,7 @@
 """Tayunet Ubuntu health monitor and restricted recovery API.
 
 Runs as the existing ``yoshi`` account, binds to localhost, and is published
-only through the existing Cloudflare Tunnel. Every non-health endpoint checks
+only through the existing Cloudflare Tunnel. Administrative endpoints check
 both a Firebase ID token and the explicit administrator email allowlist.
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from zoneinfo import ZoneInfo
 from external_status import provider_status, notify_changes, security_updates
+from freight_feed import from_config as freight_from_config
 
 import hashlib
 import http.client
@@ -34,6 +35,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
+
+FREIGHT_FEED = None
 
 PORT = int(os.environ.get("TAYUNET_MONITOR_PORT", "5110"))
 DATA_DIR = Path(os.environ.get("TAYUNET_MONITOR_DATA", "/home/yoshi/.local/share/tayunet-server-monitor"))
@@ -969,6 +972,10 @@ class Handler(BaseHTTPRequestHandler):
                 with state_lock:
                     health = monitor_health(current_state)
                     return self.send_json(200 if health["ok"] else 503, health)
+            if request_path == "/freight-status":
+                if FREIGHT_FEED is None:
+                    return self.send_json(503, {"error": "freight_not_configured"})
+                return self.send_json(200, FREIGHT_FEED.snapshot())
             identity = self.authorize()
             if request_path == "/api/status":
                 with state_lock:
@@ -1031,6 +1038,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    global FREIGHT_FEED
+    try:
+        FREIGHT_FEED = freight_from_config(Path(__file__).with_name("freight-feed.config.json"))
+    except (OSError, ValueError, KeyError, TypeError):
+        print("Freight collector configuration is invalid; admin monitoring remains active", file=sys.stderr)
+        FREIGHT_FEED = None
+    if FREIGHT_FEED:
+        threading.Thread(target=FREIGHT_FEED.loop, daemon=True, name="freight-collector").start()
     init_db()
     restore_alerts()
     threading.Thread(target=collector_loop, daemon=True, name="collector").start()

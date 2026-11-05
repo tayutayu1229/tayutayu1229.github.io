@@ -7,8 +7,9 @@ const prefix=source.slice(0,source.indexOf("  Ops.$('monitor-body').addEventList
 let health={ok:true,checkedAt:new Date().toISOString(),lastSuccessAt:new Date().toISOString()};
 let data={ok:true,proxiedAt:new Date().toISOString(),trains:[],routes:[],incidents:[],announcementDate:'2026年11月5日',asOf:'0時現在'};
 const context=vm.createContext({window:{},Ops:{storageGet:()=>[],fmtDate:v=>v||'-'},Date,performance,setTimeout,clearTimeout,AbortController,console,
+TayunetFreightStatus:{load:async()=>({data,health,transport:'live',collector:{nextCheckAt:new Date().toISOString()}})},
 fetch:async url=>({ok:true,status:200,json:async()=>url.includes('fetch-health')?health:data})});
-vm.runInContext(prefix+'window.checkTarget=check;window.targets=TARGETS;})();',context);
+vm.runInContext(prefix+'window.checkTarget=check;window.targets=TARGETS;window.monitorIsRecent=monitorIsRecent;})();',context);
 (async()=>{
  const target=context.window.targets.find(t=>t.id==='freight');
  const result=await context.window.checkTarget(target);
@@ -27,5 +28,7 @@ vm.runInContext(prefix+'window.checkTarget=check;window.targets=TARGETS;})();',c
  assert.equal(stale.freshnessStatus,'error','公開し直しても取得時刻を新しく扱わない');
  const admin=fs.readFileSync('system_admin.html','utf8');
  assert.equal(Number(admin.match(/MONITOR_TARGET_COUNT = (\d+)/)[1]),context.window.targets.length,'管理ホームと監視対象数が一致');
+ assert.equal(context.window.monitorIsRecent({checkedAt:new Date().toISOString()}),true);
+ assert.equal(context.window.monitorIsRecent({checkedAt:'2020-01-01T00:00:00Z'}),false,'以前の保存結果を現在の正常状態として表示しない');
  console.log('freight monitor failure and timestamps: ok');
 })().catch(e=>{console.error(e);process.exitCode=1;});
