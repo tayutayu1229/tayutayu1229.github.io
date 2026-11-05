@@ -4,7 +4,7 @@
  const labels={incidents:'輸送障害',users:'旧利用者',payments:'会費・入金',expenses:'支出',budgets:'予算',summary_notes:'年度のメモ',diagrams:'ダイヤ改正',duties:'所定運用',duty_trains:'所定運用の列車',extra_duties:'臨時運用',extra_duty_trains:'臨時運用の列車',duty_with_trains:'運用と列車の結合一覧'};
  const fields={id:'番号',title:'件名',datetime:'発生日時',location:'場所',trainNo:'列車番号',data:'詳細データ',user_id:'利用者ID',email:'メールアドレス',year:'年度',status:'状態',paid_at:'支払日時',amount:'金額',next_due_date:'次回期日',created_at:'作成日時',expense_date:'支出日時',note:'メモ',next_update_date:'次回更新日',category:'項目',updated_at:'更新日時',name:'名称',revision_date:'改正日',notes:'備考',diagram_id:'ダイヤ改正番号',duty_number:'運用番号',depot:'区所',vehicle_type:'車種',successor_text:'後運用の説明',successor_duty_id:'後運用番号',successor_type:'後運用の区分',predecessor_text:'前運用の説明',duty_id:'所定運用の番号',order:'表示順',train_number:'列車番号',origin:'始発駅',destination:'終着駅',remarks:'記事',date:'施行日',base_duty_id:'元の運用番号',extra_duty_id:'臨時運用の番号'};
  let catalog,rows=[],table,editing=null,requestVersion=0;
- const status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
+ const status=(text,error=false,busy=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);$('status').setAttribute('aria-busy',String(busy));if(error){const retry=document.createElement('button');retry.type='button';retry.textContent='再読み込み';retry.onclick=()=>catalog?load():location.reload();$('status').append(retry);}};
  const project=()=>catalog.projects.find(p=>p.id===$('project').value);
  const endpoint=()=>`/${project().id}/rest/v1/${table.name}`;
  function option(value,text){const o=document.createElement('option');o.value=value;o.textContent=text;return o;}
@@ -27,11 +27,12 @@
  }
  async function load(){
   const version=++requestVersion;table=project().tables.find(t=>t.name===$('table').value);
-  $('title').textContent=labels[table.name]||table.name;$('add').disabled=table.readOnly;
+  $('title').textContent=labels[table.name]||table.name;$('add').disabled=true;$('reload').disabled=true;rows=[];$('rows').replaceChildren();$('head').replaceChildren();$('count').textContent='';
   $('note').textContent=project().id==='accounting'?'旧tokyo-adminの会計データです。既存のFirebase会計データとは分けて保存しています。':table.readOnly?'この一覧は関連データから計算した参照用です。元の一覧から編集してください。':'';
-  status('データを読み込んでいます…');
-  try{const order=table.columns.some(c=>c.name==='id')?'id':table.columns[0].name;const result=await api.request(endpoint()+'?select=*&limit=5000&order='+encodeURIComponent(order)+'.asc');if(version!==requestVersion)return;rows=result;render();status('最新のデータを読み込みました。');}
+  status('データを読み込んでいます…',false,true);
+  try{const order=table.columns.some(c=>c.name==='id')?'id':table.columns[0].name;const result=await api.request(endpoint()+'?select=*&limit=5000&order='+encodeURIComponent(order)+'.asc');if(version!==requestVersion)return;rows=result;render();$('add').disabled=table.readOnly;status('最新のデータを読み込みました。');}
   catch(error){if(version!==requestVersion)return;rows=[];$('rows').replaceChildren();status(error.message,true);}
+  finally{if(version===requestVersion)$('reload').disabled=false;}
  }
  function selectProject(){
   $('table').replaceChildren(...project().tables.map(t=>option(t.name,labels[t.name]||t.name)));load();
