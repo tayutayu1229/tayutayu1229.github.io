@@ -98,6 +98,11 @@
 <div id="container" class="space-y-4"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="/auth_guard.js" defer></script>
+<script src="/assets/js/managed-db-client.js"></script>
 <script src="auth.js"></script>
 <script>
   const supabaseClient = incidentAuth.client;
@@ -242,24 +247,20 @@
 }
 
 
-  // リアルタイム更新
-  supabaseClient
-    .channel('incidents-realtime')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'incidents' },
-      payload => {
-        console.log('更新検知:', payload);
-        loadData();
-      }
-    )
-    .subscribe();
+  // Refresh from the authenticated Ubuntu API without a Supabase Realtime connection.
+  let refreshTimer=null;
+  function startRefresh(){
+    if(refreshTimer)clearInterval(refreshTimer);
+    refreshTimer=setInterval(()=>{if(!document.hidden)loadData();},15000);
+  }
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadData();});
+  window.addEventListener('pagehide',()=>clearInterval(refreshTimer));
 
   document.getElementById('filterInput').addEventListener('input', applyFilters);
   document.getElementById('occurDate').addEventListener('change', applyFilters);
 
   incidentAuth.requireUser().then(session => {
-    if (session) loadData();
+    if (session) {loadData();startRefresh();}
   });
 </script>
 </body>
