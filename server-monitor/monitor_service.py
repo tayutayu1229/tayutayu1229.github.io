@@ -13,6 +13,7 @@ from external_status import provider_status, notify_changes, security_updates
 from freight_feed import from_config as freight_from_config
 
 import hashlib
+import math
 import http.client
 import json
 import os
@@ -739,9 +740,18 @@ def recent_resource_summary() -> dict:
     rows = db_rows("SELECT collected_at,payload FROM metrics WHERE collected_at>=? ORDER BY collected_at", (cutoff,))
     result = {"samples": len(rows), "firstAt": rows[0]["collected_at"] if rows else None,
               "lastAt": rows[-1]["collected_at"] if rows else None}
-    decoded = [json.loads(row["payload"]) for row in rows]
+    decoded = []
+    for row in rows:
+        try:
+            value = json.loads(row["payload"])
+            if isinstance(value, dict):
+                decoded.append(value)
+        except (TypeError, ValueError):
+            continue
+    result["invalidSamples"] = len(rows) - len(decoded)
     for name, parent, field in (("cpu", "cpu", "usedPercent"), ("memory", "memory", "usedPercent"), ("iowait", "cpu", "iowaitPercent")):
-        values = [x[parent][field] for x in decoded if isinstance(x.get(parent, {}).get(field), (int, float))]
+        values = [x[parent][field] for x in decoded if isinstance(x.get(parent), dict)
+                  and type(x[parent].get(field)) in (int, float) and math.isfinite(x[parent][field])]
         result[name] = {"average": round(sum(values) / len(values), 1), "maximum": max(values)} if values else None
     return result
 
@@ -760,7 +770,7 @@ def scheduled_report(snapshot: dict) -> None:
     mem = snapshot["memory"]
     lines = [
         now.strftime("計測 %Y/%m/%d %H:%M JST"),
-        f"状態: {snapshot['status']} / 稼働 {snapshot['uptimeSeconds'] // 3600}時間",
+        f"状態: {dict(ok='正常', warning='要確認', critical='異常あり').get(snapshot['status'], '確認中')} / 稼働 {snapshot['uptimeSeconds'] // 3600}時間",
         f"CPU {snapshot['cpu']['usedPercent']}% / メモリ {mem['usedPercent']}%（利用可能 {(mem['totalBytes']-mem['usedBytes'])/1024**3:.1f}GiB）",
     ]
     for disk in snapshot["disks"]:
@@ -768,10 +778,16 @@ def scheduled_report(snapshot: dict) -> None:
     lines.append(f"Docker {sum(x.get('state') == 'running' for x in snapshot['docker'])}/{len(snapshot['docker'])} / PM2 {sum(x.get('status') == 'online' for x in snapshot['pm2'])}/{len(snapshot['pm2'])}")
     history = recent_resource_summary()
     lines.append(f"直近24時間の取得分: {history['samples']}標本")
+    if history.get("firstAt") and history.get("lastAt"):
+        period = [datetime.fromisoformat(history[key]).astimezone(ZoneInfo("Asia/Tokyo")).strftime("%m/%d %H:%M")
+                  for key in ("firstAt", "lastAt")]
+        lines.append("実際の計測範囲: " + "〜".join(period) + " JST（欠測時間を除く標本平均）")
     for name, label in (("cpu", "CPU"), ("memory", "メモリ"), ("iowait", "I/O待ち")):
         values = history.get(name)
         if values:
             lines.append(f"{label} 平均{values['average']}% / 最大{values['maximum']}%")
+    if history.get("invalidSamples"):
+        lines.append(f"読み取れない計測記録: {history['invalidSamples']}件（集計から除外）")
     lines.append("バックアップ: " + ("正常" if snapshot['backup'].get('ok') else snapshot['backup'].get('detail', '不明')))
     lines.extend("・" + item["message"] for item in snapshot["alerts"])
     updates = snapshot.get("securityUpdates", {})
