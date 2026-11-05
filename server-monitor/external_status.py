@@ -24,8 +24,12 @@ def provider_status():
             req = Request(base + '/api/v2/summary.json', headers={'User-Agent': 'TayunetMonitor/1.0'})
             with urlopen(req, timeout=8) as response:
                 data = json.loads(response.read(2_000_000))
-            incidents = data.get('incidents', [])
-            item.update({'available': True, 'indicator': data['status']['indicator'], 'description': data['status']['description'],
+            incidents = [x for x in data.get('incidents', []) if x.get('status') not in ('resolved', 'postmortem')]
+            reported = data['status']['indicator']
+            # Some providers report overall normal while an incident is still
+            # being monitored. Keep that distinction without labeling it healthy.
+            indicator = 'minor' if reported == 'none' and incidents else reported
+            item.update({'available': True, 'reportedIndicator': reported, 'indicator': indicator, 'description': data['status']['description'],
                          'incidents': [{'id': x['id'], 'name': x['name'], 'status': x['status'], 'url': x.get('shortlink', base), 'updatedAt': x.get('updated_at')} for x in incidents],
                          'maintenance': [{'id': x['id'], 'name': x['name'], 'status': x['status'], 'startsAt': x.get('scheduled_for'), 'endsAt': x.get('scheduled_until')} for x in data.get('scheduled_maintenances', [])]})
         except Exception as error:
