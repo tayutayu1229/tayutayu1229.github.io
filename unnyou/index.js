@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js?v=20261106-ubuntu1";
+import { supabase } from "./supabaseClient.js?v=20261106-loading2";
 
 const dateInput = document.getElementById("date");
 const depotSelect = document.getElementById("depot");
@@ -22,242 +22,40 @@ let modalDuty = null;
 // --------------------------------------
 // 初期化
 // --------------------------------------
-window.addEventListener("DOMContentLoaded", async () => {
-  await loadDepotList();
-  await loadAllDuties();
-});
-
-// --------------------------------------
-// 区所一覧
-// --------------------------------------
-async function loadDepotList() {
-  // 所定の区所
-  const { data: regular } = await supabase
-    .from("duties")
-    .select("depot");
-
-  // 臨時の区所
-  const { data: extra } = await supabase
-    .from("extra_duties")
-    .select("depot");
-
-  const unique = [
-    ...new Set([
-      ...regular.map(d => d.depot),
-      ...extra.map(e => e.depot)
-    ])
-  ].sort();
-
-  unique.forEach(dep => {
-    const opt = document.createElement("option");
-    opt.value = dep;
-    opt.textContent = dep;
-    depotSelect.appendChild(opt);
-  });
-}
-
-
-
-
-// --------------------------------------
-// 初期表示：所定 + 臨時　の順で全件表示、絞り込みなし、のちに絞り込み状況を表示、１件もない場合はその旨表示、--------------------------------------
-// --------------------------------------
-async function loadAllDuties() {
-  const results = [];
-
-  // 所定
-  const { data: duties } = await supabase
-    .from("duties")
-    .select("*")
-    .order("duty_number");
-
-  for (const duty of duties) {
-    const { data: trains } = await supabase
-      .from("duty_trains")
-      .select("*")
-      .eq("duty_id", duty.id)
-      .order("order");
-
-    results.push({
-      type: "regular",
-      duty,
-      trains
-    });
+window.addEventListener("DOMContentLoaded", () => searchDuties(true));
+searchBtn.addEventListener("click", () => searchDuties(false));
+let searching=false;
+async function checked(query){const {data,error}=await query;if(error)throw error;return data||[];}
+async function searchDuties(initial=false){
+ if(searching)return;searching=true;searchBtn.disabled=true;
+ TayunetLoading.show('運用と列車データを読み込んでいます…');
+ try{
+  const date=dateInput.value,depot=depotSelect.value,dutyNumber=dutyNumberInput.value.trim(),trainNumber=trainNumberInput.value.trim();
+  let regularQuery=supabase.from('duties').select('*').order('duty_number');
+  let extraQuery=supabase.from('extra_duties').select('*').order('date').order('duty_number');
+  if(date){
+   const diagrams=await checked(supabase.from('diagrams').select('id').lte('revision_date',date).order('revision_date',{ascending:false}).limit(1));
+   if(!diagrams.length){renderTable([]);updateFilterStatus();TayunetLoading.done('該当する改正がありません。');return;}
+   regularQuery=regularQuery.eq('diagram_id',diagrams[0].id);extraQuery=extraQuery.eq('date',date);
   }
-
-  // ★ 臨時（全件）
-  const { data: extra } = await supabase
-    .from("extra_duties")
-    .select("*")
-    .order("date")
-    .order("duty_number");
-
-  for (const e of extra) {
-    const { data: trains } = await supabase
-      .from("extra_duty_trains")
-      .select("*")
-      .eq("extra_duty_id", e.id)
-      .order("order");
-
-    results.push({
-      type: "extra",
-      duty: e,
-      trains
-    });
+  const [duties,extra]=await Promise.all([checked(regularQuery),checked(extraQuery)]);
+  if(initial){
+   const depots=[...new Set([...duties,...extra].map(d=>d.depot).filter(Boolean))].sort();
+   for(const name of depots){const option=document.createElement('option');option.value=name;option.textContent=name;depotSelect.append(option);}
   }
-
-  renderTable(results);
-  updateFilterStatus();
-}
-
-
-// --------------------------------------
-// 検索
-// --------------------------------------
-searchBtn.addEventListener("click", async () => {
-  await searchDuties();
-});
-
-// --------------------------------------
-// 検索ロジック（所定 + 臨時）
-// --------------------------------------
-async function searchDuties() {
-  const date = dateInput.value;
-  const depot = depotSelect.value;
-  const dutyNumber = dutyNumberInput.value.trim();
-  const trainNumber = trainNumberInput.value.trim();
-
-  let results = [];
-
-  if (date) {
-    // ------------------------------
-    // ★ 施行日あり → 所定 + その日の臨時
-    // ------------------------------
-
-    // 改正判定
-    const { data: diagrams } = await supabase
-      .from("diagrams")
-      .select("*")
-      .lte("revision_date", date)
-      .order("revision_date", { ascending: false })
-      .limit(1);
-
-    if (diagrams.length === 0) {
-      resultList.innerHTML = "<p>該当する改正がありません。</p>";
-      return;
-    }
-
-    const diagramId = diagrams[0].id;
-
-    // 所定
-    const { data: duties } = await supabase
-      .from("duties")
-      .select("*")
-      .eq("diagram_id", diagramId);
-
-    // 臨時（その日だけ）
-    const { data: extra } = await supabase
-      .from("extra_duties")
-      .select("*")
-      .eq("date", date);
-
-    let all = [
-      ...duties.map(d => ({ type: "regular", duty: d })),
-      ...extra.map(e => ({ type: "extra", duty: e }))
-    ];
-
-    // 区所
-    if (depot) all = all.filter(x => x.duty.depot === depot);
-
-    // 運用番号
-    if (dutyNumber) all = all.filter(x => x.duty.duty_number.includes(dutyNumber));
-
-    // 列車取得
-    for (const item of all) {
-      if (item.type === "regular") {
-        const { data: trains } = await supabase
-          .from("duty_trains")
-          .select("*")
-          .eq("duty_id", item.duty.id)
-          .order("order");
-        item.trains = trains;
-      } else {
-        const { data: trains } = await supabase
-          .from("extra_duty_trains")
-          .select("*")
-          .eq("extra_duty_id", item.duty.id)
-          .order("order");
-        item.trains = trains;
-      }
-    }
-
-    // 列車番号
-    if (trainNumber) {
-      all = all.filter(item =>
-        item.trains.some(t => t.train_number.includes(trainNumber))
-      );
-    }
-
-    results = all;
-
-  } else {
-    // ------------------------------
-    // ★ 施行日なし → 所定 + 全臨時
-    // ------------------------------
-
-    // 所定
-    const { data: duties } = await supabase
-      .from("duties")
-      .select("*");
-
-    // 臨時（全件）
-    const { data: extra } = await supabase
-      .from("extra_duties")
-      .select("*")
-      .order("date");
-
-    let all = [
-      ...duties.map(d => ({ type: "regular", duty: d })),
-      ...extra.map(e => ({ type: "extra", duty: e }))
-    ];
-
-    // 区所
-    if (depot) all = all.filter(x => x.duty.depot === depot);
-
-    // 運用番号
-    if (dutyNumber) all = all.filter(x => x.duty.duty_number.includes(dutyNumber));
-
-    // 列車取得
-    for (const item of all) {
-      if (item.type === "regular") {
-        const { data: trains } = await supabase
-          .from("duty_trains")
-          .select("*")
-          .eq("duty_id", item.duty.id)
-          .order("order");
-        item.trains = trains;
-      } else {
-        const { data: trains } = await supabase
-          .from("extra_duty_trains")
-          .select("*")
-          .eq("extra_duty_id", item.duty.id)
-          .order("order");
-        item.trains = trains;
-      }
-    }
-
-    // 列車番号
-    if (trainNumber) {
-      all = all.filter(item =>
-        item.trains.some(t => t.train_number.includes(trainNumber))
-      );
-    }
-
-    results = all;
-  }
-
-  renderTable(results);
-  updateFilterStatus();
+  const match=d=>(!depot||d.depot===depot)&&(!dutyNumber||d.duty_number.includes(dutyNumber));
+  const regular=duties.filter(match),temporary=extra.filter(match);
+  const [regularTrains,extraTrains]=await Promise.all([
+   regular.length?checked(supabase.from('duty_trains').select('*').in('duty_id',regular.map(d=>d.id)).order('order')):[],
+   temporary.length?checked(supabase.from('extra_duty_trains').select('*').in('extra_duty_id',temporary.map(d=>d.id)).order('order')):[]
+  ]);
+  const group=(rows,key)=>{const map=new Map();for(const row of rows){if(!map.has(row[key]))map.set(row[key],[]);map.get(row[key]).push(row);}return map;};
+  const regularMap=group(regularTrains,'duty_id'),extraMap=group(extraTrains,'extra_duty_id');
+  let results=[...regular.map(duty=>({type:'regular',duty,trains:regularMap.get(duty.id)||[]})),...temporary.map(duty=>({type:'extra',duty,trains:extraMap.get(duty.id)||[]}))];
+  if(trainNumber)results=results.filter(item=>item.trains.some(t=>t.train_number.includes(trainNumber)));
+  renderTable(results);updateFilterStatus();TayunetLoading.done(`${results.length}運用を読み込みました。`);
+ }catch(error){TayunetLoading.error('運用データの読み込みに失敗しました。',()=>searchDuties(initial));}
+ finally{searching=false;searchBtn.disabled=false;}
 }
 
 // --------------------------------------

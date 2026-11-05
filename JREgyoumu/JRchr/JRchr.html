@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title>輸送障害一覧</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/assets/css/jrchr-utilities.css?v=20261106-2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -41,8 +41,11 @@
 <link rel="stylesheet" href="/assets/css/site-brand.css">
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
+<link rel="stylesheet" href="/assets/css/load-status.css?v=20261106-2">
+<script src="/assets/js/load-status.js?v=20261106-2"></script>
 </head>
 <body class="text-gray-800 p-4 md:p-6">
+<div id="data-load-status" class="data-load-status" role="status" aria-live="polite" aria-busy="true">ログイン状態を確認しています…</div>
 
 <header class="mb-6">
   <div class="header-card rounded-lg p-6 text-white shadow-sm flex justify-between">
@@ -102,8 +105,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="/auth_guard.js" defer></script>
-<script src="/assets/js/managed-db-client.js"></script>
-<script src="auth.js?v=20261106-ubuntu1"></script>
+<script src="/assets/js/managed-db-client.js?v=20261106-loading2"></script>
+<script src="auth.js?v=20261106-loading2"></script>
 <script>
   const supabaseClient = incidentAuth.client;
 
@@ -122,6 +125,7 @@
       container.innerHTML = '<p class="text-gray-500 text-center">該当データなし</p>';
       return;
     }
+    const fragment=document.createDocumentFragment();
     data.forEach(incident => {
       const div = document.createElement('div');
       div.className = 'system-card rounded-lg overflow-hidden accordion-item';
@@ -147,6 +151,7 @@
       
       header.onclick = function() {
         const parent = this.parentElement;
+        if(!content.dataset.rendered){content.innerHTML=detailMarkup();content.dataset.rendered='true';}
         parent.classList.toggle('active');
         const icon = this.querySelector('.material-icons-outlined.transform');
         icon.classList.toggle('rotate-180');
@@ -154,7 +159,7 @@
 
       const content = document.createElement('div');
       content.className = 'accordion-content p-5 pt-0 border-t border-slate-200';
-      content.innerHTML = `
+      const detailMarkup = () => `
         <div class="pb-4">
           <p class="text-sm text-slate-600 mb-2 font-bold">概況</p>
           <p class="mb-4 whitespace-pre-line leading-relaxed">${escapeHtml(incident.description)}</p>
@@ -180,8 +185,9 @@
       
       div.appendChild(header);
       div.appendChild(content);
-      container.appendChild(div);
+      fragment.appendChild(div);
     });
+    container.appendChild(fragment);
   }
 
   function applyFilters() {
@@ -195,24 +201,31 @@
   incident.description?.toLowerCase().includes(keyword) ||
   (incident.notes && incident.notes.join(' ').toLowerCase().includes(keyword));
 
-      const dateOnly = incident.datetime.split(' ')[0];
+      const dateOnly = String(incident.datetime||'').split(' ')[0];
       const matchDate = occurDate ? dateOnly === occurDate : true;
       return matchKeyword && matchDate;
     });
     renderList(filtered);
   }
 
+  let loading=false,lastPayload=null;
   async function loadData() {
+  if(loading)return;
+  loading=true;
+  if(!allData.length)TayunetLoading.show("輸送障害データを読み込んでいます…");
+  try {
   const { data: rows, error } = await supabaseClient
     .from('incidents')
     .select('*')
     .order('datetime', { ascending: false });
 
   if (error) {
-    console.error("Supabase error:", error);
-    return;
+    throw error;
   }
 
+  const payload=JSON.stringify(rows);
+  if(payload===lastPayload){TayunetLoading.done(`${allData.length}件を読み込みました。`);return;}
+  lastPayload=payload;
   allData = rows.map(row => {
     let d = row.data;
 
@@ -226,6 +239,7 @@
       }
     }
 
+    d=d&&typeof d==='object'?d:{};
     // datetime を統一
     let dt = row.datetime;
     if (dt && dt.includes("T")) {
@@ -243,7 +257,10 @@
     };
   });
 
-  renderList(allData);
+  applyFilters();
+  TayunetLoading.done(`${allData.length}件を読み込みました。`);
+  }catch(error){TayunetLoading.error('輸送障害の読み込みに失敗しました。再読み込みしてください。',loadData);}
+  finally{loading=false;}
 }
 
 

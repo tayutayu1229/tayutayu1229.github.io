@@ -4,16 +4,10 @@
 <meta charset="UTF-8">
 <title>輸送障害 管理画面</title>
 
-<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/assets/css/jrchr-utilities.css?v=20261106-2">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="/auth_guard.js" defer></script>
-<script src="/assets/js/managed-db-client.js"></script>
-<script src="auth.js?v=20261106-ubuntu1"></script>
+
 
 <style>
   :root { --console-teal:#075660; --console-teal-dark:#043c44; --console-green:#4e8b17; }
@@ -34,9 +28,12 @@
 <link rel="stylesheet" href="/assets/css/site-brand.css">
 <script src="/assets/js/site-brand.js" defer></script>
 <script src="/assets/js/back-navigation.js" defer></script>
+<link rel="stylesheet" href="/assets/css/load-status.css?v=20261106-2">
+<script src="/assets/js/load-status.js?v=20261106-2"></script>
 </head>
 
 <body class="p-6">
+<div id="data-load-status" class="data-load-status" role="status" aria-live="polite" aria-busy="true">ログイン状態を確認しています…</div>
 
 <!-- Header -->
 <header class="mb-6">
@@ -147,6 +144,13 @@
   </table>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="/auth_guard.js" defer></script>
+<script src="/assets/js/managed-db-client.js?v=20261106-loading2"></script>
+<script src="auth.js?v=20261106-loading2"></script>
 <script>
 const supabaseClient = incidentAuth.client;
 
@@ -159,11 +163,14 @@ function escapeHtml(value) {
 }
 
 async function loadList() {
-  const { data } = await supabaseClient
+  TayunetLoading.show("登録済みデータを読み込んでいます…");
+  try{
+  const { data, error } = await supabaseClient
     .from("incidents")
     .select("*")
     .order("datetime", { ascending: false });
 
+  if(error)throw error;
   const tbody = document.getElementById("list");
   tbody.innerHTML = "";
 
@@ -192,6 +199,8 @@ async function loadList() {
     tr.append(titleCell, datetimeCell, actionCell);
     tbody.appendChild(tr);
   });
+  TayunetLoading.done(`${(data||[]).length}件を読み込みました。`);
+  }catch(error){TayunetLoading.error("登録済みデータの読み込みに失敗しました。",loadList);}
 }
 
 function clearForm() {

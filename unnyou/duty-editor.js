@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js?v=20261106-ubuntu1";
+import { supabase } from "./supabaseClient.js?v=20261106-loading2";
 
 let diagramSelect;
 let depotInput;

@@ -8,8 +8,9 @@
     alert('この操作には東京圏輸送情報システムの管理者権限が必要です。');
     location.replace('JRchr.html');return null;
    }
+   if(location.pathname.endsWith('JRcht-top.html'))global.TayunetLoading?.done('ログインを確認しました。');
    return {user:{id:ready.user.uid,email:ready.user.email||''}};
-  }catch(error){return null;}
+  }catch(error){global.TayunetLoading?.error(error.message,()=>location.reload());return null;}
  }
  global.incidentAuth={client,requireUser};
 })(window);
