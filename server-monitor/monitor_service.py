@@ -11,6 +11,7 @@ from __future__ import annotations
 from zoneinfo import ZoneInfo
 from external_status import provider_status, notify_changes, security_updates
 from cloud_storage import cloud_storage_status, cloud_storage_alerts
+from dependency_security import dependency_security_status, dependency_security_alerts
 from freight_feed import from_config as freight_from_config
 
 import hashlib
@@ -486,6 +487,7 @@ def severity(value, threshold_name: str, reverse=False) -> str:
 
 def derive_alerts(snapshot: dict) -> list[dict]:
     alerts = cloud_storage_alerts(snapshot.get("cloudStorage", {}))
+    alerts.extend(dependency_security_alerts(snapshot.get("dependencySecurity", {})))
     if snapshot.get("backup", {}).get("ok") is not True:
         alerts.append({"code": "backup", "severity": "warning", "message": "バックアップ異常: " + snapshot.get("backup", {}).get("detail", "記録未取得")})
     updates = snapshot.get("securityUpdates", {})
@@ -744,6 +746,7 @@ def collect() -> dict:
         "system": system_checks(), "backup": backup_status(), "externalServices": provider_status(), "securityUpdates": security_updates(),
         "thresholds": THRESHOLDS,
         "cloudStorage": cloud_storage_status(),
+        "dependencySecurity": dependency_security_status(),
         "notificationQueue": db_rows("SELECT COUNT(*) AS pending FROM notification_outbox")[0]["pending"],
     }
     snapshot["alerts"] = derive_alerts(snapshot)
@@ -813,6 +816,12 @@ def scheduled_report(snapshot: dict) -> None:
     lines.extend("・" + item["message"] for item in snapshot["alerts"])
     updates = snapshot.get("securityUpdates", {})
     lines.append(f"Ubuntu更新: 全{updates.get('total', '?')}件 / セキュリティ{updates.get('security', '?')}件 / 再起動要求 {'あり' if updates.get('rebootRequired') else 'なし'}")
+    audit = snapshot.get("dependencySecurity", {})
+    if audit:
+        lines.append("依存検査: " + audit.get('detail', '未確認'))
+        lines.append("検査範囲: " + audit.get('scope', '未確認'))
+        if audit.get('auditedAt'):
+            lines.append("最終検査: " + datetime.fromisoformat(audit['auditedAt'].replace('Z', '+00:00')).astimezone(ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M JST'))
     lines.append("外部サービス（公式発表・本システムへの影響は別途確認）")
     for provider in snapshot.get("externalServices", []):
         lines.append(provider["name"] + ": " + provider["description"])
