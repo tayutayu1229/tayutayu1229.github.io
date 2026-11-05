@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ast,json,tempfile,time,unittest
 from pathlib import Path
 from datetime import datetime,timezone
@@ -6,7 +9,7 @@ SOURCE=Path(__file__).resolve().parents[1]/'monitor_service.py'
 class Changes(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
-  tree=ast.parse(SOURCE.read_text()); names={'backup_status','scheduled_report','send_discord','monitor_health'}
+  tree=ast.parse(SOURCE.read_text()); names={'build_server_report','backup_status','scheduled_report','send_discord','monitor_health'}
   self.ns=dict(DATA_DIR=Path(self.tmp.name),json=json,time=time,datetime=datetime,ZoneInfo=ZoneInfo)
   exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in names],type_ignores=[]),'monitor','exec'),self.ns)
  def test_backup(self):

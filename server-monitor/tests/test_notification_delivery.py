@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ast,json,re,sqlite3,tempfile,threading,time,unittest
 from datetime import datetime,timezone
 from pathlib import Path

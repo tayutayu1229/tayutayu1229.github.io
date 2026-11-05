@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -45,6 +46,9 @@ print(json.dumps(dict(state='passed',quickCheck=[['ok']],directory=str(root),sou
 ''')
             key=root/'fake-password';key.write_text('test-only-not-a-real-key')
             script=root/'backup.sh';source=SOURCE.read_text()
+            fixture=root/'source';fixture.mkdir()
+            source,count=re.subn(r'sources=\(\n.*?\n\)', 'sources=(\n'+str(fixture)+'\n)', source, count=1, flags=re.S)
+            self.assertEqual(count,1)
             original='export PATH="/home/yoshi/.local/bin:/usr/local/bin:/usr/bin:/bin"'
             self.assertEqual(source.count(original),1)
             script.write_text(source.replace(original,'export PATH="$TEST_TOOLS:/usr/bin:/bin"'))

@@ -1,0 +1,43 @@
+name: Discord operations checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server-monitor/**'
+      - 'assets/js/bot-dom.js'
+      - 'assets/js/discord-bot-admin.js'
+      - 'assets/css/discord-bot-admin.css'
+      - 'discord_bot_admin.html'
+      - '.github/workflows/discord-operations.yml'
+  pull_request:
+    paths:
+      - 'server-monitor/**'
+      - 'assets/js/bot-dom.js'
+      - 'assets/js/discord-bot-admin.js'
+      - 'discord_bot_admin.html'
+      - '.github/workflows/discord-operations.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Isolated monitor and command tests
+        run: python -m unittest discover -s server-monitor/tests
+      - name: Discord command permissions and response tests
+        run: node --test server-monitor/discord-bot/tests/ubuntu_admin.test.js
+      - name: Dashboard syntax and DOM safety audit
+        run: |
+          node --check assets/js/bot-dom.js
+          node --check assets/js/discord-bot-admin.js
+          node scripts/check-xss-sinks.js
+          node tests/site-links.test.js

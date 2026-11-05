@@ -131,7 +131,8 @@ def run(command: list[str], timeout: int = 15) -> tuple[int, str]:
 
 
 def init_db() -> None:
-    with sqlite3.connect(DB_PATH) as db:
+    from contextlib import closing
+    with closing(sqlite3.connect(DB_PATH)) as db, db:
         db.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS metrics (
@@ -176,16 +177,21 @@ def init_db() -> None:
           observed_at TEXT NOT NULL
         );
         """)
+        columns = {row[1] for row in db.execute('PRAGMA table_info(notification_outbox)')}
+        if 'category' not in columns:
+            db.execute("ALTER TABLE notification_outbox ADD COLUMN category TEXT NOT NULL DEFAULT 'ubuntu'")
 
 
 def db_execute(sql: str, values=()) -> None:
-    with db_lock, sqlite3.connect(DB_PATH) as db:
+    from contextlib import closing
+    with db_lock, closing(sqlite3.connect(DB_PATH)) as db, db:
         db.execute(sql, values)
         db.commit()
 
 
 def db_rows(sql: str, values=()) -> list[dict]:
-    with db_lock, sqlite3.connect(DB_PATH) as db:
+    from contextlib import closing
+    with db_lock, closing(sqlite3.connect(DB_PATH)) as db, db:
         db.row_factory = sqlite3.Row
         return [dict(row) for row in db.execute(sql, values).fetchall()]
 
@@ -493,6 +499,11 @@ def severity(value, threshold_name: str, reverse=False) -> str:
 def derive_alerts(snapshot: dict) -> list[dict]:
     alerts = cloud_storage_alerts(snapshot.get("cloudStorage", {}))
     alerts.extend(dependency_security_alerts(snapshot.get("dependencySecurity", {})))
+    bot = snapshot.get('botRuntime', {})
+    if bot.get('available') and not bot.get('online'):
+        alerts.append({'code': 'bot-discord', 'severity': 'critical', 'message': 'Discord Botの応答が古いか、Discordへ未接続です'})
+    elif bot.get('configError'):
+        alerts.append({'code': 'bot-config', 'severity': 'warning', 'message': 'Discordコマンドの設定を読み取れません'})
     if snapshot.get("backup", {}).get("ok") is not True:
         alerts.append({"code": "backup", "severity": "warning", "message": "バックアップ異常: " + snapshot.get("backup", {}).get("detail", "記録未取得")})
     updates = snapshot.get("securityUpdates", {})
@@ -560,23 +571,40 @@ def load_discord_token() -> str | None:
     return None
 
 
-def send_discord(title: str, description: str, severity_name="info", mention=False) -> bool:
+def send_discord(title: str, description: str, severity_name="info", mention=False, category='ubuntu') -> bool:
+    from discord_command_config import notice_policy, audit
+    policy = notice_policy(DATA_DIR, category)
+    if category != 'test' and (policy['paused'] or not policy['enabled']):
+        return False
     token = load_discord_token()
-    if not token or not CHANNEL_ID:
+    if not token or not policy['channelId']:
+        try:
+            audit(DB_PATH, 'notification', 'system', category, False, 'Bot認証情報または通知先が未設定です。値は表示しません。')
+        except sqlite3.Error:
+            print('Notification audit write failed', file=sys.stderr)
         return False
     colors = {"critical": 0xC62828, "warning": 0xE08A00, "ok": 0x0A9B63, "info": 0x1267A3}
-    body = json.dumps({"content": "<@&1489628881135730852>" if mention else "", "allowed_mentions": {"parse": [], "roles": ["1489628881135730852"] if mention else []}, "embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
+    roles = policy['roleIds'] if mention else []
+    body = json.dumps({"content": ' '.join('<@&' + role + '>' for role in roles), "allowed_mentions": {"parse": [], "roles": roles}, "embeds": [{"title": title[:256], "description": description[:4000], "color": colors.get(severity_name, colors["info"]), "timestamp": iso_now()}]}).encode()
     request = Request(
-        f"https://discord.com/api/v10/channels/{quote(CHANNEL_ID)}/messages",
+        f"https://discord.com/api/v10/channels/{quote(policy['channelId'])}/messages",
         data=body,
         headers={"Authorization": "Bot " + token, "Content-Type": "application/json", "User-Agent": "TayunetMonitor/1.0"},
         method="POST",
     )
     try:
         with urlopen(request, timeout=10) as response:
-            return response.status in (200, 201, 204)
-    except (HTTPError, URLError, TimeoutError):
-        return False
+            success = response.status in (200, 201, 204)
+    except HTTPError as error:
+        error.close()
+        success = False
+    except (URLError, TimeoutError):
+        success = False
+    try:
+        audit(DB_PATH, 'notification', 'system', category, success, redact_sensitive(title) + ' / チャンネル ' + policy['channelId'] + (' / メンションあり' if roles else ' / メンションなし'))
+    except sqlite3.Error:
+        print('Notification audit write failed', file=sys.stderr)
+    return success
 
 
 def redact_sensitive(value: str) -> str:
@@ -591,17 +619,18 @@ def redact_sensitive(value: str) -> str:
     return result
 
 
-def record_event(severity_name: str, code: str, message: str, detail="", notify=True, db=None) -> None:
+def record_event(severity_name: str, code: str, message: str, detail="", notify=True, db=None, category='ubuntu') -> None:
+    from contextlib import closing
     safe_detail = redact_sensitive(detail[-8000:])
     def insert(connection):
         connection.execute("INSERT INTO events(created_at,severity,code,message,detail) VALUES(?,?,?,?,?)", (iso_now(), severity_name, code, message, safe_detail))
         if notify:
             body = redact_sensitive(message) + ("\n```\n" + safe_detail[-1800:] + "\n```" if safe_detail else "")
-            connection.execute("INSERT INTO notification_outbox(created_at,body,severity) VALUES(?,?,?)", (iso_now(), body, severity_name))
+            connection.execute("INSERT INTO notification_outbox(created_at,body,severity,category) VALUES(?,?,?,?)", (iso_now(), body, severity_name, category))
     if db is not None:
         insert(db)
     else:
-        with sqlite3.connect(DB_PATH, timeout=15) as connection:
+        with closing(sqlite3.connect(DB_PATH, timeout=15)) as connection, connection:
             insert(connection)
 
 
@@ -611,10 +640,11 @@ def observe_host_boot(snapshot: dict, boot_id=None) -> None:
     Initial installation establishes a baseline without claiming a reboot.
     Monitor-process restarts retain the same kernel boot identity.
     """
+    from contextlib import closing
     import uuid
     from datetime import timedelta
     identity = str(uuid.UUID(boot_id if boot_id is not None else Path('/proc/sys/kernel/random/boot_id').read_text().strip()))
-    with sqlite3.connect(DB_PATH, timeout=15) as db:
+    with closing(sqlite3.connect(DB_PATH, timeout=15)) as db, db:
         db.execute('BEGIN IMMEDIATE')
         previous = db.execute('SELECT boot_id FROM host_boot_state WHERE id=1').fetchone()
         if previous and previous[0] == identity:
@@ -639,8 +669,17 @@ def queue_external_notification(title, description, severity_name="info", mentio
 
 def flush_notifications() -> None:
     from zoneinfo import ZoneInfo
+    from pathlib import Path
+    from discord_command_config import notice_policy, audit
+    if notice_policy(Path(DB_PATH).parent)['paused']:
+        return
     rows = db_rows("SELECT * FROM notification_outbox ORDER BY id LIMIT 3")
     for row in rows:
+        category = row.get('category', 'ubuntu')
+        if not notice_policy(Path(DB_PATH).parent, category)['enabled']:
+            audit(DB_PATH, 'notification', 'system', category, False, '通知条件が無効のため送信を抑止しました')
+            db_execute('DELETE FROM notification_outbox WHERE id=?', (row['id'],))
+            continue
         if row["next_attempt"] > time.time():
             break
         try:
@@ -648,7 +687,7 @@ def flush_notifications() -> None:
         except (TypeError, ValueError):
             recorded = "日時不明"
         body = "記録: " + recorded + "\n" + row["body"]
-        if send_discord("Tayunet Ubuntu監視", body, row["severity"], mention=row["severity"] in ("warning", "critical", "error")):
+        if send_discord("Tayunet Ubuntu監視", body, row["severity"], mention=row["severity"] in ("warning", "critical", "error"), category=category):
             db_execute("DELETE FROM notification_outbox WHERE id=?", (row["id"],))
         else:
             attempts = row["attempts"] + 1
@@ -797,6 +836,8 @@ def collect() -> dict:
         "dependencySecurity": dependency_security_status(),
         "notificationQueue": db_rows("SELECT COUNT(*) AS pending FROM notification_outbox")[0]["pending"],
     }
+    from bot_dashboard import runtime as bot_runtime
+    snapshot["botRuntime"] = bot_runtime(DATA_DIR, snapshot)
     snapshot["alerts"] = derive_alerts(snapshot)
     snapshot["status"] = "critical" if any(x["severity"] == "critical" for x in snapshot["alerts"]) else "warning" if snapshot["alerts"] else "ok"
     return snapshot
@@ -823,17 +864,8 @@ def recent_resource_summary() -> dict:
     return result
 
 
-def scheduled_report(snapshot: dict) -> None:
-    now = datetime.now(ZoneInfo("Asia/Tokyo"))
-    if now.hour not in (9, 10, 12, 16, 17, 20) or now.minute >= 5:
-        return
-    slot = now.strftime("%Y-%m-%d %H")
-    marker = DATA_DIR / "last-report-slot"
-    try:
-        if marker.read_text().strip() == slot:
-            return
-    except FileNotFoundError:
-        pass
+def build_server_report(snapshot: dict, now=None) -> str:
+    now = now or datetime.now(ZoneInfo("Asia/Tokyo"))
     mem = snapshot["memory"]
     lines = [
         now.strftime("計測 %Y/%m/%d %H:%M JST"),
@@ -875,7 +907,24 @@ def scheduled_report(snapshot: dict) -> None:
         lines.append(provider["name"] + ": " + provider["description"])
         lines.extend("・" + x["name"] for x in provider.get("incidents", [])[:3])
         lines.extend("保守予定: " + x["name"] for x in provider.get("maintenance", [])[:2])
-    if send_discord("Ubuntuサーバー 定時報", "\n".join(lines), mention=False):
+    return "\n".join(lines)
+
+
+def scheduled_report(snapshot: dict) -> None:
+    from discord_command_config import notice_policy
+    if notice_policy(DATA_DIR)["paused"] or not notice_policy(DATA_DIR)["enabled"]:
+        return
+    now = datetime.now(ZoneInfo("Asia/Tokyo"))
+    if now.hour not in (9, 10, 12, 16, 17, 20) or now.minute >= 5:
+        return
+    slot = now.strftime("%Y-%m-%d %H")
+    marker = DATA_DIR / "last-report-slot"
+    try:
+        if marker.read_text().strip() == slot:
+            return
+    except FileNotFoundError:
+        pass
+    if send_discord("Ubuntuサーバー 定時報", build_server_report(snapshot, now), mention=False):
         temporary = marker.with_suffix(".tmp")
         temporary.write_text(slot)
         temporary.replace(marker)
@@ -895,6 +944,8 @@ def collector_loop() -> None:
                 current_state = snapshot
             save_snapshot(snapshot)
             observe_host_boot(snapshot)
+            from github_notifications import poll as poll_github_notifications
+            poll_github_notifications(DATA_DIR, DB_PATH, record_event)
             process_alerts(snapshot["alerts"])
             notify_changes(snapshot.get("externalServices", []), DATA_DIR, queue_external_notification)
             flush_notifications()
@@ -981,6 +1032,7 @@ def service_logs(kind: str, target: str, lines=80) -> str:
 
 
 def restart_target(kind: str, target: str, actor: str) -> dict:
+    from contextlib import closing
     def logs(lines):
         try:
             return service_logs(kind, target, lines)
@@ -1002,7 +1054,7 @@ def restart_target(kind: str, target: str, actor: str) -> dict:
     detail = redact_sensitive(f"command: {output[-1000:]}\n\n--- before ---\n{before[-5000:]}\n\n--- after ---\n{after[-5000:]}")
     automatic = actor == 'system:auto-recovery'
     title = ('自動再起動 ' if automatic else '手動再起動 ') + ('成功' if success else '失敗')
-    with sqlite3.connect(DB_PATH, timeout=15) as db:
+    with closing(sqlite3.connect(DB_PATH, timeout=15)) as db, db:
         db.execute("INSERT INTO actions(created_at,actor,kind,target,action,success,detail) VALUES(?,?,?,?,?,?,?)", (iso_now(), actor, kind, target, "restart", 1 if success else 0, detail))
         record_event('ok' if success else 'critical', 'restart-result', title,
                      f"実行者: {actor}\n対象: {kind}/{target}\n結果: {output[-1200:]}\nコマンドの成否です。サービスの稼働状態は継続して監視します。", db=db)
@@ -1100,6 +1152,33 @@ class Handler(BaseHTTPRequestHandler):
                 kind = query.get("kind", [""])[0]
                 target = query.get("target", [""])[0]
                 return self.send_json(200, {"kind": kind, "target": target, "logs": service_logs(kind, target, query.get("lines", ["80"])[0])})
+            if request_path == '/api/bot/resources':
+                from bot_dashboard import resources
+                period = parse_qs(path.query).get('period', ['1h'])[0]
+                return self.send_json(200, resources(DB_PATH, period))
+            if request_path == '/api/bot/github':
+                from discord_command_config import load
+                from github_operations import GitHub, render
+                query = parse_qs(path.query)
+                repos = [x for x in load(DATA_DIR)['repositories'] if x['enabled']]
+                name = query.get('repository', [''])[0]
+                repo = next((x for x in repos if x['name'] == name), None) if name else (repos[0] if repos else None)
+                if not repo:
+                    return self.send_json(400, {'error': 'invalid_repository', 'message': '有効な登録リポジトリを選択してください。'})
+                client = GitHub(DB_PATH)
+                page = int(query.get('page', ['1'])[0])
+                if not 1 <= page <= 100:
+                    return self.send_json(400, {'error': 'invalid_page', 'message': 'ページ番号は1〜100です。'})
+                text = render(client, repo, query.get('view', ['summary'])[0], page)
+                from discord_command_config import audit
+                success = not any(x['error'] for x in client.observations)
+                audit(DB_PATH, 'command' if success else 'error', identity['email'], 'web:github', success, repo['name'] + ' / ' + query.get('view', ['summary'])[0])
+                return self.send_json(200, {'ok': success, 'text': text, 'observations': client.observations})
+            if request_path == "/api/bot/control":
+                from bot_dashboard import overview
+                with state_lock:
+                    state = dict(current_state)
+                return self.send_json(200, overview(DATA_DIR, DB_PATH, state))
             if request_path == "/api/config":
                 return self.send_json(200, {"admins": sorted(ALLOWED_EMAILS), "channelId": CHANNEL_ID, "dockerTargets": sorted(DOCKER_NAMES), "pm2Targets": sorted(PM2_NAMES), "thresholds": THRESHOLDS, "actor": identity["email"]})
             return self.send_json(404, {"error": "not_found"})
@@ -1115,7 +1194,27 @@ class Handler(BaseHTTPRequestHandler):
             identity = self.authorize()
             length = min(int(self.headers.get("Content-Length", "0")), 16384)
             payload = json.loads(self.rfile.read(length) or b"{}")
-            if urlparse(self.path).path.removeprefix("/server-monitor") != "/api/action":
+            route = urlparse(self.path).path.removeprefix("/server-monitor")
+            if route == '/api/bot/config':
+                from discord_command_config import save, load, audit
+                if payload.get('confirm') != 'save-discord-settings':
+                    return self.send_json(400, {'error': 'confirmation_required'})
+                try:
+                    with action_lock:
+                        previous = load(DATA_DIR)
+                        result = save(DATA_DIR, payload.get('config'))
+                        changed = [key for key in result if key not in ('revision', 'updatedAt') and result[key] != previous.get(key)]
+                        detail = '設定revision ' + str(result['revision']) + ' / 変更項目: ' + ', '.join(changed) + '\n' + json.dumps({key: {'before': previous.get(key), 'after': result[key]} for key in changed}, ensure_ascii=False)
+                        audit(DB_PATH, 'config', identity['email'], 'save', True, detail)
+                    return self.send_json(200, {'ok': True, 'config': result})
+                except ValueError as error:
+                    return self.send_json(400, {'error': 'invalid_discord_config', 'message': str(error)})
+            if route == '/api/bot/test':
+                if payload.get('confirm') != 'send-discord-test':
+                    return self.send_json(400, {'error': 'confirmation_required'})
+                success = send_discord('Discord運用ダッシュボード テスト', '管理者による通知先の確認です。メンションは付けていません。', mention=False, category='test')
+                return self.send_json(200 if success else 502, {'ok': success, 'message': 'テスト通知を送信しました。' if success else '送信できませんでした。Bot接続と送信先の権限を確認してください。'})
+            if route != '/api/action':
                 return self.send_json(404, {"error": "not_found"})
             if payload.get("action") != "restart" or payload.get("confirm") != payload.get("target"):
                 return self.send_json(400, {"error": "confirmation_required"})
