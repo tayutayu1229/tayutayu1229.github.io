@@ -19,6 +19,9 @@ started="$(date --iso-8601=seconds)"
 repository="$LOCAL_REPOSITORY"
 [[ "$MODE" == "cloud" ]] && repository="$CLOUD_REPOSITORY"
 export RESTIC_PASSWORD_FILE RCLONE_CONFIG RESTIC_REPOSITORY="$repository"
+# Restic already selects disposable backup objects; do not leave them using
+# the Drive quota in the trash after pruning.
+if [[ "$MODE" == "cloud" ]]; then export RCLONE_DRIVE_USE_TRASH=false; fi
 RESTIC_COMMAND=(nice -n 10)
 if command -v ionice >/dev/null 2>&1; then
   RESTIC_COMMAND+=(ionice -c 2 -n 7)
@@ -88,7 +91,14 @@ else
       fi
     done
     if [[ "$stream_ok" == true ]]; then
-      "${RESTIC_COMMAND[@]}" forget --tag "$MODE" --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune >/dev/null
+      retention=(--keep-daily 7 --keep-weekly 4 --keep-monthly 6)
+      if [[ "$MODE" == "cloud" ]]; then
+        retention=(--group-by host,paths --keep-last 2)
+      fi
+      if ! cleanup_output=$("${RESTIC_COMMAND[@]}" forget --tag "$MODE" "${retention[@]}" --prune 2>&1); then
+        detail="バックアップの保存後、古い世代の整理に失敗しました: $(printf '%s' "$cleanup_output" | tail -n 12 | tr '\n' ' ')"
+        exit 1
+      fi
       detail="$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ')"
       ok=true
     else
