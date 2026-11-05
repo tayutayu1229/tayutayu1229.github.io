@@ -170,6 +170,11 @@ def init_db() -> None:
           success INTEGER NOT NULL,
           detail TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS host_boot_state (
+          id INTEGER PRIMARY KEY CHECK(id=1),
+          boot_id TEXT NOT NULL,
+          observed_at TEXT NOT NULL
+        );
         """)
 
 
@@ -586,13 +591,43 @@ def redact_sensitive(value: str) -> str:
     return result
 
 
-def record_event(severity_name: str, code: str, message: str, detail="", notify=True) -> None:
+def record_event(severity_name: str, code: str, message: str, detail="", notify=True, db=None) -> None:
     safe_detail = redact_sensitive(detail[-8000:])
-    with sqlite3.connect(DB_PATH, timeout=15) as db:
-        db.execute("INSERT INTO events(created_at,severity,code,message,detail) VALUES(?,?,?,?,?)", (iso_now(), severity_name, code, message, safe_detail))
+    def insert(connection):
+        connection.execute("INSERT INTO events(created_at,severity,code,message,detail) VALUES(?,?,?,?,?)", (iso_now(), severity_name, code, message, safe_detail))
         if notify:
             body = redact_sensitive(message) + ("\n```\n" + safe_detail[-1800:] + "\n```" if safe_detail else "")
-            db.execute("INSERT INTO notification_outbox(created_at,body,severity) VALUES(?,?,?)", (iso_now(), body, severity_name))
+            connection.execute("INSERT INTO notification_outbox(created_at,body,severity) VALUES(?,?,?)", (iso_now(), body, severity_name))
+    if db is not None:
+        insert(db)
+    else:
+        with sqlite3.connect(DB_PATH, timeout=15) as connection:
+            insert(connection)
+
+
+def observe_host_boot(snapshot: dict, boot_id=None) -> None:
+    """Notify once per OS boot after the first successful collection.
+
+    Initial installation establishes a baseline without claiming a reboot.
+    Monitor-process restarts retain the same kernel boot identity.
+    """
+    import uuid
+    from datetime import timedelta
+    identity = str(uuid.UUID(boot_id if boot_id is not None else Path('/proc/sys/kernel/random/boot_id').read_text().strip()))
+    with sqlite3.connect(DB_PATH, timeout=15) as db:
+        db.execute('BEGIN IMMEDIATE')
+        previous = db.execute('SELECT boot_id FROM host_boot_state WHERE id=1').fetchone()
+        if previous and previous[0] == identity:
+            return
+        if previous:
+            collected = datetime.fromisoformat(snapshot['collectedAt'])
+            booted = collected - timedelta(seconds=snapshot['uptimeSeconds'])
+            detail = ('OSの再起動を検知し、監視情報の収集が再開しました。\n'
+                      '推定起動時刻: ' + booted.astimezone(ZoneInfo('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M:%S JST') + '\n'
+                      '収集時点の状態: ' + {'ok': '正常', 'warning': '要確認', 'critical': '異常あり'}.get(snapshot['status'], '未確認') + '\n'
+                      '個々のサービスの異常・復旧は別途通知します。再起動の原因は自動判定していません。')
+            record_event('info', 'host-reboot', 'Ubuntu起動後の監視を再開しました', detail, db=db)
+        db.execute('INSERT OR REPLACE INTO host_boot_state(id,boot_id,observed_at) VALUES(1,?,?)', (identity, iso_now()))
 
 
 def queue_external_notification(title, description, severity_name="info", mention=False) -> bool:
@@ -859,6 +894,7 @@ def collector_loop() -> None:
             with state_lock:
                 current_state = snapshot
             save_snapshot(snapshot)
+            observe_host_boot(snapshot)
             process_alerts(snapshot["alerts"])
             notify_changes(snapshot.get("externalServices", []), DATA_DIR, queue_external_notification)
             flush_notifications()
@@ -945,27 +981,32 @@ def service_logs(kind: str, target: str, lines=80) -> str:
 
 
 def restart_target(kind: str, target: str, actor: str) -> dict:
+    def logs(lines):
+        try:
+            return service_logs(kind, target, lines)
+        except (ValueError, OSError) as error:
+            return 'ログ取得失敗: ' + type(error).__name__
     if kind == "docker" and target in DOCKER_NAMES:
-        before = service_logs(kind, target, 60)
+        before = logs(60)
         code, output = run(["docker", "restart", "--time", "20", target], timeout=45)
         time.sleep(2)
-        after = service_logs(kind, target, 40)
+        after = logs(40)
     elif kind == "pm2" and target in PM2_NAMES:
-        before = service_logs(kind, target, 60)
+        before = logs(60)
         code, output = run([PM2_BIN, "restart", target], timeout=30)
         time.sleep(2)
-        after = service_logs(kind, target, 40)
+        after = logs(40)
     else:
         raise ValueError("target_not_allowed")
     success = code == 0
-    detail = f"command: {output[-1000:]}\n\n--- before ---\n{before[-5000:]}\n\n--- after ---\n{after[-5000:]}"
-    db_execute("INSERT INTO actions(created_at,actor,kind,target,action,success,detail) VALUES(?,?,?,?,?,?,?)", (iso_now(), actor, kind, target, "restart", 1 if success else 0, detail))
-    send_discord(
-        "手動再起動 " + ("成功" if success else "失敗"),
-        f"実行者: {actor}\n対象: {kind}/{target}\n結果: {output[-1200:]}",
-        "ok" if success else "critical",
-    )
-    return {"ok": success, "kind": kind, "target": target, "detail": output[-2000:]}
+    detail = redact_sensitive(f"command: {output[-1000:]}\n\n--- before ---\n{before[-5000:]}\n\n--- after ---\n{after[-5000:]}")
+    automatic = actor == 'system:auto-recovery'
+    title = ('自動再起動 ' if automatic else '手動再起動 ') + ('成功' if success else '失敗')
+    with sqlite3.connect(DB_PATH, timeout=15) as db:
+        db.execute("INSERT INTO actions(created_at,actor,kind,target,action,success,detail) VALUES(?,?,?,?,?,?,?)", (iso_now(), actor, kind, target, "restart", 1 if success else 0, detail))
+        record_event('ok' if success else 'critical', 'restart-result', title,
+                     f"実行者: {actor}\n対象: {kind}/{target}\n結果: {output[-1200:]}\nコマンドの成否です。サービスの稼働状態は継続して監視します。", db=db)
+    return {"ok": success, "kind": kind, "target": target, "detail": redact_sensitive(output[-2000:])}
 
 
 class Handler(BaseHTTPRequestHandler):
