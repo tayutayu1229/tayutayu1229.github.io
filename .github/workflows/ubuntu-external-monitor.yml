@@ -62,10 +62,13 @@ jobs:
           DISCORD_CHANNEL_ID: "1499762805065388274"
           TITLE: ${{ steps.message.outputs.title }}
           DETAIL: ${{ steps.message.outputs.detail }}
+          ABNORMAL: ${{ steps.probe.outcome == 'failure' }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request
-          body=json.dumps({'embeds':[{'title':os.environ['TITLE'],'description':os.environ['DETAIL'][:4000],'color':12986408 if '障害' in os.environ['TITLE'] else 694883}]}).encode()
+          abnormal=os.environ['ABNORMAL']=='true'
+          role='1489628881135730852'
+          body=json.dumps({'content':f'<@&{role}>' if abnormal else '', 'allowed_mentions':{'parse':[], 'roles':[role] if abnormal else []}, 'embeds':[{'title':os.environ['TITLE'],'description':os.environ['DETAIL'][:4000],'color':12986408 if abnormal else 694883}]}).encode()
           request=urllib.request.Request(f"https://discord.com/api/v10/channels/{os.environ['DISCORD_CHANNEL_ID']}/messages",data=body,headers={'Authorization':'Bot '+os.environ['DISCORD_BOT_TOKEN'],'Content-Type':'application/json','User-Agent':'TayunetMonitor/1.0'},method='POST')
           urllib.request.urlopen(request,timeout=15).read()
           PY
