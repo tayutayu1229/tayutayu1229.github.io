@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js";
+import { supabase } from "./supabaseClient.js?v=20261106-ubuntu1";
 
 const dateInput = document.getElementById("date");
 const depotSelect = document.getElementById("depot");

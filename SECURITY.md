@@ -18,13 +18,14 @@ credential embedded in a static site cannot be kept secret. Move ODPT requests
 behind a Cloudflare Worker, store the replacement credential as a Worker secret,
 then revoke and reissue the currently exposed credential at ODPT.
 
-## Supabase incident policies
+## Ubuntu managed databases
 
-The browser anon key is not an administrator credential. Apply
-`supabase/incidents-rls.sql` in the Supabase SQL editor so authenticated users
-can read incidents while only the two incident administrator accounts can
-insert, update, or delete them. Keep the existing login IDs and passwords in
-Supabase Authentication; do not store passwords in this repository.
+Incident, legacy accounting, and vehicle-operation data are served by the Ubuntu
+managed database API. Firebase login and current Firestore approval are required;
+writes and all legacy accounting access require administrator approval.
+The browser receives no database password or internal service-role token.
+Original Supabase SQL and backups are historical recovery material, not current
+deployment instructions. Do not re-enable the old external notification trigger.
 
 ## Public JSON classification
 
@@ -33,4 +34,4 @@ Supabase Authentication; do not store passwords in this repository.
 - `unnyou/data.json` and `JREgyoumu/workdata/workbase.json` remain public until
   their owners classify them; do not add personal data or credentials to them.
 - `JREgyoumu/JRchr/incidents.json` is a legacy public snapshot. The live system
-  uses Supabase, so it should be removed after confirming no consumer needs it.
+  uses the Firebase-protected Ubuntu API, so it should be removed after confirming no consumer needs it.

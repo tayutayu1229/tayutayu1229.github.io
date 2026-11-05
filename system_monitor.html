@@ -17,7 +17,7 @@
   <footer class="ops-footer"><span>実際の応答とJSON内容を検査します。ブラウザや接続先のCORS制限は詳細欄へ表示されます。</span><span>Ver.<span data-version>-</span></span></footer>
 </main></div>
 <div class="ops-modal" id="detail-modal"><div class="ops-modal-box"><div class="ops-modal-head"><h3 id="detail-title">診断詳細</h3><button class="ops-btn" onclick="document.getElementById('detail-modal').classList.remove('open')">閉じる</button></div><div class="ops-modal-body"><pre class="ops-code" id="detail-content"></pre></div></div></div>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/freight-status-client.js?v=20261105-live"></script><script src="/assets/js/system-admin-core.js?v=20261105-2"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><script src="/T-time/firebase-data-auth.js"></script><script src="/T-time/private-data-client.js"></script><script src="/auth_guard.js"></script><script src="/assets/js/managed-db-client.js"></script><script src="/assets/js/system-telemetry.js"></script><script src="/assets/js/freight-status-client.js?v=20261105-live"></script><script src="/assets/js/system-admin-core.js?v=20261105-2"></script>
 <script>
 (() => {
   const TARGETS = [
@@ -35,7 +35,7 @@
     {id:'timetables',name:'保護列車時刻表API',kind:'認証API',url:'https://secure.tayunet-traininfo.com/api/timetable-files',custom:'timetables',maxAge:10080},
     {id:'workbase',name:'ATOS出力箇所',kind:'JSON',url:'/JREgyoumu/workdata/workbase.json',array:true,maxAge:10080},
     {id:'freight',name:'貨物輸送状態',kind:'定期取得API',url:'https://incident-api.tayunet-traininfo.com/server-monitor/freight-status',array:false,custom:'freight',maxAge:20,required:['ok','proxiedAt','trains','routes','incidents']},
-    {id:'incidents',name:'運行情報履歴',kind:'JSON',url:'/JREgyoumu/JRchr/incidents.json',array:true,maxAge:1440,required:['title','datetime']},
+    {id:'incidents',name:'輸送障害・移行DB',kind:'Ubuntu認証API',url:'https://incident-api.tayunet-traininfo.com/managed-db/health',custom:'managedDb',maxAge:1440},
     {id:'version',name:'システムバージョン',kind:'JSON',url:'/system-version.json',array:false,maxAge:43200,required:['version','publishedAt']}
   ];
   let results=Ops.storageGet('monitorResults',[]), running=false, timer=null, countdownTimer=null, nextAt=0;
@@ -80,6 +80,13 @@
         if(isNaN(date)||date.getTime()>Date.now()+300000)throw new Error('貨物取得日時が不正です');
         const ageMinutes=Math.max(0,Math.floor((Date.now()-date.getTime())/60000));
         return success({itemCount:data.trains.length,dataDate:date.toISOString(),ageMinutes,ageLabel:`${ageMinutes}分前`,freshnessStatus:ageMinutes>target.maxAge?'error':'ok',detail:`公式HP取得: 成功\n配信経路: ${bundle.transport==='live'?'定期取得サーバー':'公開済みデータ（接続代替）'}\n次回取得予定: ${Ops.fmtDate(bundle.collector?.nextCheckAt)}\n公式発表: ${data.announcementDate} ${data.asOf}\n取得試行: ${Ops.fmtDate(health.checkedAt)}\n取得成功: ${Ops.fmtDate(health.lastSuccessAt)}\n列車: ${data.trains.length}件／線区: ${data.routes.length}件`});
+      }
+      if(target.custom==='managedDb'){
+        const health=await window.TayunetManagedDb.request('/health',{signal:controller.signal});
+        if(!health.ok||!Object.values(health.databases||{}).every(Boolean))throw new Error('移行DBの稼働状態を確認してください');
+        const rows=await window.TayunetManagedDb.request('/incidents/rest/v1/incidents?select=id&limit=5000',{signal:controller.signal});
+        if(!Array.isArray(rows))throw new Error('輸送障害データの形式が不正です');
+        return success({itemCount:rows.length,ageLabel:'現在稼働中',freshnessStatus:'ok',detail:`Firebase認証: 正常\n3DB接続: 正常\n輸送障害: ${rows.length}件\nUbuntuの現行データを取得済み`});
       }
       if(target.custom==='photoArchive'){
         const response=await fetch(`${target.url}?ops=${Date.now()}`,{cache:'no-store',signal:controller.signal});
