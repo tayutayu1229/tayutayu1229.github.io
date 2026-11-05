@@ -41,6 +41,7 @@ def provider_status():
             except (TypeError, ValueError):
                 continue
         item['maintenance'] = upcoming
+        item['description'] = ('公式の稼働情報を取得できません。サービスの障害かどうかは未確認です。' if not item.get('available') else '公式発表では通常稼働です。' if item['indicator'] == 'none' else '保守作業が報告されています。対象機能・時刻を確認してください。' if item['indicator'] == 'maintenance' else '公式に障害が報告されています。対象機能・地域を確認してください。')
         results.append(item)
     results.extend(google_status())
     _cached, _checked = results, time.monotonic()
@@ -64,9 +65,10 @@ def notify_changes(providers, data_dir, send):
             previous[key] = current
             continue
         recovered = current['indicator'] == 'none' and not current['incidents']
+        abnormal = current['indicator'] in ('minor', 'major', 'critical') or bool(current['incidents'])
         lines = [item['name'] + ': ' + item['description'], item['impact'], item['source']]
         lines.extend(x['name'] + ' (' + x['status'] + ')' for x in item['incidents'][:5])
-        if send('外部サービス ' + ('復旧情報' if recovered else '障害・更新情報'), '\n'.join(lines), 'ok' if recovered else 'warning', mention=True):
+        if send('外部サービス ' + ('復旧情報' if recovered else '障害・更新情報' if abnormal else '保守・稼働情報'), '\n'.join(lines), 'ok' if recovered else 'warning' if abnormal else 'info', mention=abnormal):
             previous[key] = current
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(previous, ensure_ascii=False))
@@ -125,5 +127,6 @@ def google_status():
                         description='対象サービスの継続障害あり' if item['incidents'] else '対象サービスの継続障害の発表なし')
         except Exception as error:
             item.update(available=False, indicator='unknown', description='公式情報取得失敗: ' + type(error).__name__)
+        item['description'] = ('公式の稼働情報を取得できません。サービスの障害かどうかは未確認です。' if not item.get('available') else '公式発表では通常稼働です。' if item['indicator'] == 'none' else '保守作業が報告されています。対象機能・時刻を確認してください。' if item['indicator'] == 'maintenance' else '公式に障害が報告されています。対象機能・地域を確認してください。')
         results.append(item)
     return results

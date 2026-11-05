@@ -29,7 +29,20 @@
     link.href = url; link.download = name; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+  const describeError = (error) => {
+    const text=String(error?.message||error||'');
+    const cases=[
+      [/permission-denied|insufficient permissions/i,'この操作に必要な権限がありません。利用者の承認状態と管理者権限を確認してください。'],
+      [/unauthenticated|auth\/user-token-expired|auth\/invalid-user-token/i,'ログイン情報の有効期限が切れています。ログインし直してから、もう一度操作してください。'],
+      [/network-request-failed|failed to fetch|networkerror|load failed/i,'サーバーに接続できません。通信環境を確認し、時間を置いて再試行してください。'],
+      [/resource-exhausted|quota-exceeded/i,'利用上限に達したため処理できません。管理者が容量や利用状況を確認する必要があります。'],
+      [/deadline-exceeded|timed out|timeout/i,'サーバーの応答に時間がかかっています。少し待ってから再試行してください。'],
+      [/unavailable/i,'サービスに一時的に接続できません。時間を置いて再試行してください。']
+    ];
+    return cases.find(([pattern])=>pattern.test(text))?.[1]||text||'処理に失敗しました。画面を更新して、もう一度お試しください。';
+  };
   const toast = (message, type = '') => {
+    message=describeError(message);
     let stack = document.querySelector('.ops-toast-stack');
     if (!stack) { stack = document.createElement('div'); stack.className = 'ops-toast-stack'; document.body.appendChild(stack); }
     const item = document.createElement('div'); item.className = `ops-toast ${type}`; item.textContent = message; stack.appendChild(item);
@@ -96,7 +109,7 @@
   }
 
   window.Ops = Object.freeze({
-    $, escapeHtml, fmtDate, relativeAge, hash, download, toast, storageGet, storageSet,
+    $, escapeHtml, fmtDate, relativeAge, hash, download, toast, describeError, storageGet, storageSet,
     loadVersion, requireAdmin, getCollection, collection, serverTimestamp, audit,
     get auth() { return authContext; }, get version() { return version; }, init
   });

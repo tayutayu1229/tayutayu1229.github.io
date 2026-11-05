@@ -15,5 +15,9 @@ class Delivery(unittest.TestCase):
    ns['flush_notifications']();self.assertEqual(len(calls),1)
    ns['db_execute']('update notification_outbox set next_attempt=0')
    ns['send_discord']=lambda *a,**kw:True;ns['flush_notifications']();self.assertEqual(ns['db_rows']('select * from notification_outbox'),[])
+   delivered=[]
+   ns['send_discord']=lambda *a,**kw:delivered.append(kw['mention']) or True
+   ns['record_event']('warning','backup','issue');ns['record_event']('ok','recovered:backup','recovered')
+   ns['flush_notifications']();self.assertEqual(delivered,[True,False])
    ns['active_alerts']={'backup':{'code':'backup','message':'test'}};ns['persist_alerts']();ns['active_alerts']={};ns['restore_alerts']();self.assertIn('backup',ns['active_alerts'])
 if __name__=='__main__':unittest.main()

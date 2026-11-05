@@ -420,23 +420,32 @@ def backup_status() -> dict:
     status_file = DATA_DIR / "backup-status.json"
     try:
         data = json.loads(status_file.read_text())
+        if not isinstance(data, dict):
+            raise ValueError("backup status must be an object")
         runs = data.get("runs", {})
+        if not isinstance(runs, dict):
+            raise ValueError("backup runs must be an object")
         problems = []
         for mode, max_age in (("local", 8 * 3600), ("cloud", 30 * 3600)):
             entry = runs.get(mode, {})
+            if not isinstance(entry, dict):
+                entry = {}
             try:
                 age = time.time() - datetime.fromisoformat(entry["finishedAt"]).timestamp()
                 stale = age > max_age or age < -300
             except (KeyError, TypeError, ValueError):
                 stale = True
             if entry.get("ok") is not True or stale:
-                problems.append(mode + (": 記録が古い・未取得" if stale else ": 失敗"))
+                label = "HDDへのバックアップ" if mode == "local" else "Google Driveへのバックアップ"
+                reason = "実行記録がないため、保存状況を確認できません" if not entry else "保存容量が不足しています" if "storageQuotaExceeded" in entry.get("detail", "") else "最後の実行で失敗しました" if entry.get("ok") is not True else "長時間更新されていません"
+                action = "保存先の空き容量とバックアップ処理を確認してください"
+                problems.append(f"{label}: {reason}。{action}。")
         data["ok"] = not problems
         if problems:
             data["detail"] = " / ".join(problems)
         return data
     except (OSError, ValueError, json.JSONDecodeError):
-        return {"configured": False, "lastRun": None, "ok": None, "detail": "Google Drive認証待ち"}
+        return {"configured": False, "lastRun": None, "ok": None, "detail": "バックアップの実行記録がないか、記録を読み取れません", "error": "backup_status_missing_or_invalid"}
 
 
 def severity(value, threshold_name: str, reverse=False) -> str:
@@ -570,7 +579,7 @@ def flush_notifications() -> None:
     for row in rows:
         if row["next_attempt"] > time.time():
             break
-        if send_discord("Tayunet Ubuntu監視", row["body"], row["severity"], mention=True):
+        if send_discord("Tayunet Ubuntu監視", row["body"], row["severity"], mention=row["severity"] in ("warning", "critical", "error")):
             db_execute("DELETE FROM notification_outbox WHERE id=?", (row["id"],))
         else:
             attempts = row["attempts"] + 1

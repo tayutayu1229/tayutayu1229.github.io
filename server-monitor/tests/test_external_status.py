@@ -13,5 +13,6 @@ class Events(unittest.TestCase):
    item['available']=False;m.notify_changes([item],Path(d),send);self.assertEqual(len(calls),1)
    item.update(available=True,indicator='none',incidents=[])
    m.notify_changes([item],Path(d),lambda *a,**kw:False)
-   m.notify_changes([item],Path(d),send);self.assertEqual(len(calls),2);self.assertIn('復旧',calls[1][0][0])
+   m.notify_changes([item],Path(d),send);self.assertEqual(len(calls),2);self.assertIn('復旧',calls[1][0][0]);self.assertFalse(calls[1][1]['mention'])
+   item['indicator']='maintenance';m.notify_changes([item],Path(d),send);self.assertFalse(calls[2][1]['mention'])
 if __name__=='__main__':unittest.main()
