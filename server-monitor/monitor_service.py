@@ -67,14 +67,16 @@ DISCORD_ENV_FILES = [
 PM2_BIN = "/home/yoshi/.nvm/versions/node/v24.15.0/lib/node_modules/pm2/bin/pm2"
 PM2_NAMES = {
     "file-api", "filet-main", "flight-alert", "timetable-app",
-    "tokyo-discord-bot", "jre-issei", "jre-discord-voice",
+    "tokyo-discord-bot", "jre-issei", "jre-discord-voice", "tayunet-managed-db-api",
 }
 DOCKER_NAMES = {
     "incident-share", "atos-delay-history", "tayunet-photo-archive",
     "atos-history-tunnel", "jreast-press-bot-press-release-bot-1",
-    "jre-aivis", "jre-voicevox",
+    "jre-aivis", "jre-voicevox", "tayunet-managed-postgres",
+    "tayunet-db-rest-incidents", "tayunet-db-rest-accounting", "tayunet-db-rest-operations", "tayunet-db-admin",
 }
 PUBLIC_TARGETS = [
+    {"id": "managed-db", "name": "移行3DB・Firebase業務API", "url": "https://incident-api.tayunet-traininfo.com/managed-db/health", "expected": [200], "json": True},
     {"id": "site", "name": "Tayunetトップ", "url": "https://tayunet-traininfo.com/", "expected": [200], "json": False},
     {"id": "api", "name": "Tayunet API", "url": "https://api.tayunet-traininfo.com/", "expected": [401], "json": True},
     {"id": "history", "name": "遅延履歴API", "url": "https://history.tayunet-traininfo.com/health", "expected": [200], "json": True},
@@ -940,13 +942,17 @@ def collector_loop() -> None:
         started = time.monotonic()
         try:
             snapshot = collect()
+            from application_watch import poll as poll_applications
+            snapshot["applicationWatch"] = poll_applications(DATA_DIR, DB_PATH, record_event, run, PM2_BIN, PM2_NAMES, DOCKER_NAMES)
+            snapshot["alerts"].extend(snapshot["applicationWatch"]["alerts"])
+            if snapshot["applicationWatch"]["active"]:snapshot["status"]="critical"
             with state_lock:
                 current_state = snapshot
             save_snapshot(snapshot)
             observe_host_boot(snapshot)
             from github_notifications import poll as poll_github_notifications
             poll_github_notifications(DATA_DIR, DB_PATH, record_event)
-            process_alerts(snapshot["alerts"])
+            process_alerts([item for item in snapshot["alerts"] if not item["code"].startswith("application:")])
             notify_changes(snapshot.get("externalServices", []), DATA_DIR, queue_external_notification)
             flush_notifications()
             scheduled_report(snapshot)

@@ -123,7 +123,61 @@
     }
   }
 
+  // START_APPLICATION_REPORTER
+  const operationalKinds = new Set(['service_error', 'javascript_error']);
+  const operationalSystems = new Set(['jrchr','operations','database_admin','timetable','incident_share','photo','finance','railway_tools','admin','portal']);
+  const reportKey = `${STORAGE_PREFIX}pendingErrorReports`;
+  const reportQueue = new Map(), reportSent = new Map();
+  let flushingReports = false;
+  try { for (const entry of JSON.parse(localStorage.getItem(reportKey) || '[]')) {
+    if (entry && operationalSystems.has(entry.system) && operationalKinds.has(entry.kind)) reportQueue.set(`${entry.system}:${entry.kind}`, {system:entry.system,kind:entry.kind});
+  }} catch (_) {}
+  const persistReports = () => { try { localStorage.setItem(reportKey,JSON.stringify([...reportQueue.values()].slice(-20))); } catch (_) {} };
+  function reportSystem() {
+    const path=location.pathname;
+    if (/\/JREgyoumu\/JRchr/.test(path)) return 'jrchr';
+    if (/^\/unnyou\//.test(path)) return 'operations';
+    if (path==='/database-admin.html') return 'database_admin';
+    if (/^\/T-time\//.test(path)) return 'timetable';
+    if (/^\/incident-share\//.test(path)) return 'incident_share';
+    if (/photo|shooting/.test(path)) return 'photo';
+    if (/finance|accounting/.test(path)) return 'finance';
+    if (/^\/JREgyoumu\//.test(path)) return 'railway_tools';
+    if (/system_|_monitor|account_management|discord_bot_admin/.test(path)) return 'admin';
+    return 'portal';
+  }
+  async function flushOperationalReports() {
+    if (flushingReports || !user || navigator.onLine===false) return;
+    flushingReports=true;
+    try {
+      for (const [key,report] of [...reportQueue]) {
+        if (reportSent.has(key) && Date.now()-reportSent.get(key)<600000) {reportQueue.delete(key);continue;}
+        try {
+          const response=await (originalFetch || window.fetch.bind(window))('https://incident-api.tayunet-traininfo.com/managed-db/client-error',{
+            method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await user.getIdToken()},
+            body:JSON.stringify(report),signal:AbortSignal.timeout(10000)
+          });
+          if (!response.ok) break;
+          reportQueue.delete(key);reportSent.set(key,Date.now());
+        } catch (_) {break;}
+      }
+    } finally {persistReports();flushingReports=false;}
+  }
+  function reportOperationalEvent(type,detail) {
+    if (!user || /listener indicated an asynchronous response|message channel closed|chrome-extension:/i.test(detail.message||'')) return;
+    let kind=null;
+    if (type==='fetch_error' && /^HTTP_5\d\d$/.test(detail.code||'')) kind='service_error';
+    if (['javascript_error','promise_rejection'].includes(type) && detail.severity==='critical') kind='javascript_error';
+    if (!kind || String(detail.url||'').includes('/managed-db/client-error')) return;
+    const report={system:reportSystem(),kind},key=`${report.system}:${kind}`;
+    if (reportSent.has(key) && Date.now()-reportSent.get(key)<600000) return;
+    reportQueue.set(key,report);persistReports();void flushOperationalReports();
+  }
+  addEventListener('online',()=>void flushOperationalReports());
+  // END_APPLICATION_REPORTER
+
   function event(type, detail = {}) {
+    reportOperationalEvent(type, detail);
     if (isDuplicateEvent(type, detail)) return Promise.resolve(null);
     return addDocument('system_events', {
       type: clampText(type, 60),
@@ -332,6 +386,9 @@
     if (!user) return window.TayunetTelemetry;
     await loadNetworkContext();
     instrumentFetch();
+    void flushOperationalReports();
+    const reportTimer=setInterval(()=>void flushOperationalReports(),60000);
+    addEventListener('pagehide',()=>clearInterval(reportTimer),{once:true});
     attachErrorCapture();
     attachInteractionCapture();
     await startSession();

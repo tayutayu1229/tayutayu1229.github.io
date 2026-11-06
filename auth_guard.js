@@ -149,7 +149,7 @@
         if (global.TayunetTelemetry) { launch(); return; }
         if (document.querySelector('script[data-tayunet-telemetry]')) return;
         const script = document.createElement('script');
-        script.src = '/assets/js/system-telemetry.js?v=2026.08.25.4';
+        script.src = '/assets/js/system-telemetry.js?v=20261106-alert1';
         script.defer = true;
         script.dataset.tayunetTelemetry = 'true';
         script.addEventListener('load', launch, { once: true });
