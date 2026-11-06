@@ -36,12 +36,27 @@ def connect(path):
  key TEXT PRIMARY KEY, value TEXT NOT NULL);
  ''');return db
 
+SERVICE_LABELS = {
+ 'tayunet-photo-archive':'撮影記録・撮影地システム','jreast-press-bot-press-release-bot-1':'JR東日本プレス通知',
+ 'press':'JR東日本プレス通知','tayunet-managed-db-api':'輸送障害・旧会計・車両運用の共通API',
+ 'incident-share':'事象共有システム','atos-delay-history':'遅延履歴システム',
+ 'file-api':'保護データAPI','filet-main':'ファイル転送','flight-alert':'航空情報',
+ 'timetable-app':'時刻表システム','jre-issei':'JR一斉配信','jre-discord-voice':'Discord音声配信',
+ 'tokyo-discord-bot':'Discord管理Bot','managed-db':'移行DBのバックアップ'}
+def readable_target(key):
+ parts=key.split(':')
+ if parts[:2]==['application','watch']:
+  name=parts[3] if len(parts)>3 and parts[2] in ['docker','pm2'] else parts[-1]
+  return SERVICE_LABELS.get(name,name)+'のログ監視'
+ if len(parts)>2 and parts[1]=='browser':return '画面の動作確認（'+parts[2]+'）'
+ return SERVICE_LABELS.get(parts[1],parts[1])+'の状態確認'
+
 def observe(db,key,failed,message,record,now,recovery='状態が正常に戻ったことを確認しました。'):
  previous=db.execute('SELECT * FROM application_watch_state WHERE key=?',(key,)).fetchone()
  if failed and (not previous or not previous['active']):
-  record('warning' if key.startswith('application:watch:') else 'critical',key,'処理異常: '+message,notify=True,db=db)
+  record('warning' if key.startswith('application:watch:') else 'critical',key,('監視範囲の注意: ' if key.startswith('application:watch:') else '処理異常: ')+message,notify=True,db=db)
  elif not failed and previous and previous['active']:
-  record('ok','recovered:'+key,'復旧確認: '+recovery+'\n確認対象: '+key,notify=True,db=db)
+  record('ok','recovered:'+key,('監視の再開: '+readable_target(key)+'\nログを通常どおり確認できる状態に戻りました。' if key.startswith('application:watch:') else '復旧確認: '+readable_target(key)+'\n'+recovery),notify=True,db=db)
  db.execute('INSERT OR REPLACE INTO application_watch_state VALUES(?,?,?,?)',(key,int(failed),now,message))
 
 def file_chunk(path,cursor):
@@ -159,7 +174,7 @@ def poll(directory,db_path,record,run,pm2_bin,pm2_names,docker_names,now=None):
   observe(db,'application:watch:pm2',pm2_error,'PM2アプリケーションログの一覧取得・監視',record,now)
   for source,content,cursor,error in reads:
    kind,key,name,path=source
-   observe(db,'application:watch:'+key,bool(error),name+' のログ監視: '+(error or '読取正常'),record,now)
+   observe(db,'application:watch:'+key,bool(error),SERVICE_LABELS.get(name,name)+' のログ監視: '+(error+' サービスの停止を示す通知ではありません。' if error else '読取正常'),record,now)
    # Permission logs and permission probes share one incident identity.
    app='press' if name=='jreast-press-bot-press-release-bot-1' else name
    labels={'jrchr':'輸送障害JRchr','operations':'車両運用','database_admin':'データ管理','timetable':'時刻表','incident_share':'事象共有','photo':'撮影記録','finance':'会計','railway_tools':'鉄道業務画面','admin':'システム管理','portal':'ポータル'}

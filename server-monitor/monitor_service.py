@@ -413,9 +413,47 @@ def smart_status() -> list[dict]:
     return results
 
 
+def failed_service_details(lines) -> list[dict]:
+    labels = {"tayunet-private-data-sync.service": "非公開時刻表データの同期",
+              "tayunet-backup-local.service": "Ubuntuのローカルバックアップ",
+              "tayunet-backup-cloud.service": "Ubuntuのクラウドバックアップ"}
+    details = []
+    for line in lines[:32]:
+        match = re.search(r"(?:^|\s)([A-Za-z0-9_.@:\\-]+\.(?:service|timer|socket|mount|target|path|scope))(?:\s|$)", line)
+        if not match: continue
+        unit = match.group(1)
+        code, output = run(["systemctl", "show", unit, "-p", "Result", "-p", "ExecMainStatus"], timeout=5)
+        fields = dict(item.split("=", 1) for item in output.splitlines() if "=" in item) if code == 0 else {}
+        result = fields.get("Result", "unknown")
+        reason = {"exit-code": "処理がエラー終了しました。", "timeout": "制限時間内に処理が完了しませんでした。",
+                  "signal": "シグナルにより終了しました。", "oom-kill": "メモリ不足で終了しました。"}.get(result, "終了理由を取得できませんでした。")
+        status = fields.get("ExecMainStatus", "")
+        if status.isdigit(): reason += " 終了コード: " + status
+        if unit == "tayunet-private-data-sync.service":
+            _, journal = run(["journalctl", "-u", unit, "-n", "12", "--no-pager", "-o", "cat"], timeout=5)
+            if "missing timetable line names:" in journal:
+                reason = "時刻表の路線名に未登録の項目があり、検証で同期を中止しました。路線名の対応表を確認してください。"
+        details.append({"unit": unit, "name": labels.get(unit, unit), "reason": reason})
+    return details
+
+
+def failed_services_message(system: dict) -> str:
+    failed = system.get("failedServices", [])
+    details = system.get("failedServiceDetails", [])
+    if not details:
+        details = [{"name": line.lstrip("● ").split()[0], "unit": "", "reason": "終了理由は未取得です。"} for line in failed if line.strip()]
+    text = f"Ubuntuのサービス処理が失敗（{len(failed)}件）"
+    for item in details[:5]:
+        name = item["name"] + ("（" + item["unit"] + "）" if item.get("unit") and item["name"] != item["unit"] else "")
+        text += "\n・" + name + "\n  原因: " + item["reason"]
+    if len(failed) > 5: text += f"\nほか{len(failed)-5}件。Ubuntu監視画面で確認してください。"
+    return text
+
+
 def system_checks() -> dict:
     global previous_oom_kills
     _, failed = run(["systemctl", "--failed", "--no-legend", "--no-pager"])
+    failed_lines = [line.strip() for line in failed.splitlines() if line.strip()]
     vmstat = read_vmstat()
     _, journal = run(["journalctl", "-k", "--since", "-10 minutes", "--no-pager", "-n", "100"], timeout=10)
     oom_lines = [line for line in journal.splitlines() if re.search(r"out of memory|oom-kill|killed process", line, re.I)]
@@ -430,7 +468,7 @@ def system_checks() -> dict:
         code, output = run(["sudo", "-n", fail2ban_client, "status"])
         fail2ban.update({"ok": code == 0, "summary": output[-1000:]})
     return {
-        "failedServices": [line.strip() for line in failed.splitlines() if line.strip()],
+        "failedServices": failed_lines, "failedServiceDetails": failed_service_details(failed_lines),
         "vmstat": vmstat, "recentOom": oom_lines[-20:], "fail2ban": fail2ban,
     }
 
@@ -552,7 +590,7 @@ def derive_alerts(snapshot: dict) -> list[dict]:
             level = "critical" if not item.get("ok") or item.get("daysRemaining", 999) <= 7 else "warning"
             alerts.append({"code": "tls:" + item["host"], "severity": level, "message": f"TLS {item['host']} 残り{item.get('daysRemaining', '?')}日"})
     if snapshot["system"]["failedServices"]:
-        alerts.append({"code": "failed-services", "severity": "critical", "message": f"失敗サービス {len(snapshot['system']['failedServices'])}件"})
+        alerts.append({"code": "failed-services", "severity": "critical", "message": failed_services_message(snapshot["system"])})
     if snapshot["system"]["recentOom"]:
         alerts.append({"code": "oom", "severity": "critical", "message": "直近10分にOOM Killerを検知"})
     for item in snapshot["smart"]:
@@ -779,6 +817,7 @@ def process_alerts(alerts: list[dict]) -> None:
     seen = {item["code"] for item in alerts}
     for item in alerts:
         code = item["code"]
+        if code in active_alerts: active_alerts[code] = item
         alert_streaks[code] = alert_streaks.get(code, 0) + 1
         if alert_streaks[code] >= 3 and code not in active_alerts:
             active_alerts[code] = item
