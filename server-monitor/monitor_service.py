@@ -945,7 +945,8 @@ def collector_loop() -> None:
             from application_watch import poll as poll_applications
             snapshot["applicationWatch"] = poll_applications(DATA_DIR, DB_PATH, record_event, run, PM2_BIN, PM2_NAMES, DOCKER_NAMES)
             snapshot["alerts"].extend(snapshot["applicationWatch"]["alerts"])
-            if snapshot["applicationWatch"]["active"]:snapshot["status"]="critical"
+            if any(item["severity"]=="critical" for item in snapshot["applicationWatch"]["alerts"]):snapshot["status"]="critical"
+            elif snapshot["applicationWatch"]["active"] and snapshot["status"]=="ok":snapshot["status"]="warning"
             with state_lock:
                 current_state = snapshot
             save_snapshot(snapshot)

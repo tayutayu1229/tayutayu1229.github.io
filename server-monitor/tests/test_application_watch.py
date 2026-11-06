@@ -40,6 +40,8 @@ class WatchTests(unittest.TestCase):
   self.missing=['送信'];self.poll();self.assertEqual(len(self.events('application:press:discord-permission')),1);self.missing=[];self.now+=121;self.poll();events=self.events('recovered:application:press:discord-permission');self.assertEqual(len(events),1);self.assertEqual(events[0][1],'ok')
  def test_backlog_then_clear(self):
   self.pending=2;self.poll();self.assertEqual(self.events('application:press:backlog'),[]);self.now+=240;self.poll();self.assertEqual(len(self.events('application:press:backlog')),1);self.pending=0;self.now+=121;self.poll();self.assertEqual(len(self.events('recovered:application:press:backlog')),1)
+ def test_permission_failure_does_not_claim_backlog_recovered(self):
+  self.pending=2;self.poll();self.now+=240;self.poll();self.missing=['送信'];self.now+=121;self.poll();self.assertEqual(self.events('recovered:application:press:backlog'),[])
  def test_probe_unavailable(self):
   self.probe_fail=True;self.poll();self.assertEqual(len(self.events('application:press:probe')),1)
  def test_rollback_does_not_consume_error(self):

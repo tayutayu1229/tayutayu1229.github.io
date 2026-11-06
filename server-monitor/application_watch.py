@@ -39,7 +39,7 @@ def connect(path):
 def observe(db,key,failed,message,record,now,recovery='状態が正常に戻ったことを確認しました。'):
  previous=db.execute('SELECT * FROM application_watch_state WHERE key=?',(key,)).fetchone()
  if failed and (not previous or not previous['active']):
-  record('critical',key,'処理異常: '+message,notify=True,db=db)
+  record('warning' if key.startswith('application:watch:') else 'critical',key,'処理異常: '+message,notify=True,db=db)
  elif not failed and previous and previous['active']:
   record('ok','recovered:'+key,'復旧確認: '+recovery+'\n確認対象: '+key,notify=True,db=db)
  db.execute('INSERT OR REPLACE INTO application_watch_state VALUES(?,?,?,?)',(key,int(failed),now,message))
@@ -115,7 +115,8 @@ def press_check(db,run,record,now,probe_result=None):
  if data['pending']:
   db.execute('INSERT OR IGNORE INTO application_watch_cursor VALUES(?,?)',(pending_key,str(now)))
  else:db.execute('DELETE FROM application_watch_cursor WHERE key=?',(pending_key,))
- observe(db,'application:press:backlog',bool(data['pending'] and now-since>=180 and not data['missing']),'プレス通知の未配信記事が3分以上残っています。Discord配信とPDF変換処理を確認してください。',record,now)
+ if not data['missing'] or not data['pending']:
+  observe(db,'application:press:backlog',bool(data['pending'] and now-since>=180),'プレス通知の未配信記事が3分以上残っています。Discord配信とPDF変換処理を確認してください。',record,now)
  db.execute('INSERT OR REPLACE INTO application_watch_cursor VALUES(?,?)',(key,str(now)))
 
 def managed_backup_check(db,record,now,root=Path('/home/yoshi/services/tayunet-managed-db')):
@@ -180,4 +181,4 @@ def poll(directory,db_path,record,run,pm2_bin,pm2_names,docker_names,now=None):
   for row in db.execute("SELECT * FROM application_watch_state WHERE active=1 AND seen_at<? AND key IN ('application:press:runtime','application:press:network','application:press:server-error')",(now-QUIET_SECONDS,)).fetchall():
    record('info','quiet:'+row['key'],'プレス通知の新規実行エラーを直近10分間観測していません。配信権限・未配信記事は別に継続監視します。',notify=True,db=db)
    db.execute('UPDATE application_watch_state SET active=0 WHERE key=?',(row['key'],))
-  return {'sources':len(sources),'active':db.execute('SELECT count(*) FROM application_watch_state WHERE active=1').fetchone()[0],'checkedAt':stamp(now),'alerts':[{'code':row['key'],'severity':'critical','message':row['message']} for row in db.execute('SELECT key,message FROM application_watch_state WHERE active=1')]}
+  return {'sources':len(sources),'active':db.execute('SELECT count(*) FROM application_watch_state WHERE active=1').fetchone()[0],'checkedAt':stamp(now),'alerts':[{'code':row['key'],'severity':'warning' if row['key'].startswith('application:watch:') else 'critical','message':row['message']} for row in db.execute('SELECT key,message FROM application_watch_state WHERE active=1')]}
